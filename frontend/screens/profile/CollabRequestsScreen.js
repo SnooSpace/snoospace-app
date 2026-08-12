@@ -31,15 +31,16 @@ import {
 import CollabRequestCard, { CollabRequestCardSkeleton } from '../../components/cards/CollabRequestCard';
 import HapticsService from '../../services/HapticsService';
 import CustomAlertModal from '../../components/ui/CustomAlertModal';
+import EventBus from '../../utils/EventBus';
 
 // ─── Status filter chips ──────────────────────────────────────────────────────
 
 const STATUS_FILTERS = [
-  { value: undefined,    label: 'Pending' },
-  { value: 'accepted',   label: 'Accepted' },
-  { value: 'declined',   label: 'Declined' },
-  { value: 'withdrawn',  label: 'Withdrawn' },
-  { value: 'expired',    label: 'Expired' },
+  { value: 'pending',   label: 'Pending' },
+  { value: 'accepted',  label: 'Accepted' },
+  { value: 'declined',  label: 'Declined' },
+  { value: 'withdrawn', label: 'Withdrawn' },
+  { value: 'expired',   label: 'Expired' },
 ];
 
 // pending is default, but we send status=pending explicitly only when we want non-pending
@@ -73,12 +74,12 @@ function FilterChips({ selected, onChange }) {
         onMomentumScrollEnd={() => EventBus.emit('enable-tab-swipe')}
       >
         {STATUS_FILTERS.map(({ value, label }) => {
-          const isActive = selected === (value ?? 'pending');
+          const isActive = selected === value;
           return (
             <GHPressable
               key={label}
               style={[styles.filterChip, isActive && styles.filterChipActive]}
-              onPress={() => onChange(value ?? 'pending')}
+              onPress={() => onChange(value)}
               activeOpacity={0.75}
             >
               <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
@@ -210,27 +211,18 @@ export default function CollabRequestsScreen({ navigation }) {
     }
   }, [statusFilter]);
 
-  // Initial load
+  // Load active tab on filter or tab change
   useEffect(() => {
-    loadReceived({ status: statusFilter });
-    loadSent({ status: statusFilter });
-  }, []);
-
-  // Re-fetch when status filter changes (reset to page 1)
-  const prevFilter = useRef(statusFilter);
-  useEffect(() => {
-    if (prevFilter.current === statusFilter) return;
-    prevFilter.current = statusFilter;
-    if (activeTab === 'received') loadReceived({ page: 1, status: statusFilter });
-    else loadSent({ page: 1, status: statusFilter });
+    if (activeTab === 'received') {
+      loadReceived({ page: 1, status: statusFilter });
+    } else {
+      loadSent({ page: 1, status: statusFilter });
+    }
   }, [statusFilter, activeTab]);
 
-  // Re-fetch the inactive tab when switching to it (if not yet loaded for this filter)
   const handleTabSwitch = useCallback((tab) => {
     setActiveTab(tab);
-    if (tab === 'received' && receivedLoading) loadReceived({ status: statusFilter });
-    if (tab === 'sent'     && sentLoading)     loadSent({ status: statusFilter });
-  }, [receivedLoading, sentLoading, statusFilter]);
+  }, []);
 
   // Pull-to-refresh
   const handleRefresh = useCallback(async () => {

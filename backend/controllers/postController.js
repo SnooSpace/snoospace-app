@@ -701,7 +701,36 @@ const getFeed = async (req, res) => {
             WHERE ps.post_id = p.id AND ps.saver_id = $4 AND ps.saver_type = $5
           )
           ELSE false
-        END AS is_saved
+        END AS is_saved,
+        -- Phase 2e: is_backlog_post — true when the post was created before any
+        -- follow/circle relationship with its author existed (i.e. it is a
+        -- retroactive backlog post injected because of a recent follow).
+        -- Own posts are never backlog. Used by the frontend to apply per-author
+        -- pacing (max 2 backlog posts per author per session).
+        CASE
+          WHEN p.author_id = $1 AND p.author_type = $2 THEN false
+          ELSE NOT EXISTS (
+            SELECT 1 FROM follows f_bp
+            WHERE f_bp.follower_id = $1 AND f_bp.follower_type = $2
+              AND f_bp.following_id = p.author_id AND f_bp.following_type = p.author_type
+              AND f_bp.created_at <= p.created_at
+            UNION ALL
+            SELECT 1 FROM creator_follows cf_bp
+            WHERE cf_bp.follower_id = $1 AND cf_bp.follower_type = $2
+              AND cf_bp.creator_id = p.author_id
+              AND cf_bp.created_at <= p.created_at
+            UNION ALL
+            SELECT 1 FROM circles ci_bp
+            WHERE ((ci_bp.user_a_id = $1 AND ci_bp.user_b_id = p.author_id)
+                OR (ci_bp.user_b_id = $1 AND ci_bp.user_a_id = p.author_id))
+              AND ci_bp.created_at <= p.created_at
+            UNION ALL
+            SELECT 1 FROM community_member_circles cc_bp
+            WHERE ((cc_bp.community_id = $1 AND cc_bp.member_id = p.author_id)
+                OR (cc_bp.community_id = p.author_id AND cc_bp.member_id = $1))
+              AND cc_bp.created_at <= p.created_at
+          )
+        END AS is_backlog_post
       FROM posts p
       LEFT JOIN members m ON p.author_type = 'member' AND p.author_id = m.id
       LEFT JOIN communities c ON p.author_type = 'community' AND p.author_id = c.id
@@ -712,39 +741,49 @@ const getFeed = async (req, res) => {
         (p.author_id = $1 AND p.author_type = $2)
         
         -- Standard active follows (not superseded)
+        -- Phase 2e: only posts within the 7-day retroactive window (+ all post-follow posts)
         OR EXISTS (
           SELECT 1 FROM follows f
           WHERE f.follower_id = $1 AND f.follower_type = $2
             AND f.following_id = p.author_id AND f.following_type = p.author_type
             AND f.is_superseded_by_circle = false
+            AND p.created_at >= f.created_at - INTERVAL '7 days'
         )
         
         -- Creator follows (member/community follower -> creator member)
+        -- Phase 2e: 7-day backlog window
         OR (p.author_type = 'member' AND EXISTS (
           SELECT 1 FROM creator_follows cf
           WHERE cf.follower_id = $1 AND cf.follower_type = $2
             AND cf.creator_id = p.author_id
             AND cf.is_dormant = false
             AND cf.is_superseded_by_circle = false
+            AND p.created_at >= cf.created_at - INTERVAL '7 days'
         ))
         
         -- Mutual member-member circles
+        -- Phase 2e: 7-day backlog window
         OR ($2 = 'member' AND p.author_type = 'member' AND EXISTS (
           SELECT 1 FROM circles ci
-          WHERE (ci.user_a_id = $1 AND ci.user_b_id = p.author_id)
-             OR (ci.user_b_id = $1 AND ci.user_a_id = p.author_id)
+          WHERE ((ci.user_a_id = $1 AND ci.user_b_id = p.author_id)
+             OR (ci.user_b_id = $1 AND ci.user_a_id = p.author_id))
+            AND p.created_at >= ci.created_at - INTERVAL '7 days'
         ))
         
         -- Community-Member circles (viewer is community, author is member)
+        -- Phase 2e: 7-day backlog window
         OR ($2 = 'community' AND p.author_type = 'member' AND EXISTS (
           SELECT 1 FROM community_member_circles cc
           WHERE cc.community_id = $1 AND cc.member_id = p.author_id
+            AND p.created_at >= cc.created_at - INTERVAL '7 days'
         ))
         
         -- Community-Member circles (viewer is member, author is community)
+        -- Phase 2e: 7-day backlog window
         OR ($2 = 'member' AND p.author_type = 'community' AND EXISTS (
           SELECT 1 FROM community_member_circles cc
           WHERE cc.community_id = p.author_id AND cc.member_id = $1
+            AND p.created_at >= cc.created_at - INTERVAL '7 days'
         ))
       )
       -- 1. Always exclude legacy plan_promo / event_promo post types (they never render correctly)
@@ -771,6 +810,38 @@ const getFeed = async (req, res) => {
             AND pis.post_id = p.id
             AND pis.retired_at IS NOT NULL
             AND pis.retired_at > NOW() - INTERVAL '30 days'
+        )
+      )
+      -- 4. Exclude backlog posts the viewer has already engaged with (liked or commented).
+      --    A backlog post is one created before any follow/circle relationship with its
+      --    author existed. Post-follow posts (created after the relationship) are exempt.
+      --    Own posts are always exempt (first condition).
+      AND NOT (
+        (p.author_id != $1 OR p.author_type != $2)
+        AND (
+          EXISTS (SELECT 1 FROM post_likes pl WHERE pl.post_id = p.id AND pl.liker_id = $1 AND pl.liker_type = $2)
+          OR EXISTS (SELECT 1 FROM post_comments pc WHERE pc.post_id = p.id AND pc.commenter_id = $1 AND pc.commenter_type = $2)
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM follows f_e
+          WHERE f_e.follower_id = $1 AND f_e.follower_type = $2
+            AND f_e.following_id = p.author_id AND f_e.following_type = p.author_type
+            AND f_e.created_at <= p.created_at
+          UNION ALL
+          SELECT 1 FROM creator_follows cf_e
+          WHERE cf_e.follower_id = $1 AND cf_e.follower_type = $2
+            AND cf_e.creator_id = p.author_id
+            AND cf_e.created_at <= p.created_at
+          UNION ALL
+          SELECT 1 FROM circles ci_e
+          WHERE ((ci_e.user_a_id = $1 AND ci_e.user_b_id = p.author_id)
+              OR (ci_e.user_b_id = $1 AND ci_e.user_a_id = p.author_id))
+            AND ci_e.created_at <= p.created_at
+          UNION ALL
+          SELECT 1 FROM community_member_circles cc_e
+          WHERE ((cc_e.community_id = $1 AND cc_e.member_id = p.author_id)
+              OR (cc_e.community_id = p.author_id AND cc_e.member_id = $1))
+            AND cc_e.created_at <= p.created_at
         )
       )
       ${cursorCondition}

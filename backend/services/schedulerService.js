@@ -228,9 +228,10 @@ const init = (dbPool) => {
     }
   });
 
-  // ── Hourly: expire stale collab requests ────────────────────────────────
+  // ── Hourly: expire stale collab requests + board posts ──────────────────
   // Flips any collab_requests row where status = 'pending' and expires_at
-  // is in the past. Runs at minute 30 (offset from attendance jobs at :00).
+  // is in the past. Also flips open board_posts past their expires_at.
+  // Runs at minute 30 (offset from attendance jobs at :00).
   cron.schedule("30 * * * *", async () => {
     if (!pool) return;
     try {
@@ -245,6 +246,19 @@ const init = (dbPool) => {
       }
     } catch (err) {
       console.error("[Scheduler] collab_requests expiry error:", err.message);
+    }
+    try {
+      const result = await pool.query(`
+        UPDATE board_posts
+           SET status = 'expired'
+         WHERE status = 'open'
+           AND expires_at < NOW()
+      `);
+      if (result.rowCount > 0) {
+        console.log(`[Scheduler] Expired ${result.rowCount} stale board post(s)`);
+      }
+    } catch (err) {
+      console.error("[Scheduler] board_posts expiry error:", err.message);
     }
   });
 

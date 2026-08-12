@@ -208,6 +208,7 @@ async function getPlans(req, res) {
       FROM open_plans op
       WHERE op.status = 'active'
         AND op.expires_at > NOW()
+        AND op.scheduled_at > NOW()
         ${cursorClause}
         -- Block filter (both directions)
         AND op.created_by NOT IN (

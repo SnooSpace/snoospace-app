@@ -2118,7 +2118,7 @@ router.post(
   CollabRequestController.rateRequest,
 );
 
-// Generic reputation endpoint — works for community and member types.
+// Generic reputation endpoint - works for community and member types.
 // Example: GET /collab-entities/community/42/reputation
 router.get(
   '/collab-entities/:type/:id/reputation',
@@ -2126,5 +2126,33 @@ router.get(
   CollabRequestController.getReputation,
 );
 
-module.exports = router;
+// ============================================
+// BOARD POSTS
+// Public collab marketplace: entities post open spots; applicants join via
+// a collab_requests row (source='board'). Acceptance is handled by the
+// existing /collab-requests/:id/accept endpoint.
+// ============================================
+const BoardPostController = require('../controllers/boardPostController');
 
+// Optional-auth middleware: populates req.user when a valid Bearer token is
+// present, but does NOT reject unauthenticated requests — required by listPosts
+// so it can embed `has_joined` for logged-in callers while staying public.
+const optionalAuth = (req, _res, next) => {
+
+  const header = req.headers.authorization;
+  if (header && header.startsWith('Bearer ')) {
+    const fakeRes = { status: () => ({ json: () => {} }) };
+    authMiddleware(req, fakeRes, next);
+  } else {
+    next();
+  }
+};
+
+router.post('/board-posts',           authMiddleware, BoardPostController.createPost);
+router.get( '/board-posts',           optionalAuth,   BoardPostController.listPosts);
+// /mine is a static sub-path — must precede /:id wildcards or Express matches it as an id
+router.get( '/board-posts/mine',      authMiddleware, BoardPostController.myPosts);
+router.post('/board-posts/:id/join',  authMiddleware, BoardPostController.joinPost);
+router.post('/board-posts/:id/close', authMiddleware, BoardPostController.closePost);
+
+module.exports = router;

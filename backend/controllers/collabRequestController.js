@@ -18,6 +18,8 @@
 const { createPool } = require('../config/db');
 const notificationService = require('../services/notificationService');
 const pushService = require('../services/pushService');
+// bulkDeclineRemaining runs inside a PoolClient transaction (board posts fill/close logic)
+const { bulkDeclineRemaining } = require('./boardPostController');
 
 const pool = createPool();
 
@@ -311,6 +313,10 @@ async function acceptRequest(req, res) {
     const userId   = req.user.id;
     const userType = req.user.type;
     const { id } = req.params;
+    // Title of the board post for the note-less join seed message.
+    // Set inside the board-guard block (which already runs before the seed INSERT)
+    // so no second query is needed.
+    let boardPostTitle = null;
 
     await client.query('BEGIN');
 
@@ -348,7 +354,86 @@ async function acceptRequest(req, res) {
 
     // ── Seed the conversation with the pitch as the opening message ───────────
     // Sender's pitch_text becomes the first visible message in the thread.
-    const seedText = request.pitch_text;
+    // Fallback is deliberately narrow:
+    //   • source === 'board' AND pitch_text is null/empty → reference the post title
+    //     (boardPostTitle is populated by the board-guard block below)
+    //   • Any other null pitch_text is a bug (direct requests are validated at creation)
+    //     — throw rather than silently swallow it so the bug is visible.
+    let seedText;
+    if (request.pitch_text) {
+      seedText = request.pitch_text;
+    } else if (request.source === 'board') {
+      // boardPostTitle is set in the board-guard block that runs just after this.
+      // We resolve it there and back-patch seedText via a ref — but since JS
+      // executes synchronously inside the async function we instead place the
+      // seed INSERT *after* the board-guard block reads the title.
+      // ⬇ seedText will be finalized below after boardPostTitle is populated.
+      seedText = null; // placeholder; resolved after board-guard block runs
+    } else {
+      // source === 'direct' with null pitch_text should never happen if validation
+      // in createRequest is working; surface it explicitly rather than hiding it.
+      throw new Error(
+        `[acceptRequest] Invariant violation: pitch_text is null on a direct request (id=${request.id}). ` +
+        'This indicates a bug in createRequest validation.'
+      );
+    }
+    // ── Update the request row ────────────────────────────────────────────────
+    const updated = await client.query(
+      `UPDATE collab_requests
+       SET status = 'accepted',
+           responded_at = NOW(),
+           linked_chat_thread_id = $2
+       WHERE id = $1
+       RETURNING *`,
+      [id, convId],
+    );
+
+    // ── Board post fill logic (BEFORE COMMIT — same transaction) ─────────────
+    // Only runs for board-sourced join-requests. Direct requests skip this
+    // block entirely; no board SQL is executed.
+    // We also capture the post title here so the seed message can reference it
+    // for note-less joins — one RETURNING fetch, no extra query.
+    if (request.source === 'board' && request.board_post_id) {
+      // Atomically increment spots_filled and read back the updated counts + title.
+      const postUpdate = await client.query(
+        `UPDATE board_posts
+            SET spots_filled = spots_filled + 1
+          WHERE id = $1
+         RETURNING spots_filled, spots_total, title`,
+        [request.board_post_id],
+      );
+      const post = postUpdate.rows[0];
+      if (post) {
+        boardPostTitle = post.title;
+      }
+
+      // If all spots are now filled: flip the post status and bulk-decline
+      // every remaining pending join-request for this post — all inside the
+      // same transaction so accept + fill are atomic.
+      if (post && post.spots_filled >= post.spots_total) {
+        await client.query(
+          `UPDATE board_posts
+              SET status    = 'filled',
+                  closed_at = NOW()
+            WHERE id = $1`,
+          [request.board_post_id],
+        );
+        // bulkDeclineRemaining receives the transactional client so it
+        // participates in this BEGIN/COMMIT block, not a separate transaction.
+        // Explicitly pass request.id as defensive guard to exclude the current request.
+        await bulkDeclineRemaining(client, request.board_post_id, request.id);
+      }
+    }
+
+    // ── Seed the conversation with the pitch / join note ──────────────────────
+    // Finalise seedText now that boardPostTitle is available.
+    // For a board join with no note, reference the post title so the opener
+    // is meaningful rather than a generic placeholder.
+    if (seedText === null) {
+      // Must be source === 'board' with null pitch_text (only path that sets null above)
+      seedText = `Joined via: ${boardPostTitle || 'board post'}`;
+    }
+
     const seedMsg = await client.query(
       `INSERT INTO messages
          (conversation_id, sender_id, sender_type, message_text, message_type, metadata)
@@ -363,23 +448,13 @@ async function acceptRequest(req, res) {
           source: 'collab_request',
           request_id: request.id,
           collab_type: request.collab_type,
+          board_post_id: request.board_post_id ?? null,
         }),
       ],
     );
     await client.query(
       `UPDATE conversations SET last_message_at = $1 WHERE id = $2`,
       [seedMsg.rows[0].created_at, convId],
-    );
-
-    // ── Update the request row ────────────────────────────────────────────────
-    const updated = await client.query(
-      `UPDATE collab_requests
-       SET status = 'accepted',
-           responded_at = NOW(),
-           linked_chat_thread_id = $2
-       WHERE id = $1
-       RETURNING *`,
-      [id, convId],
     );
 
     await client.query('COMMIT');
@@ -549,7 +624,11 @@ async function withdrawRequest(req, res) {
  * Paginated inbox: requests where current entity is the receiver.
  * Each request embeds a `counterpart` object (the sender) with
  * reputation stats — eliminates N+1 /reputation calls on the list screen.
- * Query params: status?, page?, limit?
+ * Query params: status?, board_post_id?, page?, limit?
+ *
+ * When board_post_id is present, results are filtered to that board post's
+ * applicants only. The receiver_id/receiver_type scoping is still enforced
+ * first, so passing another poster's board_post_id yields an empty result.
  */
 async function getReceivedRequests(req, res) {
   try {
@@ -560,7 +639,7 @@ async function getReceivedRequests(req, res) {
       return res.status(403).json({ error: 'Only community and member accounts can access requests' });
     }
 
-    const { status } = req.query;
+    const { status, board_post_id } = req.query;
     const page  = Math.max(1, parseInt(req.query.page, 10) || 1);
     const limit = Math.min(parseInt(req.query.limit, 10) || PAGE_SIZE_DEFAULT, PAGE_SIZE_MAX);
     const offset = (page - 1) * limit;
@@ -570,11 +649,22 @@ async function getReceivedRequests(req, res) {
       return res.status(400).json({ error: `status must be one of: ${validStatuses.join(', ')}` });
     }
 
+    // Validate board_post_id if provided
+    const boardPostId = board_post_id ? parseInt(board_post_id, 10) : null;
+    if (board_post_id && (isNaN(boardPostId) || boardPostId < 1)) {
+      return res.status(400).json({ error: 'board_post_id must be a positive integer' });
+    }
+
     const params = [userId, userType];
     let statusClause = '';
     if (status) {
       params.push(status);
       statusClause = `AND r.status = $${params.length}`;
+    }
+    let boardPostClause = '';
+    if (boardPostId) {
+      params.push(boardPostId);
+      boardPostClause = `AND r.board_post_id = $${params.length}`;
     }
     params.push(limit, offset);
 
@@ -620,6 +710,7 @@ async function getReceivedRequests(req, res) {
        LEFT JOIN members     m_s ON r.sender_type = 'member'    AND r.sender_id = m_s.id
        WHERE r.receiver_id = $1 AND r.receiver_type = $2
          ${statusClause}
+         ${boardPostClause}
        ORDER BY r.created_at DESC
        LIMIT $${params.length - 1} OFFSET $${params.length}`,
       params,
@@ -631,11 +722,17 @@ async function getReceivedRequests(req, res) {
       countParams.push(status);
       countStatusClause = `AND status = $${countParams.length}`;
     }
+    let countBoardPostClause = '';
+    if (boardPostId) {
+      countParams.push(boardPostId);
+      countBoardPostClause = `AND board_post_id = $${countParams.length}`;
+    }
     const countResult = await pool.query(
       `SELECT COUNT(*) AS total
        FROM collab_requests
        WHERE receiver_id = $1 AND receiver_type = $2
-         ${countStatusClause}`,
+         ${countStatusClause}
+         ${countBoardPostClause}`,
       countParams,
     );
     const total = parseInt(countResult.rows[0].total, 10);

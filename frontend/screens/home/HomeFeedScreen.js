@@ -765,9 +765,21 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     const FIRST_EVENT_AT = 2;
     const SUBSEQUENT_INTERVAL = 5;
     const OPPORTUNITY_INTERVAL = 3;
+    // Phase 2e pacing: at most 2 retroactive (pre-follow) posts per author per session.
+    // Resets on every full feed load (useMemo recomputes when `posts` reference changes).
+    const BACKLOG_CAP = 2;
+    const backlogAuthorCount = {};
 
     if (posts.length > 0) {
       posts.forEach((post, index) => {
+        // Skip excess backlog posts from the same author
+        if (post.is_backlog_post) {
+          const authorKey = `${post.author_type}-${post.author_id}`;
+          const seen = backlogAuthorCount[authorKey] || 0;
+          if (seen >= BACKLOG_CAP) return;
+          backlogAuthorCount[authorKey] = seen + 1;
+        }
+
         merged.push({ ...post, itemType: "post" });
 
         const postNumber = index + 1;
