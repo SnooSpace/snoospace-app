@@ -72,6 +72,30 @@ async function followCreator(req, res) {
       [followerId, followerType, creatorId]
     );
 
+    // Phase 2d: Clear any retired/struck post_impression_state rows for this
+    // creator so posts hard-retired (two unseen strikes) before this
+    // follow or refollow reappear in the home feed on the next load.
+    // author_type is always 'member' — creator_follows only targets creator-mode members.
+    // Scoped tightly to (viewer, creator) — no other users or authors affected.
+    // Non-fatal: same rationale as followController follow() reset.
+    try {
+      await pool.query(
+        `UPDATE post_impression_state
+         SET retired_at = NULL, unseen_count = 0
+         WHERE user_id = $1 AND user_type = $2
+           AND post_id IN (
+             SELECT id FROM posts
+             WHERE author_id = $3 AND author_type = 'member'
+           )`,
+        [followerId, followerType, creatorId]
+      );
+    } catch (resetErr) {
+      console.error(
+        '[creatorFollowController] Phase 2d: impression reset failed (non-fatal):',
+        resetErr.message
+      );
+    }
+
     // Fetch updated follower count
     const countResult = await pool.query(
       `SELECT creator_follower_count FROM members WHERE id = $1`,

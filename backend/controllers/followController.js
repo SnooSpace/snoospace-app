@@ -65,7 +65,31 @@ const follow = async (req, res) => {
       [followerId, followerType, followingId, followingType]
     );
 
-    // Create follow notification for the recipient (the one being followed)
+    // Phase 2d: Clear any retired/struck post_impression_state rows for this
+    // author so posts that were hard-retired (two unseen strikes) before this
+    // follow or refollow reappear in the home feed on the next load.
+    // Scoped tightly to (viewer, author) — no other users or authors affected.
+    // Non-fatal: a failed reset just means some old posts stay hidden a bit
+    // longer; it is not a data-integrity risk.
+    try {
+      await pool.query(
+        `UPDATE post_impression_state
+         SET retired_at = NULL, unseen_count = 0
+         WHERE user_id = $1 AND user_type = $2
+           AND post_id IN (
+             SELECT id FROM posts
+             WHERE author_id = $3 AND author_type = $4
+           )`,
+        [followerId, followerType, followingId, followingType]
+      );
+    } catch (resetErr) {
+      console.error(
+        '[followController] Phase 2d: impression reset failed (non-fatal):',
+        resetErr.message
+      );
+    }
+
+
     try {
       // Try to fetch minimal actor profile for payload (best-effort)
       let actorName = null;
