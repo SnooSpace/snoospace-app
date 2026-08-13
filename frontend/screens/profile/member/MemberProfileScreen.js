@@ -1298,21 +1298,42 @@ export default function MemberProfileScreen({ navigation }) {
 
 
   // Navigation listener to detect when returning from EditProfile with changes
+  // Also syncs creator_mode_enabled from AsyncStorage on every focus, as a
+  // reliable backstop for the EventBus path (which is the primary channel but
+  // can be missed in edge cases involving navigation animation timing).
   useEffect(() => {
-    const unsubscribe = navigation.addListener("focus", () => {
-      // Check route params for refresh flag from EditProfile
+    const CREATOR_MODE_CACHE_KEY = "creator_mode_enabled";
+
+    const unsubscribe = navigation.addListener("focus", async () => {
+      // 1. Full reload if EditProfile flagged it
       const params = route.params;
       if (params?.refreshProfile === true) {
         if (loadProfileRef.current) {
           loadProfileRef.current();
         }
-        // Clear the param to avoid reloading again
         navigation.setParams({ refreshProfile: undefined });
+        return; // loadProfile will refresh everything including creator mode
+      }
+
+      // 2. Lightweight creator-mode sync from AsyncStorage (written by SettingsScreen
+      //    on every toggle). Avoids a full API round-trip just to reflect the toggle.
+      try {
+        const cached = await AsyncStorage.getItem(CREATOR_MODE_CACHE_KEY);
+        if (cached !== null) {
+          const asStoredBool = cached === "true";
+          setProfile((prev) => {
+            if (!prev || prev.is_creator_mode_enabled === asStoredBool) return prev;
+            return { ...prev, is_creator_mode_enabled: asStoredBool };
+          });
+        }
+      } catch (_) {
+        // AsyncStorage read failure is non-critical — EventBus is still the primary path
       }
     });
 
     return unsubscribe;
   }, [navigation, route.params]);
+
 
   const handleEditProfile = () => {
     HapticsService.triggerEditProfile();
@@ -2102,7 +2123,9 @@ export default function MemberProfileScreen({ navigation }) {
                 const displayPosts = posts.filter((p) => {
                   if (p?.post_type === "plan_promo" || p?.post_type === "event_promo") return false;
                   if (p?.type_data?.promo_source_type) return false;
-                  if (!profile?.is_creator_mode_enabled) return true;
+                  // Interactive post types (poll, prompt, qna, challenge, opportunity) live in the
+                  // Community tab when creator mode is ON and are hidden entirely when it is OFF.
+                  // Never include them in the Posts grid regardless of creator mode state.
                   const postType = p.post_type || p.type;
                   const isInteractive = [
                     "poll",
@@ -2677,7 +2700,7 @@ export default function MemberProfileScreen({ navigation }) {
           posts={posts.filter((p) => {
             if (p?.post_type === "plan_promo" || p?.post_type === "event_promo") return false;
             if (p?.type_data?.promo_source_type) return false;
-            if (!profile?.is_creator_mode_enabled) return true;
+            // Same rule as the Posts grid: always exclude interactive post types.
             const postType = p.post_type || p.type;
             const isInteractive = [
               "poll",

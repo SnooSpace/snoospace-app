@@ -1407,12 +1407,12 @@ const getFollowedOpportunities = async (req, res) => {
         -- (o.status='active' is not reliably updated on expiry — adding explicit guard)
         AND (o.expires_at IS NULL OR o.expires_at > NOW())
         AND o.closed_at IS NULL
-        -- Phase 2b: exclude opportunities retired by two-strike unseen rule (30-day cooldown)
+        -- Phase 2b: exclude opportunities retired by two-strike unseen rule (15-day cooldown)
         AND NOT EXISTS (
           SELECT 1 FROM opportunity_impression_state ois
           WHERE ois.user_id = $1 AND ois.user_type = $2 AND ois.opportunity_id = o.id
             AND ois.retired_at IS NOT NULL
-            AND ois.retired_at > NOW() - INTERVAL '30 days'
+            AND ois.retired_at > NOW() - INTERVAL '15 days'
         )
       ORDER BY o.created_at DESC
       LIMIT $3

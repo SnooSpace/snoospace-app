@@ -112,14 +112,17 @@ async function submitViewsBatch(req, res) {
           }
         }
 
-        // Reset unseen impression state on EVERY qualified dwell (≥2s), whether this
-        // is the user's first-ever qualification or a repeat dwell on an already-qualified
-        // post. This must run outside the savepoint block so a 23505 duplicate error
-        // on unique_view_events does NOT prevent the strike count from being cleared.
+        // Phase 2a/Rerank Step 1: Reset impression state on EVERY qualified dwell (≥2s).
+        // Clears strike count, retirement, AND rank penalty columns — fully clean slate.
+        // Runs outside the savepoint block so a 23505 duplicate on unique_view_events
+        // does NOT prevent the reset from executing.
         try {
           await client.query(
             `UPDATE post_impression_state
-             SET unseen_count = 0, retired_at = NULL
+             SET unseen_count = 0,
+                 retired_at = NULL,
+                 rank_penalty_tier = NULL,
+                 rank_penalty_until = NULL
              WHERE user_id = $1 AND user_type = $2 AND post_id = $3`,
             [userId, userType, postId],
           );
@@ -458,9 +461,14 @@ async function submitUnseenImpression(req, res) {
     }
 
     for (const id of validIds) {
+      // Re-ranking Step 1 — Phase 2a strike logic extended:
+      //   Strike 1 (unseen_count 0→1): set rank_penalty_tier='light', rank_penalty_until=NOW()+5d
+      //   Strike 2 (unseen_count 1→2): set retired_at (15-day cooldown), clear penalty cols
+      //   Same-session impression: no change (deduplicated by last_session_id)
       await pool.query(
-        `INSERT INTO post_impression_state (user_id, user_type, post_id, unseen_count, last_session_id)
-         VALUES ($1, $2, $3, 1, $4)
+        `INSERT INTO post_impression_state (user_id, user_type, post_id, unseen_count, last_session_id,
+                                            rank_penalty_tier, rank_penalty_until)
+         VALUES ($1, $2, $3, 1, $4, 'light', NOW() + INTERVAL '5 days')
          ON CONFLICT (user_id, user_type, post_id)
          DO UPDATE SET
            unseen_count = CASE
@@ -469,16 +477,34 @@ async function submitUnseenImpression(req, res) {
              ELSE post_impression_state.unseen_count
            END,
            last_session_id = EXCLUDED.last_session_id,
+           -- Strike 2: retire (15-day cooldown); clear penalty (retired posts don't need a tier)
            retired_at = CASE
              WHEN post_impression_state.last_session_id IS DISTINCT FROM EXCLUDED.last_session_id
                AND post_impression_state.unseen_count + 1 >= 2
              THEN COALESCE(post_impression_state.retired_at, NOW())
              ELSE post_impression_state.retired_at
+           END,
+           -- Strike 1: set light penalty; Strike 2: clear penalty (retired handles it)
+           rank_penalty_tier = CASE
+             WHEN post_impression_state.last_session_id IS DISTINCT FROM EXCLUDED.last_session_id
+               AND post_impression_state.unseen_count + 1 >= 2
+             THEN NULL
+             WHEN post_impression_state.last_session_id IS DISTINCT FROM EXCLUDED.last_session_id
+             THEN 'light'
+             ELSE post_impression_state.rank_penalty_tier
+           END,
+           rank_penalty_until = CASE
+             WHEN post_impression_state.last_session_id IS DISTINCT FROM EXCLUDED.last_session_id
+               AND post_impression_state.unseen_count + 1 >= 2
+             THEN NULL
+             WHEN post_impression_state.last_session_id IS DISTINCT FROM EXCLUDED.last_session_id
+             THEN NOW() + INTERVAL '5 days'
+             ELSE post_impression_state.rank_penalty_until
            END
          WHERE post_impression_state.last_session_id IS DISTINCT FROM EXCLUDED.last_session_id`,
         [userId, userType, id, sessionId]
       );
-      console.log(`[UNSEEN] Backend upserted unseen impression: post ${id} for user ${userId} (session: ${sessionId}) — strike ${2} triggers retirement if unseen_count was already 1`);
+      console.log(`[UNSEEN] Upserted unseen impression: post ${id} for user ${userId} (session: ${sessionId}) — strike 2 triggers 15-day retirement if unseen_count was already 1`);
     }
 
     return res.json({ success: true, processed: validIds.length });

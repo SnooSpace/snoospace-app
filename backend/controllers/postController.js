@@ -800,7 +800,7 @@ const getFeed = async (req, res) => {
         )
       )
       -- 3. Exclude posts the viewer has retired (two-strike unseen rule)
-      --    Own posts are always shown. Retired posts reappear after 30 days.
+      --    Own posts are always shown. Retired posts reappear after 15 days.
       AND NOT (
         (p.author_id != $1 OR p.author_type != $2)
         AND EXISTS (
@@ -809,7 +809,7 @@ const getFeed = async (req, res) => {
             AND pis.user_type = $2
             AND pis.post_id = p.id
             AND pis.retired_at IS NOT NULL
-            AND pis.retired_at > NOW() - INTERVAL '30 days'
+            AND pis.retired_at > NOW() - INTERVAL '15 days'
         )
       )
       -- 4. Exclude backlog posts the viewer has already engaged with (liked or commented).
@@ -1679,14 +1679,47 @@ const likePost = async (req, res) => {
       ).catch(() => {});
     }
 
-    // Like counts as engagement — reset unseen impression state (clears strikes + retirement)
-    // Fire-and-forget: do not let this block or fail the like response
-    pool.query(
-      `UPDATE post_impression_state
-       SET unseen_count = 0, retired_at = NULL
-       WHERE user_id = $1 AND user_type = $2 AND post_id = $3`,
-      [userId, userType, postId],
-    ).catch((e) => console.error("[likePost] post_impression_state reset failed:", e));
+    // Re-ranking Step 1: Like impression state handling — branches on timed vs untimed.
+    // Untimed (expires_at IS NULL or past): immediately retire (remove from feed).
+    // Timed (expires_at in future): do NOT retire; set heavy penalty until content's own deadline.
+    // Fire-and-forget: do not block or fail the like response.
+    (() => {
+      pool.query(
+        `SELECT expires_at FROM posts WHERE id = $1`,
+        [postId]
+      ).then(({ rows }) => {
+        const expiresAt = rows[0]?.expires_at;
+        const isTimed = expiresAt && new Date(expiresAt) > new Date();
+        if (isTimed) {
+          // Timed content: heavy penalty until content expires; preserve retire state
+          return pool.query(
+            `INSERT INTO post_impression_state
+               (user_id, user_type, post_id, unseen_count, rank_penalty_tier, rank_penalty_until)
+             VALUES ($1, $2, $3, 0, 'heavy', $4)
+             ON CONFLICT (user_id, user_type, post_id)
+             DO UPDATE SET
+               unseen_count       = 0,
+               rank_penalty_tier  = 'heavy',
+               rank_penalty_until = $4`,
+            [userId, userType, postId, expiresAt]
+          );
+        } else {
+          // Untimed content: immediate retirement, clear any existing penalty
+          return pool.query(
+            `INSERT INTO post_impression_state
+               (user_id, user_type, post_id, unseen_count, retired_at, rank_penalty_tier, rank_penalty_until)
+             VALUES ($1, $2, $3, 0, NOW(), NULL, NULL)
+             ON CONFLICT (user_id, user_type, post_id)
+             DO UPDATE SET
+               unseen_count       = 0,
+               retired_at         = COALESCE(post_impression_state.retired_at, NOW()),
+               rank_penalty_tier  = NULL,
+               rank_penalty_until = NULL`,
+            [userId, userType, postId]
+          );
+        }
+      }).catch((e) => console.error('[likePost] post_impression_state update failed:', e));
+    })();
 
     res.json({ success: true, message: "Post liked" });
   } catch (error) {

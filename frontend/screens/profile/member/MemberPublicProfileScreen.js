@@ -84,6 +84,8 @@ import ShareModal from "../../../components/modals/ShareModal";
 import CommunityVoiceBox, { VoicePostCard } from "../../../components/feed/CommunityVoiceBox";
 import EmptyCommunityState from "../../../components/skeletons/EmptyCommunityState";
 import OpportunityFeedCard from "../../../components/cards/OpportunityFeedCard";
+import CollabRequestSheet from "../../../components/modals/CollabRequestSheet";
+import Toast from "../../../components/ui/Toast";
 
 const MemberPublicPostGridCell = React.memo(({ item, index, itemSize, gap, onPress }) => {
   const scale = useSharedValue(1);
@@ -331,6 +333,10 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
   const eventsFetchedRef = useRef(false);
   const [shareModalVisible, setShareModalVisible] = useState(false);
   const [sharingPlan, setSharingPlan] = useState(null);
+
+  // Collab request sheet
+  const [collabSheetVisible, setCollabSheetVisible] = useState(false);
+  const [collabToast, setCollabToast] = useState(null); // { title, message }
 
   // Community Posts tab state (Creator Mode)
   const [voicePosts, setVoicePosts] = useState([]);
@@ -2056,6 +2062,27 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
             </View>
           </View>
 
+          {/* ── Send Collab Request CTA ──────────────────────────────────────
+               Only shown on creator-mode profiles that are NOT the viewer's own.
+               Label flips based on whether a DM thread already exists.
+          ── */}
+          {circleStatus !== 'self' && profile?.is_creator_mode_enabled && (
+            <TouchableOpacity
+              activeOpacity={0.82}
+              style={collabCtaStyles.btn}
+              onPress={() => {
+                HapticsService.triggerImpactLight();
+                setCollabSheetVisible(true);
+              }}
+            >
+              <Sparkles size={15} color="#7C3AED" strokeWidth={2.2} style={{ marginRight: 7 }} />
+              <Text style={collabCtaStyles.btnText}>
+                {preResolvedConversationId ? 'Propose a Collab' : 'Send Collab Request'}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+
           {groupsCount > 0 && (
             <View style={[styles.sectionCard, { marginHorizontal: 20, marginBottom: 12 }]}>
               <TouchableOpacity
@@ -2780,6 +2807,28 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
 
       <CustomAlertModal onClose={hideAlert} {...alertConfig} />
 
+      <CollabRequestSheet
+        visible={collabSheetVisible}
+        onClose={() => setCollabSheetVisible(false)}
+        receiverId={memberId}
+        receiverType="member"
+        receiverName={profile?.full_name || profile?.name}
+        hasExistingConversation={!!preResolvedConversationId}
+        onSuccess={() => {
+          setCollabToast({ title: 'Request sent!', message: `Your collab request has been sent to ${profile?.full_name || profile?.name || 'them'}.` });
+          setTimeout(() => setCollabToast(null), 3500);
+        }}
+      />
+
+      {collabToast && (
+        <Toast
+          title={collabToast.title}
+          message={collabToast.message}
+          type="success"
+          onDismiss={() => setCollabToast(null)}
+        />
+      )}
+
       <SwipeableModal
         visible={sharedCommSheetOpen}
         onClose={() => setSharedCommSheetOpen(false)}
@@ -3466,6 +3515,29 @@ const blockBannerStyles = StyleSheet.create({
     fontFamily: 'Manrope-SemiBold',
     fontSize: 13,
     color: '#FFFFFF',
+  },
+});
+
+// ── Collab CTA button (below the Follow / Message row) ───────────────────────
+const collabCtaStyles = StyleSheet.create({
+  btn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 20,
+    marginBottom: 10,
+    paddingVertical: 11,
+    paddingHorizontal: 18,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: 'rgba(124, 58, 237, 0.3)',
+    backgroundColor: 'rgba(124, 58, 237, 0.07)',
+  },
+  btnText: {
+    fontFamily: 'Manrope-SemiBold',
+    fontSize: 14,
+    color: '#7C3AED',
+    letterSpacing: -0.1,
   },
 });
 

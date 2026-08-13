@@ -37,12 +37,14 @@ const createComment = async (req, res) => {
     }
 
     // Check if post exists
-    const postCheck = await pool.query("SELECT id FROM posts WHERE id = $1", [
-      postId,
-    ]);
+    const postCheck = await pool.query(
+      "SELECT id, author_id, author_type FROM posts WHERE id = $1",
+      [postId]
+    );
     if (postCheck.rows.length === 0) {
       return res.status(404).json({ error: "Post not found" });
     }
+    const postAuthor = postCheck.rows[0];
 
     const query = `
       INSERT INTO post_comments (post_id, commenter_id, commenter_type, comment_text, tagged_entities)
@@ -72,14 +74,38 @@ const createComment = async (req, res) => {
       [postId]
     );
 
-    // Comment counts as engagement — reset unseen impression state (clears strikes + retirement)
-    // Fire-and-forget: do not let this block or fail the comment response
-    pool.query(
-      `UPDATE post_impression_state
-       SET unseen_count = 0, retired_at = NULL
-       WHERE user_id = $1 AND user_type = $2 AND post_id = $3`,
-      [userId, userType, postId]
-    ).catch((e) => console.error("[createComment] post_impression_state reset failed:", e));
+    // Re-ranking Step 1: Comment — apply light penalty and increment strike counter.
+    // Comments count toward the 2-strike retirement budget (same as an unseen scroll-past)
+    // but they do NOT clear retirement on their own. If this pushes unseen_count to 2,
+    // the retirement path applies (15-day cooldown, penalty cleared).
+    // Skip for own-post comments (author should never have their own posts penalized).
+    // Fire-and-forget: do not block or fail the comment response.
+    const isOwnPost = postAuthor.author_id === userId && postAuthor.author_type === userType;
+    if (!isOwnPost) {
+      pool.query(
+        `INSERT INTO post_impression_state
+           (user_id, user_type, post_id, unseen_count, rank_penalty_tier, rank_penalty_until)
+         VALUES ($1, $2, $3, 1, 'light', NOW() + INTERVAL '5 days')
+         ON CONFLICT (user_id, user_type, post_id)
+         DO UPDATE SET
+           unseen_count       = LEAST(post_impression_state.unseen_count + 1, 2),
+           -- Strike 2 via comment: retire (15-day cooldown), clear penalty tier
+           retired_at = CASE
+             WHEN post_impression_state.unseen_count + 1 >= 2
+             THEN COALESCE(post_impression_state.retired_at, NOW())
+             ELSE post_impression_state.retired_at
+           END,
+           rank_penalty_tier = CASE
+             WHEN post_impression_state.unseen_count + 1 >= 2 THEN NULL
+             ELSE 'light'
+           END,
+           rank_penalty_until = CASE
+             WHEN post_impression_state.unseen_count + 1 >= 2 THEN NULL
+             ELSE NOW() + INTERVAL '5 days'
+           END`,
+        [userId, userType, postId]
+      ).catch((e) => console.error('[createComment] post_impression_state update failed:', e));
+    }
 
     // Create notification for post author (skip if user comments on their own post)
     try {
@@ -340,14 +366,35 @@ const replyToComment = async (req, res) => {
       [postId]
     );
 
-    // Comment counts as engagement — reset unseen impression state (clears strikes + retirement)
-    // Fire-and-forget: do not let this block or fail the comment response
-    pool.query(
-      `UPDATE post_impression_state
-       SET unseen_count = 0, retired_at = NULL
-       WHERE user_id = $1 AND user_type = $2 AND post_id = $3`,
-      [userId, userType, postId]
-    ).catch((e) => console.error("[replyToComment] post_impression_state reset failed:", e));
+    // Re-ranking Step 1: Reply — same light-penalty + strike logic as createComment.
+    // Replies (top-level comments on a post) count toward the 2-strike retirement budget.
+    // Own-post replies left untouched.
+    // Fire-and-forget.
+    // Own-post check skipped: getFeed retirement exclusion already protects own posts.
+    {
+      pool.query(
+        `INSERT INTO post_impression_state
+           (user_id, user_type, post_id, unseen_count, rank_penalty_tier, rank_penalty_until)
+         VALUES ($1, $2, $3, 1, 'light', NOW() + INTERVAL '5 days')
+         ON CONFLICT (user_id, user_type, post_id)
+         DO UPDATE SET
+           unseen_count       = LEAST(post_impression_state.unseen_count + 1, 2),
+           retired_at = CASE
+             WHEN post_impression_state.unseen_count + 1 >= 2
+             THEN COALESCE(post_impression_state.retired_at, NOW())
+             ELSE post_impression_state.retired_at
+           END,
+           rank_penalty_tier = CASE
+             WHEN post_impression_state.unseen_count + 1 >= 2 THEN NULL
+             ELSE 'light'
+           END,
+           rank_penalty_until = CASE
+             WHEN post_impression_state.unseen_count + 1 >= 2 THEN NULL
+             ELSE NOW() + INTERVAL '5 days'
+           END`,
+        [userId, userType, postId]
+      ).catch((e) => console.error('[replyToComment] post_impression_state update failed:', e));
+    }
 
     // Create notification for post author (skip if user comments on their own post)
     try {

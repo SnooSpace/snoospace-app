@@ -53,6 +53,7 @@ import {
   UserMinus,
   TriangleAlert,
   CircleCheck,
+  Sparkles,
 } from "lucide-react-native";
 import CustomAlertModal from "../../../components/ui/CustomAlertModal";
 import DynamicStatusBar from "../../../components/navigation/DynamicStatusBar";
@@ -107,6 +108,8 @@ import SkeletonProfileHeader from "../../../components/skeletons/SkeletonProfile
 import SkeletonPostGrid from "../../../components/skeletons/SkeletonPostGrid";
 import EditorialPostCard from "../../../components/cards/EditorialPostCard";
 import OpportunityFeedCard from "../../../components/cards/OpportunityFeedCard";
+import CollabRequestSheet from "../../../components/modals/CollabRequestSheet";
+import Toast from "../../../components/ui/Toast";
 import ProfilePostFeed from "../../../components/profile/ProfilePostFeed";
 import EmptyPostsState from "../../../components/skeletons/EmptyPostsState";
 import EmptyCommunityState from "../../../components/skeletons/EmptyCommunityState";
@@ -976,6 +979,10 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
   const [selectedHeadForContact, setSelectedHeadForContact] = useState(null);
   const [groupsCount, setGroupsCount] = useState(0);
   const [groupsBottomSheetVisible, setGroupsBottomSheetVisible] = useState(false);
+
+  // Collab request sheet
+  const [collabSheetVisible, setCollabSheetVisible] = useState(false);
+  const [collabToast, setCollabToast] = useState(null); // { title, message }
 
   const postsCount = profile?.posts_count ?? profile?.post_count ?? 0;
   const followersCount =
@@ -2243,6 +2250,27 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
             </View>
           )}
 
+          {/* ── Send Collab Request CTA ──────────────────────────────────────
+               Shown when viewing any community profile that is NOT the viewer's own.
+               Communities are always eligible receivers, so no creator-mode check needed.
+               Label flips based on whether a DM thread already exists.
+          ── */}
+          {!(currentUserRole === 'community' && String(profile?.id) === String(currentUserId)) && (
+            <TouchableOpacity
+              activeOpacity={0.82}
+              style={commCollabCtaStyles.btn}
+              onPress={() => {
+                HapticsService.triggerImpactLight();
+                setCollabSheetVisible(true);
+              }}
+            >
+              <Sparkles size={15} color="#7C3AED" strokeWidth={2.2} style={{ marginRight: 7 }} />
+              <Text style={commCollabCtaStyles.btnText}>
+                {preResolvedConversationId ? 'Propose a Collab' : 'Send Collab Request'}
+              </Text>
+            </TouchableOpacity>
+          )}
+
           {/* Circle invite banner: shown when member has a pending circle invite from this community */}
           {memberCommCircleStatus === 'pending_invite' && (
             <View style={styles.topRequestContainer}>
@@ -3140,6 +3168,28 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
         </Pressable>
       </Modal>
 
+      <CollabRequestSheet
+        visible={collabSheetVisible}
+        onClose={() => setCollabSheetVisible(false)}
+        receiverId={communityId}
+        receiverType="community"
+        receiverName={profile?.name}
+        hasExistingConversation={!!preResolvedConversationId}
+        onSuccess={() => {
+          setCollabToast({ title: 'Request sent!', message: `Your collab request has been sent to ${profile?.name || 'them'}.` });
+          setTimeout(() => setCollabToast(null), 3500);
+        }}
+      />
+
+      {collabToast && (
+        <Toast
+          title={collabToast.title}
+          message={collabToast.message}
+          type="success"
+          onDismiss={() => setCollabToast(null)}
+        />
+      )}
+
       <CustomAlertModal onClose={hideAlert} {...alertConfig} />
       </View>
     </GestureHandlerRootView>
@@ -3237,5 +3287,27 @@ const circleCTAStyles = StyleSheet.create({
     fontFamily: 'Manrope-SemiBold',
     fontSize: 15,
     color: '#2962FF',
+  },
+});
+
+// ── Collab CTA button (below the Follow / Message row) ────────────────────
+const commCollabCtaStyles = StyleSheet.create({
+  btn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    paddingVertical: 11,
+    paddingHorizontal: 18,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: 'rgba(124, 58, 237, 0.3)',
+    backgroundColor: 'rgba(124, 58, 237, 0.07)',
+  },
+  btnText: {
+    fontFamily: 'Manrope-SemiBold',
+    fontSize: 14,
+    color: '#7C3AED',
+    letterSpacing: -0.1,
   },
 });

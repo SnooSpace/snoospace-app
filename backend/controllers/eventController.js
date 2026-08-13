@@ -1451,12 +1451,12 @@ const discoverEvents = async (req, res) => {
             OR e.access_type IS NULL 
             OR (e.access_type = 'invite_only' AND e.invite_public_visibility = true)
           )
-          -- Phase 2b: exclude events retired by two-strike unseen rule (30-day cooldown)
+          -- Phase 2b: exclude events retired by two-strike unseen rule (15-day cooldown)
           AND NOT EXISTS (
             SELECT 1 FROM event_impression_state eis
             WHERE eis.user_id = $1 AND eis.user_type = $2 AND eis.event_id = e.id
               AND eis.retired_at IS NOT NULL
-              AND eis.retired_at > NOW() - INTERVAL '30 days'
+              AND eis.retired_at > NOW() - INTERVAL '15 days'
           )
         ORDER BY score DESC, e.start_datetime ASC
         LIMIT $3 OFFSET $4
