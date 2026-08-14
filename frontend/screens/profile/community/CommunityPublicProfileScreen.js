@@ -109,6 +109,7 @@ import SkeletonPostGrid from "../../../components/skeletons/SkeletonPostGrid";
 import EditorialPostCard from "../../../components/cards/EditorialPostCard";
 import OpportunityFeedCard from "../../../components/cards/OpportunityFeedCard";
 import CollabRequestSheet from "../../../components/modals/CollabRequestSheet";
+import { createCollabRequest } from "../../../api/collabRequests";
 import Toast from "../../../components/ui/Toast";
 import ProfilePostFeed from "../../../components/profile/ProfilePostFeed";
 import EmptyPostsState from "../../../components/skeletons/EmptyPostsState";
@@ -3175,6 +3176,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
         receiverType="community"
         receiverName={profile?.name}
         hasExistingConversation={!!preResolvedConversationId}
+        onSubmit={createCollabRequest}
         onSuccess={() => {
           setCollabToast({ title: 'Request sent!', message: `Your collab request has been sent to ${profile?.name || 'them'}.` });
           setTimeout(() => setCollabToast(null), 3500);

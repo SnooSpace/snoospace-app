@@ -21,16 +21,17 @@
  *     onSuccess={(request) => { ... }}
  *   />
  */
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Dimensions,
+  Keyboard,
 } from 'react-native';
 import { Handshake, TriangleAlert } from 'lucide-react-native';
 import SwipeableModal from './SwipeableModal';
@@ -65,18 +66,42 @@ export default function CollabRequestSheet({
   onSuccess,
 }) {
   const [selectedType, setSelectedType] = useState(null);
+  const [customType, setCustomType] = useState('');
   const [pitchText, setPitchText] = useState('');
   const [loading, setLoading] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [alertConfig, setAlertConfig] = useState({ visible: false });
   const inputRef = useRef(null);
+  const scrollRef = useRef(null);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardHeight(e.endCoordinates.height);
+      }
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardHeight(0);
+      }
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const charsLeft = maxLength - pitchText.length;
   const pitchOk = pitchRequired ? pitchText.trim().length > 0 : true;
   const typeOk = showTypeChips ? !!selectedType : true;
-  const canSend = typeOk && pitchOk && !loading;
+  const customTypeOk = (showTypeChips && selectedType === 'custom') ? customType.trim().length > 0 : true;
+  const canSend = typeOk && customTypeOk && pitchOk && !loading;
 
   const resetState = useCallback(() => {
     setSelectedType(null);
+    setCustomType('');
     setPitchText('');
     setLoading(false);
   }, []);
@@ -99,12 +124,17 @@ export default function CollabRequestSheet({
     HapticsService.triggerMessageSend();
     setLoading(true);
     try {
+      const finalPitch = (selectedType === 'custom' && customType.trim())
+        ? (pitchText.trim() ? `[${customType.trim()}] ${pitchText.trim()}` : `[${customType.trim()}]`)
+        : (pitchText.trim() || null);
+
       const payload = {
         receiver_id: receiverId,
         receiver_type: receiverType,
         collab_type: selectedType,
-        pitch_text: pitchText.trim() || null,
-        note: pitchText.trim() || null,
+        custom_type: selectedType === 'custom' ? customType.trim() : null,
+        pitch_text: finalPitch,
+        note: finalPitch,
       };
 
       const submitFn = onSubmit || createCollabRequest;
@@ -126,7 +156,7 @@ export default function CollabRequestSheet({
     } finally {
       setLoading(false);
     }
-  }, [canSend, receiverId, receiverType, selectedType, pitchText, onSubmit, resetState, onClose, onSuccess, showAlert, hideAlert]);
+  }, [canSend, receiverId, receiverType, selectedType, customType, pitchText, onSubmit, resetState, onClose, onSuccess, showAlert, hideAlert]);
 
   const headerContent = (
     <View style={styles.handle}>
@@ -146,35 +176,34 @@ export default function CollabRequestSheet({
       <SwipeableModal
         visible={visible}
         onClose={handleClose}
-        avoidKeyboard
         header={headerContent}
         sheetStyle={styles.sheet}
         springConfig={{ damping: 24, stiffness: 200, mass: 1 }}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={0}
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 30 : (Platform.OS === 'ios' ? 34 : 24) },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          <ScrollView
-            contentContainerStyle={styles.scrollContent}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={styles.titleRow}>
-              <View style={styles.iconCircle}>
-                <Handshake size={20} color={TEAL} strokeWidth={2.2} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.title} numberOfLines={1}>
-                  {sheetTitle}
-                </Text>
-                {receiverName ? (
-                  <Text style={styles.subtitle} numberOfLines={1}>
-                    to <Text style={styles.subtitleName}>{receiverName}</Text>
-                  </Text>
-                ) : null}
-              </View>
+          <View style={styles.titleRow}>
+            <View style={styles.iconCircle}>
+              <Handshake size={20} color={TEAL} strokeWidth={2.2} />
             </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.title} numberOfLines={1}>
+                {sheetTitle}
+              </Text>
+              {receiverName ? (
+                <Text style={styles.subtitle} numberOfLines={1}>
+                  to <Text style={styles.subtitleName}>{receiverName}</Text>
+                </Text>
+              ) : null}
+            </View>
+          </View>
 
             {showTypeChips && (
               <>
@@ -199,6 +228,34 @@ export default function CollabRequestSheet({
                     );
                   })}
                 </View>
+
+                {selectedType === 'custom' && (
+                  <View style={styles.customTypeSection}>
+                    <Text style={styles.sectionLabel}>Specify Custom Collab</Text>
+                    <View style={styles.customInputWrapper}>
+                      <TextInput
+                        style={styles.customInput}
+                        placeholder="e.g. Podcast Guest, Photo Swap, Workshop…"
+                        placeholderTextColor={COLORS.textMuted}
+                        maxLength={50}
+                        value={customType}
+                        onChangeText={setCustomType}
+                        onFocus={() => {
+                          setTimeout(() => {
+                            scrollRef.current?.scrollTo({ y: 120, animated: true });
+                          }, 100);
+                        }}
+                        returnKeyType="next"
+                      />
+                      <Text style={[
+                        styles.charCountSmall,
+                        50 - customType.length <= 10 && { color: '#E53935' },
+                      ]}>
+                        {50 - customType.length}
+                      </Text>
+                    </View>
+                  </View>
+                )}
               </>
             )}
 
@@ -215,6 +272,11 @@ export default function CollabRequestSheet({
                 maxLength={maxLength}
                 value={pitchText}
                 onChangeText={setPitchText}
+                onFocus={() => {
+                  setTimeout(() => {
+                    scrollRef.current?.scrollToEnd({ animated: true });
+                  }, 120);
+                }}
                 returnKeyType="default"
                 textAlignVertical="top"
               />
@@ -250,7 +312,6 @@ export default function CollabRequestSheet({
               </Text>
             )}
           </ScrollView>
-        </KeyboardAvoidingView>
       </SwipeableModal>
 
       <CustomAlertModal
@@ -267,11 +328,14 @@ export default function CollabRequestSheet({
   );
 }
 
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+
 const styles = StyleSheet.create({
   sheet: {
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
+    maxHeight: SCREEN_HEIGHT * 0.90,
     ...SHADOWS.large,
     paddingBottom: Platform.OS === 'ios' ? 34 : 24,
   },
@@ -354,6 +418,32 @@ const styles = StyleSheet.create({
   },
   chipTextActive: {
     color: TEAL,
+  },
+  customTypeSection: {
+    marginBottom: 20,
+  },
+  customInputWrapper: {
+    borderWidth: 1.5,
+    borderColor: TEAL,
+    borderRadius: BORDER_RADIUS.l,
+    backgroundColor: TEAL_BG,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  customInput: {
+    flex: 1,
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+    color: COLORS.textPrimary,
+    paddingVertical: 2,
+  },
+  charCountSmall: {
+    fontFamily: FONTS.medium,
+    fontSize: 11,
+    color: COLORS.textMuted,
+    marginLeft: 8,
   },
   inputWrapper: {
     borderWidth: 1.5,

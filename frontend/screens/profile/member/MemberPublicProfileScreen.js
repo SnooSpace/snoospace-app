@@ -13,7 +13,7 @@ import SwipeableModal from "../../../components/modals/SwipeableModal";
 import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
 import { Pressable as GHPressable, GestureHandlerRootView } from "react-native-gesture-handler";
 import { Image as ExpoImage } from "expo-image";
-import { ArrowLeft, Play, Pin, BadgeCheck, Ticket, Users, MoreVertical, UserX, TriangleAlert, CircleCheck, ShieldOff, CalendarDays, UserPlus, UserCheck, UserMinus, Clock, Music, ChevronRight, Handshake } from "lucide-react-native";
+import { ArrowLeft, Play, Pin, BadgeCheck, Ticket, Users, MoreVertical, UserX, TriangleAlert, CircleCheck, ShieldOff, CalendarDays, UserPlus, UserCheck, UserMinus, Clock, Music, ChevronRight, Handshake, Sparkles } from "lucide-react-native";
 import CustomAlertModal from "../../../components/ui/CustomAlertModal";
 import {
   getPublicMemberProfile,
@@ -85,6 +85,7 @@ import CommunityVoiceBox, { VoicePostCard } from "../../../components/feed/Commu
 import EmptyCommunityState from "../../../components/skeletons/EmptyCommunityState";
 import OpportunityFeedCard from "../../../components/cards/OpportunityFeedCard";
 import CollabRequestSheet from "../../../components/modals/CollabRequestSheet";
+import { createCollabRequest } from "../../../api/collabRequests";
 import Toast from "../../../components/ui/Toast";
 
 const MemberPublicPostGridCell = React.memo(({ item, index, itemSize, gap, onPress }) => {
@@ -1461,7 +1462,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                   </View>
                   {profile?.is_creator_mode_enabled && (
                     <View style={styles.creatorBadge}>
-                      <Handshake size={12} color="#0D9488" strokeWidth={2.5} style={{ marginRight: 4 }} />
+                      <Sparkles size={12} color="#7B1FA2" strokeWidth={2.5} style={{ marginRight: 4 }} />
                       <Text style={styles.creatorBadgeText}>Creator</Text>
                     </View>
                   )}
@@ -2814,6 +2815,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
         receiverType="member"
         receiverName={profile?.full_name || profile?.name}
         hasExistingConversation={!!preResolvedConversationId}
+        onSubmit={createCollabRequest}
         onSuccess={() => {
           setCollabToast({ title: 'Request sent!', message: `Your collab request has been sent to ${profile?.full_name || profile?.name || 'them'}.` });
           setTimeout(() => setCollabToast(null), 3500);
@@ -3109,12 +3111,12 @@ const styles = StyleSheet.create({
   creatorBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#E6FAF8",
+    backgroundColor: "#F3E5F5",
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 12,
     borderWidth: 0.5,
-    borderColor: "rgba(13, 148, 136, 0.2)",
+    borderColor: "rgba(123, 31, 162, 0.2)",
     alignSelf: "center",
     marginTop: 6,
     marginBottom: 2,
@@ -3122,7 +3124,7 @@ const styles = StyleSheet.create({
   creatorBadgeText: {
     fontFamily: FONTS.semiBold,
     fontSize: 11,
-    color: "#0D9488",
+    color: "#7B1FA2",
   },
   nameAndPronounsContainer: {
     alignItems: "center",

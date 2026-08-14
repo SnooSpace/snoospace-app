@@ -1,6 +1,10 @@
 const { Pool } = require("pg");
 
+let sharedPool = null;
+
 function createPool() {
+  if (sharedPool) return sharedPool;
+
   const pool = new Pool({
     user: process.env.DB_USER,
     host: process.env.DB_HOST,
@@ -10,6 +14,9 @@ function createPool() {
     ssl: process.env.DB_SSL === 'true'
       ? { rejectUnauthorized: false }
       : false,
+    max: 20,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
   });
 
   // Handle unexpected errors on idle clients to prevent Node process from crashing
@@ -17,6 +24,14 @@ function createPool() {
     console.error("⚠️ Unexpected error on idle database client:", err.message || err);
   });
 
+  // Handle socket drops on individual checked-out clients so Node process never crashes
+  pool.on("connect", (client) => {
+    client.on("error", (err) => {
+      console.warn("⚠️ Database client socket error:", err.message || err);
+    });
+  });
+
+  sharedPool = pool;
   return pool;
 }
 

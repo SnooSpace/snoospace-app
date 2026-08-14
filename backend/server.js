@@ -7,7 +7,14 @@ const schedulerService = require("./services/schedulerService");
 const { verifyRazorpaySignature, handleRazorpayWebhook } = require("./routes/webhooks");
 const notificationService = require("./services/notificationService");
 
-// Nodemon reload complete
+// Process-level error handling for unexpected socket drops / async errors
+process.on("unhandledRejection", (reason) => {
+  console.error("⚠️ Unhandled Rejection:", reason?.message || reason);
+});
+process.on("uncaughtException", (error) => {
+  console.error("⚠️ Uncaught Exception:", error?.message || error);
+});
+
 const app = express();
 app.use(cors());
 

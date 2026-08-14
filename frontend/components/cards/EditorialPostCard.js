@@ -1437,7 +1437,7 @@ const DefaultEditorialPostCard = ({
           source={post.video_url || firstMediaUrl}
           onClose={() => setFullscreenVisible(false)}
           post={post}
-          onLike={handleLike}
+          onLike={toggleLike}
           onComment={handleCommentPress}
           onShare={handleShare}
           onSave={handleSave}

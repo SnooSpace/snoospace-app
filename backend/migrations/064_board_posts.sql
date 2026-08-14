@@ -112,7 +112,7 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 -- D4. Unique partial index: one pending/accepted join-request per requester per post
 CREATE UNIQUE INDEX IF NOT EXISTS uq_board_join_per_requester
   ON collab_requests (board_post_id, sender_id, sender_type)
-  WHERE board_post_id IS NOT NULL;
+  WHERE board_post_id IS NOT NULL AND status IN ('pending', 'accepted');
 
 -- D5. Non-unique index for bulk-decline query on close/fill
 CREATE INDEX IF NOT EXISTS idx_collab_requests_board_post

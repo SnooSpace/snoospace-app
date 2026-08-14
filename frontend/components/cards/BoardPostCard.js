@@ -213,8 +213,11 @@ const BoardPostCard = React.memo(({
     : '';
 
   const spotsLeft = Math.max(0, spots_total - spots_filled);
-  const isOneSpotLeft = spotsLeft === 1;
   const isFilled = spots_filled >= spots_total || status === 'filled';
+  const isClosed = status === 'closed';
+  const isExpired = status === 'expired';
+  const isOpen = status === 'open' && !isFilled;
+  const isOneSpotLeft = spotsLeft === 1 && isOpen;
 
   const descText = description || '';
   const isLongDesc = descText.length > 130;
@@ -270,19 +273,33 @@ const BoardPostCard = React.memo(({
           style={[
             styles.spotsBadge,
             isOneSpotLeft && styles.spotsBadgeWarning,
-            isFilled && styles.spotsBadgeFilled,
+            (isFilled || isClosed || isExpired) && styles.spotsBadgeFilled,
           ]}
         >
-          <Users size={12} color={isOneSpotLeft ? '#D97706' : isFilled ? '#6B7280' : TEAL} strokeWidth={2} />
+          <Users
+            size={12}
+            color={
+              isOneSpotLeft
+                ? '#D97706'
+                : isFilled || isClosed || isExpired
+                ? '#6B7280'
+                : TEAL
+            }
+            strokeWidth={2}
+          />
           <Text
             style={[
               styles.spotsBadgeText,
               isOneSpotLeft && styles.spotsBadgeTextWarning,
-              isFilled && styles.spotsBadgeTextFilled,
+              (isFilled || isClosed || isExpired) && styles.spotsBadgeTextFilled,
             ]}
           >
             {isFilled
               ? 'Filled'
+              : isClosed
+              ? 'Closed'
+              : isExpired
+              ? 'Expired'
               : isOneSpotLeft
               ? '1 spot left'
               : `${spots_filled}/${spots_total} filled`}
@@ -322,11 +339,19 @@ const BoardPostCard = React.memo(({
             <Users size={15} color={TEAL} strokeWidth={2.2} />
             <Text style={styles.manageBtnText}>Manage Applicants</Text>
           </TouchableOpacity>
-        ) : joined_status ? (
+        ) : joined_status && joined_status !== 'withdrawn' ? (
           <JoinedStatusBadge status={joined_status} />
         ) : isFilled ? (
           <View style={[styles.statusBadge, { backgroundColor: '#F3F4F6' }]}>
             <Text style={[styles.statusBadgeText, { color: '#6B7280' }]}>Opening Filled</Text>
+          </View>
+        ) : isClosed ? (
+          <View style={[styles.statusBadge, { backgroundColor: '#F3F4F6' }]}>
+            <Text style={[styles.statusBadgeText, { color: '#6B7280' }]}>Opening Closed</Text>
+          </View>
+        ) : isExpired ? (
+          <View style={[styles.statusBadge, { backgroundColor: '#F3F4F6' }]}>
+            <Text style={[styles.statusBadgeText, { color: '#6B7280' }]}>Opening Expired</Text>
           </View>
         ) : (
           <TouchableOpacity

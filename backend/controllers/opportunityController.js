@@ -99,6 +99,11 @@ const ensureOpportunityColumns = async () => {
         UNIQUE(opportunity_id, viewer_id, viewer_type)
       )
     `);
+    await pool.query(`
+      ALTER TABLE opportunity_impression_state
+        ADD COLUMN IF NOT EXISTS rank_penalty_tier VARCHAR(10) DEFAULT NULL,
+        ADD COLUMN IF NOT EXISTS rank_penalty_until TIMESTAMPTZ DEFAULT NULL
+    `);
   } catch (e) {
     console.warn("[opportunityController] ensureOpportunityColumns warning:", e.message);
   }
@@ -324,7 +329,12 @@ const getOpportunities = async (req, res) => {
     const params = [userId, userType];
 
     if (status) {
-      statusFilter = "AND o.status = $3";
+      if (status === "active") {
+        statusFilter =
+          "AND o.status = $3 AND (o.expires_at IS NULL OR o.expires_at > NOW()) AND o.closed_at IS NULL";
+      } else {
+        statusFilter = "AND o.status = $3";
+      }
       params.push(status);
     }
 
@@ -776,7 +786,12 @@ const discoverOpportunities = async (req, res) => {
   try {
     const { role, payment_type, work_mode, limit = 20, offset = 0 } = req.query;
 
-    let filters = [`o.status = 'active'`, `o.visibility = 'public'`];
+    let filters = [
+      `o.status = 'active'`,
+      `o.visibility = 'public'`,
+      `(o.expires_at IS NULL OR o.expires_at > NOW())`,
+      `o.closed_at IS NULL`,
+    ];
     const params = [];
     let paramIndex = 1;
 
@@ -1395,10 +1410,25 @@ const getFollowedOpportunities = async (req, res) => {
           WHERE cc.community_id = o.creator_id::integer AND cc.member_id = $1
         ) AS is_in_circle,
         false AS is_circle_requested,
-        false AS author_is_creator
+        false AS author_is_creator,
+        CASE
+          WHEN ois_rank.rank_penalty_tier = 'heavy'
+           AND ois_rank.rank_penalty_until IS NOT NULL
+           AND NOW() < ois_rank.rank_penalty_until
+          THEN o.created_at - INTERVAL '10 days'
+          WHEN ois_rank.rank_penalty_tier = 'light'
+           AND ois_rank.rank_penalty_until IS NOT NULL
+           AND NOW() < ois_rank.rank_penalty_until
+          THEN o.created_at - INTERVAL '3 days'
+          ELSE o.created_at
+        END AS effective_sort_time
       FROM opportunities o
       JOIN follows f ON f.following_id = o.creator_id::integer AND f.following_type = 'community'
       JOIN communities c ON o.creator_id::integer = c.id
+      LEFT JOIN opportunity_impression_state ois_rank
+        ON ois_rank.user_id = $1
+       AND ois_rank.user_type = $2
+       AND ois_rank.opportunity_id = o.id
       WHERE o.status = 'active'
         AND o.creator_type = 'community'
         AND f.follower_id = $1
@@ -1414,7 +1444,7 @@ const getFollowedOpportunities = async (req, res) => {
             AND ois.retired_at IS NOT NULL
             AND ois.retired_at > NOW() - INTERVAL '15 days'
         )
-      ORDER BY o.created_at DESC
+      ORDER BY effective_sort_time DESC, o.created_at DESC, o.id DESC
       LIMIT $3
     `;
 
@@ -1850,12 +1880,44 @@ const likeOpportunity = async (req, res) => {
 
     res.json({ success: true, like_count: updated.rows[0]?.like_count || 0 });
 
-    // Reset unseen impression state on like (fire-and-forget, after response sent)
-    pool.query(
-      `UPDATE opportunity_impression_state SET unseen_count = 0, retired_at = NULL
-       WHERE user_id = $1 AND user_type = $2 AND opportunity_id = $3`,
-      [userId, userType, id]
-    ).catch(e => console.error("[likeOpportunity] impression reset error:", e.message));
+    // Re-ranking Step 1 / Opportunity extension: Branch on expires_at (timed vs untimed)
+    // Timed (expires_at in future): heavy penalty until deadline; preserve retired_at state
+    // Untimed (expires_at IS NULL or past): immediate retirement (COALESCE to preserve existing retired_at)
+    (() => {
+      pool.query(
+        `SELECT expires_at FROM opportunities WHERE id = $1`,
+        [id]
+      ).then(({ rows }) => {
+        const expiresAt = rows[0]?.expires_at;
+        const isTimed = expiresAt && new Date(expiresAt) > new Date();
+        if (isTimed) {
+          return pool.query(
+            `INSERT INTO opportunity_impression_state
+               (user_id, user_type, opportunity_id, unseen_count, rank_penalty_tier, rank_penalty_until)
+             VALUES ($1, $2, $3, 0, 'heavy', $4)
+             ON CONFLICT (user_id, user_type, opportunity_id)
+             DO UPDATE SET
+               unseen_count       = 0,
+               rank_penalty_tier  = 'heavy',
+               rank_penalty_until = $4`,
+            [userId, userType, id, expiresAt]
+          );
+        } else {
+          return pool.query(
+            `INSERT INTO opportunity_impression_state
+               (user_id, user_type, opportunity_id, unseen_count, retired_at, rank_penalty_tier, rank_penalty_until)
+             VALUES ($1, $2, $3, 0, NOW(), NULL, NULL)
+             ON CONFLICT (user_id, user_type, opportunity_id)
+             DO UPDATE SET
+               unseen_count       = 0,
+               retired_at         = COALESCE(opportunity_impression_state.retired_at, NOW()),
+               rank_penalty_tier  = NULL,
+               rank_penalty_until = NULL`,
+            [userId, userType, id]
+          );
+        }
+      }).catch((e) => console.error("[likeOpportunity] impression update error:", e.message));
+    })();
   } catch (e) {
     console.error('Error liking opportunity:', e);
     res.status(500).json({ error: 'Internal server error' });
@@ -2065,7 +2127,7 @@ const viewOpportunity = async (req, res) => {
     // runs whether this is a first-ever view or a repeat.
     pool.query(
       `UPDATE opportunity_impression_state
-       SET unseen_count = 0, retired_at = NULL
+       SET unseen_count = 0, retired_at = NULL, rank_penalty_tier = NULL, rank_penalty_until = NULL
        WHERE user_id = $1 AND user_type = $2 AND opportunity_id = $3`,
       [userId, userType, id]
     ).catch(e => console.error("[viewOpportunity] impression reset error:", e.message));

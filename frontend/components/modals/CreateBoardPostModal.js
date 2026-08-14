@@ -10,16 +10,17 @@
  *   - Spots total stepper (numeric, ≥1, default 1)
  *   - Submit button -> POST /board-posts
  */
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Dimensions,
+  Keyboard,
 } from 'react-native';
 import { Plus, Minus, Sparkles, TriangleAlert, Handshake } from 'lucide-react-native';
 import SwipeableModal from './SwipeableModal';
@@ -45,17 +46,41 @@ export default function CreateBoardPostModal({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [selectedType, setSelectedType] = useState(null);
+  const [customType, setCustomType] = useState('');
   const [spotsTotal, setSpotsTotal] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [alertConfig, setAlertConfig] = useState({ visible: false });
+  const scrollRef = useRef(null);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardHeight(e.endCoordinates.height);
+      }
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardHeight(0);
+      }
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const titleCharsLeft = TITLE_MAX_LEN - title.length;
   const descCharsLeft  = DESC_MAX_LEN - description.length;
 
+  const customTypeOk = selectedType === 'custom' ? customType.trim().length > 0 : true;
   const canSubmit =
     title.trim().length > 0 &&
     description.trim().length > 0 &&
     !!selectedType &&
+    customTypeOk &&
     spotsTotal >= 1 &&
     !loading;
 
@@ -63,6 +88,7 @@ export default function CreateBoardPostModal({
     setTitle('');
     setDescription('');
     setSelectedType(null);
+    setCustomType('');
     setSpotsTotal(1);
     setLoading(false);
   }, []);
@@ -95,9 +121,13 @@ export default function CreateBoardPostModal({
     HapticsService.triggerImpactMedium();
     setLoading(true);
     try {
+      const finalDesc = (selectedType === 'custom' && customType.trim())
+        ? `[${customType.trim()}] ${description.trim()}`
+        : description.trim();
+
       const res = await createBoardPost({
         title: title.trim(),
-        description: description.trim(),
+        description: finalDesc,
         collab_type: selectedType,
         spots_total: spotsTotal,
       });
@@ -118,7 +148,7 @@ export default function CreateBoardPostModal({
     } finally {
       setLoading(false);
     }
-  }, [canSubmit, title, description, selectedType, spotsTotal, resetState, onClose, onSuccess, showAlert, hideAlert]);
+  }, [canSubmit, title, description, selectedType, customType, spotsTotal, resetState, onClose, onSuccess, showAlert, hideAlert]);
 
   const headerContent = (
     <View style={styles.handle}>
@@ -131,30 +161,29 @@ export default function CreateBoardPostModal({
       <SwipeableModal
         visible={visible}
         onClose={handleClose}
-        avoidKeyboard
         header={headerContent}
         sheetStyle={styles.sheet}
         springConfig={{ damping: 24, stiffness: 200, mass: 1 }}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={0}
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 30 : (Platform.OS === 'ios' ? 34 : 24) },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          <ScrollView
-            contentContainerStyle={styles.scrollContent}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            {/* ── Title row ── */}
-            <View style={styles.titleRow}>
-              <View style={styles.iconCircle}>
-                <Handshake size={20} color={TEAL} strokeWidth={2.2} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.sheetTitle}>Post an Opening</Text>
-                <Text style={styles.subtitle}>Open collab spots on the public Board</Text>
-              </View>
+          {/* ── Title row ── */}
+          <View style={styles.titleRow}>
+            <View style={styles.iconCircle}>
+              <Handshake size={20} color={TEAL} strokeWidth={2.2} />
             </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.sheetTitle}>Post an Opening</Text>
+              <Text style={styles.subtitle}>Open collab spots on the public Board</Text>
+            </View>
+          </View>
 
             {/* ── Opening title input ── */}
             <Text style={styles.sectionLabel}>Opening Title</Text>
@@ -196,6 +225,34 @@ export default function CreateBoardPostModal({
               })}
             </View>
 
+            {selectedType === 'custom' && (
+              <View style={styles.customTypeSection}>
+                <Text style={styles.sectionLabel}>Specify Custom Collab</Text>
+                <View style={styles.customInputWrapper}>
+                  <TextInput
+                    style={styles.customInput}
+                    placeholder="e.g. Podcast Guest, Photo Swap, Workshop…"
+                    placeholderTextColor={COLORS.textMuted}
+                    maxLength={50}
+                    value={customType}
+                    onChangeText={setCustomType}
+                    onFocus={() => {
+                      setTimeout(() => {
+                        scrollRef.current?.scrollTo({ y: 140, animated: true });
+                      }, 100);
+                    }}
+                    returnKeyType="next"
+                  />
+                  <Text style={[
+                    styles.charCountSmall,
+                    50 - customType.length <= 10 && { color: '#E53935' },
+                  ]}>
+                    {50 - customType.length}
+                  </Text>
+                </View>
+              </View>
+            )}
+
             {/* ── Spots total stepper ── */}
             <View style={styles.spotsRow}>
               <View style={{ flex: 1 }}>
@@ -233,6 +290,11 @@ export default function CreateBoardPostModal({
                 maxLength={DESC_MAX_LEN}
                 value={description}
                 onChangeText={setDescription}
+                onFocus={() => {
+                  setTimeout(() => {
+                    scrollRef.current?.scrollToEnd({ animated: true });
+                  }, 120);
+                }}
                 textAlignVertical="top"
               />
               <Text style={[styles.charCount, descCharsLeft <= 30 && { color: descCharsLeft <= 10 ? '#E53935' : '#FF9500' }]}>
@@ -257,7 +319,6 @@ export default function CreateBoardPostModal({
               )}
             </TouchableOpacity>
           </ScrollView>
-        </KeyboardAvoidingView>
       </SwipeableModal>
 
       {/* Error alert */}
@@ -275,11 +336,14 @@ export default function CreateBoardPostModal({
   );
 }
 
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+
 const styles = StyleSheet.create({
   sheet: {
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
+    maxHeight: SCREEN_HEIGHT * 0.90,
     ...SHADOWS.large,
     paddingBottom: Platform.OS === 'ios' ? 34 : 24,
   },
@@ -387,6 +451,32 @@ const styles = StyleSheet.create({
   },
   chipTextActive: {
     color: TEAL,
+  },
+  customTypeSection: {
+    marginBottom: 16,
+  },
+  customInputWrapper: {
+    borderWidth: 1.5,
+    borderColor: TEAL,
+    borderRadius: BORDER_RADIUS.l,
+    backgroundColor: TEAL_BG,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  customInput: {
+    flex: 1,
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+    color: COLORS.textPrimary,
+    paddingVertical: 2,
+  },
+  charCountSmall: {
+    fontFamily: FONTS.medium,
+    fontSize: 11,
+    color: COLORS.textMuted,
+    marginLeft: 8,
   },
   spotsRow: {
     flexDirection: 'row',

@@ -40,6 +40,7 @@ import {
   Settings,
   Bookmark,
   ChevronDown,
+  ChevronRight,
   Play,
   AlertCircle,
   Image as LucideImage,
@@ -52,6 +53,9 @@ import {
   Music,
   Sparkles,
 } from "lucide-react-native";
+import Svg, { Circle } from "react-native-svg";
+import { LinearGradient } from "expo-linear-gradient";
+import { getReceivedCollabRequests } from "../../../api/collabRequests";
 import {
   getHostedPlans,
   getAttendingPlans,
@@ -530,6 +534,22 @@ export default function MemberProfileScreen({ navigation }) {
   const [renderedPostsLimit, setRenderedPostsLimit] = useState(12);
   const [renderedEventsLimit, setRenderedEventsLimit] = useState(3);
   const [renderedCommunityLimit, setRenderedCommunityLimit] = useState(6);
+  const [collabPendingCount, setCollabPendingCount] = useState(0);
+
+  // Refresh Collabs pending count when profile screen gains focus (Creator only)
+  useFocusEffect(
+    useCallback(() => {
+      if (!profile?.is_creator_mode_enabled) return;
+      getReceivedCollabRequests({ status: "pending", page: 1, limit: 1 })
+        .then((res) => {
+          const total = res?.pagination?.total || 0;
+          setCollabPendingCount(total);
+        })
+        .catch((err) =>
+          console.warn("[MemberProfile] collabPendingCount error:", err?.message),
+        );
+    }, [profile?.is_creator_mode_enabled]),
+  );
 
   const setProfile = useCallback((updater) => {
     if (typeof updater === "function") {
@@ -2042,6 +2062,64 @@ export default function MemberProfileScreen({ navigation }) {
                   strokeWidth={2}
                   style={{ transform: [{ rotate: "-90deg" }] }}
                 />
+              </TouchableOpacity>
+            )}
+
+            {/* Collabs row — visible when viewing own profile and Creator Mode is ON */}
+            {isOwnProfile && profile.is_creator_mode_enabled && (
+              <TouchableOpacity
+                onPress={() => {
+                  HapticsService.triggerImpactLight();
+                  navigation.navigate("CollabRequests", {
+                    callerType: "member",
+                    callerId: profile.id,
+                  });
+                }}
+                activeOpacity={0.85}
+                style={styles.collabsCardContainer}
+              >
+                <LinearGradient
+                  colors={["#F0FDFA", "#ECFEFF"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.collabsCard}
+                >
+                  {/* Icon chip (44x44, border-radius 13px) */}
+                  <LinearGradient
+                    colors={["#2DD4BF", "#0D9488"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.collabsIconChip}
+                  >
+                    <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
+                      <Circle cx={9} cy={12} r={7} fill="#FFFFFF" fillOpacity={0.55} />
+                      <Circle cx={15} cy={12} r={7} fill="#FFFFFF" fillOpacity={0.55} />
+                    </Svg>
+                  </LinearGradient>
+
+                  {/* Title & Subtitle */}
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.collabsTitle}>Collabs</Text>
+                    <Text style={styles.collabsSubtitle}>
+                      Requests, invites & open collab posts
+                    </Text>
+                  </View>
+
+                  {/* Chevron */}
+                  <ChevronRight size={18} color="#9FCFC7" strokeWidth={2.2} />
+
+                  {/* Badge — pending count, top-left overlap on the card's top edge */}
+                  {collabPendingCount > 0 && (
+                    <LinearGradient
+                      colors={["#FB923C", "#F97316"]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.collabsBadge}
+                    >
+                      <Text style={styles.collabsBadgeText}>{collabPendingCount}</Text>
+                    </LinearGradient>
+                  )}
+                </LinearGradient>
               </TouchableOpacity>
             )}
           </View>
@@ -3879,5 +3957,77 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.regular,
     fontSize: 14,
     color: COLORS.textSecondary,
+  },
+
+  // ── Collabs row styling (Matches approved mockup) ──
+  collabsCardContainer: {
+    marginTop: 12,
+    borderRadius: 20,
+    position: "relative",
+  },
+  collabsCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(13,148,136,0.14)",
+    shadowColor: "#0D9488",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 2,
+    position: "relative",
+  },
+  collabsIconChip: {
+    width: 44,
+    height: 44,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#0D9488",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.38,
+    shadowRadius: 14,
+    elevation: 4,
+  },
+  collabsTitle: {
+    fontFamily: FONTS.bold || FONTS.semiBold,
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0F766E",
+  },
+  collabsSubtitle: {
+    fontFamily: FONTS.regular,
+    fontSize: 13,
+    color: "#5B9A93",
+    marginTop: 2,
+  },
+  collabsBadge: {
+    position: "absolute",
+    top: -6,
+    left: -6,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    paddingHorizontal: 5,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 3,
+    borderColor: "#F0FDFA",
+    shadowColor: "#F97316",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.45,
+    shadowRadius: 8,
+    elevation: 5,
+    zIndex: 10,
+  },
+  collabsBadgeText: {
+    fontFamily: FONTS.bold || FONTS.semiBold,
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    textAlign: "center",
   },
 });

@@ -586,8 +586,9 @@ async function submitUnseenOpportunityImpression(req, res) {
     }
 
     await pool.query(
-      `INSERT INTO opportunity_impression_state (user_id, user_type, opportunity_id, unseen_count, last_session_id)
-       VALUES ($1, $2, $3, 1, $4)
+      `INSERT INTO opportunity_impression_state (user_id, user_type, opportunity_id, unseen_count, last_session_id,
+                                                 rank_penalty_tier, rank_penalty_until)
+       VALUES ($1, $2, $3, 1, $4, 'light', NOW() + INTERVAL '5 days')
        ON CONFLICT (user_id, user_type, opportunity_id)
        DO UPDATE SET
          unseen_count = CASE
@@ -596,11 +597,29 @@ async function submitUnseenOpportunityImpression(req, res) {
            ELSE opportunity_impression_state.unseen_count
          END,
          last_session_id = EXCLUDED.last_session_id,
+         -- Strike 2: retire (15-day cooldown); clear penalty (retired opportunities don't need a tier)
          retired_at = CASE
            WHEN opportunity_impression_state.last_session_id IS DISTINCT FROM EXCLUDED.last_session_id
              AND opportunity_impression_state.unseen_count + 1 >= 2
            THEN COALESCE(opportunity_impression_state.retired_at, NOW())
            ELSE opportunity_impression_state.retired_at
+         END,
+         -- Strike 1: set light penalty; Strike 2: clear penalty (retired handles it)
+         rank_penalty_tier = CASE
+           WHEN opportunity_impression_state.last_session_id IS DISTINCT FROM EXCLUDED.last_session_id
+             AND opportunity_impression_state.unseen_count + 1 >= 2
+           THEN NULL
+           WHEN opportunity_impression_state.last_session_id IS DISTINCT FROM EXCLUDED.last_session_id
+           THEN 'light'
+           ELSE opportunity_impression_state.rank_penalty_tier
+         END,
+         rank_penalty_until = CASE
+           WHEN opportunity_impression_state.last_session_id IS DISTINCT FROM EXCLUDED.last_session_id
+             AND opportunity_impression_state.unseen_count + 1 >= 2
+           THEN NULL
+           WHEN opportunity_impression_state.last_session_id IS DISTINCT FROM EXCLUDED.last_session_id
+           THEN NOW() + INTERVAL '5 days'
+           ELSE opportunity_impression_state.rank_penalty_until
          END
        WHERE opportunity_impression_state.last_session_id IS DISTINCT FROM EXCLUDED.last_session_id`,
       [userId, userType, opportunityId, sessionId]
