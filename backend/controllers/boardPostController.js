@@ -275,17 +275,44 @@ async function listPosts(req, res) {
          CASE WHEN p.poster_type = 'community' THEN c.logo_url ELSE m.profile_photo_url END AS poster_avatar_url,
          CASE WHEN p.poster_type = 'community' THEN c.username ELSE m.username           END AS poster_username,
 
-         -- has_joined: true when the authed entity has a pending or accepted join-request
+         -- joined_status: the caller's join-request status for this post ('pending' | 'accepted' | 'declined' | 'withdrawn' | NULL)
          CASE
-           WHEN $2 IS NULL THEN FALSE
-           ELSE EXISTS (
-             SELECT 1 FROM collab_requests cr
+           WHEN $2::BIGINT IS NULL THEN NULL
+           ELSE (
+             SELECT cr.status FROM collab_requests cr
              WHERE cr.board_post_id = p.id
                AND cr.sender_id     = $2::BIGINT
                AND cr.sender_type   = $3::collab_entity_type
-               AND cr.status        IN ('pending', 'accepted')
+             ORDER BY cr.created_at DESC
+             LIMIT 1
            )
-         END AS has_joined
+         END AS joined_status,
+
+         -- Poster reputation: response-time (avg hours, min 2 samples)
+         (
+           SELECT COUNT(*)
+           FROM collab_requests rep
+           WHERE rep.receiver_id = p.poster_id AND rep.receiver_type = p.poster_type
+             AND rep.responded_at IS NOT NULL
+         ) AS cp_responses_counted,
+         (
+           SELECT AVG(EXTRACT(EPOCH FROM (rep.responded_at - rep.created_at)) / 3600)
+           FROM collab_requests rep
+           WHERE rep.receiver_id = p.poster_id AND rep.receiver_type = p.poster_type
+             AND rep.responded_at IS NOT NULL
+         ) AS cp_avg_response_hours_raw,
+
+         -- Poster reputation: rating
+         (
+           SELECT COUNT(*)
+           FROM collab_request_ratings rat
+           WHERE rat.ratee_id = p.poster_id AND rat.ratee_type = p.poster_type
+         ) AS cp_rating_count,
+         (
+           SELECT AVG(rat.stars)
+           FROM collab_request_ratings rat
+           WHERE rat.ratee_id = p.poster_id AND rat.ratee_type = p.poster_type
+         ) AS cp_avg_rating_raw
 
        FROM board_posts p
        LEFT JOIN communities c ON p.poster_type = 'community' AND p.poster_id = c.id
@@ -311,8 +338,41 @@ async function listPosts(req, res) {
     );
     const total = parseInt(countResult.rows[0].total, 10);
 
+    const posts = rows.rows.map((row) => {
+      const responsesCounted = parseInt(row.cp_responses_counted, 10) || 0;
+      const ratingCount      = parseInt(row.cp_rating_count, 10) || 0;
+      const avgResponseRaw   = row.cp_avg_response_hours_raw;
+      const avgRatingRaw     = row.cp_avg_rating_raw;
+
+      const poster = {
+        id:                   row.poster_id,
+        type:                 row.poster_type,
+        display_name:         row.poster_name,
+        avatar_url:           row.poster_avatar_url,
+        username:             row.poster_username,
+        reputation: {
+          avg_response_hours: responsesCounted >= 2 && avgResponseRaw != null
+            ? parseFloat(parseFloat(avgResponseRaw).toFixed(1))
+            : null,
+          responses_counted:  responsesCounted,
+          avg_rating:         ratingCount > 0 && avgRatingRaw != null
+            ? parseFloat(parseFloat(avgRatingRaw).toFixed(2))
+            : null,
+          rating_count:       ratingCount,
+        },
+      };
+
+      const {
+        cp_responses_counted, cp_avg_response_hours_raw,
+        cp_rating_count, cp_avg_rating_raw,
+        ...rest
+      } = row;
+
+      return { ...rest, poster };
+    });
+
     return res.json({
-      posts: rows.rows,
+      posts,
       pagination: {
         page,
         limit,

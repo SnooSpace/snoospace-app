@@ -4,18 +4,21 @@
  * Reusable bottom-sheet for sending a Collab Request to any eligible entity.
  * Wraps SwipeableModal and provides:
  *   - Collab-type chip selector (event_partnership, cross_promo, guest_collab, custom)
- *   - Pitch text input (required, ≤ 300 chars)
- *   - Send button → calls createCollabRequest, reports errors via CustomAlertModal
+ *   - Pitch text input (required by default, configurable via `pitchRequired`)
+ *   - Character limit configurable via `maxLength` (default 300, Board uses 150)
+ *   - Send button calls createCollabRequest, reports errors via CustomAlertModal
  *
  * Usage:
  *   <CollabRequestSheet
  *     visible={sheetVisible}
  *     onClose={() => setSheetVisible(false)}
  *     receiverId={memberId}
- *     receiverType="member"           // "member" | "community"
+ *     receiverType="member"
  *     receiverName="John Doe"
- *     hasExistingConversation={true}  // changes label Send → Propose a Collab
- *     onSuccess={(request) => { ... }} // called on successful submit
+ *     hasExistingConversation={true}
+ *     pitchRequired={true}
+ *     maxLength={300}
+ *     onSuccess={(request) => { ... }}
  *   />
  */
 import React, { useState, useCallback, useRef } from 'react';
@@ -29,17 +32,20 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { Send, Handshake, TriangleAlert } from 'lucide-react-native';
+import { Handshake, TriangleAlert } from 'lucide-react-native';
 import SwipeableModal from './SwipeableModal';
 import CustomAlertModal from '../ui/CustomAlertModal';
 import { COLORS, FONTS, BORDER_RADIUS, SHADOWS } from '../../constants/theme';
 import { createCollabRequest, COLLAB_TYPES } from '../../api/collabRequests';
 import HapticsService from '../../services/HapticsService';
 
-const PITCH_MAX_LEN = 300;
+// Collab identity palette (teal -- distinct from purple Creator / blue primary)
+const TEAL = '#0D9488';
+const TEAL_BG = 'rgba(13, 148, 136, 0.09)';
+const TEAL_BORDER = 'rgba(13, 148, 136, 0.3)';
 
-// ─── Collab-type chip data (subset of COLLAB_TYPES — excludes 'sponsorship') ──
-const CHIP_OPTIONS = COLLAB_TYPES; // already filters sponsorship in collabRequests.js
+// Collab-type chip data (subset of COLLAB_TYPES -- excludes 'sponsorship')
+const CHIP_OPTIONS = COLLAB_TYPES;
 
 export default function CollabRequestSheet({
   visible,
@@ -48,6 +54,14 @@ export default function CollabRequestSheet({
   receiverType = 'member',
   receiverName,
   hasExistingConversation = false,
+  pitchRequired = true,
+  maxLength = 300,
+  showTypeChips = true,
+  title: customTitle,
+  buttonLabel: customButtonLabel,
+  placeholder: customPlaceholder,
+  sectionLabel: customSectionLabel,
+  onSubmit,
   onSuccess,
 }) {
   const [selectedType, setSelectedType] = useState(null);
@@ -56,8 +70,10 @@ export default function CollabRequestSheet({
   const [alertConfig, setAlertConfig] = useState({ visible: false });
   const inputRef = useRef(null);
 
-  const charsLeft = PITCH_MAX_LEN - pitchText.length;
-  const canSend = selectedType && pitchText.trim().length > 0 && !loading;
+  const charsLeft = maxLength - pitchText.length;
+  const pitchOk = pitchRequired ? pitchText.trim().length > 0 : true;
+  const typeOk = showTypeChips ? !!selectedType : true;
+  const canSend = typeOk && pitchOk && !loading;
 
   const resetState = useCallback(() => {
     setSelectedType(null);
@@ -83,19 +99,23 @@ export default function CollabRequestSheet({
     HapticsService.triggerMessageSend();
     setLoading(true);
     try {
-      const result = await createCollabRequest({
+      const payload = {
         receiver_id: receiverId,
         receiver_type: receiverType,
         collab_type: selectedType,
-        pitch_text: pitchText.trim(),
-      });
-      // Success
+        pitch_text: pitchText.trim() || null,
+        note: pitchText.trim() || null,
+      };
+
+      const submitFn = onSubmit || createCollabRequest;
+      const result = await submitFn(payload);
+
       HapticsService.triggerAddToCircle();
       resetState();
       onClose();
-      onSuccess?.(result?.request);
+      onSuccess?.(result?.request || result);
     } catch (err) {
-      const msg = err?.message || err?.data?.error || 'Failed to send request. Please try again.';
+      const msg = err?.message || err?.data?.error || err?.error || 'Failed to send request. Please try again.';
       showAlert({
         title: 'Could not send',
         message: msg,
@@ -106,13 +126,20 @@ export default function CollabRequestSheet({
     } finally {
       setLoading(false);
     }
-  }, [canSend, receiverId, receiverType, selectedType, pitchText, resetState, onClose, onSuccess, showAlert, hideAlert]);
+  }, [canSend, receiverId, receiverType, selectedType, pitchText, onSubmit, resetState, onClose, onSuccess, showAlert, hideAlert]);
 
   const headerContent = (
     <View style={styles.handle}>
       <View style={styles.pill} />
     </View>
   );
+
+  const sheetTitle = customTitle || (hasExistingConversation ? 'Propose a Collab' : 'Send Collab Request');
+  const btnLabel = customButtonLabel || (hasExistingConversation ? 'Propose Collab' : 'Send Request');
+  const inputPlaceholder = customPlaceholder || (pitchRequired
+    ? 'Tell them what you have in mind — why this collab makes sense…'
+    : 'Add an optional note to your join request…');
+  const inputSectionLabel = customSectionLabel || (pitchRequired ? 'Your pitch' : 'Your note (optional)');
 
   return (
     <>
@@ -126,21 +153,20 @@ export default function CollabRequestSheet({
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+          keyboardVerticalOffset={0}
         >
           <ScrollView
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            {/* Header */}
             <View style={styles.titleRow}>
               <View style={styles.iconCircle}>
-                <Handshake size={20} color={COLORS.primary} strokeWidth={2.2} />
+                <Handshake size={20} color={TEAL} strokeWidth={2.2} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.title}>
-                  {hasExistingConversation ? 'Propose a Collab' : 'Send Collab Request'}
+                <Text style={styles.title} numberOfLines={1}>
+                  {sheetTitle}
                 </Text>
                 {receiverName ? (
                   <Text style={styles.subtitle} numberOfLines={1}>
@@ -150,50 +176,56 @@ export default function CollabRequestSheet({
               </View>
             </View>
 
-            {/* Collab-type chips */}
-            <Text style={styles.sectionLabel}>What kind of collab?</Text>
-            <View style={styles.chipsRow}>
-              {CHIP_OPTIONS.map((opt) => {
-                const active = selectedType === opt.value;
-                return (
-                  <TouchableOpacity
-                    key={opt.value}
-                    activeOpacity={0.75}
-                    style={[styles.chip, active && styles.chipActive]}
-                    onPress={() => {
-                      HapticsService.triggerImpactLight();
-                      setSelectedType(active ? null : opt.value);
-                    }}
-                  >
-                    <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                      {opt.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            {showTypeChips && (
+              <>
+                <Text style={styles.sectionLabel}>What kind of collab?</Text>
+                <View style={styles.chipsRow}>
+                  {CHIP_OPTIONS.map((opt) => {
+                    const active = selectedType === opt.value;
+                    return (
+                      <TouchableOpacity
+                        key={opt.value}
+                        activeOpacity={0.75}
+                        style={[styles.chip, active && styles.chipActive]}
+                        onPress={() => {
+                          HapticsService.triggerImpactLight();
+                          setSelectedType(active ? null : opt.value);
+                        }}
+                      >
+                        <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                          {opt.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </>
+            )}
 
-            {/* Pitch input */}
-            <Text style={styles.sectionLabel}>Your pitch</Text>
+            <Text style={styles.sectionLabel}>
+              {inputSectionLabel}
+            </Text>
             <View style={styles.inputWrapper}>
               <TextInput
                 ref={inputRef}
                 style={styles.input}
-                placeholder="Tell them what you have in mind — why this collab makes sense…"
+                placeholder={inputPlaceholder}
                 placeholderTextColor={COLORS.textMuted}
                 multiline
-                maxLength={PITCH_MAX_LEN}
+                maxLength={maxLength}
                 value={pitchText}
                 onChangeText={setPitchText}
                 returnKeyType="default"
                 textAlignVertical="top"
               />
-              <Text style={[styles.charCount, charsLeft <= 30 && { color: charsLeft <= 10 ? '#E53935' : '#FF9500' }]}>
+              <Text style={[
+                styles.charCount,
+                charsLeft <= 30 && { color: charsLeft <= 10 ? '#E53935' : '#FF9500' },
+              ]}>
                 {charsLeft}
               </Text>
             </View>
 
-            {/* Send button */}
             <TouchableOpacity
               activeOpacity={0.85}
               style={[styles.sendBtn, !canSend && styles.sendBtnDisabled]}
@@ -204,22 +236,23 @@ export default function CollabRequestSheet({
                 <Text style={styles.sendBtnText}>Sending…</Text>
               ) : (
                 <>
-                  <Send size={16} color="#fff" strokeWidth={2.2} style={{ marginRight: 8 }} />
+                  <Handshake size={16} color="#fff" strokeWidth={2.2} style={{ marginRight: 8 }} />
                   <Text style={styles.sendBtnText}>
-                    {hasExistingConversation ? 'Propose Collab' : 'Send Request'}
+                    {btnLabel}
                   </Text>
                 </>
               )}
             </TouchableOpacity>
 
-            <Text style={styles.hint}>
-              Pitch text is required — they'll see exactly what you write here.
-            </Text>
+            {pitchRequired && (
+              <Text style={styles.hint}>
+                Pitch text is required — they will see exactly what you write here.
+              </Text>
+            )}
           </ScrollView>
         </KeyboardAvoidingView>
       </SwipeableModal>
 
-      {/* Error alert */}
       <CustomAlertModal
         visible={alertConfig.visible}
         title={alertConfig.title}
@@ -257,8 +290,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 16,
   },
-
-  // Header row
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -270,12 +301,12 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(41, 98, 255, 0.1)',
+    backgroundColor: TEAL_BG,
     justifyContent: 'center',
     alignItems: 'center',
   },
   title: {
-    fontFamily: FONTS.primary, // BasicCommercial-Bold
+    fontFamily: FONTS.primary,
     fontSize: 18,
     color: '#111827',
     letterSpacing: -0.3,
@@ -290,8 +321,6 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.semiBold,
     color: COLORS.textPrimary,
   },
-
-  // Section labels
   sectionLabel: {
     fontFamily: FONTS.semiBold,
     fontSize: 13,
@@ -300,8 +329,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
-
-  // Chips
   chipsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -317,8 +344,8 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
   },
   chipActive: {
-    backgroundColor: 'rgba(41, 98, 255, 0.1)',
-    borderColor: COLORS.primary,
+    backgroundColor: TEAL_BG,
+    borderColor: TEAL,
   },
   chipText: {
     fontFamily: FONTS.semiBold,
@@ -326,10 +353,8 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
   },
   chipTextActive: {
-    color: COLORS.primary,
+    color: TEAL,
   },
-
-  // Pitch input
   inputWrapper: {
     borderWidth: 1.5,
     borderColor: '#E5E7EB',
@@ -353,28 +378,29 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     marginTop: 6,
   },
-
-  // Send button
   sendBtn: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: TEAL,
     borderRadius: BORDER_RADIUS.pill,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 14,
-    ...SHADOWS.primaryGlow,
+    shadowColor: TEAL,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.28,
+    shadowRadius: 8,
+    elevation: 4,
   },
   sendBtnDisabled: {
     backgroundColor: '#E5E7EB',
-    ...SHADOWS.sm,
+    shadowOpacity: 0,
+    elevation: 0,
   },
   sendBtnText: {
     fontFamily: FONTS.semiBold,
     fontSize: 16,
     color: '#fff',
   },
-
-  // Hint
   hint: {
     fontFamily: FONTS.regular,
     fontSize: 12,

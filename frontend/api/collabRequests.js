@@ -32,12 +32,13 @@ export const DECLINE_REASONS = [
  * GET /collab-requests/received
  * Returns paginated requests where current entity is the receiver.
  * Each request embeds `counterpart` with reputation — no N+1 needed.
- * @param {{ status?: string, page?: number, limit?: number }} opts
+ * @param {{ status?: string, board_post_id?: string|number, page?: number, limit?: number }} opts
  */
-export async function getReceivedCollabRequests({ status, page = 1, limit = 20 } = {}) {
+export async function getReceivedCollabRequests({ status, board_post_id, page = 1, limit = 20 } = {}) {
   const token = await getAuthToken();
   const params = new URLSearchParams({ page, limit });
   if (status) params.set('status', status);
+  if (board_post_id) params.set('board_post_id', board_post_id);
   return apiGet(`/collab-requests/received?${params.toString()}`, 15000, token);
 }
 
@@ -104,3 +105,57 @@ export async function getCollabReputation(entityType, entityId) {
   const token = await getAuthToken();
   return apiGet(`/collab-entities/${entityType}/${entityId}/reputation`, 10000, token);
 }
+
+// ─── Board posts endpoints ───────────────────────────────────────────────────
+
+/**
+ * GET /board-posts
+ * Returns paginated public board posts.
+ * Query params: status?, collab_type?, page?, limit?
+ */
+export async function getBoardPosts({ status = 'open', collab_type, page = 1, limit = 20 } = {}) {
+  const token = await getAuthToken();
+  const params = new URLSearchParams({ page, limit });
+  if (status) params.set('status', status);
+  if (collab_type) params.set('collab_type', collab_type);
+  return apiGet(`/board-posts?${params.toString()}`, 15000, token);
+}
+
+/**
+ * GET /board-posts/mine
+ * Returns the caller's own board posts with request counts (pending, accepted, declined).
+ */
+export async function getMyBoardPosts() {
+  const token = await getAuthToken();
+  return apiGet('/board-posts/mine', 15000, token);
+}
+
+/**
+ * POST /board-posts
+ * Creates a new board post.
+ * Body: { title, description, collab_type, spots_total }
+ */
+export async function createBoardPost(body) {
+  const token = await getAuthToken();
+  return apiPost('/board-posts', body, 15000, token);
+}
+
+/**
+ * POST /board-posts/:id/join
+ * Submits a join-request for a board post.
+ * Body: { note? }
+ */
+export async function joinBoardPost(postId, body = {}) {
+  const token = await getAuthToken();
+  return apiPost(`/board-posts/${postId}/join`, body, 15000, token);
+}
+
+/**
+ * POST /board-posts/:id/close
+ * Closes an open board post and auto-declines remaining pending applicants.
+ */
+export async function closeBoardPost(postId) {
+  const token = await getAuthToken();
+  return apiPost(`/board-posts/${postId}/close`, {}, 15000, token);
+}
+

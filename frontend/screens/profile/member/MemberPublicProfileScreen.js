@@ -13,7 +13,7 @@ import SwipeableModal from "../../../components/modals/SwipeableModal";
 import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
 import { Pressable as GHPressable, GestureHandlerRootView } from "react-native-gesture-handler";
 import { Image as ExpoImage } from "expo-image";
-import { ArrowLeft, Play, Pin, BadgeCheck, Ticket, Users, MoreVertical, UserX, TriangleAlert, CircleCheck, ShieldOff, CalendarDays, UserPlus, UserCheck, UserMinus, Clock, Music, ChevronRight, Sparkles } from "lucide-react-native";
+import { ArrowLeft, Play, Pin, BadgeCheck, Ticket, Users, MoreVertical, UserX, TriangleAlert, CircleCheck, ShieldOff, CalendarDays, UserPlus, UserCheck, UserMinus, Clock, Music, ChevronRight, Handshake } from "lucide-react-native";
 import CustomAlertModal from "../../../components/ui/CustomAlertModal";
 import {
   getPublicMemberProfile,
@@ -1461,7 +1461,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                   </View>
                   {profile?.is_creator_mode_enabled && (
                     <View style={styles.creatorBadge}>
-                      <Sparkles size={12} color="#7B1FA2" strokeWidth={2.5} style={{ marginRight: 4 }} />
+                      <Handshake size={12} color="#0D9488" strokeWidth={2.5} style={{ marginRight: 4 }} />
                       <Text style={styles.creatorBadgeText}>Creator</Text>
                     </View>
                   )}
@@ -2075,7 +2075,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                 setCollabSheetVisible(true);
               }}
             >
-              <Sparkles size={15} color="#7C3AED" strokeWidth={2.2} style={{ marginRight: 7 }} />
+              <Handshake size={15} color="#0D9488" strokeWidth={2.2} style={{ marginRight: 7 }} />
               <Text style={collabCtaStyles.btnText}>
                 {preResolvedConversationId ? 'Propose a Collab' : 'Send Collab Request'}
               </Text>
@@ -3109,12 +3109,12 @@ const styles = StyleSheet.create({
   creatorBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F3E5F5",
+    backgroundColor: "#E6FAF8",
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 12,
     borderWidth: 0.5,
-    borderColor: "rgba(123, 31, 162, 0.2)",
+    borderColor: "rgba(13, 148, 136, 0.2)",
     alignSelf: "center",
     marginTop: 6,
     marginBottom: 2,
@@ -3122,7 +3122,7 @@ const styles = StyleSheet.create({
   creatorBadgeText: {
     fontFamily: FONTS.semiBold,
     fontSize: 11,
-    color: "#7B1FA2",
+    color: "#0D9488",
   },
   nameAndPronounsContainer: {
     alignItems: "center",
@@ -3530,13 +3530,13 @@ const collabCtaStyles = StyleSheet.create({
     paddingHorizontal: 18,
     borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: 'rgba(124, 58, 237, 0.3)',
-    backgroundColor: 'rgba(124, 58, 237, 0.07)',
+    borderColor: 'rgba(13, 148, 136, 0.3)',
+    backgroundColor: 'rgba(13, 148, 136, 0.07)',
   },
   btnText: {
     fontFamily: 'Manrope-SemiBold',
     fontSize: 14,
-    color: '#7C3AED',
+    color: '#0D9488',
     letterSpacing: -0.1,
   },
 });

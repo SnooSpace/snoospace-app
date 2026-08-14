@@ -465,8 +465,9 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     return () => unsubTransitionEnd();
   }, [navigation]);
 
-  // Cursor-based pagination state
-  const [cursor, setCursor] = useState(null);
+  // Compound cursor-based pagination state (Step 2: effective_sort_time + id)
+  const [cursorTime, setCursorTime] = useState(null);
+  const [cursorId, setCursorId] = useState(null);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
 
@@ -1269,7 +1270,8 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     try {
       if (reset) {
         if (!skipSetLoading) setLoading(true);
-        setCursor(null);
+        setCursorTime(null);
+        setCursorId(null);
         setHasMore(true);
       } else {
         setLoadingMore(true);
@@ -1278,10 +1280,13 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       const token = await getAuthToken();
       if (!token) throw new Error("Authentication token not found.");
 
-      // Build URL with cursor param for pagination
-      const cursorToUse = reset ? null : cursor;
-      const url = cursorToUse
-        ? `/posts/feed?cursor=${encodeURIComponent(cursorToUse)}&limit=20`
+      // Build URL with compound cursor params (cursor_time + cursor_id) for pagination.
+      // Cursor values are opaque tokens received from the server — never reconstructed here.
+      const ctToUse = reset ? null : cursorTime;
+      const ciToUse = reset ? null : cursorId;
+      const hasCursor = !!(ctToUse && ciToUse);
+      const url = hasCursor
+        ? `/posts/feed?cursor_time=${encodeURIComponent(ctToUse)}&cursor_id=${encodeURIComponent(ciToUse)}&limit=20`
         : "/posts/feed?limit=20";
 
       const response = await apiGet(url, 15000, token);
@@ -1317,8 +1322,9 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         return [...prevPosts, ...uniqueNew];
       });
 
-      // Update pagination state from API response
-      setCursor(response.next_cursor || null);
+      // Update compound cursor from API response (opaque tokens — treat as-is)
+      setCursorTime(response.next_cursor_time || null);
+      setCursorId(response.next_cursor_id ?? null);
       setHasMore(response.has_more === true);
 
       if (reset && mergedPosts.length > 0 && mergedPosts[0]?.created_at) {

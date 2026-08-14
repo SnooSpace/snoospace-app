@@ -585,17 +585,21 @@ const getFeed = async (req, res) => {
   try {
     const userId = req.user?.id;
     const userType = req.user?.type;
-    // Support cursor-based pagination (preferred) with fallback to offset
-    const { cursor, limit = 20 } = req.query;
+    // Support compound cursor pagination: cursor_time (timestamptz) + cursor_id (int)
+    // Both must be present to apply the cursor; if either is missing it is treated as first page.
+    const { cursor_time, cursor_id, limit = 20 } = req.query;
     const parsedLimit = Math.min(Math.max(parseInt(limit) || 20, 1), 50); // Clamp between 1-50
+    const hasCursor = !!(cursor_time && cursor_id);
 
     console.log(
       "Feed request - userId:",
       userId,
       "userType:",
       userType,
-      "cursor:",
-      cursor,
+      "cursor_time:",
+      cursor_time,
+      "cursor_id:",
+      cursor_id,
     );
 
     if (!userId || !userType) {
@@ -607,8 +611,26 @@ const getFeed = async (req, res) => {
     const viewerId = req.user?.id || null;
     const viewerType = req.user?.type || null;
 
-    // Build cursor condition for stable pagination
-    const cursorCondition = cursor ? `AND p.created_at < $6` : "";
+    // Compound cursor condition — must match ORDER BY (effective_sort_time DESC, p.id DESC).
+    // PostgreSQL row comparison (a, b) < (x, y) is lexicographic: first compares a vs x,
+    // only falls through to b vs y when a = x. This correctly pages through the ranked sort.
+    // effective_sort_time is a CASE expression in the SELECT; it must be repeated here
+    // (or the query wrapped in a CTE) because WHERE can't reference SELECT aliases directly.
+    // We repeat the CASE inline to keep the query flat and avoid an extra subquery layer.
+    const cursorCondition = hasCursor ? `AND (
+        CASE
+          WHEN pis_rank.rank_penalty_tier = 'heavy'
+           AND pis_rank.rank_penalty_until IS NOT NULL
+           AND NOW() < pis_rank.rank_penalty_until
+          THEN p.created_at - INTERVAL '10 days'
+          WHEN pis_rank.rank_penalty_tier = 'light'
+           AND pis_rank.rank_penalty_until IS NOT NULL
+           AND NOW() < pis_rank.rank_penalty_until
+          THEN p.created_at - INTERVAL '3 days'
+          ELSE p.created_at
+        END,
+        p.id
+      ) < ($6::timestamptz, $7::int)` : "";
 
     const query = `
       SELECT 
@@ -702,6 +724,21 @@ const getFeed = async (req, res) => {
           )
           ELSE false
         END AS is_saved,
+        -- Re-ranking Step 2: effective_sort_time — p.created_at shifted back by
+        -- penalty interval when an active penalty exists. Posts without a penalty
+        -- (or with an expired penalty) fall through to ELSE p.created_at, making
+        -- the sort identical to pure reverse-chronological for unpenalized posts.
+        CASE
+          WHEN pis_rank.rank_penalty_tier = 'heavy'
+           AND pis_rank.rank_penalty_until IS NOT NULL
+           AND NOW() < pis_rank.rank_penalty_until
+          THEN p.created_at - INTERVAL '10 days'
+          WHEN pis_rank.rank_penalty_tier = 'light'
+           AND pis_rank.rank_penalty_until IS NOT NULL
+           AND NOW() < pis_rank.rank_penalty_until
+          THEN p.created_at - INTERVAL '3 days'
+          ELSE p.created_at
+        END AS effective_sort_time,
         -- Phase 2e: is_backlog_post — true when the post was created before any
         -- follow/circle relationship with its author existed (i.e. it is a
         -- retroactive backlog post injected because of a recent follow).
@@ -736,6 +773,14 @@ const getFeed = async (req, res) => {
       LEFT JOIN communities c ON p.author_type = 'community' AND p.author_id = c.id
       LEFT JOIN sponsors s ON p.author_type = 'sponsor' AND p.author_id = s.id
       LEFT JOIN venues v ON p.author_type = 'venue' AND p.author_id = v.id
+      -- Re-ranking Step 2: join impression state for penalty-weighted sort.
+      -- Alias pis_rank is distinct from the pis alias used inside the Phase 2a
+      -- retirement-exclusion EXISTS subquery (Condition 3). Unique PK on
+      -- (user_id, user_type, post_id) guarantees at most 1 matching row — no row duplication.
+      LEFT JOIN post_impression_state pis_rank
+        ON pis_rank.user_id = $1
+       AND pis_rank.user_type = $2
+       AND pis_rank.post_id = p.id
       WHERE (
         -- Own posts
         (p.author_id = $1 AND p.author_type = $2)
@@ -845,13 +890,14 @@ const getFeed = async (req, res) => {
         )
       )
       ${cursorCondition}
-      ORDER BY p.created_at DESC
+      ORDER BY effective_sort_time DESC, p.id DESC
       LIMIT $3
     `;
 
-    // Build query params: $1=userId, $2=userType, $3=limit, $4=viewerId, $5=viewerType, $6=cursor (optional)
-    const queryParams = cursor
-      ? [userId, userType, parsedLimit + 1, viewerId, viewerType, cursor]
+    // $1=userId, $2=userType, $3=limit, $4=viewerId, $5=viewerType
+    // $6=cursor_time (timestamptz), $7=cursor_id (int) — only bound when hasCursor=true
+    const queryParams = hasCursor
+      ? [userId, userType, parsedLimit + 1, viewerId, viewerType, cursor_time, parseInt(cursor_id)]
       : [userId, userType, parsedLimit + 1, viewerId, viewerType];
 
     // Note: We fetch limit+1 to determine if there are more results
@@ -1271,15 +1317,23 @@ const getFeed = async (req, res) => {
     // Determine pagination metadata
     const hasMore = posts.length > parsedLimit;
     const trimmedPosts = hasMore ? posts.slice(0, parsedLimit) : posts;
-    const nextCursor =
-      trimmedPosts.length > 0
-        ? trimmedPosts[trimmedPosts.length - 1].created_at
-        : null;
+    // Compound cursor: encode (effective_sort_time, id) of the last post in this page.
+    // effective_sort_time is in the SELECT result as a Date object (pg casts TIMESTAMPTZ → JS Date).
+    // We ISO-stringify it so the frontend can round-trip it back as a URL query param.
+    const lastPost = trimmedPosts.length > 0 ? trimmedPosts[trimmedPosts.length - 1] : null;
+    const nextCursorTime = lastPost?.effective_sort_time
+      ? (lastPost.effective_sort_time instanceof Date
+          ? lastPost.effective_sort_time.toISOString()
+          : String(lastPost.effective_sort_time))
+      : null;
+    const nextCursorId = lastPost?.id ?? null;
 
-    console.log("Parsed posts:", trimmedPosts.length, "hasMore:", hasMore);
+    console.log("Parsed posts:", trimmedPosts.length, "hasMore:", hasMore,
+      "nextCursorTime:", nextCursorTime, "nextCursorId:", nextCursorId);
     res.json({
       posts: trimmedPosts,
-      next_cursor: nextCursor,
+      next_cursor_time: nextCursorTime,
+      next_cursor_id: nextCursorId,
       has_more: hasMore,
     });
   } catch (error) {

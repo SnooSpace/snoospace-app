@@ -53,7 +53,7 @@ import {
   UserMinus,
   TriangleAlert,
   CircleCheck,
-  Sparkles,
+  Handshake,
 } from "lucide-react-native";
 import CustomAlertModal from "../../../components/ui/CustomAlertModal";
 import DynamicStatusBar from "../../../components/navigation/DynamicStatusBar";
@@ -2264,7 +2264,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                 setCollabSheetVisible(true);
               }}
             >
-              <Sparkles size={15} color="#7C3AED" strokeWidth={2.2} style={{ marginRight: 7 }} />
+              <Handshake size={15} color="#0D9488" strokeWidth={2.2} style={{ marginRight: 7 }} />
               <Text style={commCollabCtaStyles.btnText}>
                 {preResolvedConversationId ? 'Propose a Collab' : 'Send Collab Request'}
               </Text>
@@ -3301,13 +3301,13 @@ const commCollabCtaStyles = StyleSheet.create({
     paddingHorizontal: 18,
     borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: 'rgba(124, 58, 237, 0.3)',
-    backgroundColor: 'rgba(124, 58, 237, 0.07)',
+    borderColor: 'rgba(13, 148, 136, 0.3)',
+    backgroundColor: 'rgba(13, 148, 136, 0.07)',
   },
   btnText: {
     fontFamily: 'Manrope-SemiBold',
     fontSize: 14,
-    color: '#7C3AED',
+    color: '#0D9488',
     letterSpacing: -0.1,
   },
 });
