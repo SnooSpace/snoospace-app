@@ -699,7 +699,7 @@ export default function RequestsScreen({
               }}
               activeOpacity={0.82}
             >
-              <Users size={14} color={TEAL} strokeWidth={2.2} />
+              <Users size={14} color={COLORS.textSecondary} strokeWidth={2} />
               <Text style={styles.manageApplicationsText}>My Openings</Text>
               {myPostsPendingCount > 0 && (
                 <View style={styles.pendingBadge}>
@@ -868,6 +868,12 @@ export default function RequestsScreen({
         <MyBoardPostsModal
           visible={myBoardPostsModalVisible}
           onClose={() => setMyBoardPostsModalVisible(false)}
+          onCreateNewPress={() => {
+            setMyBoardPostsModalVisible(false);
+            setTimeout(() => {
+              setCreateBoardModalVisible(true);
+            }, 250);
+          }}
           onSelectPost={(post) => {
             setBoardPostFilterId(post.id);
             setBoardPostFilterTitle(post.title);
@@ -926,8 +932,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
+    borderBottomWidth: 0,
     backgroundColor: '#FFFFFF',
   },
   bottomTabHeader: {
@@ -959,8 +964,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     position: 'relative',
     backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.06)',
+    borderBottomWidth: 0,
   },
   tab: {
     flex: 1,
@@ -998,18 +1002,18 @@ const styles = StyleSheet.create({
   manageApplicationsBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: TEAL_BG,
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 13,
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(13, 148, 136, 0.25)',
+    borderColor: '#E5E7EB',
     gap: 6,
   },
   manageApplicationsText: {
-    fontFamily: FONTS.semiBold,
+    fontFamily: FONTS.medium,
     fontSize: 13,
-    color: TEAL,
+    color: COLORS.textPrimary,
   },
   pendingBadge: {
     backgroundColor: TEAL,

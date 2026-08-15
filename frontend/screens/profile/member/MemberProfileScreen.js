@@ -52,6 +52,7 @@ import {
   ChartNoAxesColumn,
   Music,
   Sparkles,
+  Handshake,
 } from "lucide-react-native";
 import Svg, { Circle } from "react-native-svg";
 import { LinearGradient } from "expo-linear-gradient";
@@ -2076,50 +2077,90 @@ export default function MemberProfileScreen({ navigation }) {
                   });
                 }}
                 activeOpacity={0.85}
-                style={styles.collabsCardContainer}
+                style={{
+                  marginTop: 10,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 10,
+                  backgroundColor: "#F0FDFA",
+                  borderRadius: 16,
+                  paddingHorizontal: 16,
+                  paddingVertical: 12,
+                  borderWidth: 1,
+                  borderColor: "rgba(13,148,136,0.18)",
+                  width: "100%",
+                  position: "relative",
+                }}
               >
-                <LinearGradient
-                  colors={["#F0FDFA", "#ECFEFF"]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.collabsCard}
+                <View
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 10,
+                    backgroundColor: "rgba(13,148,136,0.12)",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
                 >
-                  {/* Icon chip (44x44, border-radius 13px) */}
-                  <LinearGradient
-                    colors={["#2DD4BF", "#0D9488"]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.collabsIconChip}
+                  <Handshake size={18} color="#0D9488" strokeWidth={2} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      fontFamily: FONTS.semiBold,
+                      fontSize: 14,
+                      color: "#0F766E",
+                    }}
                   >
-                    <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
-                      <Circle cx={9} cy={12} r={7} fill="#FFFFFF" fillOpacity={0.55} />
-                      <Circle cx={15} cy={12} r={7} fill="#FFFFFF" fillOpacity={0.55} />
-                    </Svg>
-                  </LinearGradient>
+                    Collabs
+                  </Text>
+                  <Text
+                    style={{
+                      fontFamily: FONTS.regular,
+                      fontSize: 12,
+                      color: "#5B9A93",
+                      marginTop: 1,
+                    }}
+                  >
+                    Requests, invites & open collab posts
+                  </Text>
+                </View>
+                <ChevronDown
+                  size={16}
+                  color="#0D9488"
+                  strokeWidth={2}
+                  style={{ transform: [{ rotate: "-90deg" }] }}
+                />
 
-                  {/* Title & Subtitle */}
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.collabsTitle}>Collabs</Text>
-                    <Text style={styles.collabsSubtitle}>
-                      Requests, invites & open collab posts
+                {/* Badge — pending count */}
+                {collabPendingCount > 0 && (
+                  <View
+                    style={{
+                      position: "absolute",
+                      top: -5,
+                      left: -5,
+                      backgroundColor: "#F97316",
+                      minWidth: 18,
+                      height: 18,
+                      borderRadius: 9,
+                      paddingHorizontal: 4,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderWidth: 2,
+                      borderColor: "#FFFFFF",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontFamily: FONTS.semiBold,
+                        fontSize: 10,
+                        color: "#FFFFFF",
+                      }}
+                    >
+                      {collabPendingCount}
                     </Text>
                   </View>
-
-                  {/* Chevron */}
-                  <ChevronRight size={18} color="#9FCFC7" strokeWidth={2.2} />
-
-                  {/* Badge — pending count, top-left overlap on the card's top edge */}
-                  {collabPendingCount > 0 && (
-                    <LinearGradient
-                      colors={["#FB923C", "#F97316"]}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.collabsBadge}
-                    >
-                      <Text style={styles.collabsBadgeText}>{collabPendingCount}</Text>
-                    </LinearGradient>
-                  )}
-                </LinearGradient>
+                )}
               </TouchableOpacity>
             )}
           </View>
@@ -3957,77 +3998,5 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.regular,
     fontSize: 14,
     color: COLORS.textSecondary,
-  },
-
-  // ── Collabs row styling (Matches approved mockup) ──
-  collabsCardContainer: {
-    marginTop: 12,
-    borderRadius: 20,
-    position: "relative",
-  },
-  collabsCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    padding: 16,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "rgba(13,148,136,0.14)",
-    shadowColor: "#0D9488",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 2,
-    position: "relative",
-  },
-  collabsIconChip: {
-    width: 44,
-    height: 44,
-    borderRadius: 13,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#0D9488",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.38,
-    shadowRadius: 14,
-    elevation: 4,
-  },
-  collabsTitle: {
-    fontFamily: FONTS.bold || FONTS.semiBold,
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#0F766E",
-  },
-  collabsSubtitle: {
-    fontFamily: FONTS.regular,
-    fontSize: 13,
-    color: "#5B9A93",
-    marginTop: 2,
-  },
-  collabsBadge: {
-    position: "absolute",
-    top: -6,
-    left: -6,
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
-    paddingHorizontal: 5,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 3,
-    borderColor: "#F0FDFA",
-    shadowColor: "#F97316",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.45,
-    shadowRadius: 8,
-    elevation: 5,
-    zIndex: 10,
-  },
-  collabsBadgeText: {
-    fontFamily: FONTS.bold || FONTS.semiBold,
-    fontSize: 11,
-    fontWeight: "800",
-    color: "#FFFFFF",
-    textAlign: "center",
   },
 });

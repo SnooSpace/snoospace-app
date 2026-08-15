@@ -844,18 +844,15 @@ const getFeed = async (req, res) => {
             AND op.scheduled_at < NOW() - INTERVAL '3 hours'
         )
       )
-      -- 3. Exclude posts the viewer has retired (two-strike unseen rule)
-      --    Own posts are always shown. Retired posts reappear after 15 days.
-      AND NOT (
-        (p.author_id != $1 OR p.author_type != $2)
-        AND EXISTS (
-          SELECT 1 FROM post_impression_state pis
-          WHERE pis.user_id = $1
-            AND pis.user_type = $2
-            AND pis.post_id = p.id
-            AND pis.retired_at IS NOT NULL
-            AND pis.retired_at > NOW() - INTERVAL '15 days'
-        )
+      -- 3. Exclude posts the viewer has retired (two-strike unseen rule or untimed like)
+      --    Applies uniformly to all posts including own posts. Retired posts reappear after 15 days.
+      AND NOT EXISTS (
+        SELECT 1 FROM post_impression_state pis
+        WHERE pis.user_id = $1
+          AND pis.user_type = $2
+          AND pis.post_id = p.id
+          AND pis.retired_at IS NOT NULL
+          AND pis.retired_at > NOW() - INTERVAL '15 days'
       )
       -- 4. Exclude backlog posts the viewer has already engaged with (liked or commented).
       --    A backlog post is one created before any follow/circle relationship with its

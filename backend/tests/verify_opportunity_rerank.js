@@ -48,22 +48,22 @@ function info(msg) { console.log(`  ℹ  ${msg}`); }
 function head(msg) { console.log(`\n━━━ ${msg} ━━━`); }
 
 // Helper to mock controller calls
-function mockCall(controllerFn, { user, query = {}, params = {}, body = {} }) {
-  return new Promise((resolve, reject) => {
-    const req = { user, query, params, body };
-    const res = {
-      statusCode: 200,
-      status(code) { this.statusCode = code; return this; },
-      json(data) {
-        if (this.statusCode >= 400) {
-          reject(new Error(`Controller error ${this.statusCode}: ${JSON.stringify(data)}`));
-        } else {
-          resolve(data);
-        }
-      },
-    };
-    controllerFn(req, res).catch(reject);
-  });
+async function mockCall(controllerFn, { user, query = {}, params = {}, body = {} }) {
+  let responseData = null;
+  let statusCode = 200;
+  const req = { user, query, params, body };
+  const res = {
+    statusCode: 200,
+    status(code) { this.statusCode = code; statusCode = code; return this; },
+    json(data) {
+      responseData = data;
+    },
+  };
+  await controllerFn(req, res);
+  if (statusCode >= 400) {
+    throw new Error(`Controller error ${statusCode}: ${JSON.stringify(responseData)}`);
+  }
+  return responseData;
 }
 
 async function main() {
@@ -225,7 +225,7 @@ async function main() {
     });
 
     // Wait a moment for fire-and-forget query
-    await new Promise(r => setTimeout(r, 300));
+    await new Promise(r => setTimeout(r, 600));
 
     const timedImpState = await pool.query(
       `SELECT * FROM opportunity_impression_state WHERE user_id = $1 AND user_type = 'member' AND opportunity_id = $2`,
@@ -250,7 +250,7 @@ async function main() {
       params: { id: untimedOppId },
     });
 
-    await new Promise(r => setTimeout(r, 300));
+    await new Promise(r => setTimeout(r, 600));
 
     const untimedImpState = await pool.query(
       `SELECT * FROM opportunity_impression_state WHERE user_id = $1 AND user_type = 'member' AND opportunity_id = $2`,
