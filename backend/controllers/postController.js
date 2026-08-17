@@ -844,8 +844,8 @@ const getFeed = async (req, res) => {
             AND op.scheduled_at < NOW() - INTERVAL '3 hours'
         )
       )
-      -- 3. Exclude posts the viewer has retired (two-strike unseen rule or untimed like)
-      --    Applies uniformly to all posts including own posts. Retired posts reappear after 15 days.
+      -- 3a. Exclude posts the viewer has retired via two-strike unseen rule.
+      --     Retired posts reappear after 15 days (cooldown window).
       AND NOT EXISTS (
         SELECT 1 FROM post_impression_state pis
         WHERE pis.user_id = $1
@@ -853,6 +853,20 @@ const getFeed = async (req, res) => {
           AND pis.post_id = p.id
           AND pis.retired_at IS NOT NULL
           AND pis.retired_at > NOW() - INTERVAL '15 days'
+      )
+      -- 3b. Permanently exclude untimed posts the viewer has liked.
+      --     A like on untimed content signals permanent disengagement — unlike the
+      --     two-strike unseen rule which has a 15-day cooldown and natural reappearance.
+      --     Timed posts (expires_at in future) are not excluded here — a like only
+      --     sinks them in ranking (heavy penalty) without removing them from the feed.
+      AND NOT (
+        (p.expires_at IS NULL OR p.expires_at <= NOW())
+        AND EXISTS (
+          SELECT 1 FROM post_likes pl
+          WHERE pl.post_id = p.id
+            AND pl.liker_id = $1
+            AND pl.liker_type = $2
+        )
       )
       -- 4. Exclude backlog posts the viewer has already engaged with (liked or commented).
       --    A backlog post is one created before any follow/circle relationship with its

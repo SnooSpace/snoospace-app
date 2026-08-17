@@ -1069,6 +1069,26 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       if (!payload?.postId) return;
       await LikeStateManager.setLikeState(payload.postId, payload.isLiked);
 
+      // When a like is confirmed (isLiked === true) on an untimed post, the backend
+      // immediately sets retired_at for that viewer. Remove the post from the feed
+      // right away so the UI stays in sync without waiting for a full refresh.
+      // Timed posts (expires_at in the future) only get a rank penalty, not removal.
+      if (payload.isLiked) {
+        setPosts((prev) => {
+          const post = prev.find((p) => p.id === payload.postId);
+          if (post) {
+            const isTimed = post.expires_at && new Date(post.expires_at) > new Date();
+            if (!isTimed) {
+              // Untimed: retire immediately from feed
+              return prev.filter((p) => p.id !== payload.postId);
+            }
+          }
+          return prev;
+        });
+        // Opportunities have their own untimed-like retirement path — leave them to their handler.
+        return;
+      }
+
       const likeUpdater = (prev) => {
         let changed = false;
         const updated = prev.map((post) => {
