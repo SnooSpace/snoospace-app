@@ -383,7 +383,12 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   //    card. Eliminates N concurrent AsyncStorage reads on cold start / refocus.
   const authTokenRef = useRef(null);
   useEffect(() => {
-    getAuthToken().then((t) => { authTokenRef.current = t; });
+    getAuthToken().then((t) => {
+      authTokenRef.current = t;
+      // Warm the ViewQueueService token cache so recordUnseenImpression never
+      // hits AsyncStorage during a scroll event.
+      viewQueueService.setCachedToken(t);
+    });
   }, []);
 
   // Auto-play state (for video: requires 60% viewport coverage)
@@ -1002,7 +1007,12 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       // rather than stale. Cards' action handlers have a || await getAuthToken()
       // fallback that will re-warm the ref on first use after the switch.
       authTokenRef.current = null;
-      getAuthToken().then((t) => { authTokenRef.current = t; });
+      // Clear the ViewQueueService token cache so it re-fetches for the new account.
+      viewQueueService.setCachedToken(null);
+      getAuthToken().then((t) => {
+        authTokenRef.current = t;
+        viewQueueService.setCachedToken(t);
+      });
       // ── 1.4 Clear cached snapshot to prevent cross-account leakage ──────────
       // The cached feed belongs to the previous account. Clear it now so the
       // next cold start does not show another account's content at frame 0.

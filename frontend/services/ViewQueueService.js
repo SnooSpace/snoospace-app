@@ -14,6 +14,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppState } from "react-native";
 import * as Crypto from "expo-crypto";
 import { apiPost, apiPatch } from "../api/client";
+import { getAuthToken } from "../api/auth";
 import EventBus from "../utils/EventBus";
 
 const QUEUE_STORAGE_KEY = "qualified_view_queue";
@@ -29,6 +30,31 @@ class ViewQueueService {
     this.sessionId = Crypto.randomUUID(); // In-memory cold start session ID (UUID v4)
     this.batchTimer = null;
     this.isInitialized = false;
+    this._cachedToken = null; // Auth token cache — avoids AsyncStorage hit on every impression
+    this._tokenFetchPromise = null; // Deduplicates concurrent token fetches
+  }
+
+  /**
+   * Warm the auth token cache. Called from HomeFeedScreen on mount and on
+   * account switch so impressions never have to wait for AsyncStorage.
+   */
+  setCachedToken(token) {
+    this._cachedToken = token;
+  }
+
+  /**
+   * Get the cached token, fetching once if not yet available.
+   * Deduplicates concurrent calls via a shared promise.
+   */
+  async _getToken() {
+    if (this._cachedToken) return this._cachedToken;
+    if (this._tokenFetchPromise) return this._tokenFetchPromise;
+    this._tokenFetchPromise = getAuthToken().then((t) => {
+      this._cachedToken = t;
+      this._tokenFetchPromise = null;
+      return t;
+    });
+    return this._tokenFetchPromise;
   }
 
   /**
@@ -190,8 +216,7 @@ class ViewQueueService {
     const batch = this.pendingQueue.splice(0, MAX_BATCH_SIZE);
 
     try {
-      const { getAuthToken } = await import("../api/auth");
-      const token = await getAuthToken();
+      const token = await this._getToken();
       if (!token) {
         // Not authenticated, put batch back
         this.pendingQueue = [...batch, ...this.pendingQueue];
@@ -287,8 +312,7 @@ class ViewQueueService {
   async updateDwellTime(postId, dwellTimeMs) {
     if (!postId || !dwellTimeMs || dwellTimeMs <= 0) return;
     try {
-      const { getAuthToken } = await import("../api/auth");
-      const token = await getAuthToken();
+      const token = await this._getToken();
       if (!token) return;
       await apiPatch(
         `/posts/views/${postId}/dwell`,
@@ -307,7 +331,7 @@ class ViewQueueService {
    * Write-only tracking for Phase 1 lifecycle system.
    * DO NOT MODIFY — Posts path is unchanged.
    */
-  async recordUnseenImpression(postId) {
+  recordUnseenImpression(postId) {
     if (!postId) return;
     const postIdStr = String(postId);
 
@@ -315,28 +339,32 @@ class ViewQueueService {
     const numericPostId = parseInt(postId, 10);
     if (isNaN(numericPostId) || String(numericPostId) !== postIdStr) return;
 
-    // Check in-memory session deduplication
+    // Check in-memory session deduplication (synchronous — safe to call from scroll callbacks)
     if (this.unseenInSessionSet.has(postIdStr)) return;
     // Skip if already qualified / viewed
     if (this.hasViewed(postId)) return;
 
+    // Mark synchronously to deduplicate before the async work runs
     this.unseenInSessionSet.add(postIdStr);
     console.log(`[UNSEEN] Recorded unseen impression for post ${postId} (session: ${this.sessionId})`);
 
-    try {
-      const { getAuthToken } = await import("../api/auth");
-      const token = await getAuthToken();
-      if (!token) return;
+    // Defer the network call entirely off the scroll thread.
+    // Using setTimeout so this never blocks onViewableItemsChanged.
+    setTimeout(async () => {
+      try {
+        const token = await this._getToken();
+        if (!token) return;
 
-      await apiPost(
-        "/posts/views/unseen",
-        { postId: numericPostId, sessionId: this.sessionId },
-        10000,
-        token,
-      );
-    } catch (e) {
-      console.warn("[ViewQueueService] Failed to record unseen impression:", e?.message);
-    }
+        await apiPost(
+          "/posts/views/unseen",
+          { postId: numericPostId, sessionId: this.sessionId },
+          10000,
+          token,
+        );
+      } catch (e) {
+        console.warn("[ViewQueueService] Failed to record unseen impression:", e?.message);
+      }
+    }, 0);
   }
 
   /**
@@ -344,7 +372,7 @@ class ViewQueueService {
    * Phase 2b — routes to POST /events/views/unseen.
    * Uses a separate session Set to avoid key collisions with Posts.
    */
-  async recordEventUnseen(eventId) {
+  recordEventUnseen(eventId) {
     if (!eventId) return;
     const numericEventId = parseInt(eventId, 10);
     if (isNaN(numericEventId)) return;
@@ -356,19 +384,20 @@ class ViewQueueService {
 
     console.log(`[UNSEEN-EVENT] Recording unseen for event ${numericEventId} (session: ${this.sessionId})`);
 
-    try {
-      const { getAuthToken } = await import("../api/auth");
-      const token = await getAuthToken();
-      if (!token) return;
-      await apiPost(
-        "/events/views/unseen",
-        { eventId: numericEventId, sessionId: this.sessionId },
-        10000,
-        token,
-      );
-    } catch (e) {
-      console.warn("[ViewQueueService] Failed to record unseen event impression:", e?.message);
-    }
+    setTimeout(async () => {
+      try {
+        const token = await this._getToken();
+        if (!token) return;
+        await apiPost(
+          "/events/views/unseen",
+          { eventId: numericEventId, sessionId: this.sessionId },
+          10000,
+          token,
+        );
+      } catch (e) {
+        console.warn("[ViewQueueService] Failed to record unseen event impression:", e?.message);
+      }
+    }, 0);
   }
 
   /**
@@ -376,7 +405,7 @@ class ViewQueueService {
    * Phase 2b — routes to POST /opportunities/views/unseen.
    * UUID is passed as-is — no parseInt guard. Uses a separate session Set.
    */
-  async recordOpportunityUnseen(opportunityId) {
+  recordOpportunityUnseen(opportunityId) {
     if (!opportunityId) return;
     const key = String(opportunityId);
 
@@ -386,19 +415,20 @@ class ViewQueueService {
 
     console.log(`[UNSEEN-OPP] Recording unseen for opportunity ${opportunityId} (session: ${this.sessionId})`);
 
-    try {
-      const { getAuthToken } = await import("../api/auth");
-      const token = await getAuthToken();
-      if (!token) return;
-      await apiPost(
-        "/opportunities/views/unseen",
-        { opportunityId, sessionId: this.sessionId },
-        10000,
-        token,
-      );
-    } catch (e) {
-      console.warn("[ViewQueueService] Failed to record unseen opportunity impression:", e?.message);
-    }
+    setTimeout(async () => {
+      try {
+        const token = await this._getToken();
+        if (!token) return;
+        await apiPost(
+          "/opportunities/views/unseen",
+          { opportunityId, sessionId: this.sessionId },
+          10000,
+          token,
+        );
+      } catch (e) {
+        console.warn("[ViewQueueService] Failed to record unseen opportunity impression:", e?.message);
+      }
+    }, 0);
   }
 }
 
