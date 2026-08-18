@@ -1430,12 +1430,6 @@ export default function CommunityProfileScreen({ navigation, route }) {
         const profileRes = await getCommunityProfile();
         fullProfile = profileRes?.profile || null;
         role = "community";
-        console.log("[CommunityProfile] RAW fullProfile college fields:", {
-          community_type: fullProfile?.community_type,
-          college_id: fullProfile?.college_id,
-          campus_id: fullProfile?.campus_id,
-          college_info: fullProfile?.college_info,
-        });
       } catch (e) {
         try {
           const email = await AsyncStorage.getItem("auth_email");

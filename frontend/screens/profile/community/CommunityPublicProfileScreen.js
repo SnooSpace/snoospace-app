@@ -839,6 +839,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
       : "member";
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [postsLoading, setPostsLoading] = useState(true);
   const [error, setError] = useState("");
   const [posts, setPosts] = useState([]);
   const [preResolvedConversationId, setPreResolvedConversationId] = useState(null);
@@ -1133,10 +1134,6 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
   }, [communityId]);
 
   const loadEvents = useCallback(async () => {
-    console.log(
-      "[CommunityPublicProfile] loadEvents called with communityId:",
-      communityId,
-    );
     try {
       setEventsLoading(true);
       const res = await getCommunityPublicEvents(communityId);
@@ -1171,6 +1168,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
         if (reset) {
           setOffset(0);
           setHasMore(true);
+          setPostsLoading(true);
         }
         setLoadingMore(true);
         const data = await getCommunityPosts(communityId, {
@@ -1227,6 +1225,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
         setError(e?.message || "Failed to load posts");
       } finally {
         setLoadingMore(false);
+        setPostsLoading(false);
       }
     },
     [communityId, offset, posts, hasMore, loadingMore],
@@ -1252,14 +1251,24 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
       (async () => {
         if (!mounted) return;
         setLoading(true);
+        setPostsLoading(true);
+
+        // Stage 1: Load core community profile & circle status immediately to paint header and buttons ASAP
         await Promise.all([
           loadProfile(),
-          loadPosts(true),
-          loadEvents(),
-          loadCommunityVoicePosts(),
-          loadGroupsCount(),
+          loadMemberCommCircleStatus(),
         ]);
         if (mounted) setLoading(false);
+
+        // Stage 2: Load heavy post feed, events, voice posts, and groups in background without blocking button / header paint
+        if (mounted) {
+          Promise.all([
+            loadPosts(true),
+            loadEvents(),
+            loadCommunityVoicePosts(),
+            loadGroupsCount(),
+          ]).catch(console.error);
+        }
       })();
 
       // Background resolve conversation to warm cache
@@ -2579,6 +2588,8 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                       </View>
                     )}
                   </>
+                ) : postsLoading ? (
+                  <SkeletonPostGrid />
                 ) : (
                   <EmptyPostsState isOwnProfile={false} />
                 );

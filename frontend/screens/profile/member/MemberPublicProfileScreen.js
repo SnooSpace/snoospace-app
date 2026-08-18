@@ -275,8 +275,10 @@ const normalizePosts = (postsArray) => {
 export default function MemberPublicProfileScreen({ route, navigation }) {
   const memberId = route?.params?.memberId;
   const isInitialMountRef = useRef(true);
+  const actionInFlightRef = useRef(false);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [postsLoading, setPostsLoading] = useState(true);
   const [renderedPostsLimit, setRenderedPostsLimit] = useState(12);
   const [renderedEventsLimit, setRenderedEventsLimit] = useState(3);
   const [renderedCommunityLimit, setRenderedCommunityLimit] = useState(6);
@@ -703,6 +705,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
         if (reset) {
           setOffset(0);
           setHasMore(true);
+          setPostsLoading(true);
         }
         setLoadingMore(true);
         const data = await getMemberPosts(memberId, {
@@ -756,9 +759,11 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
         setOffset(nextOffset);
         setHasMore(received >= 21);
       } catch (e) {
+        console.error("[MemberPublicProfile] loadPosts error:", e);
         setError(e?.message || "Failed to load posts");
       } finally {
         setLoadingMore(false);
+        setPostsLoading(false);
       }
     },
     [memberId, offset, posts, hasMore, loadingMore],
@@ -823,16 +828,25 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
       (async () => {
         if (!mounted) return;
         setLoading(true);
+        setPostsLoading(true);
         const statusLoader = viewerAccountType === 'community' ? loadCommunityCircleStatus() : loadCircleStatus();
-        const [profileResult] = await Promise.all([loadProfile(), loadPosts(true), statusLoader]);
-        if (mounted && profileResult?.is_creator_mode_enabled) {
-          await Promise.all([
-            loadCreatorFollowStatus(profileResult),
-            loadCommunityVoicePosts(),
-            loadGroupsCount(profileResult),
-          ]);
-        }
+        
+        // Stage 1: Load core profile identity & circle status immediately to paint header and buttons ASAP
+        const [profileResult] = await Promise.all([loadProfile(), statusLoader]);
         if (mounted) setLoading(false);
+
+        // Stage 2: Load heavy post feed & secondary creator data concurrently in background
+        if (mounted) {
+          const bgPromises = [loadPosts(true)];
+          if (profileResult?.is_creator_mode_enabled) {
+            bgPromises.push(
+              loadCreatorFollowStatus(profileResult),
+              loadCommunityVoicePosts(),
+              loadGroupsCount(profileResult),
+            );
+          }
+          Promise.all(bgPromises).catch(console.error);
+        }
       })();
       
       // Background resolve conversation to warm cache
@@ -1716,15 +1730,28 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                           text: 'Remove',
                           style: 'destructive',
                           onPress: async () => {
+                            if (actionInFlightRef.current) return;
+                            actionInFlightRef.current = true;
                             hideAlert();
-                            setCommCircleLoading(true);
+                            HapticsService.triggerImpactLight();
+                            const prevStatus = commCircleStatus;
+                            const prevInviteId = commCircleInviteId;
+                            setCommCircleStatus('none');
+                            setCommCircleInviteId(null);
                             try {
                               await removeMemberFromCommunityCircle(memberId);
-                              setCommCircleStatus('none');
-                              setCommCircleInviteId(null);
-                              HapticsService.triggerImpactLight();
-                            } catch (e) { loadCommunityCircleStatus(); }
-                            finally { setCommCircleLoading(false); }
+                            } catch (e) {
+                              console.warn('[Profile] removeMemberFromCommunityCircle error:', e);
+                              setCommCircleStatus(prevStatus);
+                              setCommCircleInviteId(prevInviteId);
+                              showAlert({
+                                title: 'Action Failed',
+                                message: e?.message || 'Could not remove member from circle. Please try again.',
+                                primaryAction: { text: 'OK', onPress: hideAlert },
+                              });
+                            } finally {
+                              actionInFlightRef.current = false;
+                            }
                           },
                         },
                       });
@@ -1748,15 +1775,28 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                           text: 'Cancel Invite',
                           style: 'destructive',
                           onPress: async () => {
+                            if (actionInFlightRef.current) return;
+                            actionInFlightRef.current = true;
                             hideAlert();
-                            setCommCircleLoading(true);
+                            HapticsService.triggerImpactLight();
+                            const prevStatus = commCircleStatus;
+                            const prevInviteId = commCircleInviteId;
+                            setCommCircleStatus('none');
+                            setCommCircleInviteId(null);
                             try {
-                              await cancelCommunityCircleInvite(commCircleInviteId);
-                              setCommCircleStatus('none');
-                              setCommCircleInviteId(null);
-                              HapticsService.triggerImpactLight();
-                            } catch (e) { loadCommunityCircleStatus(); }
-                            finally { setCommCircleLoading(false); }
+                              await cancelCommunityCircleInvite(prevInviteId);
+                            } catch (e) {
+                              console.warn('[Profile] cancelCommunityCircleInvite error:', e);
+                              setCommCircleStatus(prevStatus);
+                              setCommCircleInviteId(prevInviteId);
+                              showAlert({
+                                title: 'Action Failed',
+                                message: e?.message || 'Could not cancel circle invite. Please try again.',
+                                primaryAction: { text: 'OK', onPress: hideAlert },
+                              });
+                            } finally {
+                              actionInFlightRef.current = false;
+                            }
                           },
                         },
                       });
@@ -1775,14 +1815,27 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                     disabled={commCircleLoading}
                     useGHPressable={true}
                     onPress={async () => {
-                      setCommCircleLoading(true);
+                      if (actionInFlightRef.current) return;
+                      actionInFlightRef.current = true;
+                      HapticsService.triggerAddToCircle();
+                      const prevStatus = commCircleStatus;
+                      const prevInviteId = commCircleInviteId;
+                      setCommCircleStatus('pending_outgoing');
                       try {
                         const res = await sendCommunityCircleInvite(memberId);
-                        setCommCircleStatus('pending_outgoing');
                         setCommCircleInviteId(res?.invite_id || null);
-                        HapticsService.triggerAddToCircle();
-                      } catch (e) { loadCommunityCircleStatus(); }
-                      finally { setCommCircleLoading(false); }
+                      } catch (e) {
+                        console.warn('[Profile] sendCommunityCircleInvite error:', e);
+                        setCommCircleStatus(prevStatus);
+                        setCommCircleInviteId(prevInviteId);
+                        showAlert({
+                          title: 'Action Failed',
+                          message: e?.message || 'Could not send circle invite. Please try again.',
+                          primaryAction: { text: 'OK', onPress: hideAlert },
+                        });
+                      } finally {
+                        actionInFlightRef.current = false;
+                      }
                     }}
                   >
                     <UserPlus size={16} color="#fff" strokeWidth={2.5} />
@@ -1806,37 +1859,70 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                           text: 'Remove',
                           style: 'destructive',
                           onPress: async () => {
+                            if (actionInFlightRef.current) return;
+                            actionInFlightRef.current = true;
                             hideAlert();
-                            setCircleActionLoading(true);
+                            HapticsService.triggerImpactLight();
+                            const prevInCircle = isInCircleWithCreator;
+                            const prevStatus = circleStatus;
+                            const prevCount = circleCount;
+                            const prevIsFollowing = isFollowingCreator;
+                            setIsInCircleWithCreator(false);
+                            setCircleStatus('none');
+                            setCircleCount((c) => Math.max(0, c - 1));
+                            setIsFollowingCreator(true);
+                            EventBus.emit('circle:left', { creatorId: memberId, alsoUnfollow: false });
                             try {
-                              await removeFromCircle(memberId, false); // restore follow
-                              setIsInCircleWithCreator(false);
-                              setCircleStatus('none');
-                              setCircleCount((c) => Math.max(0, c - 1));
-                              // Follow is restored — update follow state
-                              setIsFollowingCreator(true);
-                              EventBus.emit('circle:left', { creatorId: memberId, alsoUnfollow: false });
-                              HapticsService.triggerImpactLight();
-                            } catch (e) { loadCircleStatus(); }
-                            finally { setCircleActionLoading(false); }
+                              await removeFromCircle(memberId, false);
+                            } catch (e) {
+                              console.warn('[Profile] removeFromCircle error:', e);
+                              setIsInCircleWithCreator(prevInCircle);
+                              setCircleStatus(prevStatus);
+                              setCircleCount(prevCount);
+                              setIsFollowingCreator(prevIsFollowing);
+                              showAlert({
+                                title: 'Action Failed',
+                                message: e?.message || 'Could not remove creator from circle. Please try again.',
+                                primaryAction: { text: 'OK', onPress: hideAlert },
+                              });
+                            } finally {
+                              actionInFlightRef.current = false;
+                            }
                           },
                         },
                         tertiaryAction: {
                           text: 'Remove from Circle & Unfollow',
                           style: 'destructive',
                           onPress: async () => {
+                            if (actionInFlightRef.current) return;
+                            actionInFlightRef.current = true;
                             hideAlert();
-                            setCircleActionLoading(true);
+                            HapticsService.triggerImpactLight();
+                            const prevInCircle = isInCircleWithCreator;
+                            const prevStatus = circleStatus;
+                            const prevCount = circleCount;
+                            const prevIsFollowing = isFollowingCreator;
+                            setIsInCircleWithCreator(false);
+                            setCircleStatus('none');
+                            setCircleCount((c) => Math.max(0, c - 1));
+                            setIsFollowingCreator(false);
+                            EventBus.emit('circle:left', { creatorId: memberId, alsoUnfollow: true });
                             try {
-                              await removeFromCircle(memberId, true); // also delete follow
-                              setIsInCircleWithCreator(false);
-                              setCircleStatus('none');
-                              setCircleCount((c) => Math.max(0, c - 1));
-                              setIsFollowingCreator(false);
-                              EventBus.emit('circle:left', { creatorId: memberId, alsoUnfollow: true });
-                              HapticsService.triggerImpactLight();
-                            } catch (e) { loadCircleStatus(); }
-                            finally { setCircleActionLoading(false); }
+                              await removeFromCircle(memberId, true);
+                            } catch (e) {
+                              console.warn('[Profile] removeFromCircle error:', e);
+                              setIsInCircleWithCreator(prevInCircle);
+                              setCircleStatus(prevStatus);
+                              setCircleCount(prevCount);
+                              setIsFollowingCreator(prevIsFollowing);
+                              showAlert({
+                                title: 'Action Failed',
+                                message: e?.message || 'Could not remove creator from circle. Please try again.',
+                                primaryAction: { text: 'OK', onPress: hideAlert },
+                              });
+                            } finally {
+                              actionInFlightRef.current = false;
+                            }
                           },
                         },
                       });
@@ -1846,7 +1932,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                     <Text style={circleCTAStyles.inCircleText}>In Circle</Text>
                   </GHPressable>
                 ) : (
-                  // Creator is not in circle -> plain Follow/Following button (even if pending_incoming)
+                  // Creator is not in circle -> plain Follow/Following button
                   <GHPressable
                     style={({ pressed }) => [
                       isFollowingCreator
@@ -1856,7 +1942,8 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                     ]}
                     disabled={followActionLoading}
                     onPress={async () => {
-                      setFollowActionLoading(true);
+                      if (actionInFlightRef.current) return;
+                      actionInFlightRef.current = true;
                       try {
                         if (isFollowingCreator) {
                           showAlert({
@@ -1864,33 +1951,74 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                             message: `Stop following ${profile?.full_name || 'this creator'}?`,
                             icon: UserMinus,
                             iconColor: '#E53935',
-                            secondaryAction: { text: 'Keep Following', onPress: hideAlert },
+                            secondaryAction: {
+                              text: 'Keep Following',
+                              onPress: () => {
+                                hideAlert();
+                                actionInFlightRef.current = false;
+                              },
+                            },
                             primaryAction: {
                               text: 'Unfollow',
                               style: 'destructive',
                               onPress: async () => {
                                 hideAlert();
+                                HapticsService.triggerImpactLight();
+                                const prevIsFollowing = isFollowingCreator;
+                                const prevCount = creatorFollowerCount;
+                                setIsFollowingCreator(false);
+                                setCreatorFollowerCount(Math.max(0, prevCount - 1));
+                                EventBus.emit('creator:unfollowed', { creatorId: memberId });
                                 try {
                                   const res = await unfollowCreator(memberId);
-                                  setIsFollowingCreator(false);
-                                  setCreatorFollowerCount(res?.follower_count ?? Math.max(0, creatorFollowerCount - 1));
-                                  EventBus.emit('creator:unfollowed', { creatorId: memberId });
-                                  HapticsService.triggerImpactLight();
-                                } catch (e) { console.warn('[Profile] unfollowCreator error:', e); }
-                                finally { setFollowActionLoading(false); }
+                                  if (res?.follower_count != null) {
+                                    setCreatorFollowerCount(res.follower_count);
+                                  }
+                                } catch (e) {
+                                  console.warn('[Profile] unfollowCreator error:', e);
+                                  setIsFollowingCreator(prevIsFollowing);
+                                  setCreatorFollowerCount(prevCount);
+                                  EventBus.emit('creator:followed', { creatorId: memberId });
+                                  showAlert({
+                                    title: 'Action Failed',
+                                    message: e?.message || 'Could not unfollow creator. Please try again.',
+                                    primaryAction: { text: 'OK', onPress: hideAlert },
+                                  });
+                                } finally {
+                                  actionInFlightRef.current = false;
+                                }
                               },
                             },
                           });
-                          setFollowActionLoading(false);
                           return;
                         }
-                        const res = await followCreator(memberId);
-                        setIsFollowingCreator(true);
-                        setCreatorFollowerCount(res?.follower_count ?? creatorFollowerCount + 1);
-                        EventBus.emit('creator:followed', { creatorId: memberId });
                         HapticsService.triggerImpactLight();
-                      } catch (e) { console.warn('[Profile] followCreator error:', e); }
-                      finally { setFollowActionLoading(false); }
+                        const prevIsFollowing = isFollowingCreator;
+                        const prevCount = creatorFollowerCount;
+                        setIsFollowingCreator(true);
+                        setCreatorFollowerCount(prevCount + 1);
+                        EventBus.emit('creator:followed', { creatorId: memberId });
+                        try {
+                          const res = await followCreator(memberId);
+                          if (res?.follower_count != null) {
+                            setCreatorFollowerCount(res.follower_count);
+                          }
+                        } catch (e) {
+                          console.warn('[Profile] followCreator error:', e);
+                          setIsFollowingCreator(prevIsFollowing);
+                          setCreatorFollowerCount(prevCount);
+                          EventBus.emit('creator:unfollowed', { creatorId: memberId });
+                          showAlert({
+                            title: 'Action Failed',
+                            message: e?.message || 'Could not follow creator. Please try again.',
+                            primaryAction: { text: 'OK', onPress: hideAlert },
+                          });
+                        } finally {
+                          actionInFlightRef.current = false;
+                        }
+                      } catch (err) {
+                        actionInFlightRef.current = false;
+                      }
                     }}
                   >
                     {isFollowingCreator
@@ -1916,32 +2044,58 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                             text: 'Remove',
                             style: 'destructive',
                             onPress: async () => {
+                              if (actionInFlightRef.current) return;
+                              actionInFlightRef.current = true;
                               hideAlert();
-                              setCircleActionLoading(true);
+                              HapticsService.triggerImpactLight();
+                              const prevStatus = circleStatus;
+                              const prevCount = circleCount;
+                              setCircleStatus('none');
+                              setCircleCount((c) => Math.max(0, c - 1));
+                              EventBus.emit('my:circle-member-removed', { memberId, alsoUnfollow: false });
                               try {
                                 await removeFromCircle(memberId, false);
-                                setCircleStatus('none');
-                                setCircleCount((c) => Math.max(0, c - 1));
-                                EventBus.emit('my:circle-member-removed', { memberId, alsoUnfollow: false });
-                                HapticsService.triggerImpactLight();
-                              } catch (e) { loadCircleStatus(); }
-                              finally { setCircleActionLoading(false); }
+                              } catch (e) {
+                                console.warn('[Profile] removeFromCircle error:', e);
+                                setCircleStatus(prevStatus);
+                                setCircleCount(prevCount);
+                                showAlert({
+                                  title: 'Action Failed',
+                                  message: e?.message || 'Could not remove member from circle. Please try again.',
+                                  primaryAction: { text: 'OK', onPress: hideAlert },
+                                });
+                              } finally {
+                                actionInFlightRef.current = false;
+                              }
                             },
                           },
                           tertiaryAction: {
                             text: 'Remove from Circle & as Follower',
                             style: 'destructive',
                             onPress: async () => {
+                              if (actionInFlightRef.current) return;
+                              actionInFlightRef.current = true;
                               hideAlert();
-                              setCircleActionLoading(true);
+                              HapticsService.triggerImpactLight();
+                              const prevStatus = circleStatus;
+                              const prevCount = circleCount;
+                              setCircleStatus('none');
+                              setCircleCount((c) => Math.max(0, c - 1));
+                              EventBus.emit('my:circle-member-removed', { memberId, alsoUnfollow: true });
                               try {
                                 await removeFromCircle(memberId, true);
-                                setCircleStatus('none');
-                                setCircleCount((c) => Math.max(0, c - 1));
-                                EventBus.emit('my:circle-member-removed', { memberId, alsoUnfollow: true });
-                                HapticsService.triggerImpactLight();
-                              } catch (e) { loadCircleStatus(); }
-                              finally { setCircleActionLoading(false); }
+                              } catch (e) {
+                                console.warn('[Profile] removeFromCircle error:', e);
+                                setCircleStatus(prevStatus);
+                                setCircleCount(prevCount);
+                                showAlert({
+                                  title: 'Action Failed',
+                                  message: e?.message || 'Could not remove member from circle. Please try again.',
+                                  primaryAction: { text: 'OK', onPress: hideAlert },
+                                });
+                              } finally {
+                                actionInFlightRef.current = false;
+                              }
                             },
                           },
                         });
@@ -1956,16 +2110,29 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                             text: 'Remove',
                             style: 'destructive',
                             onPress: async () => {
+                              if (actionInFlightRef.current) return;
+                              actionInFlightRef.current = true;
                               hideAlert();
-                              setCircleActionLoading(true);
+                              HapticsService.triggerImpactLight();
+                              const prevStatus = circleStatus;
+                              const prevCount = circleCount;
+                              setCircleStatus('none');
+                              setCircleCount((c) => Math.max(0, c - 1));
+                              EventBus.emit('my:circle-member-removed', { memberId });
                               try {
                                 await removeFromCircle(memberId);
-                                setCircleStatus('none');
-                                setCircleCount((c) => Math.max(0, c - 1));
-                                EventBus.emit('my:circle-member-removed', { memberId });
-                                HapticsService.triggerImpactLight();
-                              } catch (e) { loadCircleStatus(); }
-                              finally { setCircleActionLoading(false); }
+                              } catch (e) {
+                                console.warn('[Profile] removeFromCircle error:', e);
+                                setCircleStatus(prevStatus);
+                                setCircleCount(prevCount);
+                                showAlert({
+                                  title: 'Action Failed',
+                                  message: e?.message || 'Could not remove member from circle. Please try again.',
+                                  primaryAction: { text: 'OK', onPress: hideAlert },
+                                });
+                              } finally {
+                                actionInFlightRef.current = false;
+                              }
                             },
                           },
                         });
@@ -1990,15 +2157,28 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                           text: 'Cancel Request',
                           style: 'destructive',
                           onPress: async () => {
+                            if (actionInFlightRef.current) return;
+                            actionInFlightRef.current = true;
                             hideAlert();
-                            setCircleActionLoading(true);
+                            HapticsService.triggerImpactLight();
+                            const prevStatus = circleStatus;
+                            const prevReqId = circleRequestId;
+                            setCircleStatus('none');
+                            setCircleRequestId(null);
                             try {
-                              await cancelCircleRequest(circleRequestId);
-                              setCircleStatus('none');
-                              setCircleRequestId(null);
-                              HapticsService.triggerImpactLight();
-                            } catch (e) { loadCircleStatus(); }
-                            finally { setCircleActionLoading(false); }
+                              await cancelCircleRequest(prevReqId);
+                            } catch (e) {
+                              console.warn('[Profile] cancelCircleRequest error:', e);
+                              setCircleStatus(prevStatus);
+                              setCircleRequestId(prevReqId);
+                              showAlert({
+                                title: 'Action Failed',
+                                message: e?.message || 'Could not cancel circle request. Please try again.',
+                                primaryAction: { text: 'OK', onPress: hideAlert },
+                              });
+                            } finally {
+                              actionInFlightRef.current = false;
+                            }
                           },
                         },
                       });
@@ -2019,7 +2199,12 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                     disabled={circleActionLoading}
                     useGHPressable={true}
                     onPress={async () => {
-                      setCircleActionLoading(true);
+                      if (actionInFlightRef.current) return;
+                      actionInFlightRef.current = true;
+                      HapticsService.triggerAddToCircle();
+                      const prevStatus = circleStatus;
+                      const prevReqId = circleRequestId;
+                      setCircleStatus('pending_outgoing');
                       try {
                         const res = await sendCircleRequest(memberId);
                         if (res?.auto_accepted) {
@@ -2033,12 +2218,20 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                             memberAvatar: profile?.profile_photo_url,
                           });
                         } else {
-                          setCircleStatus('pending_outgoing');
                           setCircleRequestId(res?.request_id || null);
                         }
-                        HapticsService.triggerAddToCircle();
-                      } catch (e) { loadCircleStatus(); }
-                      finally { setCircleActionLoading(false); }
+                      } catch (e) {
+                        console.warn('[Profile] sendCircleRequest error:', e);
+                        setCircleStatus(prevStatus);
+                        setCircleRequestId(prevReqId);
+                        showAlert({
+                          title: 'Action Failed',
+                          message: e?.message || 'Could not send circle request. Please try again.',
+                          primaryAction: { text: 'OK', onPress: hideAlert },
+                        });
+                      } finally {
+                        actionInFlightRef.current = false;
+                      }
                     }}
                   >
                     <UserPlus size={16} color="#fff" strokeWidth={2.5} />
@@ -2234,6 +2427,8 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                       </View>
                     )}
                   </>
+                ) : postsLoading ? (
+                  <SkeletonPostGrid />
                 ) : (
                   <EmptyPostsState isOwnProfile={false} />
                 );
