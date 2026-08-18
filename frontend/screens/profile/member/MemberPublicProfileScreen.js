@@ -2911,7 +2911,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                 communityId: userId,
               });
             } else {
-              navigation.navigate("MemberPublicProfile", { memberId: userId });
+              navigation.push("MemberPublicProfile", { memberId: userId });
             }
           }}
           onPostUpdate={(updatedPost) => {

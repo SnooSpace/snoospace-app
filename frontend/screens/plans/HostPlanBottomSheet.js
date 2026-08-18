@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -34,6 +34,8 @@ import {
   Venus,
   Mars,
   VenusAndMars,
+  FileEdit,
+  Sparkles,
 } from "lucide-react-native";
 import { COLORS, FONTS, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
 import { getAuthToken } from "../../api/auth";
@@ -44,10 +46,17 @@ import PlanCropImage from "./PlanCropImage";
 import { useCrop } from "../../components/media";
 import CustomDatePicker from "../../components/ui/CustomDatePicker";
 import CustomTimePicker from "../../components/ui/CustomTimePicker";
+import CustomAlertModal from "../../components/ui/CustomAlertModal";
 import VenueSearchSheet from "../../components/location/VenueSearchSheet";
 import MapLocationPicker from "../../components/location/MapLocationPicker";
 import { getActiveProvider } from "../../components/media/index";
 import { useToast } from "../../context/ToastContext";
+import {
+  savePlanDraft,
+  loadPlanDraft,
+  deletePlanDraft,
+  formatLastSaved,
+} from "../../utils/planDraftStorage";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const CONTAINER_WIDTH = SCREEN_WIDTH - 40;
@@ -150,6 +159,11 @@ export default function HostPlanBottomSheet({
   const [venueSheetVisible, setVenueSheetVisible] = useState(false);
   const [mapPickerVisible, setMapPickerVisible] = useState(false);
 
+  // ── Draft State ──
+  const [showSaveDraftModal, setShowSaveDraftModal] = useState(false);
+  const [showResumeDraftModal, setShowResumeDraftModal] = useState(false);
+  const [existingDraft, setExistingDraft] = useState(null);
+
   useEffect(() => {
     const showSub = Keyboard.addListener(
       Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
@@ -164,6 +178,19 @@ export default function HostPlanBottomSheet({
       hideSub.remove();
     };
   }, []);
+
+  // Check for saved draft when opening modal
+  useEffect(() => {
+    if (isVisible) {
+      (async () => {
+        const draft = await loadPlanDraft();
+        if (draft && draft.data) {
+          setExistingDraft(draft);
+          setShowResumeDraftModal(true);
+        }
+      })();
+    }
+  }, [isVisible]);
 
   const dynamicMaxHeight =
     SCREEN_HEIGHT * 0.85 - (Platform.OS === "android" ? keyboardHeight : 0);
@@ -187,6 +214,114 @@ export default function HostPlanBottomSheet({
     setPendingPlace(null);
     setBannerUri(null);
     setBannerBase64(null);
+    setExistingDraft(null);
+  };
+
+  const hasUnsavedChanges = useMemo(() => {
+    return (
+      title.trim().length > 0 ||
+      customLabel.trim().length > 0 ||
+      activityType !== "sports" ||
+      costType !== "free" ||
+      costAmount.trim().length > 0 ||
+      visibility !== "everyone" ||
+      genderPref !== "all" ||
+      locationPublic.trim().length > 0 ||
+      locationPrivate.trim().length > 0 ||
+      selectedDate !== null ||
+      selectedTime !== null ||
+      maxAccepted !== 5 ||
+      isRecurring !== false ||
+      selectedVenue !== null ||
+      bannerUri !== null
+    );
+  }, [
+    title,
+    customLabel,
+    activityType,
+    costType,
+    costAmount,
+    visibility,
+    genderPref,
+    locationPublic,
+    locationPrivate,
+    selectedDate,
+    selectedTime,
+    maxAccepted,
+    isRecurring,
+    selectedVenue,
+    bannerUri,
+  ]);
+
+  const handleAttemptClose = useCallback(() => {
+    if (hasUnsavedChanges) {
+      setShowSaveDraftModal(true);
+    } else {
+      resetState();
+      onClose();
+    }
+  }, [hasUnsavedChanges, onClose]);
+
+  const handleSaveDraft = async () => {
+    const formData = {
+      activityType,
+      customLabel,
+      title,
+      costType,
+      costAmount,
+      visibility,
+      genderPref,
+      locationPublic,
+      locationPrivate,
+      selectedDate: selectedDate ? selectedDate.toISOString() : null,
+      selectedTime: selectedTime ? selectedTime.toISOString() : null,
+      maxAccepted,
+      isRecurring,
+      selectedVenue,
+      bannerUri,
+      bannerBase64,
+    };
+    await savePlanDraft(formData);
+    showToast("Draft saved", "You can resume editing anytime.");
+    setShowSaveDraftModal(false);
+    resetState();
+    onClose();
+  };
+
+  const handleDiscardDraft = async () => {
+    await deletePlanDraft();
+    setShowSaveDraftModal(false);
+    resetState();
+    onClose();
+  };
+
+  const handleResumeDraft = () => {
+    if (existingDraft?.data) {
+      const d = existingDraft.data;
+      if (d.activityType) setActivityType(d.activityType);
+      if (d.customLabel) setCustomLabel(d.customLabel);
+      if (d.title) setTitle(d.title);
+      if (d.costType) setCostType(d.costType);
+      if (d.costAmount) setCostAmount(d.costAmount);
+      if (d.visibility) setVisibility(d.visibility);
+      if (d.genderPref) setGenderPref(d.genderPref);
+      if (d.locationPublic) setLocationPublic(d.locationPublic);
+      if (d.locationPrivate) setLocationPrivate(d.locationPrivate);
+      if (d.selectedDate) setSelectedDate(new Date(d.selectedDate));
+      if (d.selectedTime) setSelectedTime(new Date(d.selectedTime));
+      if (d.maxAccepted) setMaxAccepted(d.maxAccepted);
+      if (typeof d.isRecurring === "boolean") setIsRecurring(d.isRecurring);
+      if (d.selectedVenue) setSelectedVenue(d.selectedVenue);
+      if (d.bannerUri) setBannerUri(d.bannerUri);
+      if (d.bannerBase64) setBannerBase64(d.bannerBase64);
+    }
+    setShowResumeDraftModal(false);
+  };
+
+  const handleStartFresh = async () => {
+    await deletePlanDraft();
+    setShowResumeDraftModal(false);
+    resetState();
   };
 
   const validate = () => {
@@ -269,6 +404,7 @@ export default function HostPlanBottomSheet({
         banner_image_url: bannerImageUrl,
       };
       const data = await createPlan(body, token);
+      await deletePlanDraft();
       showToast("Success", "Open plan created successfully!");
       onPlanCreated(data.plan);
       resetState();
@@ -302,10 +438,7 @@ export default function HostPlanBottomSheet({
     <>
       <SwipeableModal
         visible={isVisible && !isCropping}
-        onClose={() => {
-          resetState();
-          onClose();
-        }}
+        onClose={handleAttemptClose}
         sheetStyle={styles.sheet}
         keyboardAvoiding={true}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -865,6 +998,46 @@ export default function HostPlanBottomSheet({
           }}
         />
       )}
+
+      {/* Save Draft Confirmation Modal */}
+      <CustomAlertModal
+        visible={showSaveDraftModal}
+        title="Save as Draft?"
+        message="You have unsaved changes in your open plan. Would you like to save your progress or discard?"
+        icon={FileEdit}
+        iconColor={COLORS.primary}
+        primaryAction={{
+          text: "Save Draft",
+          onPress: handleSaveDraft,
+          style: "primary",
+        }}
+        secondaryAction={{
+          text: "Discard",
+          onPress: handleDiscardDraft,
+          style: "destructive",
+        }}
+        onClose={() => setShowSaveDraftModal(false)}
+      />
+
+      {/* Resume Draft Confirmation Modal */}
+      <CustomAlertModal
+        visible={showResumeDraftModal}
+        title="Resume Draft?"
+        message={`You have an unsaved open plan draft from ${formatLastSaved(existingDraft?.lastSaved)}. Would you like to continue editing?`}
+        icon={Sparkles}
+        iconColor={COLORS.primary}
+        primaryAction={{
+          text: "Resume",
+          onPress: handleResumeDraft,
+          style: "primary",
+        }}
+        secondaryAction={{
+          text: "Start Fresh",
+          onPress: handleStartFresh,
+          style: "destructive",
+        }}
+        onClose={() => setShowResumeDraftModal(false)}
+      />
     </>
   );
 }

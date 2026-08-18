@@ -180,6 +180,7 @@ export default function AppNavigator({ initialRouteName }) {
       <Stack.Screen
         name="MemberPublicProfile"
         component={MemberPublicProfileScreen}
+        getId={({ params }) => String(params?.memberId || "")}
       />
       <Stack.Screen
         name="CommunityPublicProfile"

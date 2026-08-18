@@ -57,6 +57,7 @@ export default function SwipeableModal({
   blurTint = "dark",
   springConfig = { damping: 22, stiffness: 180, mass: 1 },
   swipeEnabled = true,
+  swipeFromHeaderOnly = false,
   closeOnBackdropPress = true,
   header,
   avoidKeyboard = false,
@@ -242,46 +243,22 @@ export default function SwipeableModal({
   const onScroll = useCallback(
     (event) => {
       const y = event?.nativeEvent?.contentOffset?.y ?? 0;
-      scrollY.value = y;
-      if (y < 0) {
-        translateY.value = -y;
-      }
+      scrollY.value = Math.max(0, y);
     },
-    [scrollY, translateY]
+    [scrollY]
   );
 
   const scrollProps = useMemo(
     () => ({
       onScroll: (event) => {
         const y = event?.nativeEvent?.contentOffset?.y ?? 0;
-        scrollY.value = y;
-        if (y < 0) {
-          translateY.value = -y;
-        }
-      },
-      onScrollEndDrag: (event) => {
-        const y = event?.nativeEvent?.contentOffset?.y ?? 0;
-        if (y < -100 || translateY.value > sheetHeight.value * 0.4) {
-          backdropOpacity.value = withTiming(0, { duration: 200 });
-          translateY.value = withTiming(
-            SCREEN_HEIGHT,
-            { duration: 200 },
-            () => {
-              runOnJS(handleDismiss)();
-            }
-          );
-        } else if (translateY.value > 0) {
-          translateY.value = withTiming(0, {
-            duration: 200,
-            easing: Easing.out(Easing.quad),
-          });
-        }
+        scrollY.value = Math.max(0, y);
       },
       scrollEventThrottle: 16,
-      bounces: true,
-      overScrollMode: "always",
+      bounces: false,
+      overScrollMode: "never",
     }),
-    [scrollY, translateY, sheetHeight, backdropOpacity, handleDismiss]
+    [scrollY]
   );
 
   const animatedSheetStyle = useAnimatedStyle(() => ({
@@ -368,12 +345,20 @@ export default function SwipeableModal({
                     <GestureDetector gesture={headerPanGesture}>
                       <View collapsable={false}>{header}</View>
                     </GestureDetector>
-                    <GestureDetector gesture={contentPanGesture}>
+                    {swipeFromHeaderOnly ? (
                       <View style={styles.contentContainer} collapsable={false}>
                         {children}
                       </View>
-                    </GestureDetector>
+                    ) : (
+                      <GestureDetector gesture={contentPanGesture}>
+                        <View style={styles.contentContainer} collapsable={false}>
+                          {children}
+                        </View>
+                      </GestureDetector>
+                    )}
                   </>
+                ) : swipeFromHeaderOnly ? (
+                  <View collapsable={false}>{children}</View>
                 ) : (
                   <GestureDetector gesture={contentPanGesture}>
                     <View collapsable={false}>{children}</View>

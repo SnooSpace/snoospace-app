@@ -248,6 +248,7 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
       visible={visible}
       onClose={onClose}
       sheetStyle={styles.modalContainer}
+      swipeFromHeaderOnly={true}
       header={
         <View collapsable={false}>
           <View style={styles.handle} />
@@ -368,7 +369,7 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
           >
-            <Text style={styles.confirmButtonText}>Confirm Time</Text>
+            <Text style={styles.confirmButtonText}>Confirm</Text>
           </LinearGradient>
         </TouchableOpacity>
       </View>
