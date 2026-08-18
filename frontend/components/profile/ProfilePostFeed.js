@@ -206,6 +206,15 @@ const ProfilePostFeed = ({
             data={posts}
             keyExtractor={(item) => item.id.toString()}
             renderItem={renderItem}
+            getItemType={(item) => {
+              if (item.itemType === "opportunity" || item.post_type === "opportunity") {
+                return "opportunity";
+              }
+              if (item.itemType === "event" || item.post_type === "event") {
+                return "event";
+              }
+              return `post_${item.post_type || "media"}`;
+            }}
             initialScrollIndex={initialIndex !== -1 ? initialIndex : 0}
             onScrollToIndexFailed={onScrollToIndexFailed}
             estimatedItemSize={650}

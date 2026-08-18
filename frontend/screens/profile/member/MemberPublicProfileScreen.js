@@ -8,7 +8,8 @@ import React, {
 import { useFocusEffect } from "@react-navigation/native";
 import { CommonActions } from "@react-navigation/native";
 import {
-  View, Text, Image, StyleSheet, TouchableOpacity, FlatList, Dimensions, ScrollView, Platform, Pressable, RefreshControl, Animated, InteractionManager } from "react-native";
+  View, Text, Image, StyleSheet, TouchableOpacity, FlatList, Dimensions, ScrollView, Platform, Pressable, RefreshControl, Animated, InteractionManager, PixelRatio } from "react-native";
+import { getOptimizedImageUrl } from "../../../utils/imageUtils";
 import SwipeableModal from "../../../components/modals/SwipeableModal";
 import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
 import { Pressable as GHPressable, GestureHandlerRootView } from "react-native-gesture-handler";
@@ -139,14 +140,17 @@ const MemberPublicPostGridCell = React.memo(({ item, index, itemSize, gap, onPre
       videoSourceUrl &&
       videoSourceUrl.includes("cloudinary.com")
     ) {
+      const targetW = Math.round(itemSize * PixelRatio.get());
       mediaUrl = videoSourceUrl
-        .replace("/upload/", "/upload/so_0,f_jpg,q_auto,w_800/")
+        .replace("/upload/", `/upload/so_0,f_jpg,q_auto,w_${targetW},c_limit/`)
         .replace(/\.(mp4|mov|webm|avi|mkv|m3u8)$/i, ".jpg");
     }
     if (!mediaUrl) {
       mediaUrl = videoSourceUrl;
     }
   }
+
+  const optimizedMediaUrl = getOptimizedImageUrl(mediaUrl, { width: itemSize, quality: 'auto:good' });
 
   return (
     <Pressable
@@ -165,7 +169,7 @@ const MemberPublicPostGridCell = React.memo(({ item, index, itemSize, gap, onPre
     >
       <Reanimated.View style={[{ width: "100%", height: "100%", overflow: "hidden", borderRadius: 3 }, animatedScaleStyle]}>
         <ExpoImage
-          source={{ uri: mediaUrl || "https://via.placeholder.com/150" }}
+          source={{ uri: optimizedMediaUrl || "https://via.placeholder.com/150" }}
           style={{ width: "100%", height: "100%" }}
           cachePolicy="memory-disk"
           contentFit="cover"
@@ -270,6 +274,7 @@ const normalizePosts = (postsArray) => {
 
 export default function MemberPublicProfileScreen({ route, navigation }) {
   const memberId = route?.params?.memberId;
+  const isInitialMountRef = useRef(true);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [renderedPostsLimit, setRenderedPostsLimit] = useState(12);
@@ -762,6 +767,10 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
   // Refresh profile + circle status when screen gains focus
   useFocusEffect(
     React.useCallback(() => {
+      if (isInitialMountRef.current) {
+        isInitialMountRef.current = false;
+        return;
+      }
       loadProfile().then((p) => {
         if (p?.is_creator_mode_enabled) {
           loadCreatorFollowStatus(p);
@@ -807,6 +816,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
   });
 
   useEffect(() => {
+    isInitialMountRef.current = true;
     let mounted = true;
     setPreResolvedConversationId(null);
     const task = InteractionManager.runAfterInteractions(() => {

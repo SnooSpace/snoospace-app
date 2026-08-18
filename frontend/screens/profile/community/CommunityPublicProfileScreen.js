@@ -17,7 +17,9 @@ import {
   Linking,
   Pressable,
   InteractionManager,
+  PixelRatio,
 } from "react-native";
+import { getOptimizedImageUrl } from "../../../utils/imageUtils";
 import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
 import { Pressable as GHPressable, GestureHandlerRootView } from "react-native-gesture-handler";
 import { BlurView } from "expo-blur";
@@ -668,8 +670,9 @@ const CommunityPublicPostGridCell = React.memo(({ item, itemSize, onPress }) => 
       videoSourceUrl &&
       videoSourceUrl.includes("cloudinary.com")
     ) {
+      const targetW = Math.round(itemSize * PixelRatio.get());
       mediaUrl = videoSourceUrl
-        .replace("/upload/", "/upload/so_0,f_jpg,q_auto,w_800/")
+        .replace("/upload/", `/upload/so_0,f_jpg,q_auto,w_${targetW},c_limit/`)
         .replace(/\.(mp4|mov|webm|avi|mkv|m3u8)$/i, ".jpg");
     }
     if (!mediaUrl) {
@@ -679,6 +682,8 @@ const CommunityPublicPostGridCell = React.memo(({ item, itemSize, onPress }) => 
       mediaUrl = firstImageUrl;
     }
   }
+
+  const optimizedMediaUrl = getOptimizedImageUrl(mediaUrl, { width: itemSize, quality: 'auto:good' });
 
   return (
     <Pressable
@@ -698,10 +703,10 @@ const CommunityPublicPostGridCell = React.memo(({ item, itemSize, onPress }) => 
       ]}
     >
       <Reanimated.View style={[{ width: "100%", height: "100%", overflow: "hidden", borderRadius: 3 }, animatedScaleStyle]}>
-        {mediaUrl ? (
+        {optimizedMediaUrl ? (
           <>
             <ExpoImage
-              source={{ uri: mediaUrl }}
+              source={{ uri: optimizedMediaUrl }}
               style={styles.gridImage}
               cachePolicy="memory-disk"
               contentFit="cover"
@@ -826,6 +831,7 @@ const normalizePosts = (postsArray) => {
 export default function CommunityPublicProfileScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const communityId = route?.params?.communityId;
+  const isInitialMountRef = useRef(true);
   const viewerRoleParam = route?.params?.viewerRole || "member";
   const viewerRole =
     typeof viewerRoleParam === "string"
@@ -1228,6 +1234,10 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
 
   useFocusEffect(
     React.useCallback(() => {
+      if (isInitialMountRef.current) {
+        isInitialMountRef.current = false;
+        return;
+      }
       loadProfile();
       loadMemberCommCircleStatus();
       loadGroupsCount();
@@ -1235,6 +1245,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
   );
 
   useEffect(() => {
+    isInitialMountRef.current = true;
     let mounted = true;
     setPreResolvedConversationId(null);
     const task = InteractionManager.runAfterInteractions(() => {
@@ -1905,7 +1916,12 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
         {profile?.banner_url && !youHaveBlocked && (
           <View style={styles.bannerContainer}>
             <Image
-              source={{ uri: profile.banner_url }}
+              source={{
+                uri: getOptimizedImageUrl(profile.banner_url, {
+                  width: Dimensions.get("window").width,
+                  quality: "auto:good",
+                }),
+              }}
               style={styles.bannerImage}
             />
             <BlurView intensity={15} tint="dark" style={styles.bannerOverlay} />

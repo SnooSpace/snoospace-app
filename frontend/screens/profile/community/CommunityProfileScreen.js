@@ -18,7 +18,9 @@ import {
   Linking,
   Pressable,
   InteractionManager,
+  PixelRatio,
 } from "react-native";
+import { getOptimizedImageUrl } from "../../../utils/imageUtils";
 import Reanimated, {
   useSharedValue,
   useAnimatedStyle,
@@ -188,7 +190,12 @@ const CommunityProfileHeaderBioSection = React.memo(
         {profile.banner_url && (
           <View style={styles.bannerContainer}>
             <Image
-              source={{ uri: profile.banner_url }}
+              source={{
+                uri: getOptimizedImageUrl(profile.banner_url, {
+                  width: Dimensions.get("window").width,
+                  quality: "auto:good",
+                }),
+              }}
               style={styles.bannerImage}
             />
             {/* Blur + Dim Overlay for mood effect */}
@@ -542,14 +549,17 @@ const CommunityPostGridCell = React.memo(
         videoSourceUrl &&
         videoSourceUrl.includes("cloudinary.com")
       ) {
+        const targetW = Math.round(itemSize * PixelRatio.get());
         mediaUrl = videoSourceUrl
-          .replace("/upload/", "/upload/so_0,f_jpg,q_auto,w_800/")
+          .replace("/upload/", `/upload/so_0,f_jpg,q_auto,w_${targetW},c_limit/`)
           .replace(/\.(mp4|mov|webm|avi|mkv|m3u8)$/i, ".jpg");
       }
       if (!mediaUrl) {
         mediaUrl = videoSourceUrl;
       }
     }
+
+    const optimizedMediaUrl = getOptimizedImageUrl(mediaUrl, { width: itemSize, quality: 'auto:good' });
 
     return (
       <Pressable
@@ -611,10 +621,10 @@ const CommunityPostGridCell = React.memo(
             </View>
           )}
 
-          {mediaUrl ? (
+          {optimizedMediaUrl ? (
             <>
               <ExpoImage
-                source={{ uri: mediaUrl }}
+                source={{ uri: optimizedMediaUrl }}
                 style={{
                   width: "100%",
                   height: "100%",
@@ -1271,36 +1281,6 @@ export default function CommunityProfileScreen({ navigation, route }) {
     };
   }, [profile]);
 
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const token = await getAuthToken();
-        const email = await getAuthEmail();
-        if (token && email && mounted) {
-          const profileResponse = await apiPost(
-            "/auth/get-user-profile",
-            { email },
-            10000,
-            token,
-          );
-          if (profileResponse?.profile?.id && mounted) {
-            setCurrentUserId(profileResponse.profile.id);
-            // Get user type from API response
-            const userType =
-              profileResponse?.role || profileResponse?.profile?.type;
-            setCurrentUserType(userType);
-          }
-        }
-      } catch (error) {
-        console.error("Failed to load current user info:", error);
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
   // Listen for post like/comment updates to refresh posts immediately
   useEffect(() => {
     const handlePostLikeUpdate = (payload) => {
@@ -1443,7 +1423,7 @@ export default function CommunityProfileScreen({ navigation, route }) {
 
       const token = await getAuthToken();
 
-      // Fetch profile using communities/profile endpoint to get full profile with heads
+      // Stage 1 (Profile Identity Resolution): Fetch profile to obtain community ID and core metadata
       let role = "community";
       let fullProfile = null;
       try {
@@ -1483,96 +1463,88 @@ export default function CommunityProfileScreen({ navigation, route }) {
 
       const userId = fullProfile.id;
       const userType = role || "community";
+      setCurrentUserId(userId);
+      setCurrentUserType(userType);
 
-      // Fetch follow counts
-      let followerCount = 0;
-      let followingCount = 0;
-      let circleCount = 0;
-      try {
-        const counts = await apiGet(
-          `/profile/counts/${userId}/${userType}`,
-          15000,
-          token,
-        );
-        const followersRaw = counts?.followers_count ?? counts?.followers;
-        const followingRaw = counts?.following_count ?? counts?.following;
-        followerCount =
-          typeof followersRaw === "number"
-            ? followersRaw
-            : parseInt(followersRaw || "0", 10) || 0;
-        followingCount =
-          typeof followingRaw === "number"
-            ? followingRaw
-            : parseInt(followingRaw || "0", 10) || 0;
-        circleCount = parseInt(counts?.circle_count || 0, 10);
-      } catch {}
+      // Stage 2 (Parallel Entity Fetch with Individual Failure Isolation):
+      // All 5 independent requests fire concurrently with dedicated catch fallbacks
+      const [countsRes, postsRes, oppsRes, eventsRes, voiceRes] = await Promise.all([
+        apiGet(`/profile/counts/${userId}/${userType}`, 15000, token).catch((err) => {
+          console.warn("[CommunityProfile] counts fetch fallback:", err?.message);
+          return {};
+        }),
+        apiGet(`/posts/user/${userId}/${userType}`, 15000, token).catch((err) => {
+          console.warn("[CommunityProfile] posts fetch fallback:", err?.message);
+          return { posts: [] };
+        }),
+        apiGet("/opportunities", 15000, token).catch((err) => {
+          console.warn("[CommunityProfile] opportunities fetch fallback:", err?.message);
+          return { opportunities: [] };
+        }),
+        getCommunityEvents().catch((err) => {
+          console.warn("[CommunityProfile] events fetch fallback:", err?.message);
+          return { events: [] };
+        }),
+        apiGet(`/community-voice-posts?target_id=${userId}&target_type=community`, 15000, token).catch((err) => {
+          console.warn("[CommunityProfile] voice posts fetch fallback:", err?.message);
+          return { posts: [] };
+        }),
+      ]);
 
-      // Fetch posts by this user
-      let userPosts = [];
-      try {
-        const postsRes = await apiGet(
-          `/posts/user/${userId}/${userType}`,
-          15000,
-          token,
-        );
-        userPosts = Array.isArray(postsRes?.posts) ? postsRes.posts : [];
+      // Process follow counts
+      const followersRaw = countsRes?.followers_count ?? countsRes?.followers;
+      const followingRaw = countsRes?.following_count ?? countsRes?.following;
+      const followerCount =
+        typeof followersRaw === "number"
+          ? followersRaw
+          : parseInt(followersRaw || "0", 10) || 0;
+      const followingCount =
+        typeof followingRaw === "number"
+          ? followingRaw
+          : parseInt(followingRaw || "0", 10) || 0;
+      const circleCount = parseInt(countsRes?.circle_count || 0, 10);
 
-        // Debug: Check if poll posts have vote data
-        const pollPosts = userPosts.filter(
-          (p) => p.post_type === "poll" || p.type === "poll",
-        );
-        if (pollPosts.length > 0) {
-          console.log("[CommunityProfile] Poll post data:", {
-            postId: pollPosts[0].id,
-            has_voted: pollPosts[0].has_voted,
-            voted_indexes: pollPosts[0].voted_indexes,
-            typeData: pollPosts[0].type_data,
-          });
-        }
-      } catch {}
+      // Process posts by this user
+      let userPosts = Array.isArray(postsRes?.posts) ? postsRes.posts : [];
 
-      // Fetch community's own opportunities (separate table, not in posts)
-      // and merge them into the combined posts list with post_type: "opportunity"
-      try {
-        const oppsRes = await apiGet("/opportunities", 15000, token);
-        const rawOpps = Array.isArray(oppsRes?.opportunities)
-          ? oppsRes.opportunities
-          : [];
-        const normalizedOpps = rawOpps
-          .filter((o) => o.status === "active" || o.status === "draft")
-          .map((o) => ({
-            ...o,
-            post_type: "opportunity",
-            // Map opportunity fields to post-compatible shape where needed
-            creator_id: o.creator_id || userId,
-            creator_type: o.creator_type || userType,
-            // Inject creator profile info (GET /opportunities doesn't return these)
-            creator_name:
-              o.creator_name ||
-              fullProfile?.name ||
-              fullProfile?.full_name ||
-              "Community",
-            creator_photo:
-              o.creator_photo ||
-              fullProfile?.logo_url ||
-              fullProfile?.profile_photo_url ||
-              null,
-            creator_username: o.creator_username || fullProfile?.username || "",
-            // Use API-returned is_liked/is_saved — do NOT hardcode false
-            is_liked: o.is_liked === true,
-            is_saved: o.is_saved === true,
-            like_count: o.like_count || 0,
-            comment_count: o.comment_count || 0,
-            view_count: o.view_count || 0,
-            is_pinned: o.is_pinned || false,
-          }));
-        userPosts = [...userPosts, ...normalizedOpps];
-        console.log(
-          `[CommunityProfile] Merged ${normalizedOpps.length} opportunities into posts. Total: ${userPosts.length}`,
-        );
-      } catch (oppErr) {
-        console.log("[CommunityProfile] Failed to load opportunities:", oppErr);
-      }
+      // Merge community's own opportunities into posts with post_type: "opportunity"
+      const rawOpps = Array.isArray(oppsRes?.opportunities)
+        ? oppsRes.opportunities
+        : [];
+      const normalizedOpps = rawOpps
+        .filter((o) => o && (o.status === "active" || o.status === "draft"))
+        .map((o) => ({
+          ...o,
+          post_type: "opportunity",
+          creator_id: o.creator_id || userId,
+          creator_type: o.creator_type || userType,
+          creator_name:
+            o.creator_name ||
+            fullProfile?.name ||
+            fullProfile?.full_name ||
+            "Community",
+          creator_photo:
+            o.creator_photo ||
+            fullProfile?.logo_url ||
+            fullProfile?.profile_photo_url ||
+            null,
+          creator_username: o.creator_username || fullProfile?.username || "",
+          is_liked: o.is_liked === true,
+          is_saved: o.is_saved === true,
+          like_count: o.like_count || 0,
+          comment_count: o.comment_count || 0,
+          view_count: o.view_count || 0,
+          is_pinned: o.is_pinned || false,
+        }));
+      userPosts = [...userPosts, ...normalizedOpps];
+
+      // Process community events
+      const allEvents = Array.isArray(eventsRes?.events) ? eventsRes.events : [];
+      setCommunityEvents(allEvents);
+
+      // Process voice posts
+      setVoicePosts(Array.isArray(voiceRes?.posts) ? voiceRes.posts : []);
+      communityVoiceFetchedRef.current = true;
 
       const normalizedCategories = (() => {
         if (Array.isArray(fullProfile?.categories))
@@ -1629,56 +1601,11 @@ export default function CommunityProfileScreen({ navigation, route }) {
         college_info: fullProfile?.college_info || null,
         instagram_username: fullProfile?.instagram_username || null,
       };
-      console.log(
-        "[CommunityProfile] mappedProfile.college_info:",
-        mappedProfile.college_info,
-      );
 
-      console.log(
-        "[CommunityProfile] phones",
-        {
-          rawPhone: fullProfile?.phone,
-          rawPrimary: fullProfile?.primary_phone ?? fullProfile?.primaryPhone,
-          rawSecondary:
-            fullProfile?.secondary_phone ??
-            fullProfile?.secondaryPhone ??
-            fullProfile?.secondary_phone_number,
-        },
-        {
-          mappedPhone: mappedProfile.phone,
-          mappedSecondary: mappedProfile.secondary_phone,
-        },
-      );
       mappedProfile.category = mappedProfile.categories[0] || "";
 
       setProfile(mappedProfile);
       setPosts(normalizePosts(userPosts));
-
-      // Fetch community events
-      try {
-        const eventsRes = await getCommunityEvents();
-        const allEvents = Array.isArray(eventsRes?.events)
-          ? eventsRes.events
-          : [];
-        setCommunityEvents(allEvents);
-      } catch (evErr) {
-        console.log("[CommunityProfile] Failed to load events:", evErr);
-        setCommunityEvents([]);
-      }
-
-      // Fetch community voice posts in background to warm cache
-      try {
-        const token = await getAuthToken();
-        const res = await apiGet(
-          `/community-voice-posts?target_id=${userId}&target_type=community`,
-          15000,
-          token,
-        );
-        setVoicePosts(res?.posts || []);
-        communityVoiceFetchedRef.current = true;
-      } catch (voiceErr) {
-        console.log("[CommunityProfile] Failed to load voice posts in background:", voiceErr);
-      }
 
       setAuthError(false);
       // Initialize counts polling with initial values

@@ -3,8 +3,9 @@ import { registerRootComponent } from 'expo';
 // enableFreeze(true) tells react-native-screens to freeze (suspend) background
 // stack screens so their effects and re-renders stop running while they are
 // inactive. This is the single highest-leverage change in Phase 1.
+// DIAGNOSTIC TEST 1: Temporarily disable screen freeze to isolate transition suspension
 import { enableFreeze } from 'react-native-screens';
-enableFreeze(true);
+enableFreeze(false);
 
 
 import App from './App';

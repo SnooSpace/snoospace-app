@@ -16,7 +16,9 @@ import {
   RefreshControl,
   Pressable,
   InteractionManager,
+  PixelRatio,
 } from "react-native";
+import { getOptimizedImageUrl } from "../../../utils/imageUtils";
 import Reanimated, {
   useSharedValue,
   useAnimatedStyle,
@@ -360,14 +362,17 @@ const MemberPostGridCell = React.memo(
         videoSourceUrl &&
         videoSourceUrl.includes("cloudinary.com")
       ) {
+        const targetW = Math.round(itemSize * PixelRatio.get());
         mediaUrl = videoSourceUrl
-          .replace("/upload/", "/upload/so_0,f_jpg,q_auto,w_800/")
+          .replace("/upload/", `/upload/so_0,f_jpg,q_auto,w_${targetW},c_limit/`)
           .replace(/\.(mp4|mov|webm|avi|mkv|m3u8)$/i, ".jpg");
       }
       if (!mediaUrl) {
         mediaUrl = videoSourceUrl;
       }
     }
+
+    const optimizedMediaUrl = getOptimizedImageUrl(mediaUrl, { width: itemSize, quality: 'auto:good' });
 
     return (
       <Pressable
@@ -403,7 +408,7 @@ const MemberPostGridCell = React.memo(
         >
           <ExpoImage
             source={{
-              uri: mediaUrl || "https://via.placeholder.com/150",
+              uri: optimizedMediaUrl || "https://via.placeholder.com/150",
             }}
             style={styles.postImage}
             cachePolicy="memory-disk"
