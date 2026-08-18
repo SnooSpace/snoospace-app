@@ -318,7 +318,7 @@ export default function HostPlanBottomSheet({
           </View>
         }
       >
-        <ScrollView
+        <SwipeableModal.ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{
             paddingBottom: Platform.OS === "android" ? keyboardHeight + 32 : 32,
@@ -837,7 +837,7 @@ export default function HostPlanBottomSheet({
               <Text style={styles.submitBtnText}>Post open plan</Text>
             )}
           </TouchableOpacity>
-        </ScrollView>
+        </SwipeableModal.ScrollView>
       </SwipeableModal>
 
       {/* Date picker modal */}

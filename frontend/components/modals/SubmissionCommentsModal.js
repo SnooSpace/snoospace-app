@@ -367,7 +367,7 @@ const SubmissionCommentsModal = ({
           <SnooLoader size="small" color={COLORS.textSecondary} />
         </View>
       ) : (
-        <FlatList
+        <SwipeableModal.FlatList
           data={comments}
           keyExtractor={(item) => item.id?.toString()}
           renderItem={renderComment}

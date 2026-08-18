@@ -492,10 +492,9 @@ const DiscoverFilterSheet = React.memo(function DiscoverFilterSheet({
         </View>
       }
     >
-      <KeyboardAwareScrollView
+      <SwipeableModal.KeyboardAwareScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
-        bounces={true}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ paddingBottom: 20 }}
         bottomOffset={Platform.OS === "ios" ? 40 : 20}
@@ -615,7 +614,7 @@ const DiscoverFilterSheet = React.memo(function DiscoverFilterSheet({
             />
           </View>
         </View>
-      </KeyboardAwareScrollView>
+      </SwipeableModal.KeyboardAwareScrollView>
 
       <View style={styles.footer}>
         <TouchableOpacity

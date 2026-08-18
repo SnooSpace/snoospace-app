@@ -1254,7 +1254,7 @@ const PromptPostCard = React.memo(({
         <View style={styles.modalInnerContent}>
           {submissionType === "image" ? (
             /* ── Image Picker ──────────────────────────────────────── */
-            <ScrollView
+            <SwipeableModal.ScrollView
               style={styles.imagePickerScroll}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
@@ -1279,7 +1279,7 @@ const PromptPostCard = React.memo(({
                 {selectedImages.length}/5 image
                 {selectedImages.length !== 1 ? "s" : ""} selected
               </Text>
-            </ScrollView>
+            </SwipeableModal.ScrollView>
           ) : (
             /* ── Text Input ────────────────────────────────────────── */
             <TextInput

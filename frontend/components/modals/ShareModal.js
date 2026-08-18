@@ -407,7 +407,7 @@ function ShareModal({ visible, onClose, post }) {
                   <SnooLoader size="large" color="#007AFF" />
                 </View>
               ) : (
-                <FlatList
+                <SwipeableModal.FlatList
                   data={users}
                   renderItem={renderUser}
                   keyExtractor={(item) => `${item.type}_${item.id}`}

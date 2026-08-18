@@ -165,7 +165,7 @@ export default function CreateBoardPostModal({
         sheetStyle={styles.sheet}
         springConfig={{ damping: 24, stiffness: 200, mass: 1 }}
       >
-        <ScrollView
+        <SwipeableModal.ScrollView
           ref={scrollRef}
           contentContainerStyle={[
             styles.scrollContent,
@@ -318,7 +318,7 @@ export default function CreateBoardPostModal({
                 </>
               )}
             </TouchableOpacity>
-          </ScrollView>
+          </SwipeableModal.ScrollView>
       </SwipeableModal>
 
       {/* Error alert */}

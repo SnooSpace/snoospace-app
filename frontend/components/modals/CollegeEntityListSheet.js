@@ -366,7 +366,7 @@ export default function CollegeEntityListSheet({
                   <Text style={styles.errorText}>{error}</Text>
                 </TouchableOpacity>
               ) : (
-                <FlatList
+                <SwipeableModal.FlatList
                   data={items}
                   keyExtractor={(item) => String(item.id)}
                   renderItem={isMemberMode ? renderMember : renderCommunity}

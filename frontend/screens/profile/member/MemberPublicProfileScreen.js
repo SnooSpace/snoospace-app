@@ -3047,7 +3047,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
           </View>
         }
       >
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.commSheetList}>
+        <SwipeableModal.ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.commSheetList}>
           {profile?.shared_communities?.map((comm) => (
             <TouchableOpacity
               key={comm.id}
@@ -3073,7 +3073,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
               </View>
             </TouchableOpacity>
           ))}
-        </ScrollView>
+        </SwipeableModal.ScrollView>
       </SwipeableModal>
     </SafeAreaView>
     </GestureHandlerRootView>

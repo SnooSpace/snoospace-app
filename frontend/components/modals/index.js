@@ -39,7 +39,7 @@ export { default as SettingsModal } from './SettingsModal';
 export { default as ShareModal } from './ShareModal';
 export { default as ShareTicketModal } from './ShareTicketModal';
 export { default as SubmissionCommentsModal } from './SubmissionCommentsModal';
-export { default as SwipeableModal } from './SwipeableModal';
+export { default as SwipeableModal, SwipeableModalContext, useSwipeableModalScroll } from './SwipeableModal';
 export { default as TypeSelectWarningModal } from './TypeSelectWarningModal';
 export { default as UnsavedChangesModal } from './UnsavedChangesModal';
 export { default as VideoSendPreviewModal } from './VideoSendPreviewModal';

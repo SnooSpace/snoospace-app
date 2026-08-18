@@ -240,7 +240,7 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
           </View>
         }
       >
-        <ScrollView
+        <SwipeableModal.ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
@@ -660,7 +660,7 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
               )}
             </View>
           )}
-        </ScrollView>
+        </SwipeableModal.ScrollView>
       </SwipeableModal>
 
       {/* Date picker modal */}

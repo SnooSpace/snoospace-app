@@ -1270,7 +1270,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
             </View>
           }
         >
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.commSheetList}>
+          <SwipeableModal.ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.commSheetList}>
             {selectedAttendeeCommunities.map((comm) => (
               <TouchableOpacity
                 key={comm.id}
@@ -1296,7 +1296,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
                 </View>
               </TouchableOpacity>
             ))}
-          </ScrollView>
+          </SwipeableModal.ScrollView>
         </SwipeableModal>
       </SafeAreaView>
     </LinearGradient>

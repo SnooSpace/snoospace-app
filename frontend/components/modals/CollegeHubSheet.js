@@ -325,7 +325,7 @@ export default function CollegeHubSheet({
             </TouchableOpacity>
           </View>
         ) : (
-          <FlatList
+          <SwipeableModal.FlatList
             data={communities}
             renderItem={renderCommunityItem}
             keyExtractor={(item) => String(item.id)}

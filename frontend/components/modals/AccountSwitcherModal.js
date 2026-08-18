@@ -396,7 +396,7 @@ export default function AccountSwitcherModal({
       >
 
         {/* Account List */}
-        <FlatList
+        <SwipeableModal.FlatList
           data={accounts}
           keyExtractor={(item) => `${item.type}_${item.id}`}
           renderItem={renderAccountItem}

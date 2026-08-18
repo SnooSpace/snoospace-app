@@ -710,7 +710,7 @@ export default function PlanDetailScreen({ navigation, route }) {
           </View>
         }
       >
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.commSheetList}>
+        <SwipeableModal.ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.commSheetList}>
           {plan?.shared_communities?.map((comm) => (
             <TouchableOpacity
               key={comm.id}
@@ -736,7 +736,7 @@ export default function PlanDetailScreen({ navigation, route }) {
               </View>
             </TouchableOpacity>
           ))}
-        </ScrollView>
+        </SwipeableModal.ScrollView>
       </SwipeableModal>
 
       <ShareModal

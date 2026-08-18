@@ -300,7 +300,7 @@ export default function MyBoardPostsModal({
               </TouchableOpacity>
             </View>
           ) : (
-            <FlatList
+            <SwipeableModal.FlatList
               data={posts}
               keyExtractor={(item) => String(item.id)}
               renderItem={renderPostItem}

@@ -420,7 +420,7 @@ const PromoteSheet = ({
       navigationBarTranslucent={Platform.OS === "android"}
       header={headerEl}
     >
-      <KeyboardAwareScrollView
+      <SwipeableModal.KeyboardAwareScrollView
         style={styles.scroll}
         contentContainerStyle={[
           styles.scrollContent,
@@ -533,7 +533,7 @@ const PromoteSheet = ({
             resetsAt={quota.resets_at}
           />
         ) : null}
-      </KeyboardAwareScrollView>
+      </SwipeableModal.KeyboardAwareScrollView>
 
       {/* Submit bar */}
       <View style={styles.footer}>

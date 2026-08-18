@@ -229,7 +229,7 @@ export default function DegreePickerModal({
               )}
 
               {/* Suggestions */}
-              <SectionList
+              <SwipeableModal.SectionList
                 sections={filteredSections}
                 keyExtractor={(item, idx) => `${item}-${idx}`}
                 renderSectionHeader={renderSectionHeader}

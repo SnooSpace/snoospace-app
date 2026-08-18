@@ -207,7 +207,7 @@ export default function CollegePickerModal({
                     <SnooLoader size="medium" />
                   </View>
                 ) : (
-                  <FlatList
+                  <SwipeableModal.FlatList
                     data={results}
                     renderItem={renderItem}
                     keyExtractor={(item, idx) =>

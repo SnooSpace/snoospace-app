@@ -180,7 +180,7 @@ export default function CollabRequestSheet({
         sheetStyle={styles.sheet}
         springConfig={{ damping: 24, stiffness: 200, mass: 1 }}
       >
-        <ScrollView
+        <SwipeableModal.ScrollView
           ref={scrollRef}
           contentContainerStyle={[
             styles.scrollContent,
@@ -311,7 +311,7 @@ export default function CollabRequestSheet({
                 Pitch text is required — they will see exactly what you write here.
               </Text>
             )}
-          </ScrollView>
+          </SwipeableModal.ScrollView>
       </SwipeableModal>
 
       <CustomAlertModal

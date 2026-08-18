@@ -312,7 +312,7 @@ const RemovalRequestsModal = ({
             <SnooLoader size="large" color="#FF9500" />
           </View>
         ) : (
-          <FlatList
+          <SwipeableModal.FlatList
             data={requests}
             renderItem={renderRequest}
             keyExtractor={(item) => item.id.toString()}

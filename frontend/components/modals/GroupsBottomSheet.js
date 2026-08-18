@@ -200,7 +200,7 @@ export default function GroupsBottomSheet({
           <Text style={styles.emptyText}>No chat groups available</Text>
         </View>
       ) : (
-        <FlatList
+        <SwipeableModal.FlatList
           data={groups}
           keyExtractor={(item) => String(item.id)}
           renderItem={renderGroupItem}

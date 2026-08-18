@@ -166,7 +166,7 @@ const PollVotersModal = ({ visible, onClose, postId, options }) => {
             <SnooLoader size="large" color="#3b65e4" />
           </View>
         ) : (
-          <FlatList
+          <SwipeableModal.FlatList
             data={votersByOption[selectedOption] || []}
             keyExtractor={(item, index) =>
               `voter-${item.voter_id}-${item.voter_type}-${index}`
