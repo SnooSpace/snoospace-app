@@ -1,201 +1,300 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import {
   Modal,
   View,
   Text,
   TouchableOpacity,
-  Platform,
   StyleSheet,
-  FlatList,
   Dimensions,
-  Animated,
-  TouchableWithoutFeedback,
-  PixelRatio,
 } from "react-native";
-import { Clock } from "lucide-react-native";
+import Animated, {
+  useSharedValue,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  interpolateColor,
+  runOnJS,
+} from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
+import { Clock, X, Check } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
-import SwipeableModal from "../modals/SwipeableModal";
 
-// Brand System Colors - Strictly Enforced
+// Apple-Grade Theme Tokens
 const BRAND = {
-  primary: "#3565F2",
-  primaryGradient: ["#3565F2", "#2F56D6"],
-  surface: "#F5F8FF",
-  border: "#E6ECF8",
+  primary: "#2B59FF",
+  primaryGradient: ["#325FFB", "#234DEE"],
+  selectionBg: "#EBF1FF",
+  selectionBorder: "#DCE6FC",
+  selectionDivider: "#D0DEFC",
+  textActive: "#2552ED",
   textPrimary: "#111827",
-  textMuted: "#6B7280",
+  textMuted: "#94A3B8",
+  borderLight: "#F1F5F9",
   background: "#FFFFFF",
 };
 
 const FONTS = {
-  regular: "Manrope-Regular",
-  medium: "Manrope-Medium",
+  display: "BasicCommercialBold",
+  bold: "Manrope-Bold",
   semibold: "Manrope-SemiBold",
+  medium: "Manrope-Medium",
+  regular: "Manrope-Regular",
 };
 
-const BASE_ITEM_HEIGHT = 50;
-const ITEM_HEIGHT = PixelRatio.roundToNearestPixel(BASE_ITEM_HEIGHT);
-const VISIBLE_ITEMS = 3; // Number of items visible at once
-const CONTAINER_HEIGHT = ITEM_HEIGHT * VISIBLE_ITEMS;
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
-const HOURS = Array.from({ length: 12 }, (_, i) => i + 1);
+const ITEM_HEIGHT = 44;
+const VISIBLE_COUNT = 5;
+const WHEEL_HEIGHT = ITEM_HEIGHT * VISIBLE_COUNT; // 220px
+const CAPSULE_HEIGHT = 48;
+
+const HOURS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 const MINUTES = Array.from({ length: 60 }, (_, i) =>
-  i.toString().padStart(2, "0"),
+  i.toString().padStart(2, "0")
 );
 const PERIODS = ["AM", "PM"];
 
-const MULTIPLIER = 3;
-const INFINITE_HOURS = Array.from(
-  { length: 12 * MULTIPLIER },
-  (_, i) => HOURS[i % 12],
-);
-const INFINITE_MINUTES = Array.from(
-  { length: 60 * MULTIPLIER },
-  (_, i) => MINUTES[i % 60],
+const HOUR_ITEMS = HOURS.map((h) => ({ label: String(h), value: h }));
+const MINUTE_ITEMS = MINUTES.map((m) => ({ label: m, value: m }));
+const PERIOD_ITEMS = PERIODS.map((p) => ({ label: p, value: p }));
+
+/**
+ * 120fps Smooth Optical Wheel Item
+ * Clean 2D scaling + opacity + color transition.
+ * No vertical translation to ensure 100% horizontal alignment on baseline.
+ */
+const WheelItem = React.memo(({ item, index, scrollY, onPress }) => {
+  const animatedTextStyle = useAnimatedStyle(() => {
+    const itemOffset = index * ITEM_HEIGHT;
+    const diff = (scrollY.value - itemOffset) / ITEM_HEIGHT;
+    const absDiff = Math.abs(diff);
+
+    // Continuous 2D optical depth curve
+    const clampedDiff = Math.min(2.5, absDiff);
+    const factor = Math.max(0, 1 - clampedDiff / 2.5); // 1 at center -> 0 at distance >= 2.5
+
+    const scale = 0.68 + 0.32 * Math.pow(factor, 1.3);
+    const opacity = 0.25 + 0.75 * factor;
+
+    const color = interpolateColor(
+      clampedDiff,
+      [0, 0.5, 1.2],
+      [BRAND.textActive, BRAND.textActive, BRAND.textMuted]
+    );
+
+    return {
+      transform: [{ scale }],
+      opacity,
+      color,
+    };
+  });
+
+  return (
+    <TouchableOpacity
+      activeOpacity={0.85}
+      onPress={onPress}
+      style={styles.wheelItem}
+    >
+      <Animated.Text style={[styles.wheelItemText, animatedTextStyle]}>
+        {item.label}
+      </Animated.Text>
+    </TouchableOpacity>
+  );
+});
+
+/**
+ * High-Momentum Native Wheel with Direct Snapping & Zero Bounce
+ */
+const NativeWheel = React.memo(
+  ({ items, selectedIndex, onSelect, width = 62 }) => {
+    const scrollRef = useRef(null);
+    const scrollY = useSharedValue(selectedIndex * ITEM_HEIGHT);
+    const lastHapticIdx = useSharedValue(selectedIndex);
+    const isTapping = useSharedValue(false);
+    const isDragging = useSharedValue(false);
+    const isMomentum = useSharedValue(false);
+    const itemCount = items.length;
+
+    // Synchronize initial position and external time prop changes
+    useEffect(() => {
+      if (!isDragging.value && !isMomentum.value && !isTapping.value) {
+        scrollY.value = selectedIndex * ITEM_HEIGHT;
+        lastHapticIdx.value = selectedIndex;
+        scrollRef.current?.scrollTo({
+          y: selectedIndex * ITEM_HEIGHT,
+          animated: false,
+        });
+      }
+    }, [selectedIndex]);
+
+    const triggerHaptic = useCallback(() => {
+      try {
+        Haptics.selectionAsync();
+      } catch {}
+    }, []);
+
+    const handleCommit = useCallback(
+      (idx) => {
+        const bounded = Math.max(0, Math.min(itemCount - 1, idx));
+        onSelect(items[bounded].value);
+      },
+      [items, itemCount, onSelect]
+    );
+
+    const scrollHandler = useAnimatedScrollHandler({
+      onBeginDrag: () => {
+        isDragging.value = true;
+        isTapping.value = false;
+        isMomentum.value = false;
+      },
+      onScroll: (e) => {
+        scrollY.value = e.contentOffset.y;
+        const idx = Math.round(e.contentOffset.y / ITEM_HEIGHT);
+
+        if (isDragging.value && !isTapping.value) {
+          if (idx !== lastHapticIdx.value && idx >= 0 && idx < itemCount) {
+            lastHapticIdx.value = idx;
+            runOnJS(triggerHaptic)();
+          }
+        }
+      },
+      onMomentumBegin: () => {
+        isMomentum.value = true;
+      },
+      onEndDrag: (e) => {
+        isDragging.value = false;
+        if (!isMomentum.value) {
+          const targetY = e.contentOffset.y;
+          const idx = Math.max(
+            0,
+            Math.min(itemCount - 1, Math.round(targetY / ITEM_HEIGHT))
+          );
+          runOnJS(handleCommit)(idx);
+        }
+      },
+      onMomentumEnd: (e) => {
+        isDragging.value = false;
+        isTapping.value = false;
+        isMomentum.value = false;
+        const targetY = e.contentOffset.y;
+        const idx = Math.max(
+          0,
+          Math.min(itemCount - 1, Math.round(targetY / ITEM_HEIGHT))
+        );
+        runOnJS(handleCommit)(idx);
+      },
+    });
+
+    const handleItemPress = useCallback(
+      (index) => {
+        isTapping.value = true;
+        isDragging.value = false;
+        isMomentum.value = false;
+        try {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        } catch {}
+
+        scrollRef.current?.scrollTo({
+          y: index * ITEM_HEIGHT,
+          animated: true,
+        });
+        handleCommit(index);
+      },
+      [handleCommit]
+    );
+
+    return (
+      <View style={{ width, height: WHEEL_HEIGHT }}>
+        <Animated.ScrollView
+          ref={scrollRef}
+          showsVerticalScrollIndicator={false}
+          onScroll={scrollHandler}
+          scrollEventThrottle={16}
+          snapToInterval={ITEM_HEIGHT}
+          snapToAlignment="start" // Direct linear snap without secondary center bounce
+          disableIntervalMomentum={false}
+          decelerationRate="fast" // Crisp lock-in without bounce
+          nestedScrollEnabled={true}
+          bounces={false}
+          overScrollMode="never"
+          contentContainerStyle={styles.wheelContent}
+        >
+          {items.map((item, index) => (
+            <WheelItem
+              key={String(item.value)}
+              item={item}
+              index={index}
+              scrollY={scrollY}
+              onPress={() => handleItemPress(index)}
+            />
+          ))}
+        </Animated.ScrollView>
+      </View>
+    );
+  }
 );
 
 const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
-  const [selectedHour, setSelectedHour] = useState(12);
-  const [selectedMinute, setSelectedMinute] = useState("00");
-  const [selectedPeriod, setSelectedPeriod] = useState("AM");
+  const initialValues = useMemo(() => {
+    const d = time || new Date();
+    let h = d.getHours();
+    const m = d.getMinutes();
+    const p = h >= 12 ? "PM" : "AM";
+    h = h % 12;
+    h = h ? h : 12;
+    return {
+      hour: h,
+      minute: m.toString().padStart(2, "0"),
+      period: p,
+      hourIndex: Math.max(0, HOURS.indexOf(h)),
+      minuteIndex: Math.max(0, Math.min(59, m)),
+      periodIndex: p === "PM" ? 1 : 0,
+    };
+  }, [time]);
+
+  const [selectedHour, setSelectedHour] = useState(initialValues.hour);
+  const [selectedMinute, setSelectedMinute] = useState(initialValues.minute);
+  const [selectedPeriod, setSelectedPeriod] = useState(initialValues.period);
   const [showError, setShowError] = useState(false);
 
-  // Snapshots of the initial values on open — to detect real changes and re-enable on revert
-  const initialHourRef = useRef(12);
-  const initialMinuteRef = useRef("00");
-  const initialPeriodRef = useRef("AM");
-
-  const hoursRef = useRef(null);
-  const minutesRef = useRef(null);
-  const periodRef = useRef(null);
-
-  // Haptic feedback tracking refs
-  const lastHapticIndexHours = useRef(-1);
-  const lastHapticIndexMinutes = useRef(-1);
-  const lastHapticIndexPeriod = useRef(-1);
-
-  const handleScroll = (ev, lastIndexRef) => {
-    const y = ev.nativeEvent.contentOffset.y;
-    const newIndex = Math.round(y / ITEM_HEIGHT);
-
-    if (newIndex !== lastIndexRef.current && newIndex >= 0) {
-      lastIndexRef.current = newIndex;
-      // High quality Apple-style picker wheel tick
-      Haptics.selectionAsync();
-    }
-  };
-
-  const handleScrollEnd = (ev, type) => {
-    const y = ev.nativeEvent.contentOffset.y;
-    const index = Math.round(y / ITEM_HEIGHT);
-
-    if (type === "hour") {
-      const safeIndex = Math.max(0, Math.min(index, INFINITE_HOURS.length - 1));
-      const val = INFINITE_HOURS[safeIndex];
-      if (val !== undefined) {
-        setSelectedHour(val);
-        // Silent infinite looping reset: keep index within middle copy [12, 23]
-        const actualIndex = safeIndex % 12;
-        const middleIndex = 12 + actualIndex;
-        if (safeIndex < 12 || safeIndex >= 24) {
-          setTimeout(() => {
-            hoursRef.current?.scrollToOffset({
-              offset: middleIndex * ITEM_HEIGHT,
-              animated: false,
-            });
-          }, 50);
-        }
-      }
-    } else if (type === "minute") {
-      const safeIndex = Math.max(
-        0,
-        Math.min(index, INFINITE_MINUTES.length - 1),
-      );
-      const val = INFINITE_MINUTES[safeIndex];
-      if (val !== undefined) {
-        setSelectedMinute(val);
-        // Silent infinite looping reset: keep index within middle copy [60, 119]
-        const actualIndex = safeIndex % 60;
-        const middleIndex = 60 + actualIndex;
-        if (safeIndex < 60 || safeIndex >= 120) {
-          setTimeout(() => {
-            minutesRef.current?.scrollToOffset({
-              offset: middleIndex * ITEM_HEIGHT,
-              animated: false,
-            });
-          }, 50);
-        }
-      }
-    } else if (type === "period") {
-      const safeIndex = Math.max(0, Math.min(index, PERIODS.length - 1));
-      const val = PERIODS[safeIndex];
-      if (val !== undefined) {
-        setSelectedPeriod(val);
-      }
-    }
-  };
-
-  // Initialize state from props & Scroll to position
   useEffect(() => {
-    if (visible && time) {
-      let h = time.getHours();
-      const m = time.getMinutes();
-      const p = h >= 12 ? "PM" : "AM";
-
-      h = h % 12;
-      h = h ? h : 12; // 0 should be 12
-
-      setSelectedHour(h);
-      setSelectedMinute(m.toString().padStart(2, "00"));
-      setSelectedPeriod(p);
-      // Snapshot initial values
-      initialHourRef.current = h;
-      initialMinuteRef.current = m.toString().padStart(2, "0");
-      initialPeriodRef.current = p;
-
-      // Scroll to position after short delay to allow layout
-      setTimeout(() => {
-        if (hoursRef.current) {
-          const hourIndex = HOURS.indexOf(h);
-          if (hourIndex !== -1) {
-            hoursRef.current.scrollToOffset({
-              offset: ITEM_HEIGHT * (12 * 1 + hourIndex),
-              animated: false,
-            });
-          }
-        }
-        if (minutesRef.current) {
-          const minuteIndex = MINUTES.indexOf(m.toString().padStart(2, "0"));
-          if (minuteIndex !== -1) {
-            minutesRef.current.scrollToOffset({
-              offset: ITEM_HEIGHT * (60 * 1 + minuteIndex),
-              animated: false,
-            });
-          }
-        }
-        if (periodRef.current) {
-          const periodIndex = PERIODS.indexOf(p);
-          if (periodIndex !== -1) {
-            periodRef.current.scrollToOffset({
-              offset: ITEM_HEIGHT * periodIndex,
-              animated: false,
-            });
-          }
-        }
-
-        setShowError(false);
-      }, 300); // slightly longer delay so the modal is visible first
-    } else if (visible) {
-      // Reset snapshot when opening without an existing time
-      initialHourRef.current = 12;
-      initialMinuteRef.current = "00";
-      initialPeriodRef.current = "AM";
+    if (visible) {
+      setSelectedHour(initialValues.hour);
+      setSelectedMinute(initialValues.minute);
+      setSelectedPeriod(initialValues.period);
       setShowError(false);
     }
-  }, [visible, time]);
+  }, [visible, initialValues]);
+
+  const hourIndex = useMemo(
+    () => Math.max(0, HOURS.indexOf(selectedHour)),
+    [selectedHour]
+  );
+  const minuteIndex = useMemo(
+    () => Math.max(0, Math.min(59, parseInt(selectedMinute, 10))),
+    [selectedMinute]
+  );
+  const periodIndex = useMemo(
+    () => (selectedPeriod === "PM" ? 1 : 0),
+    [selectedPeriod]
+  );
+
+  const handleSelectHour = useCallback((val) => {
+    setSelectedHour(val);
+  }, []);
+
+  const handleSelectMinute = useCallback((val) => {
+    setSelectedMinute(val);
+  }, []);
+
+  const handleSelectPeriod = useCallback((val) => {
+    setSelectedPeriod(val);
+  }, []);
 
   const handleConfirm = () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch {}
+
     if (onChange) {
       const newTime = new Date(time || new Date());
       let h = selectedHour;
@@ -204,6 +303,8 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
 
       newTime.setHours(h);
       newTime.setMinutes(parseInt(selectedMinute, 10));
+      newTime.setSeconds(0);
+      newTime.setMilliseconds(0);
 
       // Validation
       if (minTime && newTime < minTime) {
@@ -224,260 +325,292 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
     }
   };
 
-  const renderItem = ({ item, index, type, selectedValue }) => {
-    const isSelected = item === selectedValue;
-    return (
-      <View style={[styles.wheelItem, { height: ITEM_HEIGHT }]}>
-        <Text
-          style={[styles.wheelText, isSelected && styles.wheelTextSelected]}
-        >
-          {item}
-        </Text>
-      </View>
-    );
-  };
-
-  const getItemLayout = (_, index) => ({
-    length: ITEM_HEIGHT,
-    offset: ITEM_HEIGHT * index,
-    index,
-  });
+  if (!visible) return null;
 
   return (
-    <SwipeableModal
+    <Modal
       visible={visible}
-      onClose={onClose}
-      sheetStyle={styles.modalContainer}
-      swipeFromHeaderOnly={true}
-      header={
-        <View collapsable={false}>
-          <View style={styles.handle} />
-          <View style={styles.header}>
-            <Text style={styles.title}>Select Time</Text>
-          </View>
-        </View>
-      }
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      statusBarTranslucent
     >
-      {/* Wheels Container */}
-      <View style={styles.wheelsContainer}>
-        {/* Selection Highlight (Background) */}
-        <View style={styles.selectionOverlay} pointerEvents="none" />
+      <View style={styles.backdrop}>
+        {/* Backdrop tap to dismiss */}
+        <TouchableOpacity
+          style={StyleSheet.absoluteFill}
+          activeOpacity={1}
+          onPress={onClose}
+        />
 
-        {/* Hours */}
-        <View style={styles.column}>
-          <FlatList
-            ref={hoursRef}
-            data={INFINITE_HOURS}
-            keyExtractor={(item, idx) => `h-${item}-${idx}`}
-            renderItem={({ item, index }) =>
-              renderItem({
-                item,
-                index,
-                type: "hour",
-                selectedValue: selectedHour,
-              })
-            }
-            snapToInterval={ITEM_HEIGHT}
-            decelerationRate="fast"
-            showsVerticalScrollIndicator={false}
-            style={{ width: "100%" }}
-            contentContainerStyle={{
-              paddingTop: (CONTAINER_HEIGHT - ITEM_HEIGHT) / 2,
-              paddingBottom: (CONTAINER_HEIGHT - ITEM_HEIGHT) / 2,
-            }}
-            onScroll={(ev) => handleScroll(ev, lastHapticIndexHours)}
-            scrollEventThrottle={16}
-            onMomentumScrollEnd={(ev) => handleScrollEnd(ev, "hour")}
-            onScrollEndDrag={(ev) => handleScrollEnd(ev, "hour")}
-            getItemLayout={getItemLayout}
-            initialNumToRender={36}
-            maxToRenderPerBatch={36}
-            windowSize={5}
-          />
-        </View>
-
-        {/* Minutes */}
-        <View style={styles.column}>
-          <FlatList
-            ref={minutesRef}
-            data={INFINITE_MINUTES}
-            keyExtractor={(item, idx) => `m-${item}-${idx}`}
-            renderItem={({ item, index }) =>
-              renderItem({
-                item,
-                index,
-                type: "minute",
-                selectedValue: selectedMinute,
-              })
-            }
-            snapToInterval={ITEM_HEIGHT}
-            decelerationRate="fast"
-            showsVerticalScrollIndicator={false}
-            style={{ width: "100%" }}
-            contentContainerStyle={{
-              paddingTop: (CONTAINER_HEIGHT - ITEM_HEIGHT) / 2,
-              paddingBottom: (CONTAINER_HEIGHT - ITEM_HEIGHT) / 2,
-            }}
-            onScroll={(ev) => handleScroll(ev, lastHapticIndexMinutes)}
-            scrollEventThrottle={16}
-            onMomentumScrollEnd={(ev) => handleScrollEnd(ev, "minute")}
-            onScrollEndDrag={(ev) => handleScrollEnd(ev, "minute")}
-            getItemLayout={getItemLayout}
-            initialNumToRender={180}
-            maxToRenderPerBatch={60}
-            windowSize={11}
-          />
-        </View>
-
-        {/* Period */}
-        <View style={styles.column}>
-          <FlatList
-            ref={periodRef}
-            data={PERIODS}
-            keyExtractor={(item) => `p-${item}`}
-            renderItem={({ item, index }) =>
-              renderItem({
-                item,
-                index,
-                type: "period",
-                selectedValue: selectedPeriod,
-              })
-            }
-            snapToInterval={ITEM_HEIGHT}
-            decelerationRate="fast"
-            showsVerticalScrollIndicator={false}
-            style={{ width: "100%" }}
-            contentContainerStyle={{
-              paddingTop: (CONTAINER_HEIGHT - ITEM_HEIGHT) / 2,
-              paddingBottom: (CONTAINER_HEIGHT - ITEM_HEIGHT) / 2,
-            }}
-            onScroll={(ev) => handleScroll(ev, lastHapticIndexPeriod)}
-            scrollEventThrottle={16}
-            onMomentumScrollEnd={(ev) => handleScrollEnd(ev, "period")}
-            onScrollEndDrag={(ev) => handleScrollEnd(ev, "period")}
-            getItemLayout={getItemLayout}
-          />
-        </View>
-      </View>
-
-      {/* Confirm Button */}
-      <View style={styles.confirmButtonContainer}>
-        <TouchableOpacity onPress={handleConfirm}>
-          <LinearGradient
-            colors={BRAND.primaryGradient}
-            style={styles.confirmButton}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-          >
-            <Text style={styles.confirmButtonText}>Confirm</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
-
-      {/* Custom Error Modal Overlay */}
-      {showError && (
-        <View style={styles.errorOverlay}>
-          <View style={styles.errorContainer}>
-            <View style={styles.errorIconContainer}>
-              <Clock size={32} color={BRAND.primary} />
+        {/* Floating Centered Card */}
+        <View style={styles.dialogCard} pointerEvents="box-none">
+          <View style={styles.cardInner}>
+            {/* Header Row */}
+            <View style={styles.header}>
+              <Text style={styles.title}>Select time</Text>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={onClose}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                activeOpacity={0.7}
+              >
+                <X size={18} color={BRAND.textMuted} strokeWidth={2} />
+              </TouchableOpacity>
             </View>
-            <Text style={styles.errorTitle}>Invalid Time</Text>
-            <Text style={styles.errorText}>
-              The selected time is in the past. We've adjusted it for you.
-            </Text>
 
+            {/* Subtle Divider Line */}
+            <View style={styles.headerDivider} />
+
+            {/* Wheels Container */}
+            <View style={styles.wheelsContainer}>
+              {/* Continuous Blue Selection Capsule Background */}
+              <View style={styles.selectionCapsule} pointerEvents="none" />
+
+              {/* Top Linear Gradient Vignette (Smooth Fade-in) */}
+              <LinearGradient
+                colors={[
+                  "rgba(255, 255, 255, 0.95)",
+                  "rgba(255, 255, 255, 0.55)",
+                  "rgba(255, 255, 255, 0)",
+                ]}
+                style={styles.topVignette}
+                pointerEvents="none"
+              />
+
+              {/* Hours Wheel */}
+              <NativeWheel
+                items={HOUR_ITEMS}
+                selectedIndex={hourIndex}
+                onSelect={handleSelectHour}
+                width={62}
+              />
+
+              {/* Separator Colon */}
+              <View style={styles.colonCol} pointerEvents="none">
+                <Text style={styles.colonText}>:</Text>
+              </View>
+
+              {/* Minutes Wheel */}
+              <NativeWheel
+                items={MINUTE_ITEMS}
+                selectedIndex={minuteIndex}
+                onSelect={handleSelectMinute}
+                width={62}
+              />
+
+              {/* Flow-aligned Vertical Divider with Generous Spacing */}
+              <View style={styles.dividerWrapper} pointerEvents="none">
+                <View style={styles.capsuleDivider} />
+              </View>
+
+              {/* Period Wheel (AM / PM) */}
+              <NativeWheel
+                items={PERIOD_ITEMS}
+                selectedIndex={periodIndex}
+                onSelect={handleSelectPeriod}
+                width={62}
+              />
+
+              {/* Bottom Linear Gradient Vignette (Smooth Fade-out) */}
+              <LinearGradient
+                colors={[
+                  "rgba(255, 255, 255, 0)",
+                  "rgba(255, 255, 255, 0.55)",
+                  "rgba(255, 255, 255, 0.95)",
+                ]}
+                style={styles.bottomVignette}
+                pointerEvents="none"
+              />
+            </View>
+
+            {/* Confirm CTA Button */}
             <TouchableOpacity
-              style={styles.errorConfirmButton}
-              onPress={handleAutoCorrect}
+              style={styles.confirmButtonContainer}
+              onPress={handleConfirm}
+              activeOpacity={0.88}
             >
               <LinearGradient
                 colors={BRAND.primaryGradient}
-                style={styles.gradientButton}
+                style={styles.confirmButton}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
               >
-                <Text style={styles.errorConfirmButtonText}>
-                  Use Earliest Available Time
-                </Text>
+                <Text style={styles.confirmButtonText}>Confirm</Text>
+                <Check
+                  size={18}
+                  color="#FFFFFF"
+                  strokeWidth={2.8}
+                  style={styles.confirmCheck}
+                />
               </LinearGradient>
             </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.errorCancelButton}
-              onPress={() => setShowError(false)}
-            >
-              <Text style={styles.errorCancelButtonText}>
-                Select Another Time
-              </Text>
-            </TouchableOpacity>
           </View>
+
+          {/* Custom Error Modal Overlay */}
+          {showError && (
+            <View style={styles.errorOverlay}>
+              <View style={styles.errorContainer}>
+                <View style={styles.errorIconContainer}>
+                  <Clock size={28} color={BRAND.primary} strokeWidth={2.2} />
+                </View>
+                <Text style={styles.errorTitle}>Invalid Time</Text>
+                <Text style={styles.errorText}>
+                  The selected time is in the past. We've adjusted it for you.
+                </Text>
+
+                <TouchableOpacity
+                  style={styles.errorConfirmButton}
+                  onPress={handleAutoCorrect}
+                >
+                  <LinearGradient
+                    colors={BRAND.primaryGradient}
+                    style={styles.gradientButton}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                  >
+                    <Text style={styles.errorConfirmButtonText}>
+                      Use Earliest Available Time
+                    </Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.errorCancelButton}
+                  onPress={() => setShowError(false)}
+                >
+                  <Text style={styles.errorCancelButtonText}>
+                    Select Another Time
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
         </View>
-      )}
-    </SwipeableModal>
+      </View>
+    </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  handle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: BRAND.border,
-    alignSelf: "center",
-    marginBottom: 16,
-  },
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "flex-end",
-  },
-  modalContainer: {
-    backgroundColor: BRAND.background,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    paddingBottom: Platform.OS === "ios" ? 40 : 24,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 10,
+    backgroundColor: "rgba(0, 0, 0, 0.45)",
+    justifyContent: "center",
     alignItems: "center",
+    paddingHorizontal: 24,
+  },
+  dialogCard: {
+    width: "100%",
+    maxWidth: 324,
+    position: "relative",
+  },
+  cardInner: {
+    backgroundColor: BRAND.background,
+    borderRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 20,
+    width: "100%",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.14,
+    shadowRadius: 24,
+    elevation: 16,
+    borderWidth: 1,
+    borderColor: "rgba(0, 0, 0, 0.04)",
   },
   header: {
+    flexDirection: "row",
     alignItems: "center",
-    marginBottom: 24,
+    justifyContent: "space-between",
     width: "100%",
+    paddingHorizontal: 4,
+    paddingBottom: 14,
   },
   title: {
     fontFamily: FONTS.semibold,
-    fontSize: 18,
+    fontSize: 17,
     color: BRAND.textPrimary,
+  },
+  closeButton: {
+    padding: 4,
+  },
+  headerDivider: {
+    height: 1,
+    backgroundColor: BRAND.borderLight,
+    width: "100%",
+    marginBottom: 8,
   },
   wheelsContainer: {
     flexDirection: "row",
-    height: CONTAINER_HEIGHT,
+    height: WHEEL_HEIGHT,
     width: "100%",
-    justifyContent: "space-around",
+    justifyContent: "center",
     alignItems: "center",
-    marginBottom: 24,
     position: "relative",
+    marginBottom: 20,
+    overflow: "hidden",
   },
-  selectionOverlay: {
+  selectionCapsule: {
     position: "absolute",
-    height: ITEM_HEIGHT,
-    width: "100%",
-    top: (CONTAINER_HEIGHT - ITEM_HEIGHT) / 2,
-    backgroundColor: BRAND.surface,
-    borderRadius: 8,
+    height: CAPSULE_HEIGHT,
+    left: 4,
+    right: 4,
+    top: (WHEEL_HEIGHT - CAPSULE_HEIGHT) / 2, // 86px
+    backgroundColor: BRAND.selectionBg,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: BRAND.border,
-    zIndex: -1,
+    borderColor: BRAND.selectionBorder,
+    zIndex: 0,
   },
-  column: {
-    flex: 1,
-    height: CONTAINER_HEIGHT,
+  topVignette: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 42,
+    zIndex: 10,
+  },
+  bottomVignette: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 42,
+    zIndex: 10,
+  },
+  dividerWrapper: {
+    width: 20,
+    height: WHEEL_HEIGHT,
+    justifyContent: "center",
     alignItems: "center",
+    zIndex: 2,
+  },
+  capsuleDivider: {
+    width: 1.5,
+    height: 26,
+    backgroundColor: BRAND.selectionDivider,
+    borderRadius: 1,
+  },
+  colonCol: {
+    width: 14,
+    height: WHEEL_HEIGHT,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 2,
+  },
+  colonText: {
+    fontFamily: FONTS.bold,
+    fontSize: 24,
+    color: BRAND.textActive,
+    lineHeight: 28,
+    textAlign: "center",
+  },
+  wheelContent: {
+    paddingTop: ITEM_HEIGHT * 2,
+    paddingBottom: ITEM_HEIGHT * 2,
   },
   wheelItem: {
     height: ITEM_HEIGHT,
@@ -485,50 +618,50 @@ const styles = StyleSheet.create({
     alignItems: "center",
     width: "100%",
   },
-  wheelText: {
-    fontFamily: FONTS.regular,
-    fontSize: 18,
-    color: BRAND.textMuted,
-    opacity: 0.4,
+  wheelItemText: {
+    fontFamily: FONTS.bold,
+    fontSize: 26,
     textAlign: "center",
-    lineHeight: ITEM_HEIGHT,
-  },
-  wheelTextSelected: {
-    fontFamily: FONTS.semibold,
-    fontSize: 22,
-    color: BRAND.textPrimary,
-    opacity: 1,
-    textAlign: "center",
-    lineHeight: ITEM_HEIGHT,
+    letterSpacing: -0.4,
   },
   confirmButtonContainer: {
     width: "100%",
   },
   confirmButton: {
-    height: 48,
-    borderRadius: 14,
+    height: 50,
+    borderRadius: 25,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     width: "100%",
+    shadowColor: BRAND.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
   },
   confirmButtonText: {
     fontFamily: FONTS.semibold,
     fontSize: 16,
     color: "#FFFFFF",
   },
+  confirmCheck: {
+    marginLeft: 6,
+  },
   // Error Modal Styles
   errorOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.7)",
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
     justifyContent: "center",
     alignItems: "center",
     zIndex: 1000,
-    padding: 24,
+    padding: 20,
+    borderRadius: 24,
   },
   errorContainer: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 24,
+    borderRadius: 20,
+    padding: 20,
     width: "100%",
     alignItems: "center",
     shadowColor: "#000",
@@ -538,50 +671,51 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   errorIconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: BRAND.surface,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: BRAND.selectionBg,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 10,
   },
   errorTitle: {
     fontFamily: FONTS.semibold,
-    fontSize: 20,
+    fontSize: 17,
     color: BRAND.textPrimary,
-    marginBottom: 8,
+    marginBottom: 4,
     textAlign: "center",
   },
   errorText: {
     fontFamily: FONTS.regular,
-    fontSize: 15,
+    fontSize: 13,
     color: BRAND.textMuted,
     textAlign: "center",
-    marginBottom: 24,
-    lineHeight: 22,
+    marginBottom: 16,
+    lineHeight: 18,
   },
   errorConfirmButton: {
     width: "100%",
-    marginBottom: 12,
+    marginBottom: 8,
   },
   gradientButton: {
-    height: 48,
-    borderRadius: 14,
+    height: 44,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: BRAND.primary,
   },
   errorConfirmButtonText: {
     fontFamily: FONTS.semibold,
-    fontSize: 15,
+    fontSize: 14,
     color: "#FFFFFF",
   },
   errorCancelButton: {
-    paddingVertical: 12,
+    paddingVertical: 8,
   },
   errorCancelButtonText: {
     fontFamily: FONTS.medium,
-    fontSize: 15,
+    fontSize: 13,
     color: BRAND.textMuted,
   },
 });
