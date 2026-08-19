@@ -24,6 +24,7 @@ import {
   Image,
   ActivityIndicator,
   TouchableOpacity,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -510,8 +511,9 @@ export default function InviteMembersScreen({ navigation }) {
   const showEmpty = !loading && (activeFilter === 'followers' || search.length >= 2);
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
       <SafeAreaView style={styles.container} edges={['top']}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <View style={styles.header}>
@@ -521,9 +523,9 @@ export default function InviteMembersScreen({ navigation }) {
               else { navigation.goBack(); }
             }}
             style={styles.backBtn}
-            hitSlop={8}
+            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
           >
-            <ArrowLeft size={24} color={COLORS.textPrimary} strokeWidth={2} />
+            <ArrowLeft size={22} color={COLORS.textPrimary} strokeWidth={2.5} />
           </TouchableOpacity>
 
           <Text style={styles.headerTitle}>
@@ -531,7 +533,7 @@ export default function InviteMembersScreen({ navigation }) {
           </Text>
 
           {bulkMode ? (
-            <TouchableOpacity style={styles.cancelBulkBtn} onPress={exitBulkMode} hitSlop={8}>
+            <TouchableOpacity style={styles.cancelBulkBtn} onPress={exitBulkMode} hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}>
               <X size={20} color={COLORS.textSecondary} strokeWidth={2} />
             </TouchableOpacity>
           ) : (
@@ -539,124 +541,127 @@ export default function InviteMembersScreen({ navigation }) {
           )}
         </View>
 
-        {/* ── Filter Tabs ─────────────────────────────────────────────────── */}
-        <View style={styles.filterRow}>
-          {FILTERS.map((f) => (
-            <FilterTab
-              key={f.key}
-              label={f.label}
-              active={activeFilter === f.key}
-              onPress={() => handleFilterChange(f.key)}
-            />
-          ))}
-        </View>
-
-        {/* ── Search Bar ──────────────────────────────────────────────────── */}
-        <View style={styles.searchRow}>
-          <View style={styles.searchBox}>
-            <Search size={16} color={COLORS.textSecondary} strokeWidth={2} style={{ marginRight: 8 }} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder={
-                activeFilter === 'followers'
-                  ? 'Search followers…'
-                  : activeFilter === 'creators'
-                    ? 'Search creators by name…'
-                    : 'Search members by name or username…'
-              }
-              placeholderTextColor={COLORS.textSecondary}
-              value={search}
-              onChangeText={handleSearchChange}
-              returnKeyType="search"
-              autoCorrect={false}
-              autoCapitalize="none"
-            />
-            {search.length > 0 && (
-              <TouchableOpacity onPress={() => handleSearchChange('')} hitSlop={8}>
-                <X size={15} color={COLORS.textSecondary} strokeWidth={2} />
-              </TouchableOpacity>
-            )}
+        {/* ── Body Content Wrapper (#F9F9F9) ────────────────────────────────── */}
+        <View style={styles.contentWrapper}>
+          {/* ── Filter Tabs ─────────────────────────────────────────────────── */}
+          <View style={styles.filterRow}>
+            {FILTERS.map((f) => (
+              <FilterTab
+                key={f.key}
+                label={f.label}
+                active={activeFilter === f.key}
+                onPress={() => handleFilterChange(f.key)}
+              />
+            ))}
           </View>
-        </View>
 
-        {/* ── Section Header ──────────────────────────────────────────────── */}
-        {showResults && (
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionLabel}>
-              {activeFilter === 'followers' ? 'Your Followers' :
-               activeFilter === 'creators'  ? 'Creators'       : 'Members'}
-            </Text>
-            {!bulkMode && results.some(r => circleStates[r.id] !== 'in_circle' && circleStates[r.id] !== 'pending_outgoing') && (
-              <TouchableOpacity
-                onPress={() => setBulkMode(true)}
-                hitSlop={8}
-                style={styles.bulkToggleBtn}
-              >
-                <CheckSquare size={15} color={COLORS.primary} strokeWidth={2} />
-                <Text style={styles.bulkToggleText}>Select</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-
-        {/* ── List ────────────────────────────────────────────────────────── */}
-        {loading ? (
-          <View style={styles.centered}>
-            <ActivityIndicator size="large" color={COLORS.primary} />
-          </View>
-        ) : (
-          <FlatList
-            data={results}
-            renderItem={renderItem}
-            keyExtractor={keyExtractor}
-            onEndReached={handleLoadMore}
-            onEndReachedThreshold={0.4}
-            ListEmptyComponent={showEmpty ? (
-              <EmptyState search={search} filter={activeFilter} />
-            ) : null}
-            ListFooterComponent={loadingMore ? (
-              <ActivityIndicator style={{ margin: 16 }} color={COLORS.primary} />
-            ) : null}
-            contentContainerStyle={{ paddingBottom: bulkMode ? 100 : 40, flexGrow: 1 }}
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="on-drag"
-          />
-        )}
-
-        {/* ── Bulk Action Bar ─────────────────────────────────────────────── */}
-        {bulkMode && (
-          <Reanimated.View
-            entering={SlideInDown.springify().damping(20)}
-            exiting={SlideOutDown.duration(200)}
-            style={styles.bulkBar}
-          >
-            <View style={styles.bulkBarInner}>
-              <Text style={styles.bulkBarLabel}>
-                {selected.size === 0
-                  ? 'Tap members to select'
-                  : `${selected.size} member${selected.size > 1 ? 's' : ''} selected`}
-              </Text>
-              <TouchableOpacity
-                style={[
-                  styles.bulkInviteBtn,
-                  (selected.size === 0 || bulkLoading) && styles.bulkInviteBtnDisabled,
-                ]}
-                onPress={handleBulkInvite}
-                disabled={selected.size === 0 || bulkLoading}
-                activeOpacity={0.8}
-              >
-                {bulkLoading ? (
-                  <ActivityIndicator size="small" color="#fff" style={{ width: 80 }} />
-                ) : (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Send size={15} color="#fff" strokeWidth={2.5} />
-                    <Text style={styles.bulkInviteBtnText}>Invite Selected</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
+          {/* ── Search Bar ──────────────────────────────────────────────────── */}
+          <View style={styles.searchRow}>
+            <View style={styles.searchBox}>
+              <Search size={16} color={COLORS.textSecondary} strokeWidth={2} style={{ marginRight: 8 }} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder={
+                  activeFilter === 'followers'
+                    ? 'Search followers…'
+                    : activeFilter === 'creators'
+                      ? 'Search creators by name…'
+                      : 'Search members by name or username…'
+                }
+                placeholderTextColor={COLORS.textSecondary}
+                value={search}
+                onChangeText={handleSearchChange}
+                returnKeyType="search"
+                autoCorrect={false}
+                autoCapitalize="none"
+              />
+              {search.length > 0 && (
+                <TouchableOpacity onPress={() => handleSearchChange('')} hitSlop={8}>
+                  <X size={15} color={COLORS.textSecondary} strokeWidth={2} />
+                </TouchableOpacity>
+              )}
             </View>
-          </Reanimated.View>
-        )}
+          </View>
+
+          {/* ── Section Header ──────────────────────────────────────────────── */}
+          {showResults && (
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionLabel}>
+                {activeFilter === 'followers' ? 'Your Followers' :
+                 activeFilter === 'creators'  ? 'Creators'       : 'Members'}
+              </Text>
+              {!bulkMode && results.some(r => circleStates[r.id] !== 'in_circle' && circleStates[r.id] !== 'pending_outgoing') && (
+                <TouchableOpacity
+                  onPress={() => setBulkMode(true)}
+                  hitSlop={8}
+                  style={styles.bulkToggleBtn}
+                >
+                  <CheckSquare size={15} color={COLORS.primary} strokeWidth={2} />
+                  <Text style={styles.bulkToggleText}>Select</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
+          {/* ── List ────────────────────────────────────────────────────────── */}
+          {loading ? (
+            <View style={styles.centered}>
+              <ActivityIndicator size="large" color={COLORS.primary} />
+            </View>
+          ) : (
+            <FlatList
+              data={results}
+              renderItem={renderItem}
+              keyExtractor={keyExtractor}
+              onEndReached={handleLoadMore}
+              onEndReachedThreshold={0.4}
+              ListEmptyComponent={showEmpty ? (
+                <EmptyState search={search} filter={activeFilter} />
+              ) : null}
+              ListFooterComponent={loadingMore ? (
+                <ActivityIndicator style={{ margin: 16 }} color={COLORS.primary} />
+              ) : null}
+              contentContainerStyle={{ paddingBottom: bulkMode ? 100 : 40, flexGrow: 1 }}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+            />
+          )}
+
+          {/* ── Bulk Action Bar ─────────────────────────────────────────────── */}
+          {bulkMode && (
+            <Reanimated.View
+              entering={SlideInDown.springify().damping(20)}
+              exiting={SlideOutDown.duration(200)}
+              style={styles.bulkBar}
+            >
+              <View style={styles.bulkBarInner}>
+                <Text style={styles.bulkBarLabel}>
+                  {selected.size === 0
+                    ? 'Tap members to select'
+                    : `${selected.size} member${selected.size > 1 ? 's' : ''} selected`}
+                </Text>
+                <TouchableOpacity
+                  style={[
+                    styles.bulkInviteBtn,
+                    (selected.size === 0 || bulkLoading) && styles.bulkInviteBtnDisabled,
+                  ]}
+                  onPress={handleBulkInvite}
+                  disabled={selected.size === 0 || bulkLoading}
+                  activeOpacity={0.8}
+                >
+                  {bulkLoading ? (
+                    <ActivityIndicator size="small" color="#fff" style={{ width: 80 }} />
+                  ) : (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Send size={15} color="#fff" strokeWidth={2.5} />
+                      <Text style={styles.bulkInviteBtnText}>Invite Selected</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </Reanimated.View>
+          )}
+        </View>
 
         <CustomAlertModal onClose={hideAlert} {...alertConfig} />
       </SafeAreaView>
@@ -668,7 +673,11 @@ export default function InviteMembersScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#FFFFFF',
+  },
+  contentWrapper: {
+    flex: 1,
+    backgroundColor: '#F9F9F9',
   },
 
   // Header
@@ -677,23 +686,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.06)',
+    height: 56,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(0, 0, 0, 0.08)',
   },
   backBtn: {
     width: 40,
+    height: 40,
+    justifyContent: 'center',
     alignItems: 'flex-start',
   },
   headerTitle: {
     flex: 1,
     textAlign: 'center',
-    fontFamily: 'BasicCommercial-Bold',
-    fontSize: 16,
+    fontFamily: 'BasicCommercial-Black',
+    fontSize: 20,
     color: COLORS.textPrimary,
   },
   cancelBulkBtn: {
     width: 40,
+    height: 40,
+    justifyContent: 'center',
     alignItems: 'flex-end',
   },
 
@@ -709,10 +723,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: BORDER_RADIUS.pill,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
   },
   filterTabActive: {
     backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
   filterTabText: {
     fontFamily: FONTS.semiBold,
@@ -731,10 +748,12 @@ const styles = StyleSheet.create({
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F2F2F7',
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 9,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
   },
   searchInput: {
     flex: 1,

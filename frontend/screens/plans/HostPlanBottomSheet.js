@@ -19,7 +19,8 @@ import { Image } from "expo-image";
 import SwipeableModal from "../../components/modals/SwipeableModal";
 import {
   Users,
-  Globe,
+  Earth,
+  Info,
   ChevronDown,
   Minus,
   Plus,
@@ -163,6 +164,7 @@ export default function HostPlanBottomSheet({
   const [showSaveDraftModal, setShowSaveDraftModal] = useState(false);
   const [showResumeDraftModal, setShowResumeDraftModal] = useState(false);
   const [existingDraft, setExistingDraft] = useState(null);
+  const [showVisibilityInfo, setShowVisibilityInfo] = useState(false);
 
   useEffect(() => {
     const showSub = Keyboard.addListener(
@@ -215,6 +217,7 @@ export default function HostPlanBottomSheet({
     setBannerUri(null);
     setBannerBase64(null);
     setExistingDraft(null);
+    setShowVisibilityInfo(false);
   };
 
   const hasUnsavedChanges = useMemo(() => {
@@ -607,7 +610,41 @@ export default function HostPlanBottomSheet({
           )}
 
           {/* Visibility */}
-          <Text style={styles.fieldLabel}>Who can discover this?</Text>
+          <View style={styles.labelRowWithInfo}>
+            <Text style={styles.fieldLabelInline}>Who can discover this?</Text>
+            <TouchableOpacity
+              onPress={() => setShowVisibilityInfo((prev) => !prev)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              activeOpacity={0.7}
+              style={styles.infoBtn}
+            >
+              <Info
+                size={16}
+                color={showVisibilityInfo ? COLORS.primary : COLORS.textMuted}
+                strokeWidth={1.8}
+              />
+            </TouchableOpacity>
+          </View>
+
+          {showVisibilityInfo && (
+            <View style={styles.visInfoBox}>
+              <View style={styles.visInfoItem}>
+                <Earth size={14} color={COLORS.primary} strokeWidth={2} style={styles.visInfoIcon} />
+                <Text style={styles.visInfoText}>
+                  <Text style={styles.visInfoBold}>Everyone: </Text>
+                  Visible to all SnooSpace users.
+                </Text>
+              </View>
+              <View style={styles.visInfoItem}>
+                <Users size={14} color={COLORS.primary} strokeWidth={2} style={styles.visInfoIcon} />
+                <Text style={styles.visInfoText}>
+                  <Text style={styles.visInfoBold}>Community members: </Text>
+                  People who share a community with you.
+                </Text>
+              </View>
+            </View>
+          )}
+
           <View style={styles.visibilityRow}>
             <TouchableOpacity
               style={[
@@ -615,8 +652,9 @@ export default function HostPlanBottomSheet({
                 visibility === "everyone" && styles.visCardActive,
               ]}
               onPress={() => setVisibility("everyone")}
+              activeOpacity={0.75}
             >
-              <Globe
+              <Earth
                 size={18}
                 color={
                   visibility === "everyone"
@@ -633,9 +671,6 @@ export default function HostPlanBottomSheet({
               >
                 Everyone
               </Text>
-              <Text style={styles.visCardSub}>
-                Visible to all SnooSpace users
-              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[
@@ -643,6 +678,7 @@ export default function HostPlanBottomSheet({
                 visibility === "community_members" && styles.visCardActive,
               ]}
               onPress={() => setVisibility("community_members")}
+              activeOpacity={0.75}
             >
               <Users
                 size={18}
@@ -662,9 +698,6 @@ export default function HostPlanBottomSheet({
                 ]}
               >
                 Community members
-              </Text>
-              <Text style={styles.visCardSub}>
-                People who share a community with you
               </Text>
             </TouchableOpacity>
           </View>
@@ -1153,17 +1186,67 @@ const styles = StyleSheet.create({
     color: COLORS.error,
     marginTop: 4,
   },
+  labelRowWithInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  fieldLabelInline: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 13,
+    color: COLORS.textSecondary,
+  },
+  infoBtn: {
+    padding: 4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  visInfoBox: {
+    backgroundColor: "#F0F4FF",
+    borderWidth: 1,
+    borderColor: "rgba(41, 98, 255, 0.18)",
+    borderRadius: 12,
+    padding: 10,
+    gap: 6,
+    marginBottom: 10,
+  },
+  visInfoItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  visInfoIcon: {
+    marginTop: 2,
+  },
+  visInfoText: {
+    flex: 1,
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: "#1E3A8A",
+    lineHeight: 17,
+  },
+  visInfoBold: {
+    fontFamily: FONTS.semiBold,
+    color: "#1E3A8A",
+  },
   visibilityRow: {
     flexDirection: "row",
     gap: 10,
   },
   visCard: {
     flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1.5,
     borderColor: COLORS.border,
-    borderRadius: 14,
-    padding: 12,
-    gap: 4,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    gap: 7,
+    backgroundColor: COLORS.surface,
   },
   visCardActive: {
     borderColor: COLORS.primary,
@@ -1173,11 +1256,6 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.semiBold,
     fontSize: 13,
     color: COLORS.textSecondary,
-  },
-  visCardSub: {
-    fontFamily: FONTS.regular,
-    fontSize: 11,
-    color: COLORS.textMuted,
   },
   twoColRow: {
     flexDirection: "row",

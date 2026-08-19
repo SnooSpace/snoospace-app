@@ -22,7 +22,8 @@ import {
   RefreshCw,
   Image as ImageIcon,
   X,
-  Globe,
+  Earth,
+  Info,
   Users,
   Venus,
   Mars,
@@ -80,6 +81,7 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
   const [costAmount, setCostAmount] = useState('');
   const [visibility, setVisibility] = useState('everyone');
   const [genderPref, setGenderPref] = useState('all');
+  const [showVisibilityInfo, setShowVisibilityInfo] = useState(false);
 
   // Banner state
   const [bannerUri, setBannerUri] = useState(null);       // local URI if newly picked
@@ -101,6 +103,7 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
     setErrors({});
     setCancelConfirming(false);
     setCancelling(false);
+    setShowVisibilityInfo(false);
 
     // New fields pre-fill
     setCostType(plan.cost_type || 'free');
@@ -449,7 +452,41 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
           </View>
 
           {/* Visibility */}
-          <Text style={styles.fieldLabel}>Who can discover this?</Text>
+          <View style={styles.labelRowWithInfo}>
+            <Text style={styles.fieldLabelInline}>Who can discover this?</Text>
+            <TouchableOpacity
+              onPress={() => setShowVisibilityInfo((prev) => !prev)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              activeOpacity={0.7}
+              style={styles.infoBtn}
+            >
+              <Info
+                size={16}
+                color={showVisibilityInfo ? COLORS.primary : COLORS.textMuted}
+                strokeWidth={1.8}
+              />
+            </TouchableOpacity>
+          </View>
+
+          {showVisibilityInfo && (
+            <View style={styles.visInfoBox}>
+              <View style={styles.visInfoItem}>
+                <Earth size={14} color={COLORS.primary} strokeWidth={2} style={styles.visInfoIcon} />
+                <Text style={styles.visInfoText}>
+                  <Text style={styles.visInfoBold}>Everyone: </Text>
+                  Visible to all SnooSpace users.
+                </Text>
+              </View>
+              <View style={styles.visInfoItem}>
+                <Users size={14} color={COLORS.primary} strokeWidth={2} style={styles.visInfoIcon} />
+                <Text style={styles.visInfoText}>
+                  <Text style={styles.visInfoBold}>Community members: </Text>
+                  People who share a community with you.
+                </Text>
+              </View>
+            </View>
+          )}
+
           <View style={styles.visibilityRow}>
             <TouchableOpacity
               style={[
@@ -457,8 +494,9 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
                 visibility === 'everyone' && styles.visCardActive,
               ]}
               onPress={() => setVisibility('everyone')}
+              activeOpacity={0.75}
             >
-              <Globe
+              <Earth
                 size={18}
                 color={
                   visibility === 'everyone'
@@ -475,9 +513,6 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
               >
                 Everyone
               </Text>
-              <Text style={styles.visCardSub}>
-                Visible to all SnooSpace users
-              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[
@@ -485,6 +520,7 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
                 visibility === 'community_members' && styles.visCardActive,
               ]}
               onPress={() => setVisibility('community_members')}
+              activeOpacity={0.75}
             >
               <Users
                 size={18}
@@ -504,9 +540,6 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
                 ]}
               >
                 Community members
-              </Text>
-              <Text style={styles.visCardSub}>
-                People who share a community with you
               </Text>
             </TouchableOpacity>
           </View>
@@ -995,17 +1028,67 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.textPrimary,
   },
+  labelRowWithInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  fieldLabelInline: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 13,
+    color: COLORS.textSecondary,
+  },
+  infoBtn: {
+    padding: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  visInfoBox: {
+    backgroundColor: '#F0F4FF',
+    borderWidth: 1,
+    borderColor: 'rgba(41, 98, 255, 0.18)',
+    borderRadius: 12,
+    padding: 10,
+    gap: 6,
+    marginBottom: 10,
+  },
+  visInfoItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  visInfoIcon: {
+    marginTop: 2,
+  },
+  visInfoText: {
+    flex: 1,
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: '#1E3A8A',
+    lineHeight: 17,
+  },
+  visInfoBold: {
+    fontFamily: FONTS.semiBold,
+    color: '#1E3A8A',
+  },
   visibilityRow: {
     flexDirection: 'row',
     gap: 10,
   },
   visCard: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1.5,
     borderColor: COLORS.border,
-    borderRadius: 14,
-    padding: 12,
-    gap: 4,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    gap: 7,
+    backgroundColor: COLORS.surface,
   },
   visCardActive: {
     borderColor: COLORS.primary,
@@ -1015,10 +1098,5 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.semiBold,
     fontSize: 13,
     color: COLORS.textSecondary,
-  },
-  visCardSub: {
-    fontFamily: FONTS.regular,
-    fontSize: 11,
-    color: COLORS.textMuted,
   },
 });

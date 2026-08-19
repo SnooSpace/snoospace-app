@@ -1,13 +1,14 @@
-﻿import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   StyleSheet, View, Text, ScrollView,
   TouchableOpacity, Dimensions, RefreshControl,
+  StatusBar,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
   useSharedValue, useAnimatedStyle, useAnimatedProps,
-  withTiming, withDelay, FadeInDown, interpolate,
+  withTiming, withDelay, withRepeat, FadeInDown, interpolate,
 } from "react-native-reanimated";
 import Svg, {
   Circle as SvgCircle,
@@ -89,12 +90,11 @@ const SectionLabel = ({ children }) => (
 const Shimmer = ({ w = "100%", h = 120 }) => {
   const opacity = useSharedValue(0.4);
   useEffect(() => {
-    const pulse = () => {
-      opacity.value = withTiming(1, { duration: 700 }, () => {
-        opacity.value = withTiming(0.4, { duration: 700 }, pulse);
-      });
-    };
-    pulse();
+    opacity.value = withRepeat(
+      withTiming(1, { duration: 700 }),
+      -1,
+      true
+    );
   }, []);
   const aStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
   return (
@@ -566,48 +566,73 @@ export default function EventQualityScreen({ navigation, route }) {
   };
 
   return (
-    <View style={styles.container}>
-      <LinearGradient colors={["#F9FAFB", "#F3F4F6"]} style={StyleSheet.absoluteFill} />
-      <SafeAreaView style={{ flex: 1 }} edges={["top"]}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-            <ArrowLeft size={22} color={PRIMARY_TEXT} />
-          </TouchableOpacity>
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={styles.headerTitle} numberOfLines={1}>
-              {eventTitle ?? "Event Quality"}
-            </Text>
-            <Text style={styles.headerSub}>Audience Quality Score</Text>
-          </View>
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+          hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+        >
+          <ArrowLeft size={22} color={PRIMARY_TEXT} strokeWidth={2.5} />
+        </TouchableOpacity>
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {eventTitle ?? "Event Quality"}
+          </Text>
+          <Text style={styles.headerSub}>Audience Quality Score</Text>
         </View>
+        <View style={{ width: 40 }} />
+      </View>
 
+      <View style={styles.contentWrapper}>
         {renderContent()}
-      </SafeAreaView>
-    </View>
+      </View>
+    </SafeAreaView>
   );
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: LIGHT_BG },
+  container: { flex: 1, backgroundColor: "#FFFFFF" },
+  contentWrapper: { flex: 1, backgroundColor: "#F9F9F9" },
 
   // header
   header: {
-    flexDirection: "row", alignItems: "center",
-    paddingHorizontal: 16, paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    height: 56,
+    backgroundColor: "#FFFFFF",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(0, 0, 0, 0.08)",
   },
   backButton: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: CARD_BG, alignItems: "center", justifyContent: "center",
-    ...SHADOWS.sm,
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "flex-start",
+  },
+  headerTitleContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerTitle: {
-    fontFamily: FONTS.black, fontSize: 18, color: PRIMARY_TEXT, letterSpacing: -0.5,
+    fontFamily: "BasicCommercial-Black",
+    fontSize: 20,
+    color: PRIMARY_TEXT,
+    textAlign: "center",
   },
   headerSub: {
-    fontFamily: FONTS.regular, fontSize: 12, color: MUTED, marginTop: 1,
+    fontFamily: "Manrope-Regular",
+    fontSize: 13,
+    color: MUTED,
+    marginTop: 2,
+    textAlign: "center",
   },
 
   // scroll

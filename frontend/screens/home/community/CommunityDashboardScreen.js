@@ -1137,8 +1137,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingTop: 20,
-    marginBottom: 10,
+    paddingTop: 16,
+    paddingBottom: 8,
+    marginBottom: 12,
   },
   dashboardTitle: {
     fontFamily: FONTS.black,
@@ -1147,9 +1148,9 @@ const styles = StyleSheet.create({
     letterSpacing: -1,
   },
   iconButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
@@ -1166,7 +1167,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   scrollContent: {
-    paddingTop: 20,
+    paddingTop: 0,
     paddingBottom: 40,
   },
   section: {

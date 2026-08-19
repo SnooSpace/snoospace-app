@@ -494,11 +494,13 @@ const ShareTicketScreen = ({ navigation, route }) => {
           <Text style={styles.headerTitle}>
             {step === 1 ? "Share Tickets" : "Gift Details"}
           </Text>
-          <View style={{ width: 54 }} />
+          <View style={{ width: 40 }} />
         </View>
 
         {/* Content */}
-        {step === 1 ? renderEventSelection() : renderGiftForm()}
+        <View style={styles.contentWrapper}>
+          {step === 1 ? renderEventSelection() : renderGiftForm()}
+        </View>
       </SafeAreaView>
     </GestureHandlerRootView>
   );
@@ -509,14 +511,19 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#FFFFFF",
   },
+  contentWrapper: {
+    flex: 1,
+    backgroundColor: "#F9F9F9",
+  },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E5EA",
+    height: 56,
+    backgroundColor: "#FFFFFF",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(0, 0, 0, 0.08)",
   },
   headerButton: {
     width: 40,
@@ -528,10 +535,12 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontFamily: "BasicCommercial-Black",
     color: TEXT_COLOR,
+    textAlign: "center",
   },
   content: {
     flex: 1,
     padding: 20,
+    backgroundColor: "#F9F9F9",
   },
   stepTitle: {
     fontSize: 16,
@@ -572,10 +581,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     padding: 14,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#FFFFFF",
     borderRadius: 14,
     marginBottom: 12,
     gap: 14,
+    borderWidth: 1,
+    borderColor: "rgba(0, 0, 0, 0.04)",
   },
   eventImage: {
     width: 56,
@@ -595,13 +606,10 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   backButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 22,
-    flexDirection: "row",
-    alignItems: "center",
-    marginRight: 10,
-    marginLeft: -10,
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "flex-start",
   },
   backButtonText: {
     fontSize: 15,
@@ -612,7 +620,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     padding: 14,
-    backgroundColor: "#F0F8FF",
+    backgroundColor: "#FFFFFF",
     borderRadius: 14,
     marginBottom: 24,
     gap: 12,
@@ -640,8 +648,10 @@ const styles = StyleSheet.create({
   noTicketsContainer: {
     alignItems: "center",
     padding: 24,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#FFFFFF",
     borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(0, 0, 0, 0.04)",
   },
   noTicketsText: {
     fontSize: 14,

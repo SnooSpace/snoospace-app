@@ -184,6 +184,10 @@ const getTabBarStyle = (route, customHiddenRoutes = []) => {
     "PlanDetail",
     "HostRequests",
     "CommunityCreatePost",
+    "InviteMembers",
+    "EventQuality",
+    "AudienceIntelligence",
+    "OpportunitiesList",
   ];
   const allHiddenRoutes = [...baseHiddenRoutes, ...customHiddenRoutes];
   

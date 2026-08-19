@@ -1276,7 +1276,7 @@ export default function SearchScreen({ navigation }) {
       {/* Header with Explore Title - Only visible when not searching */}
       {!focused && (
         <View style={styles.headerContainer}>
-          <Text style={[styles.headerTitle, { fontFamily: "Manrope-Medium", color: COLORS.textPrimary, fontWeight: "normal" }]}>
+          <Text style={styles.headerTitle}>
             Explore
           </Text>
         </View>
@@ -1529,8 +1529,10 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   headerTitle: {
-    fontSize: 28,
+    fontFamily: FONTS.black,
+    fontSize: 34,
     color: COLORS.textPrimary,
+    letterSpacing: -1,
   },
   searchContainer: {
     paddingHorizontal: 20,

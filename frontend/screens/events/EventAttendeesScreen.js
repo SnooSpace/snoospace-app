@@ -7,6 +7,7 @@ import {
   RefreshControl,
   Image,
   ScrollView,
+  StatusBar,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import LinearGradient from "../../components/ui/LinearGradient";
@@ -35,7 +36,7 @@ import { getEventInsights } from "../../api/events";
 import { getGradientForName, getInitials } from "../../utils/AvatarGenerator";
 import SnooLoader from "../../components/ui/SnooLoader";
 
-const BACKGROUND_COLOR = "#F9FAFB";
+const BACKGROUND_COLOR = "#F9F9F9";
 const CARD_BACKGROUND = "#FFFFFF";
 const TEXT_COLOR = "#1F2937";
 const MUTED_TEXT = "#6B7280";
@@ -246,42 +247,52 @@ export default function EventAttendeesScreen({ route, navigation }) {
 
   const renderHeader = () => (
     <View style={styles.header}>
-      <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-        <ArrowLeft size={24} color={TEXT_COLOR} />
+      <TouchableOpacity
+        onPress={() => navigation.goBack()}
+        style={styles.backBtn}
+        hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+      >
+        <ArrowLeft size={22} color={TEXT_COLOR} strokeWidth={2.5} />
       </TouchableOpacity>
       <View style={styles.headerTitleContainer}>
         <Text style={styles.headerTitle}>Event Insights</Text>
-        <Text style={styles.headerSubtitle}>{event?.title || "Community Event"}</Text>
+        <Text style={styles.headerSubtitle} numberOfLines={1}>
+          {event?.title || "Community Event"}
+        </Text>
       </View>
       <View style={{ width: 40 }} />
     </View>
   );
 
-
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
         {renderHeader()}
-        <ScrollView style={styles.content}>
-          <SkeletonPlaceholder borderRadius={16}>
-            <SkeletonPlaceholder.Item width="100%" height={200} marginBottom={16} />
-            <SkeletonPlaceholder.Item width="100%" height={150} marginBottom={16} />
-            <SkeletonPlaceholder.Item width="100%" height={150} marginBottom={16} />
-          </SkeletonPlaceholder>
-        </ScrollView>
+        <View style={styles.contentWrapper}>
+          <ScrollView style={styles.content}>
+            <SkeletonPlaceholder borderRadius={16}>
+              <SkeletonPlaceholder.Item width="100%" height={200} marginBottom={16} />
+              <SkeletonPlaceholder.Item width="100%" height={150} marginBottom={16} />
+              <SkeletonPlaceholder.Item width="100%" height={150} marginBottom={16} />
+            </SkeletonPlaceholder>
+          </ScrollView>
+        </View>
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       {renderHeader()}
 
-      <ScrollView
-        style={styles.content}
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      >
+      <View style={styles.contentWrapper}>
+        <ScrollView
+          style={styles.content}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        >
         {/* 1. HERO PERFORMANCE CARD */}
         <Animated.View entering={FadeInDown.delay(100).springify()}>
           <LinearGradient
@@ -529,12 +540,17 @@ export default function EventAttendeesScreen({ route, navigation }) {
 
         <View style={{ height: 60 }} />
       </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+  },
+  contentWrapper: {
     flex: 1,
     backgroundColor: BACKGROUND_COLOR,
   },
@@ -543,27 +559,34 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 10,
     backgroundColor: CARD_BACKGROUND,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(0, 0, 0, 0.08)",
   },
   backBtn: {
-    padding: 8,
-    marginLeft: -8,
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "flex-start",
   },
   headerTitleContainer: {
     flex: 1,
     alignItems: "center",
+    justifyContent: "center",
   },
   headerTitle: {
     fontFamily: "BasicCommercial-Black",
     fontSize: 20,
     color: TEXT_COLOR,
+    textAlign: "center",
   },
   headerSubtitle: {
     fontFamily: "Manrope-Regular",
     fontSize: 13,
     color: MUTED_TEXT,
     marginTop: 2,
+    textAlign: "center",
   },
   filterContainer: {
     flexDirection: "row",
