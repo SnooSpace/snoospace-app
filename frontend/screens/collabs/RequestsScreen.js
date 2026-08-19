@@ -22,6 +22,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   TouchableOpacity,
+  StatusBar,
 } from 'react-native';
 import { Pressable as GHPressable, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -648,12 +649,17 @@ export default function RequestsScreen({
   const screenBody = (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaView style={styles.container} edges={['top']}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
         {/* ── Top Header ── */}
         <View style={[styles.header, isBottomTab && styles.bottomTabHeader]}>
           {!isBottomTab ? (
-            <GHPressable onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={8}>
-              <ArrowLeft size={24} color={COLORS.textPrimary} strokeWidth={2} />
+            <GHPressable
+              onPress={() => navigation.goBack()}
+              style={styles.backBtn}
+              hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+            >
+              <ArrowLeft size={22} color={COLORS.textPrimary} strokeWidth={2.5} />
             </GHPressable>
           ) : null}
           <Text style={[styles.headerTitle, isBottomTab && styles.bottomTabHeaderTitle]}>
@@ -931,11 +937,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 0,
+    height: 56,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(0, 0, 0, 0.08)',
     backgroundColor: '#FFFFFF',
   },
   bottomTabHeader: {
+    height: 'auto',
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 8,
@@ -946,19 +954,20 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     justifyContent: 'center',
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
   headerTitle: {
-    fontFamily: FONTS.primary, // BasicCommercial-Bold
+    fontFamily: 'BasicCommercial-Black',
     fontSize: 20,
     color: COLORS.textPrimary,
-    letterSpacing: -0.3,
+    textAlign: 'center',
   },
   bottomTabHeaderTitle: {
     fontFamily: FONTS.black, // PlusJakartaSans-ExtraBold — matching Community Dashboard title
     fontSize: 34,
     color: COLORS.textPrimary,
     letterSpacing: -1,
+    textAlign: 'left',
   },
   tabRow: {
     flexDirection: 'row',

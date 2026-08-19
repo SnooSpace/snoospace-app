@@ -373,8 +373,9 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontFamily: FONTS.primary,
-    fontSize: 20,
+    fontSize: 18,
     color: COLORS.textPrimary,
+    letterSpacing: -0.2,
   },
   hostBtn: {
     flexDirection: 'row',

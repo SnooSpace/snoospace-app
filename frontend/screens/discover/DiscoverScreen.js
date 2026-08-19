@@ -313,7 +313,7 @@ export default function DiscoverScreen({ navigation }) {
       <SafeAreaView style={{ backgroundColor: COLORS.screenBackground }} edges={EDGES}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={[styles.headerTitle, { fontFamily: 'Manrope-Medium' }]}>Discover</Text>
+          <Text style={styles.headerTitle}>Discover</Text>
           <View style={styles.headerRight}>
             <TouchableOpacity
               style={styles.iconButton}
@@ -589,13 +589,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: SPACING.l,
-    paddingVertical: SPACING.m,
+    paddingTop: 16,
+    paddingBottom: 8,
     backgroundColor: COLORS.screenBackground,
   },
   headerTitle: {
-    fontFamily: FONTS.primary, // Strict BasicCommercialBold
-    fontSize: 28,
+    fontFamily: FONTS.black,
+    fontSize: 34,
     color: COLORS.textPrimary,
+    letterSpacing: -1,
   },
   headerRight: {
     flexDirection: "row",
@@ -651,20 +653,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.l,
     marginBottom: SPACING.m,
     fontFamily: FONTS.primary,
-    fontSize: 20,
+    fontSize: 18,
     color: COLORS.textPrimary,
+    letterSpacing: -0.2,
   },
   sectionTitle: {
     fontFamily: FONTS.primary, // Strict BasicCommercialBold
-    fontSize: 20,
+    fontSize: 18,
     color: COLORS.textPrimary,
-    lineHeight: 24,
+    lineHeight: 22,
+    letterSpacing: -0.2,
   },
   sectionSubtitle: {
     fontFamily: FONTS.regular,
     fontSize: 13,
     color: COLORS.textSecondary,
-    marginTop: 4,
+    marginTop: 3,
   },
   seeAllText: {
     fontFamily: FONTS.medium,

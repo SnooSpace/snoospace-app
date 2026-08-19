@@ -740,9 +740,7 @@ export default function YourEventsScreen({ navigation }) {
     <View style={styles.outerContainer}>
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <View style={styles.header}>
-          <View style={styles.headerIcon} />
           <Text style={styles.headerTitle}>Your Events</Text>
-          <View style={styles.headerIcon} />
         </View>
 
         {/* Tabs */}
@@ -966,33 +964,30 @@ export default function YourEventsScreen({ navigation }) {
 const styles = StyleSheet.create({
   outerContainer: {
     flex: 1,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: COLORS.screenBackground,
   },
   safeArea: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.screenBackground,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  headerIcon: {
-    width: 48,
-    height: 48,
-    alignItems: "flex-start",
-    justifyContent: "center",
+    justifyContent: "flex-start",
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 8,
+    backgroundColor: COLORS.screenBackground,
   },
   headerTitle: {
-    fontSize: 18,
-    fontFamily: FONTS.semiBold,
+    fontFamily: FONTS.black,
+    fontSize: 34,
     color: TEXT_COLOR,
+    letterSpacing: -1,
   },
   tabs: {
     flexDirection: "row",
     paddingHorizontal: 16,
-    marginTop: 8,
+    marginTop: 4,
     position: "relative",
   },
   tab: {
