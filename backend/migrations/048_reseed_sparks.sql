@@ -41,9 +41,8 @@ INSERT INTO sparks (label, normalized_label, category, spark_type, requires_date
   ('Looking for hiking buddies','looking for hiking buddies','activity',     NULL,       false, true),
   ('Looking for cycling buddies','looking for cycling buddies','activity',   NULL,       false, true),
 
-  -- Learning (2)
+  -- Learning (1)
   ('Looking for study partners','looking for study partners','learning',     NULL,       false, true),
-  ('Here to learn',             'here to learn',             'learning',     NULL,       false, true),
 
   -- Travel (2)  — city-specific, date-range optional
   ('Visiting Bangalore',        'visiting bangalore',        'travel',       NULL,       true,  true),

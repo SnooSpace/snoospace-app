@@ -78,8 +78,7 @@ INSERT INTO sparks (label, normalized_label, category, spark_type, requires_date
   ('Looking for Teammates',     'looking for teammates',     'activity',     NULL,       false, true),
   ('Looking for Study Partners','looking for study partners','activity',     NULL,       false, true),
 
-  -- Learning (3)
-  ('Here to Learn',             'here to learn',             'learning',     NULL,       false, true),
+  -- Learning (2)
   ('Sharing Knowledge',         'sharing knowledge',         'learning',     'offering', false, true),
   ('Seeking Skill Swap',        'seeking skill swap',        'learning',     'seeking',  false, true),
 

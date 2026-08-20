@@ -2065,13 +2065,6 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
             )}
             {(Array.isArray(profile?.categories) && profile.categories.length > 0) || profile?.instagram_username || memberCommCircleStatus === 'in_circle' ? (
               <View style={styles.categoriesRow}>
-                {Array.isArray(profile?.categories) &&
-                  profile.categories.map((cat, idx) => (
-                    <ThemeChip key={cat} label={cat} index={idx} />
-                  ))}
-                {profile?.instagram_username && (
-                  <InstagramRow username={profile.instagram_username} />
-                )}
                 {memberCommCircleStatus === 'in_circle' && (
                   <TouchableOpacity
                     style={styles.circleMemberChip}
@@ -2085,6 +2078,13 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                     <UserCheck size={12} color="#2962FF" strokeWidth={2.2} style={styles.circleMemberChipIcon} />
                     <Text style={styles.circleMemberChipText}>In Circle</Text>
                   </TouchableOpacity>
+                )}
+                {Array.isArray(profile?.categories) &&
+                  profile.categories.map((cat, idx) => (
+                    <ThemeChip key={cat} label={cat} index={idx} />
+                  ))}
+                {profile?.instagram_username && (
+                  <InstagramRow username={profile.instagram_username} />
                 )}
               </View>
             ) : null}

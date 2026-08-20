@@ -42,6 +42,11 @@ import {
   Car,
   PawPrint,
   Zap,
+  Briefcase,
+  Users,
+  BookOpen,
+  Compass,
+  Check,
 } from "lucide-react-native";
 import { INTEREST_CATEGORIES, getInterestStyle } from "../profile/member/EditProfileConstants";
 import { useLocationSearch } from "../../services/location/useLocationSearch";
@@ -78,16 +83,48 @@ const PRIMARY_COLOR = CONSTANTS_COLORS.primaryBlue;
 
 const EDGES = ["top"];
 
-// ── Category colour palette for spark chips ───────────────────────────────────
-const CATEGORY_COLORS = {
-  professional: { bg: "#EFF6FF", text: "#1D4ED8" },
-  social:       { bg: "#F0FDF4", text: "#15803D" },
-  activity:     { bg: "#FFF7ED", text: "#C2410C" },
-  learning:     { bg: "#F5F3FF", text: "#6D28D9" },
-  travel:       { bg: "#E0F2FE", text: "#0369A1" },
-  default:      { bg: "#F3F4F6", text: "#374151" },
+// ── Category configuration for Sparks ─────────────────────────────────────────
+const SPARK_CATEGORIES_CONFIG = {
+  professional: {
+    label: "Professional",
+    icon: Briefcase,
+    bg: "#EFF6FF",
+    text: "#1D4ED8",
+  },
+  social: {
+    label: "Social",
+    icon: Users,
+    bg: "#F0FDF4",
+    text: "#15803D",
+  },
+  activity: {
+    label: "Activity",
+    icon: Dumbbell,
+    bg: "#FFF7ED",
+    text: "#C2410C",
+  },
+  learning: {
+    label: "Learning",
+    icon: BookOpen,
+    bg: "#F5F3FF",
+    text: "#6D28D9",
+  },
+  travel: {
+    label: "Travel",
+    icon: Compass,
+    bg: "#E0F2FE",
+    text: "#0369A1",
+  },
+  default: {
+    label: "Other",
+    icon: Sparkles,
+    bg: "#F3F4F6",
+    text: "#374151",
+  },
 };
-const getSparkStyle = (category) => CATEGORY_COLORS[category] || CATEGORY_COLORS.default;
+
+const getSparkStyle = (category) =>
+  SPARK_CATEGORIES_CONFIG[category] || SPARK_CATEGORIES_CONFIG.default;
 
 const CATEGORY_LABELS = {
   professional: "Professional",
@@ -143,6 +180,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
   const [interestsCatalog, setInterestsCatalog] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedCategory, setExpandedCategory] = useState(null);
+  const [expandedSparkCategory, setExpandedSparkCategory] = useState(null);
   const [showAllSelected, setShowAllSelected] = useState(false);
   // System sparks catalog
   const [sparkCategories, setSparkCategories] = useState([]); // [{ category, sparks }]
@@ -1072,20 +1110,20 @@ export default function EditDiscoverProfileScreen({ navigation }) {
           </View>
         </View>
 
-        {/* SECTION 3: Sparks (Edge-to-Edge Editorial) */}
+        {/* SECTION 3: Sparks (Rounded Card) */}
         <Animated.View
           onLayout={(event) => {
             sectionCoords.current.sparks = event.nativeEvent.layout.y;
           }}
           style={[
-            styles.sectionEditorial,
-            { transform: [{ translateX: sparksShakeAnim }] }
+            styles.section,
+            { transform: [{ translateX: sparksShakeAnim }] },
           ]}
         >
           <View
             style={[
-              styles.sectionCardEditorial,
-              validationErrors.sparks && styles.cardErrorEditorial,
+              styles.sectionCardRounded,
+              validationErrors.sparks && styles.cardErrorRounded,
             ]}
           >
             <View style={styles.cardHeader}>
@@ -1105,24 +1143,324 @@ export default function EditDiscoverProfileScreen({ navigation }) {
               </View>
             </View>
             <Text style={styles.sectionHint}>
-              What are you looking for? Select 1-3 sparks.
+              What are you looking for? Select 1-5 sparks.
             </Text>
 
             <View style={styles.cardContent}>
+              {/* 1. Selected Sparks (Pinned Top) */}
+              {goalBadges.length > 0 && (
+                <View style={styles.selectedVibesSection}>
+                  {/* Regular (non-travel/non-location) selected spark chips */}
+                  {goalBadges.some(
+                    (s) =>
+                      !(
+                        s.requires_date_range ||
+                        s.requires_location ||
+                        s.category === "travel"
+                      ),
+                  ) && (
+                    <View
+                      style={[
+                        styles.vibesContainer,
+                        goalBadges.some(
+                          (s) =>
+                            s.requires_date_range ||
+                            s.requires_location ||
+                            s.category === "travel",
+                        ) && { marginBottom: 10 },
+                      ]}
+                    >
+                      {goalBadges
+                        .filter(
+                          (spark) =>
+                            !(
+                              spark.requires_date_range ||
+                              spark.requires_location ||
+                              spark.category === "travel"
+                            ),
+                        )
+                        .map((spark) => {
+                          const catStyle = getSparkStyle(spark.category);
+                          const Icon = catStyle.icon || Sparkles;
+                          return (
+                            <TouchableOpacity
+                              key={`sel-${spark.id}`}
+                              activeOpacity={0.7}
+                              onPress={() => toggleSpark(spark)}
+                              style={[
+                                styles.vibeChip,
+                                {
+                                  backgroundColor: catStyle.bg,
+                                  paddingRight: 8,
+                                },
+                              ]}
+                            >
+                              <View style={styles.vibeContent}>
+                                <Icon
+                                  size={14}
+                                  color={catStyle.text}
+                                  strokeWidth={2.5}
+                                />
+                                <Text
+                                  style={[
+                                    styles.vibeText,
+                                    { color: catStyle.text },
+                                  ]}
+                                >
+                                  {spark.label}
+                                </Text>
+                              </View>
+                              <View style={styles.removeIconContainer}>
+                                <X
+                                  size={12}
+                                  color={catStyle.text}
+                                  strokeWidth={3}
+                                />
+                              </View>
+                            </TouchableOpacity>
+                          );
+                        })}
+                    </View>
+                  )}
 
-              {/* Spark search bar */}
-              <View style={styles.sparkSearchBar}>
-                <SearchIcon size={16} color={CONSTANTS_COLORS.textSecondary} style={{ marginRight: 8 }} />
+                  {/* Travel / Location Container Cards */}
+                  {goalBadges
+                    .filter(
+                      (s) =>
+                        s.requires_date_range ||
+                        s.requires_location ||
+                        s.category === "travel",
+                    )
+                    .map((spark) => {
+                      const catStyle = getSparkStyle(spark.category);
+                      const Icon = catStyle.icon || Compass;
+                      return (
+                        <View
+                          key={`travel-${spark.id}`}
+                          style={[
+                            styles.travelDatesRow,
+                            {
+                              backgroundColor: catStyle.bg,
+                              borderColor: "#BAE6FD",
+                            },
+                          ]}
+                        >
+                          <View style={styles.travelHeaderRow}>
+                            <View style={styles.travelHeaderLeft}>
+                              <View
+                                style={[
+                                  styles.travelIconContainer,
+                                  {
+                                    backgroundColor:
+                                      "rgba(255, 255, 255, 0.85)",
+                                  },
+                                ]}
+                              >
+                                <Icon
+                                  size={15}
+                                  color={catStyle.text}
+                                  strokeWidth={2.2}
+                                />
+                              </View>
+                              <Text
+                                style={[
+                                  styles.travelDatesLabel,
+                                  { color: catStyle.text },
+                                ]}
+                              >
+                                {spark.label}
+                                {spark.target_city
+                                  ? ` · ${spark.target_city}`
+                                  : ""}
+                              </Text>
+                            </View>
+                            <TouchableOpacity
+                              onPress={() => toggleSpark(spark)}
+                              hitSlop={{
+                                top: 10,
+                                bottom: 10,
+                                left: 10,
+                                right: 10,
+                              }}
+                              style={styles.travelRemoveButton}
+                            >
+                              <X
+                                size={15}
+                                color={catStyle.text}
+                                strokeWidth={2.5}
+                              />
+                            </TouchableOpacity>
+                          </View>
+
+                          {/* City autocomplete — only for requires_location sparks */}
+                          {spark.requires_location !== false && (
+                            <View
+                              style={{
+                                marginBottom:
+                                  spark.requires_date_range !== false ? 8 : 0,
+                              }}
+                            >
+                              <View style={styles.citySearchBar}>
+                                <SearchIcon
+                                  size={14}
+                                  color={CONSTANTS_COLORS.textSecondary}
+                                  style={{ marginRight: 6 }}
+                                />
+                                <TextInput
+                                  style={styles.citySearchInput}
+                                  placeholder="Search city or area..."
+                                  placeholderTextColor={
+                                    CONSTANTS_COLORS.textSecondary
+                                  }
+                                  value={spark.target_city || cityQuery}
+                                  onChangeText={(v) => {
+                                    updateSparkCity(spark.id, "");
+                                    setCityQuery(v);
+                                  }}
+                                  onFocus={() => setCityQuery("")}
+                                />
+                                {(spark.target_city ||
+                                  cityQuery.length > 0) && (
+                                  <TouchableOpacity
+                                    onPress={() => {
+                                      updateSparkCity(spark.id, "");
+                                      setCityQuery("");
+                                      clearCityResults();
+                                    }}
+                                    hitSlop={{
+                                      top: 10,
+                                      bottom: 10,
+                                      left: 10,
+                                      right: 10,
+                                    }}
+                                  >
+                                    <X
+                                      size={14}
+                                      color={CONSTANTS_COLORS.textSecondary}
+                                    />
+                                  </TouchableOpacity>
+                                )}
+                              </View>
+
+                              {/* Autocomplete dropdown */}
+                              {citySearchLoading && !spark.target_city && (
+                                <Text style={styles.cityLoadingText}>
+                                  Searching...
+                                </Text>
+                              )}
+                              {!spark.target_city &&
+                                cityResults.length > 0 && (
+                                  <View style={styles.cityDropdown}>
+                                    {cityResults
+                                      .slice(0, 5)
+                                      .map((place) => (
+                                        <TouchableOpacity
+                                          key={place.placeId}
+                                          style={styles.cityDropdownItem}
+                                          onPress={() => {
+                                            updateSparkCity(
+                                              spark.id,
+                                              place.name,
+                                            );
+                                            setCityQuery(place.name);
+                                            clearCityResults();
+                                            HapticsService.triggerSelection();
+                                          }}
+                                        >
+                                          <Text
+                                            style={styles.cityDropdownName}
+                                          >
+                                            {place.name}
+                                          </Text>
+                                          <Text
+                                            style={styles.cityDropdownAddress}
+                                            numberOfLines={1}
+                                          >
+                                            {place.shortAddress}
+                                          </Text>
+                                        </TouchableOpacity>
+                                      ))}
+                                  </View>
+                                )}
+                            </View>
+                          )}
+
+                          {/* Date range inputs */}
+                          {spark.requires_date_range !== false && (
+                            <View style={styles.travelDateInputs}>
+                              <TextInput
+                                style={styles.travelDateInput}
+                                placeholder="From  YYYY-MM-DD"
+                                placeholderTextColor={
+                                  CONSTANTS_COLORS.textSecondary
+                                }
+                                value={spark.start_date || ""}
+                                onChangeText={(v) =>
+                                  updateSparkDates(
+                                    spark.id,
+                                    v,
+                                    spark.end_date || "",
+                                  )
+                                }
+                                maxLength={10}
+                                keyboardType="numeric"
+                              />
+                              <TextInput
+                                style={styles.travelDateInput}
+                                placeholder="To  YYYY-MM-DD"
+                                placeholderTextColor={
+                                  CONSTANTS_COLORS.textSecondary
+                                }
+                                value={spark.end_date || ""}
+                                onChangeText={(v) =>
+                                  updateSparkDates(
+                                    spark.id,
+                                    spark.start_date || "",
+                                    v,
+                                  )
+                                }
+                                maxLength={10}
+                                keyboardType="numeric"
+                              />
+                            </View>
+                          )}
+                        </View>
+                      );
+                    })}
+
+                  <View style={styles.divider} />
+                </View>
+              )}
+
+              {/* 2. Search & Add */}
+              <View style={styles.searchContainer}>
+                <SearchIcon
+                  size={16}
+                  color={CONSTANTS_COLORS.textSecondary}
+                  style={styles.searchIcon}
+                />
                 <TextInput
-                  style={styles.sparkSearchInput}
+                  style={styles.searchInput}
                   placeholder="Search sparks..."
                   placeholderTextColor={CONSTANTS_COLORS.textSecondary}
                   value={sparkSearch}
-                  onChangeText={setSparkSearch}
+                  onChangeText={(text) => {
+                    LayoutAnimation.configureNext(
+                      LayoutAnimation.Presets.easeInEaseOut,
+                    );
+                    setSparkSearch(text);
+                    if (text) setExpandedSparkCategory(null);
+                  }}
                 />
                 {sparkSearch.length > 0 && (
                   <TouchableOpacity
-                    onPress={() => { setSparkSearch(''); setSparkSearchResults([]); }}
+                    onPress={() => {
+                      LayoutAnimation.configureNext(
+                        LayoutAnimation.Presets.easeInEaseOut,
+                      );
+                      setSparkSearch("");
+                      setSparkSearchResults([]);
+                    }}
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   >
                     <X size={16} color={CONSTANTS_COLORS.textSecondary} />
@@ -1130,191 +1468,205 @@ export default function EditDiscoverProfileScreen({ navigation }) {
                 )}
               </View>
 
-              {/* Selected sparks summary strip */}
-              {goalBadges.length > 0 && (
-                <View style={styles.selectedSparksStrip}>
-                  {goalBadges.map((spark) => {
-                    const catStyle = getSparkStyle(spark.category);
-                    return (
-                      <TouchableOpacity
-                        key={`sel-${spark.id}`}
-                        style={[styles.selectedSparkChip, { backgroundColor: catStyle.bg }]}
-                        onPress={() => toggleSpark(spark)}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={[styles.selectedSparkChipText, { color: catStyle.text }]}>
-                          {spark.label}
-                        </Text>
-                        <X size={12} color={catStyle.text} strokeWidth={3} />
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              )}
-
-              {/* Travel expansion panel: city autocomplete + date range */}
-              {goalBadges
-                .filter((s) => s.requires_date_range || s.requires_location || s.category === 'travel')
-                .map((spark) => (
-                  <View key={`travel-${spark.id}`} style={styles.travelDatesRow}>
-                    <Text style={styles.travelDatesLabel}>
-                      📍 {spark.label}{spark.target_city ? ` · ${spark.target_city}` : ''}
-                    </Text>
-
-                    {/* City autocomplete — only for requires_location sparks */}
-                    {spark.requires_location !== false && (
-                      <View style={{ marginBottom: 8 }}>
-                        <View style={styles.citySearchBar}>
-                          <SearchIcon size={14} color={CONSTANTS_COLORS.textSecondary} style={{ marginRight: 6 }} />
-                          <TextInput
-                            style={styles.citySearchInput}
-                            placeholder="Search city or area..."
-                            placeholderTextColor={CONSTANTS_COLORS.textSecondary}
-                            value={spark.target_city || cityQuery}
-                            onChangeText={(v) => {
-                              // Clear stored city when user retypes
-                              updateSparkCity(spark.id, '');
-                              setCityQuery(v);
-                            }}
-                            onFocus={() => setCityQuery('')}
-                          />
-                          {(spark.target_city || cityQuery.length > 0) && (
-                            <TouchableOpacity
-                              onPress={() => {
-                                updateSparkCity(spark.id, '');
-                                setCityQuery('');
-                                clearCityResults();
-                              }}
-                              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              {/* 3. Categories Accordion or Search Results */}
+              <View style={styles.categoriesContainer}>
+                {sparkSearch.trim().length > 0 ? (
+                  // Search Results
+                  sparkSearchLoading ? (
+                    <Text style={styles.sparkLoadingText}>Searching...</Text>
+                  ) : (
+                    <View style={styles.vibesContainer}>
+                      {sparkSearchResults.map((spark) => {
+                        const isSelected = goalBadges.some(
+                          (g) => g.id === spark.id,
+                        );
+                        const catStyle = getSparkStyle(spark.category);
+                        return (
+                          <TouchableOpacity
+                            key={spark.id}
+                            onPress={() => toggleSpark(spark)}
+                            style={[
+                              styles.optionChip,
+                              isSelected && {
+                                backgroundColor: catStyle.bg,
+                                borderColor: catStyle.text,
+                              },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.optionText,
+                                isSelected && {
+                                  color: catStyle.text,
+                                  fontFamily: FONTS.medium,
+                                },
+                              ]}
                             >
-                              <X size={14} color={CONSTANTS_COLORS.textSecondary} />
-                            </TouchableOpacity>
-                          )}
-                        </View>
-
-                        {/* Autocomplete dropdown */}
-                        {citySearchLoading && !spark.target_city && (
-                          <Text style={styles.cityLoadingText}>Searching...</Text>
+                              {spark.label}
+                            </Text>
+                            {isSelected ? (
+                              <Check
+                                size={14}
+                                color={catStyle.text}
+                                strokeWidth={2.5}
+                              />
+                            ) : (
+                              <Plus
+                                size={14}
+                                color={CONSTANTS_COLORS.textSecondary}
+                              />
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
+                      {/* Add Custom Spark in Search */}
+                      {sparkSearch.trim().length >= 2 &&
+                        !sparkSearchResults.some(
+                          (s) =>
+                            s.label.toLowerCase() ===
+                            sparkSearch.trim().toLowerCase(),
+                        ) && (
+                          <TouchableOpacity
+                            onPress={() => {
+                              setCustomGoal(sparkSearch.trim());
+                              setShowCustomGoalInput(true);
+                              setSparkSearch("");
+                              setSparkSearchResults([]);
+                              HapticsService.triggerSelection();
+                            }}
+                            style={styles.addCustomSearchResult}
+                          >
+                            <Plus size={14} color={PRIMARY_COLOR} />
+                            <Text
+                              style={[
+                                styles.optionText,
+                                {
+                                  color: PRIMARY_COLOR,
+                                  fontFamily: FONTS.medium,
+                                },
+                              ]}
+                            >
+                              Add "{sparkSearch.trim()}"
+                            </Text>
+                          </TouchableOpacity>
                         )}
-                        {!spark.target_city && cityResults.length > 0 && (
-                          <View style={styles.cityDropdown}>
-                            {cityResults.slice(0, 5).map((place) => (
-                              <TouchableOpacity
-                                key={place.placeId}
-                                style={styles.cityDropdownItem}
-                                onPress={() => {
-                                  updateSparkCity(spark.id, place.name);
-                                  setCityQuery(place.name);
-                                  clearCityResults();
-                                  HapticsService.triggerSelection();
-                                }}
-                              >
-                                <Text style={styles.cityDropdownName}>{place.name}</Text>
-                                <Text style={styles.cityDropdownAddress} numberOfLines={1}>
-                                  {place.shortAddress}
-                                </Text>
-                              </TouchableOpacity>
-                            ))}
-                          </View>
-                        )}
-                      </View>
-                    )}
-
-                    {/* Date range inputs */}
-                    {spark.requires_date_range !== false && (
-                      <View style={styles.travelDateInputs}>
-                        <TextInput
-                          style={styles.travelDateInput}
-                          placeholder="From  YYYY-MM-DD"
-                          placeholderTextColor={CONSTANTS_COLORS.textSecondary}
-                          value={spark.start_date || ''}
-                          onChangeText={(v) => updateSparkDates(spark.id, v, spark.end_date || '')}
-                          maxLength={10}
-                          keyboardType="numeric"
-                        />
-                        <TextInput
-                          style={styles.travelDateInput}
-                          placeholder="To  YYYY-MM-DD"
-                          placeholderTextColor={CONSTANTS_COLORS.textSecondary}
-                          value={spark.end_date || ''}
-                          onChangeText={(v) => updateSparkDates(spark.id, spark.start_date || '', v)}
-                          maxLength={10}
-                          keyboardType="numeric"
-                        />
-                      </View>
-                    )}
-                  </View>
-                ))}
-
-              {/* Search results */}
-              {sparkSearch.trim().length >= 2 ? (
-                sparkSearchLoading ? (
-                  <Text style={styles.sparkLoadingText}>Searching...</Text>
-                ) : sparkSearchResults.length === 0 ? (
-                  <Text style={styles.sparkEmptyText}>No sparks found for "{sparkSearch}"</Text>
+                    </View>
+                  )
                 ) : (
-                  <View style={styles.chipsContainerSoft}>
-                    {sparkSearchResults.map((spark) => {
-                      const isSelected = goalBadges.some((g) => g.id === spark.id);
-                      const catStyle = getSparkStyle(spark.category);
+                  // Category List (Accordion Dropdown)
+                  sparksLoading ? (
+                    <Text style={styles.sparkLoadingText}>Loading sparks...</Text>
+                  ) : (
+                    sparkCategories.map(({ category, sparks }) => {
+                      const catConfig = getSparkStyle(category);
+                      const isExpanded = expandedSparkCategory === category;
+                      const Icon = catConfig.icon || Sparkles;
+
                       return (
-                        <TouchableOpacity
-                          key={spark.id}
-                          onPress={() => toggleSpark(spark)}
-                          activeOpacity={0.7}
-                          style={[
-                            styles.goalChip,
-                            isSelected ? { backgroundColor: catStyle.bg, borderColor: catStyle.text } : styles.goalChipUnselected,
-                          ]}
-                        >
-                          <Text style={[styles.goalChipText, isSelected && { color: catStyle.text }]}>
-                            {spark.label}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                )
-              ) : (
-                /* Grouped catalog */
-                sparksLoading ? (
-                  <Text style={styles.sparkLoadingText}>Loading sparks...</Text>
-                ) : (
-                  sparkCategories.map(({ category, sparks }) => {
-                    const catStyle = getSparkStyle(category);
-                    const catLabel = CATEGORY_LABELS[category] || category;
-                    return (
-                      <View key={category} style={styles.sparkCategoryGroup}>
-                        <Text style={[styles.sparkCategoryLabel, { color: catStyle.text }]}>
-                          {catLabel}
-                        </Text>
-                        <View style={styles.chipsContainerSoft}>
-                          {sparks.map((spark) => {
-                            const isSelected = goalBadges.some((g) => g.id === spark.id);
-                            return (
-                              <TouchableOpacity
-                                key={spark.id}
-                                onPress={() => toggleSpark(spark)}
-                                activeOpacity={0.7}
+                        <View key={category} style={styles.categoryRow}>
+                          <TouchableOpacity
+                            activeOpacity={0.7}
+                            onPress={() => {
+                              LayoutAnimation.configureNext(
+                                LayoutAnimation.Presets.easeInEaseOut,
+                              );
+                              setExpandedSparkCategory(
+                                isExpanded ? null : category,
+                              );
+                              HapticsService.triggerSelection();
+                            }}
+                            style={[
+                              styles.categoryHeader,
+                              isExpanded && styles.categoryHeaderExpanded,
+                              {
+                                backgroundColor: isExpanded
+                                  ? catConfig.bg
+                                  : "transparent",
+                              },
+                            ]}
+                          >
+                            <View style={styles.categoryHeaderLeft}>
+                              <View
                                 style={[
-                                  styles.goalChip,
-                                  isSelected
-                                    ? { backgroundColor: catStyle.bg, borderColor: catStyle.text }
-                                    : styles.goalChipUnselected,
+                                  styles.categoryIcon,
+                                  { backgroundColor: catConfig.bg },
                                 ]}
                               >
-                                <Text style={[styles.goalChipText, isSelected && { color: catStyle.text }]}>
-                                  {spark.label}
-                                </Text>
-                              </TouchableOpacity>
-                            );
-                          })}
+                                <Icon size={14} color={catConfig.text} />
+                              </View>
+                              <Text style={styles.categoryTitle}>
+                                {catConfig.label ||
+                                  CATEGORY_LABELS[category] ||
+                                  category}
+                              </Text>
+                            </View>
+                            {isExpanded ? (
+                              <ChevronDown
+                                size={16}
+                                color={CONSTANTS_COLORS.textSecondary}
+                              />
+                            ) : (
+                              <ChevronRight
+                                size={16}
+                                color={CONSTANTS_COLORS.textSecondary}
+                              />
+                            )}
+                          </TouchableOpacity>
+
+                          {isExpanded && (
+                            <View style={styles.categoryContent}>
+                              <View style={styles.vibesContainer}>
+                                {(sparks || []).map((spark) => {
+                                  const isSelected = goalBadges.some(
+                                    (g) => g.id === spark.id,
+                                  );
+                                  return (
+                                    <TouchableOpacity
+                                      key={spark.id}
+                                      onPress={() => toggleSpark(spark)}
+                                      style={[
+                                        styles.optionChip,
+                                        isSelected && {
+                                          backgroundColor: catConfig.bg,
+                                          borderColor: catConfig.text,
+                                        },
+                                      ]}
+                                    >
+                                      <Text
+                                        style={[
+                                          styles.optionText,
+                                          isSelected && {
+                                            color: catConfig.text,
+                                            fontFamily: FONTS.medium,
+                                          },
+                                        ]}
+                                      >
+                                        {spark.label}
+                                      </Text>
+                                      {isSelected ? (
+                                        <Check
+                                          size={14}
+                                          color={catConfig.text}
+                                          strokeWidth={2.5}
+                                        />
+                                      ) : (
+                                        <Plus
+                                          size={14}
+                                          color={CONSTANTS_COLORS.textSecondary}
+                                        />
+                                      )}
+                                    </TouchableOpacity>
+                                  );
+                                })}
+                              </View>
+                            </View>
+                          )}
                         </View>
-                      </View>
-                    );
-                  })
-                )
-              )}
+                      );
+                    })
+                  )
+                )}
+              </View>
 
               {/* Custom spark input */}
               {showCustomGoalInput ? (
@@ -1330,7 +1682,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
                   />
                   <TouchableOpacity
                     style={styles.customGoalAddButton}
-                    onPress={() => handleCustomSparkSubmit('social')}
+                    onPress={() => handleCustomSparkSubmit("social")}
                   >
                     <Plus size={16} color="#FFFFFF" strokeWidth={3} />
                     <Text style={styles.customGoalAddButtonText}>Add</Text>
@@ -1340,7 +1692,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
                     onPress={() => {
                       Keyboard.dismiss();
                       setShowCustomGoalInput(false);
-                      setCustomGoal('');
+                      setCustomGoal("");
                       setShowCustomGoalSuggestions(false);
                       setCustomGoalSuggestions([]);
                     }}
@@ -1357,54 +1709,75 @@ export default function EditDiscoverProfileScreen({ navigation }) {
                   }}
                 >
                   <Plus size={16} color={PRIMARY_COLOR} strokeWidth={2.5} />
-                  <Text style={styles.addCustomGoalTriggerText}>Add Custom Spark</Text>
+                  <Text style={styles.addCustomGoalTriggerText}>
+                    Add Custom Spark
+                  </Text>
                 </TouchableOpacity>
               )}
 
               {/* Dedup suggestions */}
-              {showCustomGoalSuggestions && customGoalSuggestions.length > 0 && (
-                <View style={styles.dedupeContainer}>
-                  <Text style={styles.dedupeTitle}>Similar sparks already exist:</Text>
-                  <View style={styles.chipsContainerSoft}>
-                    {customGoalSuggestions.map((spark) => {
-                      const catStyle = getSparkStyle(spark.category);
-                      const isSelected = goalBadges.some((g) => g.id === spark.id);
-                      return (
-                        <TouchableOpacity
-                          key={spark.id}
-                          style={[
-                            styles.goalChip,
-                            isSelected
-                              ? { backgroundColor: catStyle.bg, borderColor: catStyle.text }
-                              : styles.goalChipUnselected,
-                          ]}
-                          onPress={() => {
-                            Keyboard.dismiss();
-                            toggleSpark(spark);
-                            setShowCustomGoalSuggestions(false);
-                            setShowCustomGoalInput(false);
-                            setCustomGoal('');
-                          }}
-                        >
-                          <Text style={[styles.goalChipText, isSelected && { color: catStyle.text }]}>
-                            {spark.label}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
+              {showCustomGoalSuggestions &&
+                customGoalSuggestions.length > 0 && (
+                  <View style={styles.dedupeContainer}>
+                    <Text style={styles.dedupeTitle}>
+                      Similar sparks already exist:
+                    </Text>
+                    <View style={styles.chipsContainerSoft}>
+                      {customGoalSuggestions.map((spark) => {
+                        const catStyle = getSparkStyle(spark.category);
+                        const isSelected = goalBadges.some(
+                          (g) => g.id === spark.id,
+                        );
+                        return (
+                          <TouchableOpacity
+                            key={spark.id}
+                            style={[
+                              styles.goalChip,
+                              isSelected
+                                ? {
+                                    backgroundColor: catStyle.bg,
+                                    borderColor: catStyle.text,
+                                  }
+                                : styles.goalChipUnselected,
+                            ]}
+                            onPress={() => {
+                              Keyboard.dismiss();
+                              toggleSpark(spark);
+                              setShowCustomGoalSuggestions(false);
+                              setShowCustomGoalInput(false);
+                              setCustomGoal("");
+                            }}
+                          >
+                            <Text
+                              style={[
+                                styles.goalChipText,
+                                isSelected && { color: catStyle.text },
+                              ]}
+                            >
+                              {spark.label}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                    <TouchableOpacity
+                      style={styles.forceCreateButton}
+                      onPress={() => handleForceCreateSpark("social")}
+                    >
+                      <Text style={styles.forceCreateButtonText}>
+                        None of these — create mine
+                      </Text>
+                    </TouchableOpacity>
                   </View>
-                  <TouchableOpacity
-                    style={styles.forceCreateButton}
-                    onPress={() => handleForceCreateSpark('social')}
-                  >
-                    <Text style={styles.forceCreateButtonText}>None of these — create mine</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
+                )}
 
               {goalBadges.length === 0 && (
                 <View style={styles.inlineWarning}>
-                  <AlertCircle size={16} color={CONSTANTS_COLORS.error} strokeWidth={2} />
+                  <AlertCircle
+                    size={16}
+                    color={CONSTANTS_COLORS.error}
+                    strokeWidth={2}
+                  />
                   <Text style={styles.inlineWarningText}>
                     Select at least 1 Spark
                   </Text>
@@ -1541,25 +1914,62 @@ export default function EditDiscoverProfileScreen({ navigation }) {
                   // Search Results
                   <View style={styles.vibesContainer}>
                     {interestsCatalog
-                      .filter(
-                        (i) =>
-                          !interests.includes(i) &&
-                          i.toLowerCase().includes(searchQuery.toLowerCase()),
+                      .filter((i) =>
+                        i.toLowerCase().includes(searchQuery.toLowerCase()),
                       )
-                      .map((interest) => (
-                        <TouchableOpacity
-                          key={interest}
-                          onPress={() => {
-                            setInterests([...interests, interest]);
-                            setSearchQuery(""); // Clear search after add
-                            HapticsService.triggerSelection();
-                          }}
-                          style={styles.optionChip}
-                        >
-                          <Text style={styles.optionText}>{interest}</Text>
-                          <Plus size={14} color={CONSTANTS_COLORS.textSecondary} />
-                        </TouchableOpacity>
-                      ))}
+                      .map((interest) => {
+                        const isSelected = interests.includes(interest);
+                        const style = getInterestStyle(interest);
+                        return (
+                          <TouchableOpacity
+                            key={interest}
+                            onPress={() => {
+                              LayoutAnimation.configureNext(
+                                LayoutAnimation.Presets.easeInEaseOut,
+                              );
+                              if (isSelected) {
+                                setInterests(
+                                  interests.filter((i) => i !== interest),
+                                );
+                              } else {
+                                setInterests([...interests, interest]);
+                              }
+                              HapticsService.triggerSelection();
+                            }}
+                            style={[
+                              styles.optionChip,
+                              isSelected && {
+                                backgroundColor: style.bg,
+                                borderColor: style.text,
+                              },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.optionText,
+                                isSelected && {
+                                  color: style.text,
+                                  fontFamily: FONTS.medium,
+                                },
+                              ]}
+                            >
+                              {interest}
+                            </Text>
+                            {isSelected ? (
+                              <Check
+                                size={14}
+                                color={style.text}
+                                strokeWidth={2.5}
+                              />
+                            ) : (
+                              <Plus
+                                size={14}
+                                color={CONSTANTS_COLORS.textSecondary}
+                              />
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
                     {/* Add Custom Interest in Search */}
                     {searchQuery.trim().length > 0 && (
                       <TouchableOpacity
@@ -1592,7 +2002,6 @@ export default function EditDiscoverProfileScreen({ navigation }) {
                       // Filter interests for this category
                       const categoryInterests = interestsCatalog.filter(
                         (i) =>
-                          !interests.includes(i) &&
                           category.keywords.some((k) =>
                             i.toLowerCase().includes(k),
                           ),
@@ -1647,26 +2056,58 @@ export default function EditDiscoverProfileScreen({ navigation }) {
                           {isExpanded && (
                             <View style={styles.categoryContent}>
                               <View style={styles.vibesContainer}>
-                                {categoryInterests.map((interest) => (
-                                  <TouchableOpacity
-                                    key={interest}
-                                    onPress={() => {
-                                      setInterests([...interests, interest]);
-                                      HapticsService.triggerSelection();
-                                    }}
-                                    style={styles.optionChip}
-                                  >
-                                    <Text style={styles.optionText}>
-                                      {interest}
-                                    </Text>
-                                    <Plus size={14} color={CONSTANTS_COLORS.textSecondary} />
-                                  </TouchableOpacity>
-                                ))}
-                                {categoryInterests.length === 0 && (
-                                  <Text style={[styles.optionText, { color: CONSTANTS_COLORS.textSecondary, fontStyle: 'italic', paddingLeft: 4 }]}>
-                                    All selected
-                                  </Text>
-                                )}
+                                {categoryInterests.map((interest) => {
+                                  const isSelected = interests.includes(interest);
+                                  return (
+                                    <TouchableOpacity
+                                      key={interest}
+                                      onPress={() => {
+                                        LayoutAnimation.configureNext(
+                                          LayoutAnimation.Presets.easeInEaseOut,
+                                        );
+                                        if (isSelected) {
+                                          setInterests(
+                                            interests.filter((i) => i !== interest),
+                                          );
+                                        } else {
+                                          setInterests([...interests, interest]);
+                                        }
+                                        HapticsService.triggerSelection();
+                                      }}
+                                      style={[
+                                        styles.optionChip,
+                                        isSelected && {
+                                          backgroundColor: category.bg,
+                                          borderColor: category.text,
+                                        },
+                                      ]}
+                                    >
+                                      <Text
+                                        style={[
+                                          styles.optionText,
+                                          isSelected && {
+                                            color: category.text,
+                                            fontFamily: FONTS.medium,
+                                          },
+                                        ]}
+                                      >
+                                        {interest}
+                                      </Text>
+                                      {isSelected ? (
+                                        <Check
+                                          size={14}
+                                          color={category.text}
+                                          strokeWidth={2.5}
+                                        />
+                                      ) : (
+                                        <Plus
+                                          size={14}
+                                          color={CONSTANTS_COLORS.textSecondary}
+                                        />
+                                      )}
+                                    </TouchableOpacity>
+                                  );
+                                })}
                               </View>
                             </View>
                           )}
@@ -2363,18 +2804,42 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     marginBottom: 8,
   },
-  // Travel date inputs
+  // Travel date inputs & container
   travelDatesRow: {
-    backgroundColor: "#E0F2FE",
-    borderRadius: 10,
-    padding: 12,
+    backgroundColor: "#EFF6FF",
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#BAE6FD",
+  },
+  travelHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 10,
   },
+  travelHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flex: 1,
+  },
+  travelIconContainer: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   travelDatesLabel: {
-    fontFamily: FONTS.medium,
-    fontSize: 13,
+    fontFamily: FONTS.semiBold,
+    fontSize: 14,
     color: "#0369A1",
-    marginBottom: 8,
+    flex: 1,
+  },
+  travelRemoveButton: {
+    padding: 4,
   },
   travelDateInputs: {
     flexDirection: "row",
