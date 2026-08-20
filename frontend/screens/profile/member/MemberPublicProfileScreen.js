@@ -2248,13 +2248,11 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                 )
               ))}
               {circleStatus !== 'self' && (
-              <GradientButton
-                title="Message"
-                style={{ flex: 1, borderRadius: 16, overflow: "hidden" }}
-                gradientStyle={{ borderRadius: 16 }}
-                colors={["#111827", "#111827"]}
-                textStyle={{ fontFamily: FONTS.semiBold, color: "#FFFFFF" }}
-                useGHPressable={true}
+              <GHPressable
+                style={({ pressed }) => [
+                  circleCTAStyles.messageBtn,
+                  pressed && { opacity: 0.7 },
+                ]}
                 onPress={() => {
                   HapticsService.triggerMessageSend();
                   const tappedAt = global.performance ? global.performance.now() : Date.now();
@@ -2266,11 +2264,14 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                       recipientName: profile?.full_name || profile?.name,
                       recipientUsername: profile?.username,
                       recipientAvatar: profile?.profile_photo_url,
+                      isCreator: !!(profile?.is_creator_mode_enabled || profile?.is_creator || profile?.isCreator),
                       tappedAt,
                     });
                   }, 50);
                 }}
-              />
+              >
+                <Text style={circleCTAStyles.messageText}>Message</Text>
+              </GHPressable>
               )}
             </View>
           </View>
@@ -3831,6 +3832,23 @@ const circleCTAStyles = StyleSheet.create({
     fontFamily: 'Manrope-SemiBold',
     fontSize: 15,
     color: '#3C3C43',
+  },
+  messageBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#2F5FE0',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 10.5,
+  },
+  messageText: {
+    fontFamily: FONTS.medium,
+    fontWeight: '500',
+    fontSize: 16,
+    color: '#2F5FE0',
   },
 });
 

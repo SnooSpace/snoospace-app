@@ -1,67 +1,122 @@
-import React, { useEffect, useRef } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  Animated,
-  Easing,
-  StyleSheet,
-} from "react-native";
+import React, { useEffect } from "react";
+import { View, Text, StyleSheet } from "react-native";
 import Svg, { Circle, Path, Line, G, Ellipse } from "react-native-svg";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withSequence,
+  withTiming,
+  Easing,
+} from "react-native-reanimated";
 import { COLORS, FONTS } from "../../constants/theme";
-import HapticsService from "../../services/HapticsService";
 
-export default function EmptyChatState({ onSendMessage }) {
-  const floatAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(1)).current; // Button scale
+export function getEmptyChatCopy({
+  isGroup = false,
+  currentUserType = "member",
+  currentUserIsCreator = false,
+  recipientType = "member",
+  recipientIsCreator = false,
+} = {}) {
+  if (isGroup) {
+    return {
+      title: "Kick things off!",
+      subtitle: "Every great group starts with an awkward first text.",
+    };
+  }
+
+  const isUserCommunity = currentUserType === "community";
+  const isRecipientCommunity = recipientType === "community";
+
+  // Community <-> Community
+  if (isUserCommunity && isRecipientCommunity) {
+    return {
+      title: "Start the conversation.",
+      subtitle: "Communities talk too — might as well be first.",
+    };
+  }
+
+  // Community -> Creator
+  if (isUserCommunity && recipientIsCreator) {
+    return {
+      title: "Say hello!",
+      subtitle: "Creators love hearing from their community.",
+    };
+  }
+
+  // Creator -> Community
+  if (currentUserIsCreator && isRecipientCommunity) {
+    return {
+      title: "Drop a message.",
+      subtitle: "It's the easiest way to get noticed.",
+    };
+  }
+
+  // Community <-> Member (Member messaging Community or Community messaging Member)
+  if (isUserCommunity || isRecipientCommunity) {
+    return {
+      title: "Say hi to the community!",
+      subtitle: "They won't bite — promise.",
+    };
+  }
+
+  // Creator <-> Creator
+  if (currentUserIsCreator && recipientIsCreator) {
+    return {
+      title: "Say hello to your fellow creator.",
+      subtitle: "Worst case, nothing happens.",
+    };
+  }
+
+  // Member -> Creator (a member messaging a creator)
+  if (!currentUserIsCreator && recipientIsCreator) {
+    return {
+      title: "Reach out.",
+      subtitle: "Most creators love hearing from people who watch.",
+    };
+  }
+
+  // Creator -> Member (a creator messaging a member)
+  if (currentUserIsCreator && !recipientIsCreator) {
+    return {
+      title: "Break the ice.",
+      subtitle: "They'll probably be excited you noticed them.",
+    };
+  }
+
+  // Member <-> Member (Default)
+  return {
+    title: "Say hello! It’s not that deep.",
+    subtitle: "Worst case, nothing happens.",
+  };
+}
+
+function EmptyChatState({ title, subtitle }) {
+  const translateY = useSharedValue(0);
 
   useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(floatAnim, {
-          toValue: -10,
-          duration: 2000,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(floatAnim, {
-          toValue: 0,
-          duration: 2000,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ]),
-    ).start();
-  }, [floatAnim]);
+    translateY.value = withRepeat(
+      withSequence(
+        withTiming(-10, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0, { duration: 2000, easing: Easing.inOut(Easing.ease) })
+      ),
+      -1,
+      true
+    );
+  }, [translateY]);
 
-  const handlePressIn = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 0.95,
-      useNativeDriver: true,
-    }).start();
-  };
+  const floatAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }));
 
-  const handlePressOut = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 1,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const handleAction = () => {
-    HapticsService.triggerImpactLight();
-    if (onSendMessage) {
-      onSendMessage();
-    }
-  };
+  const displayTitle = title || "Say hello! It’s not that deep.";
+  const displaySubtitle = subtitle || "Worst case, nothing happens.";
 
   return (
     <View style={styles.container}>
       <View style={styles.illustrationContainer}>
-        {/* Floating Animation Wrapper */}
-        <Animated.View
-          style={{ transform: [{ translateY: floatAnim }], zIndex: 2 }}
-        >
+        {/* Floating Animation Wrapper (100% UI-thread Reanimated worklet) */}
+        <Animated.View style={[styles.floatingWrapper, floatAnimatedStyle]}>
           <Svg width="240" height="240" viewBox="0 0 240 240" fill="none">
             {/* Soft Brand Glow */}
             <Circle
@@ -183,16 +238,19 @@ export default function EmptyChatState({ onSendMessage }) {
       </View>
 
       <View style={styles.textContainer}>
-        <Text style={styles.title}>Say hello! It’s not that deep.</Text>
-        <Text style={styles.subtitle}>Worst case, nothing happens.</Text>
+        <Text style={styles.title}>{displayTitle}</Text>
+        <Text style={styles.subtitle}>{displaySubtitle}</Text>
       </View>
     </View>
   );
 }
 
+export default React.memo(EmptyChatState);
+
 const styles = StyleSheet.create({
   container: {
-    paddingVertical: 60,
+    paddingTop: 16,
+    paddingBottom: 24,
     paddingHorizontal: 24,
     alignItems: "center",
     justifyContent: "center",
@@ -202,8 +260,13 @@ const styles = StyleSheet.create({
     position: "relative",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 16,
-    marginBottom: 32,
+    paddingVertical: 8,
+    marginBottom: 20,
+  },
+  floatingWrapper: {
+    zIndex: 2,
+    alignItems: "center",
+    justifyContent: "center",
   },
   shadowContainer: {
     position: "absolute",
@@ -212,13 +275,13 @@ const styles = StyleSheet.create({
   },
   textContainer: {
     alignItems: "center",
-    marginBottom: 32,
+    marginBottom: 20,
   },
   title: {
     fontFamily: FONTS.primary,
     fontSize: 24,
     color: "#0F172A",
-    marginBottom: 12,
+    marginBottom: 10,
     textAlign: "center",
   },
   subtitle: {
@@ -228,22 +291,5 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 22,
     paddingHorizontal: 16,
-  },
-  button: {
-    backgroundColor: "#2563EB",
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 30,
-    shadowColor: "#2563EB",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 5,
-  },
-  buttonText: {
-    fontFamily: FONTS.semiBold,
-    color: "#FFFFFF",
-    fontSize: 16,
-    textAlign: "center",
   },
 });

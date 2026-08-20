@@ -953,6 +953,11 @@ export default function ConversationsListScreen({ navigation }) {
         recipientName: conv.otherParticipant?.name,
         recipientUsername: conv.otherParticipant?.username,
         recipientAvatar: conv.otherParticipant?.profilePhotoUrl,
+        isCreator: !!(
+          conv.otherParticipant?.isCreator ||
+          conv.otherParticipant?.is_creator ||
+          conv.otherParticipant?.is_creator_mode_enabled
+        ),
         tappedAt,
       });
     }
@@ -967,6 +972,11 @@ export default function ConversationsListScreen({ navigation }) {
       recipientName: user.display_name || user.name || user.full_name,
       recipientUsername: user.username,
       recipientAvatar: user.profile_photo_url || user.logo_url || user.photo_url,
+      isCreator: !!(
+        user.isCreator ||
+        user.is_creator ||
+        user.is_creator_mode_enabled
+      ),
       tappedAt,
     });
   }, [navigation]);

@@ -38,6 +38,7 @@ import ChatMessageList from "./components/ChatMessageList";
 import ChatInputArea from "./components/ChatInputArea";
 import ChatModals from "./components/ChatModals";
 import MessageRow, { TimestampSeparator } from "./components/MessageRow";
+import { getEmptyChatCopy } from "../../../components/chat/EmptyChatState";
 import {
   resetStartupTelemetry,
   logStageBeforeRAF,
@@ -154,6 +155,7 @@ export default function ChatScreen({ route, navigation }) {
     recipientUsername,
     recipientAvatar,
     recipientType,
+    isCreator: route.params?.isCreator ?? route.params?.is_creator_mode_enabled ?? false,
     isGroup,
   });
 
@@ -306,8 +308,12 @@ export default function ChatScreen({ route, navigation }) {
       if (
         !messagesState.flatListDataRef?.current ||
         messagesState.flatListDataRef.current.length === 0
-      )
+      ) {
+        if (listRevealOpacity.value === 0) {
+          listRevealOpacity.value = withTiming(1, { duration: REVEAL_FADE_DURATION_MS });
+        }
         return;
+      }
 
       // POST-SETTLEMENT: log for observability but do NOT return.
       // isListSettledRef now only controls cosmetic state (opacity revealed,
@@ -533,6 +539,17 @@ export default function ChatScreen({ route, navigation }) {
     setMyGroupRole: groupState.setMyGroupRole,
   });
 
+  useEffect(() => {
+    if (
+      !initState.messagesLoading &&
+      (!messagesState.flatListData || messagesState.flatListData.length === 0)
+    ) {
+      if (listRevealOpacity.value === 0) {
+        listRevealOpacity.value = withTiming(1, { duration: REVEAL_FADE_DURATION_MS });
+      }
+    }
+  }, [initState.messagesLoading, messagesState.flatListData, listRevealOpacity]);
+
   useChatRealtime({
     currentConversationId,
     currentUser: initState.currentUser,
@@ -605,6 +622,34 @@ export default function ChatScreen({ route, navigation }) {
     const ids = new Set(messageItems.map((v) => v.item?.data?.id));
     visibleItemIdsRef.current = ids;
   });
+
+  const emptyChatCopy = useMemo(() => {
+    return getEmptyChatCopy({
+      isGroup,
+      currentUserType: initState.currentUser?.type || "member",
+      currentUserIsCreator: !!initState.currentUser?.isCreator,
+      recipientType:
+        recipientState.recipient?.type ||
+        recipientState.currentRecipientType ||
+        recipientType ||
+        "member",
+      recipientIsCreator: !!(
+        recipientState.recipient?.isCreator ??
+        route.params?.isCreator ??
+        route.params?.is_creator_mode_enabled
+      ),
+    });
+  }, [
+    isGroup,
+    initState.currentUser?.type,
+    initState.currentUser?.isCreator,
+    recipientState.recipient?.type,
+    recipientState.recipient?.isCreator,
+    recipientState.currentRecipientType,
+    recipientType,
+    route.params?.isCreator,
+    route.params?.is_creator_mode_enabled,
+  ]);
 
   const renderItem = useCallback(
     ({ item, index }) => {
@@ -757,6 +802,7 @@ export default function ChatScreen({ route, navigation }) {
           viewabilityConfigRef={viewabilityConfigRef}
           onViewableItemsChangedRef={onViewableItemsChangedRef}
           pendingScrollToBottomRef={pendingScrollToBottomRef}
+          emptyChatCopy={emptyChatCopy}
         />
 
         <ChatInputArea

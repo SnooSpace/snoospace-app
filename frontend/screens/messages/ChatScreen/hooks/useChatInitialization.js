@@ -57,14 +57,22 @@ export default function useChatInitialization({
   const firstRenderRef = useRef(true);
 
   useEffect(() => {
-    getActiveAccount().then((acc) => {
+    getActiveAccount().then(async (acc) => {
       if (acc) {
+        let isCreator = !!(acc.is_creator_mode_enabled || acc.is_creator || acc.isCreator);
+        if (acc.type !== "community" && !isCreator && acc.id) {
+          try {
+            const p = await getPublicMemberProfile(acc.id);
+            if (p?.is_creator_mode_enabled) isCreator = true;
+          } catch {}
+        }
         setCurrentUser({
           id: acc.id,
           type: acc.type || "member",
           name: acc.name,
           username: acc.username,
           avatarUri: acc.profilePicture || acc.profile_picture || null,
+          isCreator,
         });
       }
     });
@@ -239,6 +247,7 @@ export default function useChatInitialization({
                 profilePhotoUrl: p.profile_photo_url,
                 you_have_blocked: !!p?.you_have_blocked,
                 type: "member",
+                isCreator: !!(p?.is_creator_mode_enabled || p?.is_creator || p?.isCreator),
               }),
             );
           }

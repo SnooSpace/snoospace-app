@@ -2357,13 +2357,11 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                   }}
                 />
               )}
-              <GradientButton
-                title="Message"
-                colors={["#111827", "#111827"]} // Charcoal Black
-                style={{ flex: 1, borderRadius: 16, overflow: "hidden" }}
-                gradientStyle={{ borderRadius: 16 }}
-                textStyle={{ fontFamily: FONTS.semiBold, color: "#FFFFFF" }}
-                useGHPressable={true}
+              <GHPressable
+                style={({ pressed }) => [
+                  circleCTAStyles.messageBtn,
+                  pressed && { opacity: 0.7 },
+                ]}
                 onPress={() => {
                   HapticsService.triggerMessageSend();
                   const tappedAt = global.performance ? global.performance.now() : Date.now();
@@ -2379,7 +2377,9 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                     });
                   }, 50);
                 }}
-              />
+              >
+                <Text style={circleCTAStyles.messageText}>Message</Text>
+              </GHPressable>
             </View>
           )}
 
@@ -3409,6 +3409,23 @@ const circleCTAStyles = StyleSheet.create({
     fontFamily: 'Manrope-SemiBold',
     fontSize: 15,
     color: '#2962FF',
+  },
+  messageBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#2F5FE0',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 10.5,
+  },
+  messageText: {
+    fontFamily: FONTS.medium,
+    fontWeight: '500',
+    fontSize: 16,
+    color: '#2F5FE0',
   },
 });
 

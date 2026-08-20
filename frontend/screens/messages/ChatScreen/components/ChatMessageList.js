@@ -54,6 +54,7 @@ const ChatMessageList = React.memo((props) => {
     viewabilityConfigRef,
     onViewableItemsChangedRef,
     pendingScrollToBottomRef,
+    emptyChatCopy,
   } = props;
 
   const listRevealStyle = useAnimatedStyle(() => ({
@@ -242,10 +243,13 @@ const ChatMessageList = React.memo((props) => {
                       flex: 1,
                       justifyContent: "center",
                       alignItems: "center",
-                      paddingTop: 100,
+                      paddingTop: 20,
                     }}
                   >
-                    <EmptyChatState />
+                    <EmptyChatState
+                      title={emptyChatCopy?.title}
+                      subtitle={emptyChatCopy?.subtitle}
+                    />
                   </View>
                 ) : null
               }

@@ -9,6 +9,7 @@ export default function useChatRecipient({
   recipientUsername,
   recipientAvatar,
   recipientType = "member",
+  isCreator: initialIsCreator = false,
   isGroup = false,
 }) {
   const [recipient, setRecipient] = useState(() => {
@@ -19,6 +20,7 @@ export default function useChatRecipient({
         username: recipientUsername || "",
         profilePhotoUrl: recipientAvatar || null,
         type: recipientType || "member",
+        isCreator: !!initialIsCreator,
       };
     }
     return null;
@@ -46,6 +48,10 @@ export default function useChatRecipient({
           if (rId && rType === "member") {
             const p = await getPublicMemberProfile(rId);
             setYouHaveBlocked(!!p?.you_have_blocked);
+            setRecipient((prev) => ({
+              ...prev,
+              isCreator: !!(p?.is_creator_mode_enabled || p?.is_creator || p?.isCreator),
+            }));
           }
         }
       } catch (err) {
@@ -53,6 +59,23 @@ export default function useChatRecipient({
       }
     })();
   }, [conversationId, recipient]);
+
+  useEffect(() => {
+    if (
+      recipient &&
+      recipient.type === "member" &&
+      recipient.isCreator === undefined &&
+      recipient.id
+    ) {
+      getPublicMemberProfile(recipient.id)
+        .then((p) => {
+          if (p?.is_creator_mode_enabled) {
+            setRecipient((prev) => ({ ...prev, isCreator: true }));
+          }
+        })
+        .catch(() => {});
+    }
+  }, [recipient?.id, recipient?.type, recipient?.isCreator]);
 
   return {
     recipient,
