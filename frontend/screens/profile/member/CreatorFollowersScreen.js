@@ -1149,18 +1149,17 @@ export default function CreatorFollowersScreen({ route, navigation }) {
   return (
     <>
       <SafeAreaView style={styles.safe} edges={["top"]}>
-      {/* ── Header ─────────────────────────────────────────────────────── */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backBtn}
-          onPress={() => navigation.goBack()}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <ArrowLeft size={22} color={COLORS.textPrimary} strokeWidth={2} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Followers</Text>
-        <View style={{ width: 38 }} />
-      </View>
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => navigation.goBack()}
+            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+          >
+            <ArrowLeft size={22} color={COLORS.textPrimary} strokeWidth={2.5} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Followers</Text>
+          <View style={{ width: 40 }} />
+        </View>
 
       {/* ── Tab Bar ────────────────────────────────────────────────────── */}
       <View style={styles.tabBar}>
@@ -1271,28 +1270,29 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
   },
   header: {
+    height: 56,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingVertical: 12,
     backgroundColor: "#fff",
     borderBottomWidth: 0,
     borderBottomColor: COLORS.border || "#E5E7EB",
   },
   backBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(0,0,0,0.04)",
   },
   headerTitle: {
-    fontFamily: FONTS.bold || FONTS.semiBold,
-    fontSize: 17,
+    fontFamily: "BasicCommercial-Black",
+    fontSize: 20,
     color: COLORS.textPrimary,
-    letterSpacing: -0.3,
+    textAlign: "center",
+    flex: 1,
   },
   // ── Tabs
   tabBar: {

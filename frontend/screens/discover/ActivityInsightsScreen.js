@@ -241,8 +241,9 @@ export default function ActivityInsightsScreen({ navigation }) {
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.backButton}
+          hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
         >
-          <ArrowLeft size={24} color={COLORS.textPrimary} />
+          <ArrowLeft size={22} color={COLORS.textPrimary} strokeWidth={2.5} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Activity & Insights</Text>
         <View style={{ width: 40 }} />
@@ -354,17 +355,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
+    height: 56,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(0, 0, 0, 0.08)",
   },
   backButton: {
-    padding: 8,
-    marginLeft: -8,
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "flex-start",
   },
   headerTitle: {
-    fontSize: 18,
-    fontFamily: FONTS.semiBold,
+    flex: 1,
+    textAlign: "center",
+    fontSize: 20,
+    fontFamily: "BasicCommercial-Black",
     color: COLORS.textPrimary,
   },
   content: {

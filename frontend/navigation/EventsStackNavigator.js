@@ -1,14 +1,8 @@
 import React from "react";
+import { Platform } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
 import YourEventsScreen from "../screens/events/YourEventsScreen";
-import TabSwipeHandler from "../components/navigation/TabSwipeHandler";
-
-const YourEventsScreenWithSwipe = (props) => (
-  <TabSwipeHandler currentTab="YourEvents">
-    <YourEventsScreen {...props} />
-  </TabSwipeHandler>
-);
 
 const Stack = createNativeStackNavigator();
 
@@ -19,9 +13,11 @@ export default function EventsStackNavigator() {
         headerShown: false,
         gestureEnabled: true,
         animation: "slide_from_right", // Native horizontal slide
+        contentStyle: { backgroundColor: "#FFFFFF" },
+        ...(Platform.OS === "ios" ? { animationDuration: 350 } : {}),
       }}
     >
-      <Stack.Screen name="YourEventsList" component={YourEventsScreenWithSwipe} />
+      <Stack.Screen name="YourEventsList" component={YourEventsScreen} />
     </Stack.Navigator>
   );
 }

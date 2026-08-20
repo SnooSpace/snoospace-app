@@ -632,8 +632,12 @@ export default function CircleListScreen({ route, navigation }) {
       <SafeAreaView style={styles.container} edges={['top']}>
         {/* Header */}
         <View style={styles.header}>
-          <GHPressable onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={8}>
-            <ArrowLeft size={24} color={COLORS.textPrimary} strokeWidth={2} />
+          <GHPressable
+            onPress={() => navigation.goBack()}
+            style={styles.backBtn}
+            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+          >
+            <ArrowLeft size={22} color={COLORS.textPrimary} strokeWidth={2.5} />
           </GHPressable>
           <Text style={styles.headerTitle}>
             {readOnly && memberName ? `${memberName}'s Circle` : 'My Circle'}
@@ -704,19 +708,24 @@ export default function CircleListScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
   header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.06)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    height: 56,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(0, 0, 0, 0.08)',
+    backgroundColor: '#fff',
   },
-  backBtn: { width: 40, alignItems: 'flex-start' },
+  backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
   headerTitle: {
     flex: 1,
     textAlign: 'center',
-    fontFamily: 'BasicCommercial-Bold',
-    fontSize: 16,
+    fontFamily: 'BasicCommercial-Black',
+    fontSize: 20,
     color: '#1D1D1F',
   },
-  requestsBtn: { width: 40, alignItems: 'flex-end', position: 'relative' },
+  requestsBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-end', position: 'relative' },
   badge: {
     position: 'absolute', top: -6, right: -4,
     backgroundColor: '#E53935', borderRadius: 10,

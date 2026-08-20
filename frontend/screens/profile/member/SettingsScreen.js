@@ -322,14 +322,32 @@ export default function SettingsScreen({ route, navigation }) {
     outputRange: [300, 0],
   });
   const CREATOR_ONBOARDED_KEY = "creator_mode_onboarded";
-  const CREATOR_MODE_CACHE_KEY = "creator_mode_enabled";
+  // Key is namespaced per account to prevent cross-account bleed when the
+  // account switcher is used. Falls back to the legacy bare key only as a
+  // migration path on first read.
+  const creatorModeCacheKey = profile?.id
+    ? `creator_mode_enabled_member_${profile.id}`
+    : "creator_mode_enabled";
 
   // On mount: read the persisted value from AsyncStorage so the toggle is
   // always correct even when Settings is closed and reopened.
   useEffect(() => {
-    AsyncStorage.getItem(CREATOR_MODE_CACHE_KEY).then((val) => {
+    async function readCachedCreatorMode() {
+      // Try the account-scoped key first; fall back to legacy bare key (migration)
+      const accountKey = profile?.id
+        ? `creator_mode_enabled_member_${profile.id}`
+        : "creator_mode_enabled";
+      let val = await AsyncStorage.getItem(accountKey);
+      if (val === null && profile?.id) {
+        // Migrate: read legacy key and re-save under the scoped key
+        val = await AsyncStorage.getItem("creator_mode_enabled");
+        if (val !== null) {
+          await AsyncStorage.setItem(accountKey, val);
+        }
+      }
       if (val !== null) setIsCreatorModeEnabled(val === "true");
-    });
+    }
+    readCachedCreatorMode();
     AsyncStorage.getItem("creator_mode_off_warned").then((val) => {
       if (val === "true") setHasBeenWarnedOff(true);
     });
@@ -339,7 +357,7 @@ export default function SettingsScreen({ route, navigation }) {
   useEffect(() => {
     if (profile?.is_creator_mode_enabled !== undefined) {
       setIsCreatorModeEnabled(profile.is_creator_mode_enabled === true);
-      AsyncStorage.setItem(CREATOR_MODE_CACHE_KEY, String(profile.is_creator_mode_enabled === true));
+      AsyncStorage.setItem(creatorModeCacheKey, String(profile.is_creator_mode_enabled === true));
     }
   }, [profile?.is_creator_mode_enabled]);
 
@@ -357,9 +375,9 @@ export default function SettingsScreen({ route, navigation }) {
   };
 
   const performToggleCreatorMode = async (val) => {
-    // Optimistic update + persist immediately
+    // Optimistic update + persist immediately (account-scoped key)
     setIsCreatorModeEnabled(val);
-    await AsyncStorage.setItem(CREATOR_MODE_CACHE_KEY, String(val));
+    await AsyncStorage.setItem(creatorModeCacheKey, String(val));
     setIsTogglingCreator(true);
     try {
       const token = await getAuthToken();
@@ -379,7 +397,7 @@ export default function SettingsScreen({ route, navigation }) {
     } catch (err) {
       // Revert on failure
       setIsCreatorModeEnabled(!val);
-      await AsyncStorage.setItem(CREATOR_MODE_CACHE_KEY, String(!val));
+      await AsyncStorage.setItem(creatorModeCacheKey, String(!val));
       Alert.alert("Couldn't update", "Failed to change Creator Mode. Please try again.");
       console.error("[Settings] toggleCreatorMode error:", err.message);
     } finally {
@@ -470,7 +488,7 @@ export default function SettingsScreen({ route, navigation }) {
             style={styles.backBtn}
             hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
           >
-            <ArrowLeft size={24} color={COLORS.textPrimary} strokeWidth={2} />
+            <ArrowLeft size={22} color={COLORS.textPrimary} strokeWidth={2.5} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Settings</Text>
           <View style={styles.headerRight} />
@@ -959,29 +977,31 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.screenBackground,
   },
 
-  // Header
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 8,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(0,0,0,0.05)",
+    height: 56,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(0, 0, 0, 0.08)",
     backgroundColor: "#FFFFFF",
-    minHeight: 56,
   },
   backBtn: {
-    padding: 12,
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
   },
   headerTitle: {
-    fontFamily: FONTS.primary,
-    fontSize: 17,
+    flex: 1,
+    textAlign: "center",
+    fontFamily: "BasicCommercial-Black",
+    fontSize: 20,
     color: COLORS.textPrimary,
-    letterSpacing: 0.2,
   },
   headerRight: {
-    width: 48,
+    width: 40,
   },
 
   content: {

@@ -41,19 +41,28 @@ const SURFACE_NEUTRAL = "#F3F4F6";
 const HEALTH_CONFIG = {
   healthy: {
     icon: ShieldCheck,
-    color: ACCENT_GREEN,
+    color: "#059669",
+    bgColor: "#F0FDF4",
+    borderColor: "rgba(16, 185, 129, 0.22)",
+    iconBg: "rgba(16, 185, 129, 0.12)",
     label: "Healthy",
     message: "Your community signals look authentic. You're eligible for full brand discovery.",
   },
   under_review: {
     icon: Target,
-    color: ACCENT_AMBER,
+    color: "#D97706",
+    bgColor: "#FFFBEB",
+    borderColor: "rgba(217, 119, 6, 0.22)",
+    iconBg: "rgba(217, 119, 6, 0.12)",
     label: "Under Review",
     message: "Some engagement patterns are being monitored. This may reduce your brand partnership visibility.",
   },
   restricted: {
     icon: AlertCircle,
-    color: ACCENT_RED,
+    color: "#DC2626",
+    bgColor: "#FEF2F2",
+    borderColor: "rgba(220, 38, 38, 0.22)",
+    iconBg: "rgba(220, 38, 38, 0.12)",
     label: "Restricted",
     message: "Your community has been removed from brand discovery due to engagement anomalies. Contact support to resolve.",
   },
@@ -69,56 +78,49 @@ const CommunityHealthCard = ({ healthData }) => {
   const flagCount = parseInt(healthData.active_flag_count ?? 0);
 
   return (
-    <GlassCard
+    <Animated.View
       entering={FadeInDown.delay(0).duration(400)}
-      style={{
-        borderLeftWidth: 3,
-        borderLeftColor: config.color,
-        marginBottom: 0,
-      }}
+      style={[
+        styles.healthCard,
+        {
+          backgroundColor: config.bgColor,
+          borderColor: config.borderColor,
+        },
+      ]}
     >
-      <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 14 }}>
+      <View style={styles.healthCardContent}>
         <View
-          style={[{
-            width: 40, height: 40, borderRadius: 12,
-            alignItems: "center", justifyContent: "center",
-          }, { backgroundColor: config.color + "18" }]}
+          style={[
+            styles.healthIconContainer,
+            { backgroundColor: config.iconBg },
+          ]}
         >
-          <IconComp size={20} color={config.color} />
+          <IconComp size={20} color={config.color} strokeWidth={2} />
         </View>
-        <View style={{ flex: 1 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
-            <Text style={[
-              styles.sectionLabel,
-              { color: config.color, marginBottom: 0, letterSpacing: 0.5, fontSize: 12 }
-            ]}>
+        <View style={styles.healthTextContainer}>
+          <View style={styles.healthHeaderRow}>
+            <Text style={[styles.healthStatusLabel, { color: config.color }]}>
               {config.label.toUpperCase()}
             </Text>
             {status !== "healthy" && (
-              <View style={[
-                styles.pill,
-                { backgroundColor: config.color + "18", paddingHorizontal: 8, paddingVertical: 2 }
-              ]}>
-                <Text style={[styles.pillText, { color: config.color, fontSize: 10 }]}>
+              <View style={[styles.healthFlagBadge, { backgroundColor: config.iconBg }]}>
+                <Text style={[styles.healthFlagText, { color: config.color }]}>
                   {flagCount} {flagCount === 1 ? "flag" : "flags"}
                 </Text>
               </View>
             )}
           </View>
-          <Text style={[styles.heroSubtext, { textAlign: "left", color: SECONDARY_TEXT }]}>
+          <Text style={styles.healthMessage}>
             {config.message}
           </Text>
           {status !== "healthy" && multiplier < 1.0 && (
-            <Text style={[
-              styles.heroSubtext,
-              { textAlign: "left", color: MUTED_TEXT, marginTop: 6, fontSize: 12 }
-            ]}>
+            <Text style={styles.healthMultiplierText}>
               Brand match score: {Math.round(multiplier * 100)}% of normal
             </Text>
           )}
         </View>
       </View>
-    </GlassCard>
+    </Animated.View>
   );
 };
 
@@ -765,6 +767,17 @@ const styles = StyleSheet.create({
   // Glass card
   glassCard: { borderRadius: 24, backgroundColor: CARD_BG, ...SHADOWS.md, borderWidth: 1, borderColor: CARD_BORDER },
   glassCardInner: { padding: 20 },
+  // Community Health Card
+  healthCard: { borderRadius: 20, borderWidth: 1, padding: 16, ...SHADOWS.sm },
+  healthCardContent: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
+  healthIconContainer: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  healthTextContainer: { flex: 1 },
+  healthHeaderRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
+  healthStatusLabel: { fontFamily: FONTS.semiBold, fontSize: 12, letterSpacing: 0.5 },
+  healthFlagBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
+  healthFlagText: { fontFamily: FONTS.medium, fontSize: 11 },
+  healthMessage: { fontFamily: FONTS.regular, fontSize: 13, color: "#374151", lineHeight: 18 },
+  healthMultiplierText: { fontFamily: FONTS.medium, fontSize: 12, color: SECONDARY_TEXT, marginTop: 6 },
   // Section labels
   sectionLabel: { fontFamily: FONTS.primary, fontSize: 13, color: MUTED_TEXT, letterSpacing: 1, marginBottom: 16 },
   sectionHelper: { fontFamily: FONTS.regular, fontSize: 13, color: MUTED_TEXT, marginTop: -8, marginBottom: 4 },

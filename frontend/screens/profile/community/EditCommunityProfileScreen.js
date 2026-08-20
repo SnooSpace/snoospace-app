@@ -59,7 +59,7 @@ import SnooLoader from "../../../components/ui/SnooLoader";
 import FormTextInput from "../../../components/ui/FormTextInput";
 
 // Typography constants
-const FONT_HEADER = FONTS.primary || "BasicCommercial-Bold";
+const FONT_HEADER = "BasicCommercial-Black";
 const FONT_LABEL = FONTS.medium;
 const CARD_BG = "rgba(255, 255, 255, 0.25)"; // Frosted glass card background
 const INPUT_BG = "rgba(255, 255, 255, 0.4)"; // Frosted glass input background
@@ -661,7 +661,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
           style={styles.headerButtonLeft}
           hitSlop={{ top: 30, bottom: 30, left: 30, right: 30 }}
         >
-          <ArrowLeft size={26} color={TEXT_SECONDARY} />
+          <ArrowLeft size={22} color={TEXT_SECONDARY} strokeWidth={2.5} />
         </TouchableOpacity>
 
         <Text style={styles.headerTitle}>Edit Profile</Text>
@@ -1369,10 +1369,9 @@ const styles = StyleSheet.create({
     minHeight: 60,
   },
   headerTitle: {
-    fontSize: 17,
+    fontSize: 20,
     fontFamily: FONT_HEADER,
     color: TEXT_PRIMARY,
-    letterSpacing: 0.3,
   },
   headerButtonLeft: {
     position: "absolute",

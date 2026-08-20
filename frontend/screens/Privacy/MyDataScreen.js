@@ -389,11 +389,26 @@ function MemberPrivacyScreen({ navigation, initialTab = "personal" }) {
     }
   }, [loadData, isCacheFresh, hasCachedData]);
 
-  // Read creator mode flag from AsyncStorage (persisted by SettingsScreen)
+  // Read creator mode flag from AsyncStorage (persisted by SettingsScreen).
+  // Key is account-scoped to prevent cross-account bleed after a switcher switch.
   useEffect(() => {
-    AsyncStorage.getItem("creator_mode_enabled").then((val) => {
-      setIsCreatorMode(val === "true");
-    });
+    async function readCreatorMode() {
+      try {
+        const account = await getActiveAccount();
+        const scopedKey = account?.id
+          ? `creator_mode_enabled_member_${account.id}`
+          : "creator_mode_enabled";
+        let val = await AsyncStorage.getItem(scopedKey);
+        if (val === null && account?.id) {
+          // Migration: fall back to legacy bare key
+          val = await AsyncStorage.getItem("creator_mode_enabled");
+        }
+        setIsCreatorMode(val === "true");
+      } catch (_) {
+        // Non-critical — creator mode UI simply won't show
+      }
+    }
+    readCreatorMode();
   }, []);
 
   // Load reach data independently so period changes only re-fetch reach
@@ -571,8 +586,13 @@ function MemberPrivacyScreen({ navigation, initialTab = "personal" }) {
       <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "rgba(255,255,255,0.5)" }]} pointerEvents="none" />
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.headerBar}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
-            <ArrowLeft size={22} color="#4B5563" strokeWidth={2} />
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backBtn}
+            activeOpacity={0.7}
+            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+          >
+            <ArrowLeft size={22} color="#4B5563" strokeWidth={2.5} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>My Activity</Text>
           <View style={{ width: 40 }} />
@@ -1531,9 +1551,21 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   glowOrb1: { position: "absolute", top: -width * 0.3, left: -width * 0.3, width: width * 0.9, height: width * 0.9, borderRadius: width * 0.45, opacity: 0.6 },
   glowOrb2: { position: "absolute", bottom: -width * 0.2, right: -width * 0.3, width: width * 1.1, height: width * 1.1, borderRadius: width * 0.55, opacity: 0.5 },
-  headerBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12 },
+  headerBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    height: 56,
+  },
   backBtn: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.04)" },
-  headerTitle: { fontSize: 17, fontFamily: FONTS.semiBold, color: "#111827" },
+  headerTitle: {
+    flex: 1,
+    textAlign: "center",
+    fontSize: 20,
+    fontFamily: "BasicCommercial-Black",
+    color: "#111827",
+  },
   scrollContent: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 40 },
   section: { marginBottom: 28 },
   sectionTitle: { fontSize: 18, fontFamily: FONTS.primary, color: "#1F2937", marginBottom: 10 },

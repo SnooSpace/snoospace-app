@@ -10,15 +10,6 @@ import ActivityInsightsScreen from "../screens/discover/ActivityInsightsScreen";
 import ChatScreen from "../screens/messages/ChatScreen";
 import OpportunityViewScreen from "../screens/home/member/OpportunityViewScreen";
 import ApplyToOpportunityScreen from "../screens/home/member/ApplyToOpportunityScreen";
-import TabSwipeHandler from "../components/navigation/TabSwipeHandler";
-
-
-
-const DiscoverScreenWithSwipe = (props) => (
-  <TabSwipeHandler currentTab="Discover">
-    <DiscoverScreen {...props} />
-  </TabSwipeHandler>
-);
 
 const Stack = createNativeStackNavigator();
 
@@ -29,10 +20,11 @@ export default function DiscoverStackNavigator() {
         headerShown: false,
         animation: "slide_from_right",
         gestureEnabled: true,
+        contentStyle: { backgroundColor: "#FFFFFF" },
         ...(Platform.OS === "ios" ? { animationDuration: 350 } : {}),
       }}
     >
-      <Stack.Screen name="DiscoverHome" component={DiscoverScreenWithSwipe} />
+      <Stack.Screen name="DiscoverHome" component={DiscoverScreen} />
       <Stack.Screen name="ProfileFeed" component={ProfileFeedScreen} />
       <Stack.Screen
         name="EditDiscoverProfile"

@@ -19,7 +19,7 @@ import {
   Ticket,
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useIsFocused } from "@react-navigation/native";
 import { searchMembers, globalSearch } from "../../api/search";
 import { searchEvents } from "../../api/events";
 import { getDiscoverFeed, getSuggestedCommunities } from "../../api/discover";
@@ -48,6 +48,7 @@ import { Explore } from "../../components/discover";
 import SuggestedCommunityCard from "../../components/cards/SuggestedCommunityCard";
 import SnooLoader from "../../components/ui/SnooLoader";
 import CollegeChip from "../../components/ui/CollegeChip";
+import GradientSafeArea from "../../components/ui/GradientSafeArea";
 
 // Helper to create rgba from hex
 const hexToRgba = (hex, alpha) => {
@@ -61,6 +62,7 @@ const CIRCLE_COLOR = "#448AFF";
 const DEBOUNCE_MS = 300;
 
 export default function SearchScreen({ navigation }) {
+  const isScreenFocused = useIsFocused();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [following, setFollowing] = useState({}); // id -> boolean
@@ -159,9 +161,9 @@ export default function SearchScreen({ navigation }) {
     }
   };
 
-  // Rotating placeholder animation
+  // Rotating placeholder animation (only run when screen is actively focused)
   useEffect(() => {
-    if (focused || query.length > 0) return;
+    if (!isScreenFocused || focused || query.length > 0) return;
 
     const interval = setInterval(() => {
       Animated.timing(placeholderOpacity, {
@@ -179,7 +181,7 @@ export default function SearchScreen({ navigation }) {
     }, 1800);
 
     return () => clearInterval(interval);
-  }, [focused, query]);
+  }, [isScreenFocused, focused, query]);
 
   const doSearch = useCallback(
     async (reset = false) => {
@@ -1273,6 +1275,9 @@ export default function SearchScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
+      {/* Premium Gradient Overlay for Status Bar Contrast */}
+      <GradientSafeArea variant="primary" />
+
       {/* Header with Explore Title - Only visible when not searching */}
       {!focused && (
         <View style={styles.headerContainer}>

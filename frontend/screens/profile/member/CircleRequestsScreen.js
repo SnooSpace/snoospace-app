@@ -1,4 +1,4 @@
-﻿import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, FlatList,
   Image, ActivityIndicator,
@@ -252,8 +252,12 @@ export default function CircleRequestsScreen({ navigation }) {
       <SafeAreaView style={styles.container} edges={['top']}>
         {/* Header */}
         <View style={styles.header}>
-          <GHPressable onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={8}>
-            <ArrowLeft size={24} color={COLORS.textPrimary} strokeWidth={2} />
+          <GHPressable
+            onPress={() => navigation.goBack()}
+            style={styles.backBtn}
+            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+          >
+            <ArrowLeft size={22} color={COLORS.textPrimary} strokeWidth={2.5} />
           </GHPressable>
           <Text style={styles.headerTitle}>Circle Requests</Text>
           <View style={{ width: 40 }} />
@@ -322,11 +326,23 @@ export default function CircleRequestsScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
   header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    height: 56,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(0, 0, 0, 0.08)',
+    backgroundColor: '#fff',
   },
-  backBtn: { width: 40, alignItems: 'flex-start' },
-  headerTitle: { fontFamily: FONTS.bold, fontSize: 18, color: COLORS.textPrimary },
+  backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
+  headerTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontFamily: 'BasicCommercial-Black',
+    fontSize: 20,
+    color: COLORS.textPrimary,
+  },
   tabRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.07)', position: 'relative' },
   tab: {
     flex: 1, paddingVertical: 13, alignItems: 'center',

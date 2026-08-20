@@ -56,6 +56,7 @@ import {
   TriangleAlert,
   CircleCheck,
   Handshake,
+  Info,
 } from "lucide-react-native";
 import CustomAlertModal from "../../../components/ui/CustomAlertModal";
 import DynamicStatusBar from "../../../components/navigation/DynamicStatusBar";
@@ -89,6 +90,7 @@ import EventBus from "../../../utils/EventBus";
 import { NotificationConsumptionService } from "../../../services/NotificationConsumptionService";
 import CommentsModal from "../../../components/modals/CommentsModal";
 import { getAuthToken, getAuthEmail, getActiveAccount } from "../../../api/auth";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiPost, apiDelete, apiGet } from "../../../api/client";
 import LikeStateManager from "../../../utils/LikeStateManager";
 import GroupsBottomSheet from "../../../components/modals/GroupsBottomSheet";
@@ -232,6 +234,43 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     marginTop: 4,
+  },
+  circleMemberChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "rgba(41, 98, 255, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(41, 98, 255, 0.22)",
+  },
+  circleMemberChipIcon: {
+    marginRight: 5,
+  },
+  circleMemberChipText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 13,
+    color: "#2962FF",
+    letterSpacing: -0.2,
+  },
+  circleTooltipBubble: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "center",
+    backgroundColor: "rgba(41, 98, 255, 0.08)",
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 16,
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: "rgba(41, 98, 255, 0.18)",
+  },
+  circleTooltipText: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: "#2962FF",
+    letterSpacing: -0.1,
   },
   bio: {
     fontFamily: FONTS.regular,
@@ -949,13 +988,27 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
     }
   }, [communityId, showAlert, hideAlert]);
 
+  const [viewerIsCreatorMode, setViewerIsCreatorMode] = useState(false);
+
   useEffect(() => {
     async function checkUserRole() {
       try {
         const account = await getActiveAccount();
         if (account) {
-          setCurrentUserRole(account.type?.toLowerCase() || null);
+          const accountType = account.type?.toLowerCase() || null;
+          setCurrentUserRole(accountType);
           setCurrentUserId(account.id || null);
+          // Track whether the member viewer has creator mode ON.
+          // Account-scoped key prevents cross-account bleed after switcher use.
+          if (accountType !== 'community' && account.id) {
+            const scopedKey = `creator_mode_enabled_member_${account.id}`;
+            let val = await AsyncStorage.getItem(scopedKey);
+            if (val === null) {
+              // Migration: fall back to legacy bare key
+              val = await AsyncStorage.getItem("creator_mode_enabled");
+            }
+            setViewerIsCreatorMode(val === "true");
+          }
         }
       } catch (e) {
         console.warn("[CommunityPublicProfile] Error getting active account:", e);
@@ -973,6 +1026,33 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
   const [memberCommCircleStatus, setMemberCommCircleStatus] = useState('none'); // 'none' | 'pending_invite' | 'in_circle'
   const [memberCommCircleInviteId, setMemberCommCircleInviteId] = useState(null);
   const [memberCommCircleLoading, setMemberCommCircleLoading] = useState(false);
+  const [showCircleInfo, setShowCircleInfo] = useState(false);
+  const circleInfoTimeoutRef = useRef(null);
+
+  const toggleCircleInfo = useCallback(() => {
+    HapticsService.triggerImpactLight();
+    setShowCircleInfo((prev) => {
+      const next = !prev;
+      if (circleInfoTimeoutRef.current) {
+        clearTimeout(circleInfoTimeoutRef.current);
+        circleInfoTimeoutRef.current = null;
+      }
+      if (next) {
+        circleInfoTimeoutRef.current = setTimeout(() => {
+          setShowCircleInfo(false);
+        }, 3500);
+      }
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (circleInfoTimeoutRef.current) {
+        clearTimeout(circleInfoTimeoutRef.current);
+      }
+    };
+  }, []);
   const [selectedPost, setSelectedPost] = useState(null);
   const [postModalVisible, setPostModalVisible] = useState(false);
   const [commentsModalState, setCommentsModalState] = useState({
@@ -1983,7 +2063,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                 <Text style={styles.usernameText}>@{profile.username}</Text>
               </View>
             )}
-            {(Array.isArray(profile?.categories) && profile.categories.length > 0) || profile?.instagram_username ? (
+            {(Array.isArray(profile?.categories) && profile.categories.length > 0) || profile?.instagram_username || memberCommCircleStatus === 'in_circle' ? (
               <View style={styles.categoriesRow}>
                 {Array.isArray(profile?.categories) &&
                   profile.categories.map((cat, idx) => (
@@ -1992,8 +2072,35 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                 {profile?.instagram_username && (
                   <InstagramRow username={profile.instagram_username} />
                 )}
+                {memberCommCircleStatus === 'in_circle' && (
+                  <TouchableOpacity
+                    style={styles.circleMemberChip}
+                    onPress={toggleCircleInfo}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    accessible
+                    accessibilityLabel="You are in this community's circle"
+                    accessibilityRole="button"
+                  >
+                    <UserCheck size={12} color="#2962FF" strokeWidth={2.2} style={styles.circleMemberChipIcon} />
+                    <Text style={styles.circleMemberChipText}>In Circle</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             ) : null}
+
+            {showCircleInfo && (
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => setShowCircleInfo(false)}
+                style={styles.circleTooltipBubble}
+              >
+                <Info size={12} color="#2962FF" strokeWidth={2.2} style={{ marginRight: 5 }} />
+                <Text style={styles.circleTooltipText}>
+                  You're in {profile?.name || 'this community'}'s circle
+                </Text>
+              </TouchableOpacity>
+            )}
 
             {/* College Chip */}
             {profile?.college_info && (
@@ -2277,11 +2384,15 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
           )}
 
           {/* ── Send Collab Request CTA ──────────────────────────────────────
-               Shown when viewing any community profile that is NOT the viewer's own.
-               Communities are always eligible receivers, so no creator-mode check needed.
+               Shown when viewing a community profile that is NOT the viewer's own.
+               Communities are always eligible receivers, so no creator-mode check
+               on the target. However, the sender must be a community account OR a
+               creator-mode member — plain members are blocked by the backend (403)
+               so we hide the button on the frontend as well to avoid a dead UX path.
                Label flips based on whether a DM thread already exists.
           ── */}
-          {!(currentUserRole === 'community' && String(profile?.id) === String(currentUserId)) && (
+          {!(currentUserRole === 'community' && String(profile?.id) === String(currentUserId)) &&
+           (currentUserRole === 'community' || viewerIsCreatorMode) && (
             <TouchableOpacity
               activeOpacity={0.82}
               style={commCollabCtaStyles.btn}
@@ -2339,24 +2450,6 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               </View>
             </View>
           )}
-          {memberCommCircleStatus === 'in_circle' && (
-            <View style={{
-              marginTop: 10,
-              backgroundColor: 'rgba(46,213,115,0.08)',
-              borderRadius: 14,
-              borderWidth: 1,
-              borderColor: 'rgba(46,213,115,0.20)',
-              paddingHorizontal: 14,
-              paddingVertical: 8,
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 8,
-            }}>
-              <CircleCheck size={15} color="#69F0AE" strokeWidth={2} />
-              <Text style={{ fontFamily: FONTS.medium, color: '#69F0AE', fontSize: 13 }}>You're in this community's circle</Text>
-            </View>
-          )}
-
           {groupsCount > 0 && (
             <View style={styles.sectionCard}>
               <TouchableOpacity

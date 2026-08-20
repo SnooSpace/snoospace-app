@@ -72,7 +72,7 @@ import {
 } from "../../../constants/theme";
 
 // Typography constants based on user request
-const FONT_HEADER = FONTS.primary || "BasicCommercial-Bold"; // Edit Profile
+const FONT_HEADER = "BasicCommercial-Black"; // Edit Profile
 const FONT_CARD_TITLE = FONTS.primary || "BasicCommercial-Bold"; // THE BASICS, etc.
 const FONT_LABEL = FONTS.medium; // Input Labels
 const FONT_INPUT = FONTS.regular; // Input Values
@@ -617,7 +617,7 @@ export default function EditProfileScreen({ route, navigation }) {
           style={styles.headerButtonLeft}
           hitSlop={{ top: 30, bottom: 30, left: 30, right: 30 }}
         >
-          <ArrowLeft size={26} color={TEXT_SECONDARY} />
+          <ArrowLeft size={22} color={TEXT_SECONDARY} strokeWidth={2.5} />
         </TouchableOpacity>
 
         <Text style={styles.headerTitle}>Edit Profile</Text>
@@ -1651,10 +1651,9 @@ const styles = StyleSheet.create({
     color: TEXT_PRIMARY,
   },
   headerTitle: {
-    fontSize: 17,
+    fontSize: 20,
     fontFamily: FONT_HEADER,
     color: TEXT_PRIMARY,
-    letterSpacing: 0.3,
   },
   saveButton: {
     position: "absolute",

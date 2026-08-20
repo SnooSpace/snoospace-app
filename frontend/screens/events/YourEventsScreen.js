@@ -21,6 +21,7 @@ import {
 import { getGradientForName } from "../../utils/AvatarGenerator";
 import { useLocationName } from "../../utils/locationNameCache";
 import SnooLoader from "../../components/ui/SnooLoader";
+import GradientSafeArea from "../../components/ui/GradientSafeArea";
 import EventCard from "../../components/cards/EventCard";
 import CommentsModal from "../../components/modals/CommentsModal";
 import OpenPlanCard from "../../components/plans/OpenPlanCard";
@@ -738,6 +739,8 @@ export default function YourEventsScreen({ navigation }) {
 
   return (
     <View style={styles.outerContainer}>
+      {/* Premium Gradient Overlay for Status Bar Contrast */}
+      <GradientSafeArea variant="primary" />
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Your Events</Text>
@@ -967,7 +970,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.screenBackground,
   },
   safeArea: {
-    backgroundColor: COLORS.screenBackground,
+    backgroundColor: "transparent",
   },
   header: {
     flexDirection: "row",
@@ -976,7 +979,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 8,
-    backgroundColor: COLORS.screenBackground,
+    backgroundColor: "transparent",
   },
   headerTitle: {
     fontFamily: FONTS.black,

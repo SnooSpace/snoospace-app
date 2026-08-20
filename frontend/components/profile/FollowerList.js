@@ -421,8 +421,9 @@ export default function FollowerList({
           <GHPressable
             onPress={() => navigation?.goBack?.()}
             style={styles.backBtn}
+            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
           >
-            <ArrowLeft size={24} color="#1D1D1F" />
+            <ArrowLeft size={22} color="#1D1D1F" strokeWidth={2.5} />
           </GHPressable>
           <Text style={styles.headerTitle}>{title}</Text>
           <View style={styles.headerSpacer} />
@@ -515,8 +516,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 8,
     paddingBottom: 8,
-    // borderBottomWidth: 1, // Removed to "remove" header visual
-    // borderBottomColor: "#E5E5EA",
+    minHeight: 56,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(0, 0, 0, 0.08)",
   },
   backBtn: {
     width: 40,
@@ -527,8 +529,8 @@ const styles = StyleSheet.create({
   headerTitle: {
     flex: 1,
     textAlign: "center",
-    fontSize: 17,
-    fontFamily: "BasicCommercial-Bold", // Updated to Bold
+    fontSize: 20,
+    fontFamily: "BasicCommercial-Black",
     color: "#1D1D1F",
     letterSpacing: -0.3,
   },

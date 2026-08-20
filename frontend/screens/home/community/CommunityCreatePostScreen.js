@@ -1006,8 +1006,8 @@ const styles = StyleSheet.create({
     zIndex: -1, // Behind buttons
   },
   headerTitle: {
-    fontSize: 17,
-    fontFamily: FONTS.black,
+    fontSize: 20,
+    fontFamily: "BasicCommercial-Black",
     color: COLORS.textPrimary,
   },
   scrollContent: {

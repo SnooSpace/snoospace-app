@@ -419,7 +419,11 @@ function SwipeablePagerNavigator({
       return;
     }
     currentIndex.value = state.index;
-    translateX.value = -state.index * SCREEN_WIDTH;
+    translateX.value = withSpring(-state.index * SCREEN_WIDTH, {
+      damping: 22,
+      stiffness: 220,
+      mass: 0.7,
+    });
   }, [state.index]);
 
   const animatedTabBarStyle = useAnimatedStyle(() => {

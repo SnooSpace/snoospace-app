@@ -137,7 +137,7 @@ export default function BlockedAccountsScreen({ navigation }) {
             style={styles.backBtn}
             hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
           >
-            <ArrowLeft size={24} color={COLORS.textPrimary} strokeWidth={2} />
+            <ArrowLeft size={22} color={COLORS.textPrimary} strokeWidth={2.5} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Blocked Accounts</Text>
           <View style={styles.headerRight} />
@@ -182,29 +182,31 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.screenBackground,
   },
 
-  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 8,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
+    height: 56,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(0, 0, 0, 0.08)',
     backgroundColor: '#FFFFFF',
-    minHeight: 56,
   },
   backBtn: {
-    padding: 12,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   headerTitle: {
-    fontFamily: FONTS.primary,
-    fontSize: 17,
+    flex: 1,
+    textAlign: 'center',
+    fontFamily: 'BasicCommercial-Black',
+    fontSize: 20,
     color: COLORS.textPrimary,
-    letterSpacing: 0.2,
   },
   headerRight: {
-    width: 48,
+    width: 40,
   },
 
   // Loading / Error

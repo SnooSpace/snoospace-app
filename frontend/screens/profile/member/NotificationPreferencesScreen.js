@@ -215,8 +215,14 @@ export default function NotificationPreferencesScreen({ route, navigation }) {
         if (account) {
           const isComm = account.type === "community";
           setIsCommunity(isComm);
-          if (!isComm) {
-            const creatorVal = await AsyncStorage.getItem("creator_mode_enabled");
+          if (!isComm && account.id) {
+            // Account-scoped key prevents cross-account bleed after switcher use
+            const scopedKey = `creator_mode_enabled_member_${account.id}`;
+            let creatorVal = await AsyncStorage.getItem(scopedKey);
+            if (creatorVal === null) {
+              // Migration: fall back to legacy bare key
+              creatorVal = await AsyncStorage.getItem("creator_mode_enabled");
+            }
             setIsCreator(creatorVal === "true");
           }
         }

@@ -51,6 +51,9 @@ import CreateEventModal from "../../../components/modals/CreateEventModal";
 import EditEventModal from "../../../components/modals/EditEventModal";
 import ActionModal from "../../../components/modals/ActionModal";
 import PromoteSheet from "../../../components/posts/PromoteSheet";
+import CustomAlertModal from "../../../components/ui/CustomAlertModal";
+import GradientSafeArea from "../../../components/ui/GradientSafeArea";
+import HapticsService from "../../../services/HapticsService";
 import { getEventPromoteState } from "../../../utils/promoteUtils";
 
 import { COLORS, SHADOWS, FONTS } from "../../../constants/theme";
@@ -176,6 +179,17 @@ export default function CommunityDashboardScreen({ navigation }) {
     message: "",
     actions: [],
   });
+  const [alertModalConfig, setAlertModalConfig] = useState({
+    visible: false,
+    title: "",
+    message: "",
+    icon: null,
+    iconColor: "#7C3AED",
+  });
+  const showAlertModal = (config) =>
+    setAlertModalConfig({ ...config, visible: true });
+  const hideAlertModal = () =>
+    setAlertModalConfig((prev) => ({ ...prev, visible: false }));
 
   // Draft prompt state (shown on Dashboard before opening CreateEventModal)
   const [showDraftPrompt, setShowDraftPrompt] = useState(false);
@@ -661,7 +675,17 @@ export default function CommunityDashboardScreen({ navigation }) {
                 onPress={(e) => {
                   e.stopPropagation?.();
                   if (!canPromote) {
-                    Alert.alert('Cannot Promote', reason);
+                    HapticsService.triggerImpactLight();
+                    showAlertModal({
+                      title: "Cannot Promote",
+                      message: reason,
+                      icon: Megaphone,
+                      iconColor: "#7C3AED",
+                      primaryAction: {
+                        text: "OK",
+                        onPress: hideAlertModal,
+                      },
+                    });
                     return;
                   }
                   setPromotingEvent(item);
@@ -690,6 +714,8 @@ export default function CommunityDashboardScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
+      {/* Premium Gradient Overlay for Status Bar Contrast */}
+      <GradientSafeArea variant="primary" />
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -1067,6 +1093,18 @@ export default function CommunityDashboardScreen({ navigation }) {
         sourceType="event"
         sourceData={promotingEvent}
         allowedEngagementTypes={['poll', 'qna', 'prompt', 'opportunity']}
+      />
+
+      {/* Custom Alert Modal (e.g. Cannot Promote, Error alerts) */}
+      <CustomAlertModal
+        visible={alertModalConfig.visible}
+        title={alertModalConfig.title}
+        message={alertModalConfig.message}
+        icon={alertModalConfig.icon}
+        iconColor={alertModalConfig.iconColor}
+        primaryAction={alertModalConfig.primaryAction}
+        secondaryAction={alertModalConfig.secondaryAction}
+        onClose={hideAlertModal}
       />
 
       {/* Draft Prompt Modal (shown on Dashboard) */}

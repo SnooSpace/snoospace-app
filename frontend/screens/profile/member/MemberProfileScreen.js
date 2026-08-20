@@ -100,6 +100,7 @@ import EventBus from "../../../utils/EventBus";
 import SkeletonProfileHeader from "../../../components/skeletons/SkeletonProfileHeader";
 import SkeletonPostGrid from "../../../components/skeletons/SkeletonPostGrid";
 import CollegeChip from "../../../components/ui/CollegeChip";
+import GradientSafeArea from "../../../components/ui/GradientSafeArea";
 import CollegeHubSheet from "../../../components/modals/CollegeHubSheet";
 import {
   COLORS,
@@ -1328,8 +1329,6 @@ export default function MemberProfileScreen({ navigation }) {
   // reliable backstop for the EventBus path (which is the primary channel but
   // can be missed in edge cases involving navigation animation timing).
   useEffect(() => {
-    const CREATOR_MODE_CACHE_KEY = "creator_mode_enabled";
-
     const unsubscribe = navigation.addListener("focus", async () => {
       // 1. Full reload if EditProfile flagged it
       const params = route.params;
@@ -1342,8 +1341,14 @@ export default function MemberProfileScreen({ navigation }) {
       }
 
       // 2. Lightweight creator-mode sync from AsyncStorage (written by SettingsScreen
-      //    on every toggle). Avoids a full API round-trip just to reflect the toggle.
+      //    on every toggle). Key is account-scoped to prevent cross-account bleed
+      //    when the switcher is used. Avoids a full API round-trip just to reflect the toggle.
       try {
+        // Resolve the active account at read-time so we always use the correct key
+        const activeAcc = await getActiveAccount();
+        const CREATOR_MODE_CACHE_KEY = activeAcc?.id
+          ? `creator_mode_enabled_member_${activeAcc.id}`
+          : "creator_mode_enabled";
         const cached = await AsyncStorage.getItem(CREATOR_MODE_CACHE_KEY);
         if (cached !== null) {
           const asStoredBool = cached === "true";
@@ -1359,6 +1364,7 @@ export default function MemberProfileScreen({ navigation }) {
 
     return unsubscribe;
   }, [navigation, route.params]);
+
 
 
   const handleEditProfile = () => {
@@ -1747,6 +1753,8 @@ export default function MemberProfileScreen({ navigation }) {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaView style={styles.container}>
+        {/* Premium Gradient Overlay for Status Bar Contrast */}
+        <GradientSafeArea variant="primary" />
         {/* Header */}
         {(() => {
           console.log("[Profile] ProfileHeader rendered");

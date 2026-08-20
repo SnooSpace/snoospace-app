@@ -1,5 +1,6 @@
 import React from "react";
-import { createStackNavigator, CardStyleInterpolators } from "@react-navigation/stack";
+import { Platform } from "react-native";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import CommunityDashboardScreen from "../screens/home/community/CommunityDashboardScreen";
 import CommunityEventsListScreen from "../screens/home/community/CommunityEventsListScreen";
 import OpportunitiesListScreen from "../screens/home/community/OpportunitiesListScreen";
@@ -11,43 +12,7 @@ import AudienceIntelligenceScreen from "../screens/home/community/AudienceIntell
 import EventQualityScreen from "../screens/home/community/EventQualityScreen";
 import InviteMembersScreen from "../screens/home/community/InviteMembersScreen";
 
-
-import TabSwipeHandler from "../components/navigation/TabSwipeHandler";
-
-const CommunityTabs = ["Home", "Search", "Dashboard", "Requests", "Profile"];
-
-const DashboardHomeWithSwipe = (props) => (
-  <TabSwipeHandler currentTab="Dashboard" tabs={CommunityTabs}>
-    <CommunityDashboardScreen {...props} />
-  </TabSwipeHandler>
-);
-
-const snappyTransitionSpec = {
-  open: {
-    animation: "spring",
-    config: {
-      stiffness: 1000,
-      damping: 100,
-      mass: 1,
-      overshootClamping: true,
-      restDisplacementThreshold: 0.01,
-      restSpeedThreshold: 0.01,
-    },
-  },
-  close: {
-    animation: "spring",
-    config: {
-      stiffness: 1000,
-      damping: 100,
-      mass: 1,
-      overshootClamping: true,
-      restDisplacementThreshold: 0.01,
-      restSpeedThreshold: 0.01,
-    },
-  },
-};
-
-const Stack = createStackNavigator();
+const Stack = createNativeStackNavigator();
 
 export default function CommunityDashboardStackNavigator() {
   return (
@@ -55,13 +20,13 @@ export default function CommunityDashboardStackNavigator() {
       screenOptions={{
         headerShown: false,
         gestureEnabled: true,
-        gestureDirection: "horizontal",
-        transitionSpec: snappyTransitionSpec,
-        cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+        animation: "slide_from_right",
+        contentStyle: { backgroundColor: "#FFFFFF" },
+        ...(Platform.OS === "ios" ? { animationDuration: 350 } : {}),
       }}
       initialRouteName="DashboardHome"
     >
-      <Stack.Screen name="DashboardHome" component={DashboardHomeWithSwipe} />
+      <Stack.Screen name="DashboardHome" component={CommunityDashboardScreen} />
       <Stack.Screen
         name="CommunityEventsList"
         component={CommunityEventsListScreen}
@@ -79,7 +44,6 @@ export default function CommunityDashboardStackNavigator() {
       <Stack.Screen name="AudienceIntelligence" component={AudienceIntelligenceScreen} />
       <Stack.Screen name="EventQuality" component={EventQualityScreen} />
       <Stack.Screen name="InviteMembers" component={InviteMembersScreen} />
-
     </Stack.Navigator>
   );
 }

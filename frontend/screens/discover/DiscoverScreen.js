@@ -8,6 +8,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { apiGet } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
 import SnooLoader from "../../components/ui/SnooLoader";
+import GradientSafeArea from "../../components/ui/GradientSafeArea";
 import OpenPlansSection from "../plans/OpenPlansSection";
 import EventCard from "../../components/cards/EventCard";
 import EventBus from "../../utils/EventBus";
@@ -310,7 +311,9 @@ export default function DiscoverScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <SafeAreaView style={{ backgroundColor: COLORS.screenBackground }} edges={EDGES}>
+      {/* Premium Gradient Overlay for Status Bar Contrast */}
+      <GradientSafeArea variant="primary" />
+      <SafeAreaView style={{ backgroundColor: "transparent" }} edges={EDGES}>
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Discover</Text>
@@ -591,7 +594,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.l,
     paddingTop: 16,
     paddingBottom: 8,
-    backgroundColor: COLORS.screenBackground,
+    backgroundColor: "transparent",
   },
   headerTitle: {
     fontFamily: FONTS.black,

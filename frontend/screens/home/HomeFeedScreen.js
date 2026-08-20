@@ -297,11 +297,7 @@ const HeaderIcon = ({ IconComponent, onPress, showDot }) => {
 };
 
 export default function HomeFeedScreen({ navigation, role = "member" }) {
-  // [DIAG-REFOCUS-RENDER] — remove after isolation sprint
-  // Fires on EVERY render of HomeFeedScreen, including the reconciliation burst
-  // after react-native-screens un-freezes this screen on navigation return.
-  // Cross-reference timestamp clusters against [PERF-NAV] HomeFeedScreen FOCUS.
-  console.log(`[DIAG-REFOCUS-RENDER] HomeFeedScreen component body executing at t=${Date.now()}`);
+  // console.log(`[DIAG-REFOCUS-RENDER] HomeFeedScreen component body executing at t=${Date.now()}`);
 
   const insets = useSafeAreaInsets();
 
@@ -428,21 +424,31 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     };
   }, []);
 
-  // Pause videos when screen loses focus. Video RESUME is intentionally moved
-  // to the transitionEnd listener below (prompt 1.2) — this effect now only
-  // handles the PAUSE path so it stays decoupled from navigation timing.
+  // Pause videos when screen loses focus. Defer the state update via
+  // InteractionManager so FlashList re-render doesn't block the transition animation.
   useEffect(() => {
     if (!isFocused) {
       // Screen lost focus - save current visible post and pause all videos
       if (visiblePostIdRef.current) {
         lastVisiblePostIdRef.current = visiblePostIdRef.current;
         visiblePostIdRef.current = null;
-        setVisiblePostId(null);
+        const task = InteractionManager.runAfterInteractions(() => {
+          setVisiblePostId(null);
+        });
+        return () => task.cancel();
+      }
+    } else {
+      // Screen regained focus via tab switch — restore playback after transition settles
+      if (lastVisiblePostIdRef.current && !visiblePostIdRef.current) {
+        const toRestore = lastVisiblePostIdRef.current;
+        lastVisiblePostIdRef.current = null;
+        visiblePostIdRef.current = toRestore;
+        const task = InteractionManager.runAfterInteractions(() => {
+          setVisiblePostId(toRestore);
+        });
+        return () => task.cancel();
       }
     }
-    // NOTE: video RESUME deliberately omitted here. It now runs in the
-    // transitionEnd listener below, which fires only once the push/pop animation
-    // has fully settled — eliminating the "laggy return" bug.
   }, [isFocused]);
 
   // ── 1.2 transitionEnd video resume ───────────────────────────────────────────
@@ -1217,7 +1223,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     };
   }, []);
 
-  useEffect(() => {
+  /* useEffect(() => {
     const unsubStart = navigation.addListener("transitionStart", (e) => {
       console.log(`[PERF-NAV] HomeFeedScreen transitionStart (closing: ${e?.data?.closing}) at t=${performance.now().toFixed(2)}ms`);
     });
@@ -1236,7 +1242,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       unsubFocus();
       unsubBlur();
     };
-  }, [navigation]);
+  }, [navigation]); */
 
   useFocusEffect(
     React.useCallback(() => {
@@ -1944,18 +1950,12 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         </View>
       ) : null}
 
-      {/* [DIAG-REFOCUS-RENDER] Profiler — remove after isolation sprint
-          Measures the cost of FlashList reconciliation on every render pass,
-          specifically the burst that happens when HomeFeedScreen un-freezes.
-          phase='mount'   → first render after freeze was lifted (if screen was frozen mid-life)
-          phase='update'  → subsequent reconciliation passes (this is what we're hunting)
-          actualDuration  → JS time spent re-rendering this subtree */}
-      <React.Profiler
+      {/* <React.Profiler
         id="HomeFeedFlashList"
         onRender={(id, phase, actualDuration) => {
           console.log(`[DIAG-REFOCUS-RENDER] HomeFeedFlashList phase=${phase} duration=${actualDuration.toFixed(2)}ms at t=${Date.now()}`);
         }}
-      >
+      > */}
       <AnimatedFlashList
         ref={listRefCallback}
         nestedScrollEnabled={true}
@@ -2089,7 +2089,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           ) : null
         }
       />
-      </React.Profiler>
+      {/* </React.Profiler> */}
 
 
       {/* Comments Modal */}

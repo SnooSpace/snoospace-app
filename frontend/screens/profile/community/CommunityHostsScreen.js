@@ -543,11 +543,12 @@ export default function CommunityHostsScreen({ route, navigation }) {
             <TouchableOpacity
               onPress={() => navigation.goBack()}
               style={styles.backBtn}
+              hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
             >
-              <ArrowLeft size={24} color={TEXT_COLOR} />
+              <ArrowLeft size={22} color={TEXT_COLOR} strokeWidth={2.5} />
             </TouchableOpacity>
             <Text style={styles.title}>Edit Community Hosts</Text>
-            <View style={{ width: 24 }} />
+            <View style={{ width: 40 }} />
           </View>
 
           <FlatList
@@ -832,19 +833,24 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: 16,
+    height: 56,
     backgroundColor: BG,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(0, 0, 0, 0.08)",
   },
   backBtn: {
-    padding: 4,
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "flex-start",
   },
   title: {
+    flex: 1,
+    textAlign: "center",
     fontSize: 20,
     color: TEXT_COLOR,
-    fontFamily: FONTS.black,
+    fontFamily: "BasicCommercial-Black",
   },
   list: {
     flex: 1,

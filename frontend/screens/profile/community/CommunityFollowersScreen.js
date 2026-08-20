@@ -1085,12 +1085,12 @@ export default function CommunityFollowersScreen({ route, navigation }) {
           <TouchableOpacity
             style={styles.backBtn}
             onPress={() => navigation.goBack()}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
           >
-            <ArrowLeft size={22} color={COLORS.textPrimary} strokeWidth={2} />
+            <ArrowLeft size={22} color={COLORS.textPrimary} strokeWidth={2.5} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Followers</Text>
-          <View style={{ width: 38 }} />
+          <View style={{ width: 40 }} />
         </View>
 
         {/* Tab Bar */}
@@ -1184,7 +1184,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   header: {
-    height: 52,
+    height: 56,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -1192,16 +1192,19 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0,
   },
   backBtn: {
-    width: 38,
-    height: 38,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.04)",
   },
   headerTitle: {
-    fontSize: 17,
-    fontFamily: "BasicCommercial-Bold",
+    flex: 1,
+    textAlign: "center",
+    fontSize: 20,
+    fontFamily: "BasicCommercial-Black",
     color: "#1D1D1F",
-    letterSpacing: -0.3,
   },
   tabBar: {
     flexDirection: "row",

@@ -768,8 +768,9 @@ export default function EditDiscoverProfileScreen({ navigation }) {
             <TouchableOpacity
               style={styles.backButton}
               onPress={handleBackPress}
+              hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
             >
-              <ArrowLeft size={24} color={TEXT_COLOR} strokeWidth={2} />
+              <ArrowLeft size={22} color={TEXT_COLOR} strokeWidth={2.5} />
             </TouchableOpacity>
             <View style={styles.headerTextContainer}>
               <Text style={styles.headerTitle}>My Discover Profile</Text>
@@ -2018,8 +2019,8 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   headerTitle: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 20, // Slightly larger
+    fontFamily: "BasicCommercial-Black",
+    fontSize: 20,
     color: TEXT_COLOR,
   },
   headerSubtitle: {

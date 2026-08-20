@@ -53,6 +53,7 @@ import LikeStateManager from "../../../utils/LikeStateManager";
 
 import ThemeChip from "../../../components/ui/ThemeChip";
 import GradientButton from "../../../components/ui/GradientButton";
+import GradientSafeArea from "../../../components/ui/GradientSafeArea";
 import HapticsService from "../../../services/HapticsService";
 import {
   COLORS,
@@ -406,8 +407,14 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
         if (account?.id) {
           setViewerId(String(account.id));
         }
-        if (accountType !== 'community') {
-          const val = await AsyncStorage.getItem("creator_mode_enabled");
+        if (accountType !== 'community' && account?.id) {
+          // Account-scoped key prevents cross-account bleed after switcher use
+          const scopedKey = `creator_mode_enabled_member_${account.id}`;
+          let val = await AsyncStorage.getItem(scopedKey);
+          if (val === null) {
+            // Migration: fall back to legacy bare key
+            val = await AsyncStorage.getItem("creator_mode_enabled");
+          }
           if (val === "true") setIsViewerCreator(true);
         }
       } catch (e) {
@@ -1210,6 +1217,8 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaView style={styles.container}>
+        {/* Premium Gradient Overlay for Status Bar Contrast */}
+        <GradientSafeArea variant="primary" />
         <View style={styles.header}>
           <GHPressable
             onPress={() => {
@@ -2268,9 +2277,13 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
 
           {/* ── Send Collab Request CTA ──────────────────────────────────────
                Only shown on creator-mode profiles that are NOT the viewer's own.
+               The viewer must also be a creator (or a community account) —
+               non-creator members are blocked by the backend (403) so we hide
+               the button on the frontend as well to avoid a dead UX path.
                Label flips based on whether a DM thread already exists.
           ── */}
-          {circleStatus !== 'self' && profile?.is_creator_mode_enabled && (
+          {circleStatus !== 'self' && profile?.is_creator_mode_enabled &&
+           (viewerAccountType === 'community' || isViewerCreator) && (
             <TouchableOpacity
               activeOpacity={0.82}
               style={collabCtaStyles.btn}

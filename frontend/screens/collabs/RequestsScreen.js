@@ -58,10 +58,10 @@ import CollabRequestSheet from '../../components/modals/CollabRequestSheet';
 import CreateBoardPostModal from '../../components/modals/CreateBoardPostModal';
 import MyBoardPostsModal from '../../components/modals/MyBoardPostsModal';
 import CustomAlertModal from '../../components/ui/CustomAlertModal';
+import GradientSafeArea from '../../components/ui/GradientSafeArea';
 import Toast from '../../components/ui/Toast';
 import HapticsService from '../../services/HapticsService';
 import EventBus from '../../utils/EventBus';
-import TabSwipeHandler from '../../components/navigation/TabSwipeHandler';
 
 const TEAL = '#0D9488';
 const TEAL_BG = 'rgba(13, 148, 136, 0.09)';
@@ -649,6 +649,8 @@ export default function RequestsScreen({
   const screenBody = (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaView style={styles.container} edges={['top']}>
+        {/* Premium Gradient Overlay for Status Bar Contrast */}
+        <GradientSafeArea variant="primary" />
         <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
         {/* ── Top Header ── */}
@@ -916,14 +918,6 @@ export default function RequestsScreen({
     </GestureHandlerRootView>
   );
 
-  if (isBottomTab) {
-    return (
-      <TabSwipeHandler currentTab="Requests" tabs={['Home', 'Search', 'Dashboard', 'Requests', 'Profile']} topOffset={240}>
-        {screenBody}
-      </TabSwipeHandler>
-    );
-  }
-
   return screenBody;
 }
 
@@ -949,6 +943,7 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     borderBottomWidth: 0,
     justifyContent: 'flex-start',
+    backgroundColor: 'transparent',
   },
   backBtn: {
     width: 40,
