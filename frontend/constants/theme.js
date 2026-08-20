@@ -48,9 +48,9 @@ export const COLORS = {
   // Status Bar Gradients
   // Premium gradients for creating contrast with white status bar icons
   statusBarGradients: {
-    primary: ["rgba(25, 118, 210, 0.15)", "rgba(25, 118, 210, 0)"],
-    secondary: ["rgba(66, 133, 244, 0.12)", "rgba(66, 133, 244, 0)"],
-    neutral: ["rgba(0, 0, 0, 0.05)", "rgba(0, 0, 0, 0)"],
+    primary: ["rgba(25, 118, 210, 0.24)", "rgba(25, 118, 210, 0)"],
+    secondary: ["rgba(66, 133, 244, 0.20)", "rgba(66, 133, 244, 0)"],
+    neutral: ["rgba(0, 0, 0, 0.08)", "rgba(0, 0, 0, 0)"],
   },
 };
 

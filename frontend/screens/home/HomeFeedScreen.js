@@ -1075,26 +1075,11 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       if (!payload?.postId) return;
       await LikeStateManager.setLikeState(payload.postId, payload.isLiked);
 
-      // When a like is confirmed (isLiked === true) on an untimed post, the backend
-      // immediately sets retired_at for that viewer. Remove the post from the feed
-      // right away so the UI stays in sync without waiting for a full refresh.
-      // Timed posts (expires_at in the future) only get a rank penalty, not removal.
-      if (payload.isLiked) {
-        setPosts((prev) => {
-          const post = prev.find((p) => p.id === payload.postId);
-          if (post) {
-            const isTimed = post.expires_at && new Date(post.expires_at) > new Date();
-            if (!isTimed) {
-              // Untimed: retire immediately from feed
-              return prev.filter((p) => p.id !== payload.postId);
-            }
-          }
-          return prev;
-        });
-        // Opportunities have their own untimed-like retirement path — leave them to their handler.
-        return;
-      }
-
+      // Update like state and count in-place for both like and unlike actions.
+      // Retirement (hiding a liked post from the feed) is handled server-side by
+      // the getFeed SQL exclusion — it takes effect on the next feed refresh, not
+      // immediately. Removing posts optimistically on like was causing posts to
+      // disappear as soon as the user tapped the like button.
       const likeUpdater = (prev) => {
         let changed = false;
         const updated = prev.map((post) => {
@@ -1888,6 +1873,19 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     return distance > 0 && distance <= dist;
   }, []);
 
+  const renderListEmptyComponent = useCallback(() => {
+    if (loading) {
+      return (
+        <>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </>
+      );
+    }
+    return <EmptyFeedState />;
+  }, [loading]);
+
   return (
     <SafeAreaView style={styles.container} edges={["left", "right", "bottom"]}>
       {/* Android Focus Anchor: Prevents OS focus manager from stealing focus and scrolling the feed on modal dismiss */}
@@ -2027,20 +2025,11 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
         ListHeaderComponent={<HomeGreetingHeader name={greetingName} />}
-        ListEmptyComponent={() =>
-          loading ? (
-            // Fix #1: skeleton shown via ListEmptyComponent while feedItems is
-            // empty during initial load — no key-swap, list instance is persistent.
-            <>
-              <SkeletonCard />
-              <SkeletonCard />
-              <SkeletonCard />
-            </>
-          ) : (
-            <EmptyFeedState />
-          )
-        }
+        ListEmptyComponent={renderListEmptyComponent}
         onEndReached={() => {
+          // If the feed is empty, skip pagination & batch calculations
+          if (!feedItems || feedItems.length === 0) return;
+
           // Guards: skip if skeleton still showing, if already blocked/loading,
           // or if a reveal is already in-flight (isRevealingRef prevents stacking).
           if (showSkeleton || isScrollBlocked || isRevealingRef.current) return;

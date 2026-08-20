@@ -649,8 +649,8 @@ export default function RequestsScreen({
   const screenBody = (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaView style={styles.container} edges={['top']}>
-        {/* Premium Gradient Overlay for Status Bar Contrast */}
-        <GradientSafeArea variant="primary" />
+        {/* Premium Gradient Overlay for Status Bar Contrast (Bottom Tab only) */}
+        {isBottomTab && <GradientSafeArea variant="primary" />}
         <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
         {/* ── Top Header ── */}
@@ -967,7 +967,7 @@ const styles = StyleSheet.create({
   tabRow: {
     flexDirection: 'row',
     position: 'relative',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'transparent',
     borderBottomWidth: 0,
   },
   tab: {
@@ -1000,7 +1000,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 4,
-    backgroundColor: DASHBOARD_BG,
+    backgroundColor: 'transparent',
     gap: 10,
   },
   manageApplicationsBtn: {
@@ -1055,7 +1055,7 @@ const styles = StyleSheet.create({
 
   // Filter chips wrapper
   filterWrapper: {
-    backgroundColor: DASHBOARD_BG,
+    backgroundColor: 'transparent',
   },
   filterScrollContent: {
     paddingHorizontal: 16,

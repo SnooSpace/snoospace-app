@@ -23,30 +23,30 @@ const GradientSafeArea = ({ variant = "primary", height, style, children }) => {
       case "primary":
         return (
           COLORS.statusBarGradients?.primary || [
-            "rgba(25, 118, 210, 0.15)",
+            "rgba(25, 118, 210, 0.24)",
             "rgba(25, 118, 210, 0)",
           ]
         );
       case "secondary":
         return (
           COLORS.statusBarGradients?.secondary || [
-            "rgba(66, 133, 244, 0.12)",
+            "rgba(66, 133, 244, 0.20)",
             "rgba(66, 133, 244, 0)",
           ]
         );
       case "neutral":
         return (
           COLORS.statusBarGradients?.neutral || [
-            "rgba(0, 0, 0, 0.05)",
+            "rgba(0, 0, 0, 0.08)",
             "rgba(0, 0, 0, 0)",
           ]
         );
       default:
-        return ["rgba(25, 118, 210, 0.15)", "rgba(25, 118, 210, 0)"];
+        return ["rgba(25, 118, 210, 0.24)", "rgba(25, 118, 210, 0)"];
     }
   };
 
-  const gradientHeight = height || insets.top + 80; // Default extends beyond status bar
+  const gradientHeight = height || insets.top + 90; // Default extends beyond status bar
 
   return (
     <View style={[styles.container, style]} pointerEvents="none">
