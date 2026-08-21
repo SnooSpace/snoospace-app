@@ -1341,22 +1341,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       // Pagination (reset=false) posts are left in exact server order.
       let postsToStore = mergedPosts;
       if (reset && mergedPosts.length > 1) {
-        const preShuffleIds = mergedPosts.map((p) => p.id);
         postsToStore = windowedShuffle(mergedPosts);
-        const postShuffleIds = postsToStore.map((p) => p.id);
-        // ── VERIFICATION LOGS (remove after device testing) ─────────────────
-        console.log('[FeedShuffle] pre-shuffle IDs:', preShuffleIds.join(','));
-        console.log('[FeedShuffle] post-shuffle IDs:', postShuffleIds.join(','));
-        // Verify no post moved more than windowSize=5 positions
-        const maxDrift = preShuffleIds.reduce((max, id, origIdx) => {
-          const newIdx = postShuffleIds.indexOf(id);
-          return Math.max(max, Math.abs(newIdx - origIdx));
-        }, 0);
-        console.log('[FeedShuffle] max position drift:', maxDrift, '(should be ≤ 5)');
-        // ────────────────────────────────────────────────────────────────────
-      } else if (!reset) {
-        // Pagination: log server IDs verbatim to confirm no shuffle applied
-        console.log('[FeedShuffle] pagination page — no shuffle. IDs:', mergedPosts.map((p) => p.id).join(','));
       }
 
       if (reset) freshPostsRef.current = postsToStore;
