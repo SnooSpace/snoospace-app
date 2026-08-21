@@ -136,6 +136,13 @@ const sharePost = async (req, res) => {
         [postId],
       );
 
+      // Ignored-view reset: sharing is engagement — clear the counter.
+      pool.query(
+        `UPDATE post_impression_state SET ignored_view_count = 0
+         WHERE user_id = $1 AND user_type = $2 AND post_id = $3`,
+        [userId, userType, postId]
+      ).catch((e) => console.error('[sharePost copy_link] ignored_view_count reset failed:', e));
+
       return res.json({
         success: true,
         shareCount: updatedPost.rows[0].share_count,
@@ -303,6 +310,13 @@ const sharePost = async (req, res) => {
       recipientCount: successCount,
       blockedCount: blockedRecipients.length,
     });
+
+    // Ignored-view reset: sharing is engagement — clear the counter.
+    pool.query(
+      `UPDATE post_impression_state SET ignored_view_count = 0
+       WHERE user_id = $1 AND user_type = $2 AND post_id = $3`,
+      [userId, userType, postId]
+    ).catch((e) => console.error('[sharePost internal] ignored_view_count reset failed:', e));
   } catch (error) {
     console.error("Share post error:", error);
     res.status(500).json({ error: "Failed to share post" });

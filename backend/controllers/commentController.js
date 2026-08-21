@@ -107,6 +107,13 @@ const createComment = async (req, res) => {
       ).catch((e) => console.error('[createComment] post_impression_state update failed:', e));
     }
 
+    // Ignored-view reset: any comment (own-post or not) is engagement — clear the counter.
+    pool.query(
+      `UPDATE post_impression_state SET ignored_view_count = 0
+       WHERE user_id = $1 AND user_type = $2 AND post_id = $3`,
+      [userId, userType, postId]
+    ).catch((e) => console.error('[createComment] ignored_view_count reset failed:', e));
+
     // Create notification for post author (skip if user comments on their own post)
     try {
       // Fetch actor info once and reuse for all notifications
@@ -395,6 +402,13 @@ const replyToComment = async (req, res) => {
         [userId, userType, postId]
       ).catch((e) => console.error('[replyToComment] post_impression_state update failed:', e));
     }
+
+    // Ignored-view reset: replying is engagement — clear the counter.
+    pool.query(
+      `UPDATE post_impression_state SET ignored_view_count = 0
+       WHERE user_id = $1 AND user_type = $2 AND post_id = $3`,
+      [userId, userType, postId]
+    ).catch((e) => console.error('[replyToComment] ignored_view_count reset failed:', e));
 
     // Create notification for post author (skip if user comments on their own post)
     try {

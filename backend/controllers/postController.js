@@ -1765,7 +1765,8 @@ const likePost = async (req, res) => {
              DO UPDATE SET
                unseen_count       = 0,
                rank_penalty_tier  = 'heavy',
-               rank_penalty_until = $4`,
+               rank_penalty_until = $4,
+               ignored_view_count = 0`,
             [userId, userType, postId, expiresAt]
           );
         } else {
@@ -1779,7 +1780,8 @@ const likePost = async (req, res) => {
                unseen_count       = 0,
                retired_at         = COALESCE(post_impression_state.retired_at, NOW()),
                rank_penalty_tier  = NULL,
-               rank_penalty_until = NULL`,
+               rank_penalty_until = NULL,
+               ignored_view_count = 0`,
             [userId, userType, postId]
           );
         }

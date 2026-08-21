@@ -53,6 +53,13 @@ const savePost = async (req, res) => {
       isSaved: true,
       saveCount: updatedPost.rows[0].save_count,
     });
+
+    // Ignored-view reset: saving a post is engagement — clear the counter.
+    pool.query(
+      `UPDATE post_impression_state SET ignored_view_count = 0
+       WHERE user_id = $1 AND user_type = $2 AND post_id = $3`,
+      [userId, userType, postId]
+    ).catch((e) => console.error('[savePost] ignored_view_count reset failed:', e));
   } catch (error) {
     console.error("Save post error:", error);
     res.status(500).json({ error: "Failed to save post" });

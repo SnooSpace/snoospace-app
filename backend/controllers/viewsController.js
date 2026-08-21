@@ -39,7 +39,7 @@ async function submitViewsBatch(req, res) {
   try {
     const userId = req.user.id;
     const userType = req.user.type;
-    const { views } = req.body;
+    const { views, sessionId: batchSessionId } = req.body;
 
     if (!Array.isArray(views) || views.length === 0) {
       return res.status(400).json({ error: "views array is required" });
@@ -133,6 +133,63 @@ async function submitViewsBatch(req, res) {
             resetErr,
           );
         }
+
+        // Ignored-view retirement: separate from the strike system above.
+        // Counts qualified views (≥2s) where the user has never engaged (liked,
+        // commented, saved, or shared). At exactly 3, retire the post for this user
+        // via the same retired_at mechanism already used by getFeed's exclusion clause.
+        //
+        // Order matters: the strike-system reset above already ran SET retired_at=NULL,
+        // so if the 3rd ignored view fires here, COALESCE(retired_at, NOW()) = NOW().
+        // The net effect: unseen_count=0, rank_penalty cleared, AND retired_at=NOW().
+        //
+        // Two-step to avoid PostgreSQL type-inference errors when the same parameter
+        // is used across different table columns in one compound statement:
+        //   Step A — check whether the user has ever engaged with this post.
+        //   Step B — UPSERT using a plain boolean literal (no subqueries in SET).
+        try {
+          // Step A: engagement check (any of: like, comment, save, share)
+          const engCheck = await client.query(
+            `SELECT (
+               EXISTS (SELECT 1 FROM post_likes    WHERE post_id = $3 AND liker_id    = $1 AND liker_type    = $2)
+               OR EXISTS (SELECT 1 FROM post_comments WHERE post_id = $3 AND commenter_id = $1 AND commenter_type = $2)
+               OR EXISTS (SELECT 1 FROM post_saves    WHERE post_id = $3 AND saver_id    = $1 AND saver_type    = $2)
+               OR EXISTS (SELECT 1 FROM post_shares   WHERE post_id = $3 AND sharer_id   = $1 AND sharer_type   = $2)
+             ) AS has_engaged`,
+            [userId, userType, postId],
+          );
+          const hasEngaged = engCheck.rows[0]?.has_engaged ?? false;
+
+          if (!hasEngaged) {
+            // Step B: increment ignored_view_count; retire at exactly 3.
+            // Also set last_session_id so the repeat-branch gate below
+            // correctly skips double-counting if the user scrolls back
+            // to this post later in the same session.
+            await client.query(
+              `INSERT INTO post_impression_state
+                 (user_id, user_type, post_id, unseen_count, ignored_view_count, last_session_id)
+               VALUES ($1, $2, $3, 0, 1, $4)
+               ON CONFLICT (user_id, user_type, post_id) DO UPDATE SET
+                 ignored_view_count = LEAST(COALESCE(post_impression_state.ignored_view_count, 0) + 1, 3),
+                 retired_at = CASE
+                   WHEN COALESCE(post_impression_state.ignored_view_count, 0) + 1 >= 3
+                   THEN COALESCE(post_impression_state.retired_at, NOW())
+                   ELSE post_impression_state.retired_at
+                 END,
+                 last_session_id = $4`,
+              [userId, userType, postId, batchSessionId || null],
+            );
+          }
+          // If hasEngaged: leave ignored_view_count untouched (do nothing)
+        } catch (ignoredErr) {
+          // Non-fatal — log but do not abort the outer transaction
+          console.error(
+            `[ViewsController] ignored_view_count update failed for post ${postId}:`,
+            ignoredErr,
+          );
+        }
+
+
       } else if (type === "repeat") {
         // Log repeat/engaged view.
         // Uses ON CONFLICT DO NOTHING so duplicate PKs are silently skipped
@@ -159,6 +216,59 @@ async function submitViewsBatch(req, res) {
             `[ViewsController] Error logging repeat view for post ${postId}:`,
             e,
           );
+        }
+
+        // Ignored-view retirement for repeat views:
+        // ViewQueueService.viewedPostsCache persists across cold starts, so every
+        // qualified dwell after the first session is sent as type:'repeat' rather
+        // than type:'qualified'. Without this block, ignored_view_count would only
+        // ever reach 1 (from the first qualified view). We increment here using the
+        // same session-deduplication gate (last_session_id IS DISTINCT FROM) that
+        // the unseen impression path already uses — ensuring the counter advances
+        // by at most 1 per cold-start session, not once per scroll-revisit.
+        if (batchSessionId) {
+          try {
+            const engCheck = await client.query(
+              `SELECT (
+                 EXISTS (SELECT 1 FROM post_likes    WHERE post_id = $3 AND liker_id    = $1 AND liker_type    = $2)
+                 OR EXISTS (SELECT 1 FROM post_comments WHERE post_id = $3 AND commenter_id = $1 AND commenter_type = $2)
+                 OR EXISTS (SELECT 1 FROM post_saves    WHERE post_id = $3 AND saver_id    = $1 AND saver_type    = $2)
+                 OR EXISTS (SELECT 1 FROM post_shares   WHERE post_id = $3 AND sharer_id   = $1 AND sharer_type   = $2)
+               ) AS has_engaged`,
+              [userId, userType, postId],
+            );
+            const hasEngaged = engCheck.rows[0]?.has_engaged ?? false;
+
+            if (!hasEngaged) {
+              // Increment only if this session hasn't already incremented for this post.
+              // last_session_id IS DISTINCT FROM batchSessionId means: different session → increment.
+              await client.query(
+                `INSERT INTO post_impression_state
+                   (user_id, user_type, post_id, unseen_count, ignored_view_count, last_session_id)
+                 VALUES ($1, $2, $3, 0, 1, $4)
+                 ON CONFLICT (user_id, user_type, post_id) DO UPDATE SET
+                   ignored_view_count = CASE
+                     WHEN post_impression_state.last_session_id IS DISTINCT FROM $4
+                     THEN LEAST(COALESCE(post_impression_state.ignored_view_count, 0) + 1, 3)
+                     ELSE COALESCE(post_impression_state.ignored_view_count, 0)
+                   END,
+                   retired_at = CASE
+                     WHEN post_impression_state.last_session_id IS DISTINCT FROM $4
+                       AND COALESCE(post_impression_state.ignored_view_count, 0) + 1 >= 3
+                     THEN COALESCE(post_impression_state.retired_at, NOW())
+                     ELSE post_impression_state.retired_at
+                   END,
+                   last_session_id = $4`,
+                [userId, userType, postId, batchSessionId],
+              );
+            }
+          } catch (ignoredRepeatErr) {
+            // Non-fatal
+            console.error(
+              `[ViewsController] ignored_view_count repeat update failed for post ${postId}:`,
+              ignoredRepeatErr,
+            );
+          }
         }
       }
     }
