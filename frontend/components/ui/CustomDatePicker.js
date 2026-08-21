@@ -6,17 +6,18 @@ import React, {
   useRef,
 } from "react";
 import {
-  Modal,
   View,
   Text,
-  TouchableOpacity,
   StyleSheet,
   Platform,
-  TouchableWithoutFeedback,
 } from "react-native";
-import { ChevronLeft, ChevronRight } from "lucide-react-native";
+import {
+  Pressable as GHPressable,
+} from "react-native-gesture-handler";
+import { ChevronLeft, ChevronRight, X } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import SwipeableModal from "../modals/SwipeableModal";
+import HapticsService from "../../services/HapticsService";
 
 // ─── Brand Tokens ────────────────────────────────────────────────────────────
 const BRAND = {
@@ -85,31 +86,37 @@ const CustomDatePicker = ({
   disabledDates = [],
 }) => {
   // ─── Internal State ──────────────────────────────────────────────────────
-  const [currentMonth, setCurrentMonth] = useState(propStartDate || new Date());
-  const [internalStart, setInternalStart] = useState(propStartDate || null);
-  const [internalEnd, setInternalEnd] = useState(propEndDate || null);
+  const [currentMonth, setCurrentMonth] = useState(
+    propStartDate ? new Date(propStartDate) : new Date(),
+  );
+  const [internalStart, setInternalStart] = useState(
+    propStartDate ? new Date(propStartDate) : null,
+  );
+  const [internalEnd, setInternalEnd] = useState(
+    propEndDate ? new Date(propEndDate) : null,
+  );
   // "none" | "single" | "range"
   const [selectionMode, setSelectionMode] = useState(
     propStartDate ? (propEndDate ? "range" : "single") : "none",
   );
   // Snapshot of values when the picker opened — used to detect real changes
-  const initialStartRef = useRef(propStartDate || null);
-  const initialEndRef = useRef(propEndDate || null);
+  const initialStartRef = useRef(propStartDate ? new Date(propStartDate) : null);
+  const initialEndRef = useRef(propEndDate ? new Date(propEndDate) : null);
 
   // ─── Sync from props on open ─────────────────────────────────────────────
   useEffect(() => {
     if (visible) {
-      const s = propStartDate || null;
-      const e = propEndDate || null;
+      const s = propStartDate ? new Date(propStartDate) : null;
+      const e = propEndDate ? new Date(propEndDate) : null;
       setInternalStart(s);
       setInternalEnd(e);
       setSelectionMode(s ? (e ? "range" : "single") : "none");
-      setCurrentMonth(s || new Date());
+      setCurrentMonth(s ? new Date(s) : new Date());
       // Snapshot the values at open time
       initialStartRef.current = s;
       initialEndRef.current = e;
     }
-  }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [visible, propStartDate, propEndDate]);
 
   // ─── Constraint Bounds ───────────────────────────────────────────────────
   const effectiveMinDate = useMemo(() => {
@@ -194,6 +201,10 @@ const CustomDatePicker = ({
     const days = [];
     for (let i = 0; i < startDay; i++) days.push(null);
     for (let i = 1; i <= daysInMonth; i++) days.push(new Date(year, month, i));
+    // Always pad to 42 cells (6 rows × 7 days) to maintain constant modal height across all months
+    while (days.length < 42) {
+      days.push(null);
+    }
     return days;
   }, [currentMonth]);
 
@@ -374,35 +385,65 @@ const CustomDatePicker = ({
       visible={visible}
       onClose={onClose}
       sheetStyle={styles.modalContainer}
+      backdropColor="rgba(0,0,0,0.5)"
+      statusBarTranslucent={true}
       header={
         <View collapsable={false}>
           <View style={styles.handle} />
           <View style={styles.header}>
             <Text style={styles.title}>{headerTitle}</Text>
+            <GHPressable
+              style={({ pressed }) => [
+                styles.closeButton,
+                { opacity: pressed ? 0.6 : 1 },
+              ]}
+              onPress={() => {
+                HapticsService.triggerClose();
+                onClose();
+              }}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <X size={20} color={BRAND.textPrimary} strokeWidth={2.2} />
+            </GHPressable>
           </View>
         </View>
       }
     >
       {/* Month Navigation */}
       <View style={styles.calendarControls}>
-        <TouchableOpacity
-          onPress={handlePrevMonth}
-          style={[styles.chevron, !canGoPrev && { opacity: 0.3 }]}
+        <GHPressable
+          onPress={() => {
+            HapticsService.triggerImpactLight();
+            handlePrevMonth();
+          }}
+          style={({ pressed }) => [
+            styles.chevron,
+            !canGoPrev && { opacity: 0.3 },
+            pressed && canGoPrev && { opacity: 0.7 },
+          ]}
           disabled={!canGoPrev}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           <ChevronLeft size={20} color={BRAND.textPrimary} />
-        </TouchableOpacity>
-        <Text style={styles.monthTitle}>
-          {MONTH_NAMES[currentMonth.getMonth()]}{" "}
-          {currentMonth.getFullYear()}
+        </GHPressable>
+        <Text style={styles.monthTitle} numberOfLines={1}>
+          {`${MONTH_NAMES[currentMonth.getMonth()]} ${currentMonth.getFullYear()}`}
         </Text>
-        <TouchableOpacity
-          onPress={handleNextMonth}
-          style={[styles.chevron, !canGoNext && { opacity: 0.3 }]}
+        <GHPressable
+          onPress={() => {
+            HapticsService.triggerImpactLight();
+            handleNextMonth();
+          }}
+          style={({ pressed }) => [
+            styles.chevron,
+            !canGoNext && { opacity: 0.3 },
+            pressed && canGoNext && { opacity: 0.7 },
+          ]}
           disabled={!canGoNext}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           <ChevronRight size={20} color={BRAND.textPrimary} />
-        </TouchableOpacity>
+        </GHPressable>
       </View>
 
       {/* Day-of-week header */}
@@ -440,10 +481,17 @@ const CustomDatePicker = ({
             isRangeMode && !isSingleDayRange && isStart;
 
           return (
-            <TouchableOpacity
+            <GHPressable
               key={day.toISOString()}
-              style={[styles.dayCell, isDisabled && { opacity: 0.4 }]}
-              onPress={() => handleSelectDate(day)}
+              style={({ pressed }) => [
+                styles.dayCell,
+                isDisabled && { opacity: 0.4 },
+                pressed && !isDisabled && { opacity: 0.8 },
+              ]}
+              onPress={() => {
+                HapticsService.triggerImpactLight();
+                handleSelectDate(day);
+              }}
               disabled={isDisabled}
             >
               {/* Range strip backgrounds (behind circle) */}
@@ -481,15 +529,21 @@ const CustomDatePicker = ({
                   </Text>
                 </View>
               )}
-            </TouchableOpacity>
+            </GHPressable>
           );
         })}
       </View>
 
       {/* Confirm Button */}
-      <TouchableOpacity
-        style={styles.confirmButtonContainer}
-        onPress={handleConfirm}
+      <GHPressable
+        style={({ pressed }) => [
+          styles.confirmButtonContainer,
+          pressed && !confirmDisabled && { opacity: 0.88 },
+        ]}
+        onPress={() => {
+          HapticsService.triggerImpactMedium();
+          handleConfirm();
+        }}
         disabled={confirmDisabled}
       >
         <LinearGradient
@@ -504,7 +558,7 @@ const CustomDatePicker = ({
         >
           <Text style={styles.confirmButtonText}>{buttonLabel}</Text>
         </LinearGradient>
-      </TouchableOpacity>
+      </GHPressable>
     </SwipeableModal>
   );
 };
@@ -517,11 +571,6 @@ const styles = StyleSheet.create({
     backgroundColor: BRAND.border,
     alignSelf: "center",
     marginBottom: 16,
-  },
-  backdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "flex-end",
   },
   modalContainer: {
     backgroundColor: BRAND.background,
@@ -536,13 +585,23 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   header: {
+    flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12,
+    justifyContent: "center",
+    marginBottom: 16,
+    position: "relative",
   },
   title: {
     fontFamily: FONTS.semibold,
     fontSize: 18,
     color: BRAND.textPrimary,
+    textAlign: "center",
+  },
+  closeButton: {
+    position: "absolute",
+    right: 0,
+    top: -2,
+    padding: 4,
   },
   calendarControls: {
     flexDirection: "row",
@@ -551,6 +610,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   monthTitle: {
+    flex: 1,
+    textAlign: "center",
     fontFamily: FONTS.medium,
     fontSize: 16,
     color: BRAND.textPrimary,
