@@ -506,6 +506,7 @@ const QnAPostCard = React.memo(({
         viewQueueService.addQualifiedView(post.id, {
           postType: "qna",
           trigger: "dwell",
+          dwellTime: DWELL_THRESHOLD,
         });
       }, DWELL_THRESHOLD);
     } else {

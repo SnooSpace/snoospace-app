@@ -431,6 +431,7 @@ const PromptPostCard = React.memo(({
         viewQueueService.addQualifiedView(post.id, {
           postType: "prompt",
           trigger: "dwell",
+          dwellTime: DWELL_THRESHOLD,
         });
       }, DWELL_THRESHOLD);
     } else {

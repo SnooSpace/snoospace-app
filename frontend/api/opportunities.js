@@ -151,3 +151,14 @@ export async function getFollowedOpportunities(limit = 5) {
   const token = await (await import("./auth")).getAuthToken();
   return apiGet(`/opportunities/followed?limit=${limit}`, 15000, token);
 }
+
+/**
+ * Get discovery opportunities: scored non-followed community opportunities
+ * for injection into the home feed (Phase 2 discovery).
+ * @param {number} limit - Max candidates to fetch (server caps at 20)
+ * @returns {Promise<Object>} { success, opportunities }
+ */
+export async function getDiscoveryOpportunities(limit = 10) {
+  const token = await (await import("./auth")).getAuthToken();
+  return apiGet(`/opportunities/discovery?limit=${limit}`, 15000, token);
+}

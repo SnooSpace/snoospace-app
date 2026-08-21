@@ -27,6 +27,7 @@ class ViewQueueService {
     this.pendingQueue = [];
     this.viewedPostsCache = new Set(); // Advisory local cache
     this.unseenInSessionSet = new Set(); // In-memory session deduplication for unseen impressions
+    this.discoveryServeInSessionSet = new Set(); // In-memory dedup for discovery_serve stamps
     this.sessionId = Crypto.randomUUID(); // In-memory cold start session ID (UUID v4)
     this.batchTimer = null;
     this.isInitialized = false;
@@ -293,6 +294,7 @@ class ViewQueueService {
     // Clear the in-memory cache
     this.viewedPostsCache = new Set();
     this.unseenInSessionSet = new Set();
+    this.discoveryServeInSessionSet = new Set();
     this.pendingQueue = [];
     // Clear the persisted cache
     try {
@@ -324,6 +326,54 @@ class ViewQueueService {
       // Fire-and-forget — don't block on failures
       console.warn('[ViewQueueService] updateDwellTime failed:', e?.message);
     }
+  }
+
+  /**
+   * Record that a discovery post was served to this user this session.
+   * Batched via the existing pendingQueue → /posts/views/batch.
+   * The backend 'discovery_serve' type handler stamps first_discovered_at
+   * (idempotent COALESCE) in post_impression_state for trickle pacing.
+   */
+  recordDiscoveryServe(postId) {
+    if (!postId) return;
+    const postIdStr = String(postId);
+
+    // Skip synthetic IDs (e.g. "sub_8")
+    const numericPostId = parseInt(postId, 10);
+    if (isNaN(numericPostId) || String(numericPostId) !== postIdStr) return;
+
+    // Session-level dedup — never stamp the same post twice per cold start
+    if (this.discoveryServeInSessionSet.has(postIdStr)) return;
+    this.discoveryServeInSessionSet.add(postIdStr);
+
+    this.pendingQueue.push({
+      postId: numericPostId,
+      type: 'discovery_serve',
+      timestamp: Date.now(),
+    });
+    // Picked up by the existing 5s batch interval — no immediate flush needed
+  }
+
+  /**
+   * Record that a discovery opportunity was served to this user this session.
+   * Sibling to recordDiscoveryServe — handles UUID opportunity IDs (not integers).
+   * The backend 'discovery_opp_serve' type handler stamps first_discovered_at
+   * (idempotent COALESCE) in opportunity_impression_state for trickle pacing.
+   */
+  recordDiscoveryOppServe(opportunityId) {
+    if (!opportunityId) return;
+    const oppIdStr = String(opportunityId);
+
+    // Session-level dedup — never stamp the same opportunity twice per cold start
+    if (this.discoveryServeInSessionSet.has(`opp_${oppIdStr}`)) return;
+    this.discoveryServeInSessionSet.add(`opp_${oppIdStr}`);
+
+    this.pendingQueue.push({
+      postId: oppIdStr,  // UUID string — backend accepts via $3 parameter
+      type: 'discovery_opp_serve',
+      timestamp: Date.now(),
+    });
+    // Picked up by the existing 5s batch interval — no immediate flush needed
   }
 
   /**

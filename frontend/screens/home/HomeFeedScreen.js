@@ -45,6 +45,7 @@ import {
 import {
   getFollowedOpportunities,
   getOpportunities,
+  getDiscoveryOpportunities,
 } from "../../api/opportunities";
 import EditorialPostCard from "../../components/cards/EditorialPostCard";
 import EventCard from "../../components/cards/EventCard";
@@ -66,6 +67,7 @@ import { SvgXml } from "react-native-svg";
 import GradientSafeArea from "../../components/ui/GradientSafeArea";
 import DynamicStatusBar from "../../components/navigation/DynamicStatusBar";
 import PremiumHeader, { getPremiumHeaderTotalHeight } from "../../components/navigation/PremiumHeader";
+import { viewQueueService } from "../../services/ViewQueueService";
 
 import { COLORS } from "../../constants/theme";
 import EmptyFeedState from "../../components/skeletons/EmptyFeedState";
@@ -337,14 +339,20 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   const [posts, setPosts] = useState([]);
   const [events, setEvents] = useState([]);
   const [opportunities, setOpportunities] = useState([]);
+  const [discoveryPosts, setDiscoveryPosts] = useState([]);
+  const [discoveryOpportunities, setDiscoveryOpportunities] = useState([]);
 
   const postsRef = useRef(posts);
   const opportunitiesRef = useRef(opportunities);
   const eventsRef = useRef(events);
+  const discoveryPostsRef = useRef(discoveryPosts);
+  const discoveryOpportunitiesRef = useRef(discoveryOpportunities);
 
   useEffect(() => { postsRef.current = posts; }, [posts]);
   useEffect(() => { opportunitiesRef.current = opportunities; }, [opportunities]);
   useEffect(() => { eventsRef.current = events; }, [events]);
+  useEffect(() => { discoveryPostsRef.current = discoveryPosts; }, [discoveryPosts]);
+  useEffect(() => { discoveryOpportunitiesRef.current = discoveryOpportunities; }, [discoveryOpportunities]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   // 4A: how many items from feedItems are currently exposed to FlashList.
@@ -751,6 +759,33 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     }
   };
 
+  // Load discovery posts: scored non-followed editorial posts for feed injection.
+  // Non-fatal — an error silently returns an empty pool (same pattern as loadEvents).
+  const loadDiscoveryPosts = async () => {
+    try {
+      const token = await getAuthToken();
+      const response = await apiGet('/posts/discovery', 10000, token);
+      if (response?.posts && Array.isArray(response.posts)) {
+        setDiscoveryPosts(response.posts);
+      }
+    } catch (error) {
+      console.warn('[HomeFeed] Error loading discovery posts:', error?.message);
+    }
+  };
+
+  // Load discovery opportunities: scored non-followed community opps for feed injection.
+  // Non-fatal — an error silently returns an empty pool (same pattern as loadDiscoveryPosts).
+  const loadDiscoveryOpportunities = async () => {
+    try {
+      const response = await getDiscoveryOpportunities(10);
+      if (response?.opportunities && Array.isArray(response.opportunities)) {
+        setDiscoveryOpportunities(response.opportunities);
+      }
+    } catch (error) {
+      console.warn('[HomeFeed] Error loading discovery opportunities:', error?.message);
+    }
+  };
+
   // Merge posts, events, and opportunities into a single flat list.
   // We use useMemo to compute feedItems synchronously in the render phase,
   // reducing the number of renders from two down to exactly one on updates.
@@ -775,6 +810,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     const merged = [];
     let eventIndex = 0;
     let opportunityIndex = 0;
+    let discoveryIndex = 0;
     const FIRST_EVENT_AT = 2;
     const SUBSEQUENT_INTERVAL = 5;
     const OPPORTUNITY_INTERVAL = 3;
@@ -782,6 +818,23 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     // Resets on every full feed load (useMemo recomputes when `posts` reference changes).
     const BACKLOG_CAP = 2;
     const backlogAuthorCount = {};
+    // Discovery injection: at most 3 per session, 1 per every 5 followed-post positions.
+    // Mirrors the backlog-cap pattern: session-scoped counter, reset on each fresh load.
+    const DISCOVERY_CAP = 3;
+    const DISCOVERY_INTERVAL = 5;
+    let discoveryShown = 0;
+    // Per-author diversity cap: at most 1 discovery post per author per session.
+    // Mirrors backlogAuthorCount pattern. Declared alongside DISCOVERY_CAP for colocation.
+    const discoveryAuthorCount = {};
+
+    // ── Discovery Opportunities: separate constants for independent tuning ────
+    // DISCOVERY_OPP_INTERVAL/CAP are kept distinct from Posts' DISCOVERY_INTERVAL/CAP
+    // so they can be tuned independently without affecting post discovery pacing.
+    const DISCOVERY_OPP_INTERVAL = 5;  // inject 1 discovery opp per N followed-post positions
+    const DISCOVERY_OPP_CAP = 3;       // max discovery opps per session
+    let discoveryOppShown = 0;
+    let discoveryOppIndex = 0;
+    const discoveryOppAuthorCount = {};  // 1 per author per session (diversity cap)
 
     if (posts.length > 0) {
       posts.forEach((post, index) => {
@@ -793,7 +846,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           backlogAuthorCount[authorKey] = seen + 1;
         }
 
-        merged.push({ ...post, itemType: "post" });
+        merged.push({ ...post, itemType: 'post' });
 
         const postNumber = index + 1;
 
@@ -805,7 +858,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
             (postNumber - FIRST_EVENT_AT) % SUBSEQUENT_INTERVAL === 0);
 
         if (shouldInsertEvent && eventIndex < events.length) {
-          merged.push({ ...events[eventIndex], itemType: "event" });
+          merged.push({ ...events[eventIndex], itemType: 'event' });
           eventIndex++;
         }
 
@@ -816,15 +869,72 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         ) {
           merged.push({
             ...opportunities[opportunityIndex],
-            itemType: "opportunity",
+            itemType: 'opportunity',
           });
           opportunityIndex++;
+        }
+
+        // Insert Discovery post: 1 per every DISCOVERY_INTERVAL followed-post positions,
+        // capped at DISCOVERY_CAP total per session, with at most 1 per author.
+        // The scan-forward while loop advances discoveryIndex past any blocked-author
+        // candidates so future slots can still inject different authors.
+        // Without this advance, discoveryIndex would stall at the blocked candidate
+        // forever, silently stopping all discovery injection for the rest of the session.
+        if (postNumber % DISCOVERY_INTERVAL === 0 && discoveryShown < DISCOVERY_CAP) {
+          // Scan past any candidates from an already-shown author
+          while (
+            discoveryIndex < discoveryPosts.length &&
+            (discoveryAuthorCount[
+              `${discoveryPosts[discoveryIndex].author_type}-${discoveryPosts[discoveryIndex].author_id}`
+            ] || 0) >= 1
+          ) {
+            discoveryIndex++;
+          }
+          // Inject next valid candidate (first author not yet shown)
+          if (discoveryIndex < discoveryPosts.length) {
+            const dp = discoveryPosts[discoveryIndex];
+            const dpAuthorKey = `${dp.author_type}-${dp.author_id}`;
+            merged.push({
+              ...dp,
+              itemType: 'post',          // renders via EditorialPostCard — no new branch needed
+              is_discovery_post: true,   // signals Follow button prominence + future UI hints
+            });
+            discoveryAuthorCount[dpAuthorKey] = (discoveryAuthorCount[dpAuthorKey] || 0) + 1;
+            discoveryIndex++;
+            discoveryShown++;
+          }
+        }
+
+        // Insert Discovery Opportunity: 1 per DISCOVERY_OPP_INTERVAL positions,
+        // capped at DISCOVERY_OPP_CAP, with at most 1 per author (diversity cap).
+        // Scan-forward while loop prevents author-stall (same guard as discovery posts).
+        if (postNumber % DISCOVERY_OPP_INTERVAL === 0 && discoveryOppShown < DISCOVERY_OPP_CAP) {
+          while (
+            discoveryOppIndex < discoveryOpportunities.length &&
+            (discoveryOppAuthorCount[
+              `${discoveryOpportunities[discoveryOppIndex].creator_type}-${discoveryOpportunities[discoveryOppIndex].creator_id}`
+            ] || 0) >= 1
+          ) {
+            discoveryOppIndex++;
+          }
+          if (discoveryOppIndex < discoveryOpportunities.length) {
+            const dopp = discoveryOpportunities[discoveryOppIndex];
+            const doppAuthorKey = `${dopp.creator_type}-${dopp.creator_id}`;
+            merged.push({
+              ...dopp,
+              itemType: 'opportunity',
+              is_discovery_opportunity: true,  // signals follow prominence
+            });
+            discoveryOppAuthorCount[doppAuthorKey] = (discoveryOppAuthorCount[doppAuthorKey] || 0) + 1;
+            discoveryOppIndex++;
+            discoveryOppShown++;
+          }
         }
       });
 
       // Append remaining events
       while (eventIndex < events.length) {
-        merged.push({ ...events[eventIndex], itemType: "event" });
+        merged.push({ ...events[eventIndex], itemType: 'event' });
         eventIndex++;
       }
 
@@ -832,22 +942,37 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       while (opportunityIndex < opportunities.length) {
         merged.push({
           ...opportunities[opportunityIndex],
-          itemType: "opportunity",
+          itemType: 'opportunity',
         });
         opportunityIndex++;
       }
     } else {
       // If no posts, just show events then opportunities
       events.forEach((event) => {
-        merged.push({ ...event, itemType: "event" });
+        merged.push({ ...event, itemType: 'event' });
       });
       opportunities.forEach((opp) => {
-        merged.push({ ...opp, itemType: "opportunity" });
+        merged.push({ ...opp, itemType: 'opportunity' });
       });
     }
 
     return merged;
-  }, [posts, events, opportunities]);
+  }, [posts, events, opportunities, discoveryPosts, discoveryOpportunities]);
+
+  // Trickle pacing stamp: when feedItems updates and includes discovery posts/opportunities,
+  // record each one as 'served' so the backend can track first_discovered_at.
+  // This is load-gated (fires on feed load) rather than viewport-gated, which
+  // is correct: the daily cap is per-introduction session, not per-scroll.
+  useEffect(() => {
+    feedItems.forEach(item => {
+      if (item.is_discovery_post && item.id) {
+        viewQueueService.recordDiscoveryServe(item.id);
+      }
+      if (item.is_discovery_opportunity && item.id) {
+        viewQueueService.recordDiscoveryOppServe(item.id);
+      }
+    });
+  }, [feedItems]);
 
   // 4A: The slice that actually gets handed to AnimatedFlashList.
   // By keeping this as a separate derived value we avoid mutating feedItems
@@ -898,6 +1023,8 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           loadFeed(true, true), // reset=true, skipSetLoading=true
           loadEvents(),
           loadOpportunities(),
+          loadDiscoveryPosts(),
+          loadDiscoveryOpportunities(),
           loadGreetingName(),
           loadMessageUnreadCount(),
         ]);
@@ -1032,6 +1159,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           loadFeed(true, true),
           loadEvents(),
           loadOpportunities(),
+          loadDiscoveryPosts(),
           loadMessageUnreadCount(),
         ]);
         // Persist fresh snapshot for the newly active account
@@ -1409,6 +1537,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       loadFeed(),
       loadEvents(),
       loadOpportunities(),
+      loadDiscoveryPosts(),
       loadMessageUnreadCount(),
     ]);
     // Reveal first batch based on cost budget (no min-skeleton wait needed)

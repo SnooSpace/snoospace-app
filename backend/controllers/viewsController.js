@@ -270,6 +270,51 @@ async function submitViewsBatch(req, res) {
             );
           }
         }
+      } else if (type === 'discovery_serve') {
+        // Trickle pacing: stamp first_discovered_at when a discovery post is first served.
+        // Idempotent: COALESCE ensures we never overwrite the original timestamp.
+        // Runs outside any savepoint — failure here must not abort the transaction.
+        try {
+          await client.query(
+            `INSERT INTO post_impression_state
+               (user_id, user_type, post_id, first_discovered_at)
+             VALUES ($1, $2, $3, NOW())
+             ON CONFLICT (user_id, user_type, post_id) DO UPDATE
+               SET first_discovered_at = COALESCE(
+                 post_impression_state.first_discovered_at, NOW()
+               )`,
+            [userId, userType, postId]
+          );
+        } catch (discoveryErr) {
+          // Non-fatal — trickle stamp failure should never break view batch
+          console.error(
+            `[ViewsController] first_discovered_at stamp failed for post ${postId}:`,
+            discoveryErr
+          );
+        }
+      } else if (type === 'discovery_opp_serve') {
+        // Trickle pacing for discovery opportunities: stamp first_discovered_at on
+        // opportunity_impression_state when a discovery opportunity is first served.
+        // postId here carries the UUID opportunity_id (reusing batch item field name).
+        // Idempotent: COALESCE ensures we never overwrite the original timestamp.
+        try {
+          await client.query(
+            `INSERT INTO opportunity_impression_state
+               (user_id, user_type, opportunity_id, first_discovered_at)
+             VALUES ($1, $2, $3, NOW())
+             ON CONFLICT (user_id, user_type, opportunity_id) DO UPDATE
+               SET first_discovered_at = COALESCE(
+                 opportunity_impression_state.first_discovered_at, NOW()
+               )`,
+            [userId, userType, postId]
+          );
+        } catch (discoveryOppErr) {
+          // Non-fatal — trickle stamp failure should never break view batch
+          console.error(
+            `[ViewsController] first_discovered_at stamp failed for opportunity ${postId}:`,
+            discoveryOppErr
+          );
+        }
       }
     }
 
@@ -628,8 +673,12 @@ async function submitUnseenImpression(req, res) {
  * POST /events/views/unseen
  *
  * Records an unseen impression for an Event (scrolled past without qualifying).
- * Mirrors submitUnseenImpression exactly but targets event_impression_state
+ * Mirrors submitUnseenOpportunityImpression exactly but targets event_impression_state
  * with an INTEGER event_id (no UUID handling needed — events.id is INTEGER).
+ *
+ * Strike progression (identical thresholds to Opportunities):
+ *   Strike 1 (first new-session unseen): sets rank_penalty_tier='light', rank_penalty_until=NOW()+5d
+ *   Strike 2 (second new-session unseen): sets retired_at, clears penalty tier/until
  */
 async function submitUnseenEventImpression(req, res) {
   try {
@@ -647,8 +696,9 @@ async function submitUnseenEventImpression(req, res) {
     }
 
     await pool.query(
-      `INSERT INTO event_impression_state (user_id, user_type, event_id, unseen_count, last_session_id)
-       VALUES ($1, $2, $3, 1, $4)
+      `INSERT INTO event_impression_state (user_id, user_type, event_id, unseen_count, last_session_id,
+                                           rank_penalty_tier, rank_penalty_until)
+       VALUES ($1, $2, $3, 1, $4, 'light', NOW() + INTERVAL '5 days')
        ON CONFLICT (user_id, user_type, event_id)
        DO UPDATE SET
          unseen_count = CASE
@@ -657,11 +707,29 @@ async function submitUnseenEventImpression(req, res) {
            ELSE event_impression_state.unseen_count
          END,
          last_session_id = EXCLUDED.last_session_id,
+         -- Strike 2: retire (15-day cooldown); clear penalty (retired events don't need a tier)
          retired_at = CASE
            WHEN event_impression_state.last_session_id IS DISTINCT FROM EXCLUDED.last_session_id
              AND event_impression_state.unseen_count + 1 >= 2
            THEN COALESCE(event_impression_state.retired_at, NOW())
            ELSE event_impression_state.retired_at
+         END,
+         -- Strike 1: set light penalty; Strike 2: clear penalty (retired handles it)
+         rank_penalty_tier = CASE
+           WHEN event_impression_state.last_session_id IS DISTINCT FROM EXCLUDED.last_session_id
+             AND event_impression_state.unseen_count + 1 >= 2
+           THEN NULL
+           WHEN event_impression_state.last_session_id IS DISTINCT FROM EXCLUDED.last_session_id
+           THEN 'light'
+           ELSE event_impression_state.rank_penalty_tier
+         END,
+         rank_penalty_until = CASE
+           WHEN event_impression_state.last_session_id IS DISTINCT FROM EXCLUDED.last_session_id
+             AND event_impression_state.unseen_count + 1 >= 2
+           THEN NULL
+           WHEN event_impression_state.last_session_id IS DISTINCT FROM EXCLUDED.last_session_id
+           THEN NOW() + INTERVAL '5 days'
+           ELSE event_impression_state.rank_penalty_until
          END
        WHERE event_impression_state.last_session_id IS DISTINCT FROM EXCLUDED.last_session_id`,
       [userId, userType, numericEventId, sessionId]

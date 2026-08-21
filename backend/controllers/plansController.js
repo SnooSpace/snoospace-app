@@ -300,7 +300,46 @@ async function getPlanById(req, res) {
     const userId = req.user.id;
     const planId = parseInt(req.params.planId, 10);
 
-    const planR = await pool.query(`SELECT * FROM open_plans WHERE id = $1`, [planId]);
+    // ── Visibility-gated fetch ──────────────────────────────────────────────────
+    // Reuses the exact same three-branch visibility logic as getPlans (L220-245).
+    // Host bypass (created_by = $2) mirrors the intent of getPlans' gender filter
+    // bypass (op.created_by = $1) so creators always see their own plans.
+    // Returns 404 — not 403 — to avoid confirming a plan's existence to a blocked viewer,
+    // consistent with how getPlans silently omits restricted plans from results.
+    const planR = await pool.query(
+      `SELECT * FROM open_plans
+       WHERE id = $1
+         AND (
+           -- Host always sees their own plan regardless of visibility setting
+           created_by = $2
+           OR visibility = 'everyone'
+           OR (
+             visibility = 'community_members'
+             AND scoped_community_id IS NULL
+             AND EXISTS (
+               SELECT 1 FROM follows f1
+               JOIN follows f2
+                 ON f1.following_id = f2.following_id
+                AND f1.following_type = 'community'
+                AND f2.following_type = 'community'
+               WHERE f1.follower_id = $2 AND f1.follower_type = 'member'
+                 AND f2.follower_id = open_plans.created_by AND f2.follower_type = 'member'
+             )
+           )
+           OR (
+             visibility = 'community_members'
+             AND scoped_community_id IS NOT NULL
+             AND EXISTS (
+               SELECT 1 FROM follows
+               WHERE follower_id = $2
+                 AND follower_type = 'member'
+                 AND following_id = open_plans.scoped_community_id
+                 AND following_type = 'community'
+             )
+           )
+         )`,
+      [planId, userId]
+    );
     if (planR.rows.length === 0) return res.status(404).json({ error: 'Plan not found' });
     const plan = planR.rows[0];
 

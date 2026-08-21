@@ -864,6 +864,11 @@ router.get(
 );
 // IMPORTANT: Specific paths must come BEFORE wildcard :id
 router.get(
+  "/opportunities/discovery",
+  authMiddleware,
+  OpportunityController.getDiscoveryOpportunities,
+);
+router.get(
   "/opportunities/followed",
   authMiddleware,
   OpportunityController.getFollowedOpportunities,
@@ -1123,8 +1128,10 @@ router.get("/community-voice-posts", authMiddleware, CommunityVoiceController.ge
 router.post("/posts", authMiddleware, PostController.createPost);
 router.get("/posts/feed", authMiddleware, PostController.getFeed);
 router.get("/posts/explore", authMiddleware, PostController.getExplore);
-// IMPORTANT: /posts/promote-quota must be BEFORE /posts/:postId to avoid shadowing
+// IMPORTANT: all /posts/<literal> routes must be BEFORE /posts/:postId to avoid shadowing
 router.get("/posts/promote-quota", authMiddleware, PostController.getPromoteQuota);
+// Discovery: scored non-followed editorial posts for home-feed injection
+router.get("/posts/discovery", authMiddleware, PostController.getDiscoveryPosts);
 router.get("/posts/:postId", authMiddleware, PostController.getPost);
 router.get(
   "/posts/user/:userId/:userType",

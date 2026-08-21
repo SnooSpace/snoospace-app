@@ -552,7 +552,7 @@ const ChallengePostCard = React.memo(({
     if (!alreadyViewed) {
       dwellTimerRef.current = setTimeout(() => {
         qualified = true;
-        viewQueueService.addQualifiedView(post.id, { postType: "challenge", trigger: "dwell" });
+        viewQueueService.addQualifiedView(post.id, { postType: "challenge", trigger: "dwell", dwellTime: DWELL_THRESHOLD });
       }, DWELL_THRESHOLD);
     } else {
       dwellTimerRef.current = setTimeout(() => {

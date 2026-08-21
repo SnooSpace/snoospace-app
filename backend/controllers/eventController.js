@@ -1360,7 +1360,26 @@ const discoverEvents = async (req, res) => {
     // For communities: show events from similar categories
     // Visibility: public events always show, invite_only only if invite_public_visibility=true
     const query = `
-      WITH followed_communities AS (
+      -- ── Viewer's community category affinity ──────────────────────────────
+      -- Same source as Posts Phase 1: follows + community_member_circles.
+      -- viewer_categories: set of LOWER(community.category) strings the viewer cares about.
+      WITH viewer_categories AS (
+        SELECT LOWER(com_f.category) AS category
+          FROM follows f_aff
+          JOIN communities com_f ON f_aff.following_id = com_f.id
+                                AND f_aff.following_type = 'community'
+         WHERE f_aff.follower_id   = $1
+           AND f_aff.follower_type = $2
+           AND f_aff.is_superseded_by_circle = false
+           AND com_f.category IS NOT NULL
+        UNION
+        SELECT LOWER(com_c.category) AS category
+          FROM community_member_circles cmc_aff
+          JOIN communities com_c ON cmc_aff.community_id = com_c.id
+         WHERE cmc_aff.member_id = $1
+           AND com_c.category IS NOT NULL
+      ),
+      followed_communities AS (
         SELECT following_id 
         FROM follows 
         WHERE follower_id = $1 
@@ -1434,14 +1453,89 @@ const discoverEvents = async (req, res) => {
             SELECT 1 FROM ticket_gifts tg 
             WHERE tg.event_id = e.id AND tg.recipient_id = $1 AND tg.status = 'active' AND $2 = 'member'
           ) THEN true ELSE false END as is_invited,
-          -- Score: following bonus + recency + popularity
+
+          -- ── Category-match signal (binary 1.0 / 0.0) ─────────────────────
+          -- Events have a direct 'category' column — no community join needed for
+          -- the candidate's own category. Match against viewer_categories CTE.
+          -- Also checks hosting community's category as a fallback for uncategorised events.
+          CASE
+            WHEN e.category IS NOT NULL AND EXISTS (
+              SELECT 1 FROM viewer_categories vc
+               WHERE vc.category = LOWER(e.category)
+            ) THEN 1.0
+            WHEN c.category IS NOT NULL AND EXISTS (
+              SELECT 1 FROM viewer_categories vc
+               WHERE vc.category = LOWER(c.category)
+            ) THEN 1.0
+            ELSE 0.0
+          END AS category_score,
+
+          -- ── Raw score (before penalty) ────────────────────────────────────
+          -- follow_bonus + recency_days + popularity*2 + category_match
           (CASE WHEN fc.following_id IS NOT NULL THEN 100 ELSE 0 END) +
-          (EXTRACT(EPOCH FROM (NOW() - e.created_at)) / -86400)::int + -- Newer is better
-          (COALESCE((SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id), 0) * 2) as score
+          (EXTRACT(EPOCH FROM (NOW() - e.created_at)) / -86400)::int +
+          (COALESCE((SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id), 0) * 2) +
+          CASE
+            WHEN e.category IS NOT NULL AND EXISTS (
+              SELECT 1 FROM viewer_categories vc WHERE vc.category = LOWER(e.category)
+            ) THEN 1.0
+            WHEN c.category IS NOT NULL AND EXISTS (
+              SELECT 1 FROM viewer_categories vc WHERE vc.category = LOWER(c.category)
+            ) THEN 1.0
+            ELSE 0.0
+          END
+          AS raw_score,
+
+          -- ── Final score with strike-1 penalty multiplier ──────────────────
+          -- When rank_penalty_tier='light' is active: multiply whole score by 0.3.
+          -- Mirrors the 0.3× multiplier used for Posts discovery (getDiscoveryPosts).
+          -- Strike-2 (retired_at) fully excludes via the WHERE clause — no reduction needed.
+          CASE
+            WHEN eis_rank.rank_penalty_tier = 'light'
+             AND eis_rank.rank_penalty_until IS NOT NULL
+             AND NOW() < eis_rank.rank_penalty_until
+            THEN (
+              (CASE WHEN fc.following_id IS NOT NULL THEN 100 ELSE 0 END) +
+              (EXTRACT(EPOCH FROM (NOW() - e.created_at)) / -86400)::int +
+              (COALESCE((SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id), 0) * 2) +
+              CASE
+                WHEN e.category IS NOT NULL AND EXISTS (
+                  SELECT 1 FROM viewer_categories vc WHERE vc.category = LOWER(e.category)
+                ) THEN 1.0
+                WHEN c.category IS NOT NULL AND EXISTS (
+                  SELECT 1 FROM viewer_categories vc WHERE vc.category = LOWER(c.category)
+                ) THEN 1.0
+                ELSE 0.0
+              END
+            ) * 0.3
+            ELSE (
+              (CASE WHEN fc.following_id IS NOT NULL THEN 100 ELSE 0 END) +
+              (EXTRACT(EPOCH FROM (NOW() - e.created_at)) / -86400)::int +
+              (COALESCE((SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id), 0) * 2) +
+              CASE
+                WHEN e.category IS NOT NULL AND EXISTS (
+                  SELECT 1 FROM viewer_categories vc WHERE vc.category = LOWER(e.category)
+                ) THEN 1.0
+                WHEN c.category IS NOT NULL AND EXISTS (
+                  SELECT 1 FROM viewer_categories vc WHERE vc.category = LOWER(c.category)
+                ) THEN 1.0
+                ELSE 0.0
+              END
+            )
+          END AS score,
+
+          -- Surface penalty metadata for debugging / verification
+          eis_rank.rank_penalty_tier  AS event_penalty_tier,
+          eis_rank.rank_penalty_until AS event_penalty_until
+
         FROM events e
         INNER JOIN communities c ON e.community_id = c.id
         LEFT JOIN followed_communities fc ON e.community_id = fc.following_id
-        -- event_likes may not exist yet on first boot; use a safe left join
+        -- Strike-1 penalty read: same alias pattern as getFeed's pis_rank join
+        LEFT JOIN event_impression_state eis_rank
+          ON eis_rank.user_id   = $1
+         AND eis_rank.user_type = $2
+         AND eis_rank.event_id  = e.id
         WHERE e.is_published = true
           AND e.start_datetime > NOW() -- Only future events
           AND (e.is_cancelled = false OR e.is_cancelled IS NULL) -- Exclude cancelled events

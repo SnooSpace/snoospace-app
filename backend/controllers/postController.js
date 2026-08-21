@@ -3279,6 +3279,481 @@ const getPromoteQuota = async (req, res) => {
   }
 };
 
+/**
+ * GET /posts/discovery
+ *
+ * Returns a scored pool of editorial posts from non-followed authors for
+ * discovery injection into the home feed. This is NOT a paginated timeline;
+ * it is a per-request scored snapshot capped at 10 candidates.
+ *
+ * Scoring (equal-weight sum of three signals):
+ *   1. Engagement affinity  — weighted action count by post_type for this viewer
+ *      (like=1, comment=2, save=3, share=3) normalised to 0–1 via MAX across types.
+ *   2. Dwell affinity       — AVG(COALESCE(dwell_time_ms, 2500)) / 2500 per post_type
+ *      for this viewer.  COALESCE handles NULL rows from non-editorial cards.
+ *   3. Popularity           — (like_count + comment_count + save_count + share_count)
+ *      / GREATEST(hours_since_created, 1) — age-normalised, read from post row directly.
+ *
+ * Strike-1 consistency: posts with an active light penalty in post_impression_state
+ * have their raw discovery_score multiplied by 0.3, matching getFeed's effective_sort_time
+ * demotion intent.  Strike-2 (retired_at) still fully excludes the post (same as getFeed).
+ *
+ * Candidate filters (same semantics as getFeed, never modifying getFeed's SQL):
+ *   — Editorial post types only: 'media', 'community_voice'
+ *   — created_at within last 5 days
+ *   — NOT own post
+ *   — NOT followed/creator-followed/circled (negated copies of getFeed's EXISTS checks)
+ *   — NOT retired for this viewer within 15 days (Condition 3a parity)
+ *   — NOT liked-and-untimed (Condition 3b parity)
+ */
+const getDiscoveryPosts = async (req, res) => {
+  try {
+    const userId   = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const query = `
+      -- ── Signal 1: per-post_type engagement affinity for this viewer ─────────
+      -- Weighted UNION across four engagement tables; SUM normalised to 0-1.
+      WITH engagement_raw AS (
+        SELECT p.post_type,
+               SUM(1.0)  AS weight
+          FROM post_likes l
+          JOIN posts p ON l.post_id = p.id
+         WHERE l.liker_id = $1 AND l.liker_type = $2
+         GROUP BY p.post_type
+
+        UNION ALL
+
+        SELECT p.post_type,
+               SUM(2.0) AS weight
+          FROM post_comments c
+          JOIN posts p ON c.post_id = p.id
+         WHERE c.commenter_id = $1 AND c.commenter_type = $2
+         GROUP BY p.post_type
+
+        UNION ALL
+
+        SELECT p.post_type,
+               SUM(3.0) AS weight
+          FROM post_saves s
+          JOIN posts p ON s.post_id = p.id
+         WHERE s.saver_id = $1 AND s.saver_type = $2
+         GROUP BY p.post_type
+
+        UNION ALL
+
+        SELECT p.post_type,
+               SUM(3.0) AS weight
+          FROM post_shares sh
+          JOIN posts p ON sh.post_id = p.id
+         WHERE sh.sharer_id = $1 AND sh.sharer_type = $2
+         GROUP BY p.post_type
+      ),
+      engagement_agg AS (
+        SELECT post_type,
+               SUM(weight) AS total_weight
+          FROM engagement_raw
+         GROUP BY post_type
+      ),
+      engagement_max AS (
+        SELECT GREATEST(MAX(total_weight), 1) AS max_weight FROM engagement_agg
+      ),
+      engagement_norm AS (
+        SELECT ea.post_type,
+               ea.total_weight / em.max_weight AS engagement_score
+          FROM engagement_agg ea
+          CROSS JOIN engagement_max em
+      ),
+
+      -- ── Signal 2: per-post_type dwell affinity for this viewer ───────────────
+      -- COALESCE to 2500 as a floor (no-dwell baseline) for posts with no
+      -- dwell_time_ms recorded yet. dwell_time_ms is now always populated for
+      -- all four card types (poll/prompt/qna/challenge) after the dwell-fix.
+      dwell_aff AS (
+        SELECT post_type,
+               AVG(COALESCE(dwell_time_ms, 2500)) / 2500.0 AS dwell_score
+          FROM unique_view_events
+         WHERE user_id = $1 AND user_type = $2
+         GROUP BY post_type
+      ),
+
+      -- ── Signal 3: viewer's community category affinity ───────────────────────
+      -- Derived directly from follows + community_member_circles (deterministic).
+      -- viewer_categories: the set of community category strings this user cares about.
+      viewer_categories AS (
+        SELECT LOWER(com_f.category) AS category
+          FROM follows f_aff
+          JOIN communities com_f ON f_aff.following_id = com_f.id
+                                AND f_aff.following_type = 'community'
+         WHERE f_aff.follower_id   = $1
+           AND f_aff.follower_type = $2
+           AND f_aff.is_superseded_by_circle = false
+           AND com_f.category IS NOT NULL
+        UNION
+        SELECT LOWER(com_c.category) AS category
+          FROM community_member_circles cmc_aff
+          JOIN communities com_c ON cmc_aff.community_id = com_c.id
+         WHERE cmc_aff.member_id = $1
+           AND com_c.category IS NOT NULL
+      ),
+      -- category_match: binary 1.0/0.0 per candidate.
+      -- Only fires for author_type='community'; LEFT JOIN gives NULL (→0) for member posts.
+      category_match AS (
+        SELECT
+          p_cm.id AS post_id,
+          CASE
+            WHEN EXISTS (
+              SELECT 1 FROM viewer_categories vc
+               WHERE vc.category = LOWER(com_cm.category)
+            ) THEN 1.0
+            ELSE 0.0
+          END AS category_score
+          FROM posts p_cm
+          JOIN communities com_cm
+            ON p_cm.author_id = com_cm.id AND p_cm.author_type = 'community'
+      ),
+
+      -- ── Trickle pacing: count distinct posts already introduced today ─────────
+      daily_discovery_count AS (
+        SELECT COUNT(DISTINCT post_id) AS cnt
+          FROM post_impression_state
+         WHERE user_id             = $1
+           AND user_type           = $2
+           AND first_discovered_at >= NOW() - INTERVAL '24 hours'
+      )
+
+      -- ── Candidate posts with scored columns ─────────────────────────────────
+      SELECT
+        p.*,
+        -- Author name
+        CASE
+          WHEN p.author_type = 'member'    THEN m.name
+          WHEN p.author_type = 'community' THEN c.name
+          WHEN p.author_type = 'sponsor'   THEN s.brand_name
+          WHEN p.author_type = 'venue'     THEN v.name
+        END AS author_name,
+        -- Author username
+        CASE
+          WHEN p.author_type = 'member'    THEN m.username
+          WHEN p.author_type = 'community' THEN c.username
+          WHEN p.author_type = 'sponsor'   THEN s.username
+          WHEN p.author_type = 'venue'     THEN v.username
+        END AS author_username,
+        -- Author photo
+        CASE
+          WHEN p.author_type = 'member'    THEN m.profile_photo_url
+          WHEN p.author_type = 'community' THEN c.logo_url
+          WHEN p.author_type = 'sponsor'   THEN s.logo_url
+          WHEN p.author_type = 'venue'     THEN NULL
+        END AS author_photo_url,
+        -- Author is_creator flag
+        CASE
+          WHEN p.author_type = 'member' THEN COALESCE(m.is_creator_mode_enabled, false)
+          ELSE false
+        END AS author_is_creator,
+        -- Viewer interaction states
+        CASE
+          WHEN $3::int IS NOT NULL AND $4::text IS NOT NULL THEN EXISTS (
+            SELECT 1 FROM post_likes l
+            WHERE l.post_id = p.id AND l.liker_id = $3 AND l.liker_type = $4
+          )
+          ELSE false
+        END AS is_liked,
+        CASE
+          WHEN $3::int IS NOT NULL AND $4::text IS NOT NULL THEN (
+            EXISTS (
+              SELECT 1 FROM follows f2
+              WHERE f2.follower_id = $3 AND f2.follower_type = $4
+                AND f2.following_id = p.author_id AND f2.following_type = p.author_type
+                AND f2.is_superseded_by_circle = false
+            )
+            OR
+            (p.author_type = 'member' AND EXISTS (
+              SELECT 1 FROM creator_follows cf2
+              WHERE cf2.follower_id = $3 AND cf2.follower_type = $4
+                AND cf2.creator_id = p.author_id
+                AND cf2.is_dormant = false
+                AND cf2.is_superseded_by_circle = false
+            ))
+          )
+          ELSE false
+        END AS is_following,
+        CASE
+          WHEN $3::int IS NOT NULL AND $4::text IS NOT NULL THEN (
+            ($4 = 'member' AND p.author_type = 'member' AND EXISTS (
+              SELECT 1 FROM circles ci
+              WHERE (ci.user_a_id = $3 AND ci.user_b_id = p.author_id)
+                 OR (ci.user_b_id = $3 AND ci.user_a_id = p.author_id)
+            ))
+            OR
+            ($4 = 'community' AND p.author_type = 'member' AND EXISTS (
+              SELECT 1 FROM community_member_circles cc
+              WHERE cc.community_id = $3 AND cc.member_id = p.author_id
+            ))
+            OR
+            ($4 = 'member' AND p.author_type = 'community' AND EXISTS (
+              SELECT 1 FROM community_member_circles cc
+              WHERE cc.community_id = p.author_id AND cc.member_id = $3
+            ))
+          )
+          ELSE false
+        END AS is_in_circle,
+        CASE
+          WHEN $3::int IS NOT NULL AND $4::text IS NOT NULL THEN (
+            ($4 = 'member' AND p.author_type = 'member' AND EXISTS (
+              SELECT 1 FROM circle_requests cr
+              WHERE cr.sender_id = $3 AND cr.receiver_id = p.author_id AND cr.status = 'pending'
+            ))
+            OR
+            ($4 = 'community' AND p.author_type = 'member' AND EXISTS (
+              SELECT 1 FROM community_member_circle_invites cci
+              WHERE cci.community_id = $3 AND cci.member_id = p.author_id AND cci.status = 'pending'
+            ))
+          )
+          ELSE false
+        END AS is_circle_requested,
+        CASE
+          WHEN $3::int IS NOT NULL AND $4::text IS NOT NULL THEN EXISTS (
+            SELECT 1 FROM post_saves ps
+            WHERE ps.post_id = p.id AND ps.saver_id = $3 AND ps.saver_type = $4
+          )
+          ELSE false
+        END AS is_saved,
+
+        -- ── Raw discovery score (before strike-1 penalty) ────────────────────
+        -- Signal 1: engagement affinity (0-1, normalised across post_types)
+        -- Signal 2: dwell affinity     (0-1, ms / 2500 baseline)
+        -- Signal 3: age-normalised popularity (count / hours, uncapped)
+        -- All three have equal weight of 1.0 initially (tuning knob).
+        COALESCE(en.engagement_score, 0)
+          + COALESCE(da.dwell_score, 0)
+          + (
+              (COALESCE(p.like_count, 0)
+               + COALESCE(p.comment_count, 0)
+               + COALESCE(p.save_count, 0)
+               + COALESCE(p.share_count, 0))::float
+              / GREATEST(
+                  EXTRACT(EPOCH FROM (NOW() - p.created_at)) / 3600.0,
+                  1.0
+                )
+            )
+          + COALESCE(cm.category_score, 0)  -- Signal 3: community category-match (0 for member posts)
+        AS raw_discovery_score,
+
+        -- ── Strike-1 penalty multiplier ──────────────────────────────────────
+        -- Mirrors getFeed's effective_sort_time shift for light-penalty posts.
+        -- A viewer who scrolled past this post unseen once gets strike-1 applied;
+        -- that post should rank lower in discovery just as it does in followed feed.
+        -- Strike-2 (retired_at) fully excludes via the WHERE clause below.
+        CASE
+          WHEN pis_disc.rank_penalty_tier = 'light'
+           AND pis_disc.rank_penalty_until IS NOT NULL
+           AND NOW() < pis_disc.rank_penalty_until
+          THEN (
+            COALESCE(en.engagement_score, 0)
+            + COALESCE(da.dwell_score, 0)
+            + (
+                (COALESCE(p.like_count, 0)
+                 + COALESCE(p.comment_count, 0)
+                 + COALESCE(p.save_count, 0)
+                 + COALESCE(p.share_count, 0))::float
+                / GREATEST(
+                    EXTRACT(EPOCH FROM (NOW() - p.created_at)) / 3600.0,
+                    1.0
+                  )
+              )
+            + COALESCE(cm.category_score, 0)
+          ) * 0.3
+          ELSE (
+            COALESCE(en.engagement_score, 0)
+            + COALESCE(da.dwell_score, 0)
+            + (
+                (COALESCE(p.like_count, 0)
+                 + COALESCE(p.comment_count, 0)
+                 + COALESCE(p.save_count, 0)
+                 + COALESCE(p.share_count, 0))::float
+                / GREATEST(
+                    EXTRACT(EPOCH FROM (NOW() - p.created_at)) / 3600.0,
+                    1.0
+                  )
+              )
+            + COALESCE(cm.category_score, 0)
+          )
+        END AS discovery_score,
+
+        -- Surface penalty metadata for debugging / verification
+        pis_disc.rank_penalty_tier AS discovery_penalty_tier,
+        pis_disc.rank_penalty_until AS discovery_penalty_until
+
+      FROM posts p
+      LEFT JOIN members m    ON p.author_type = 'member'    AND p.author_id = m.id
+      LEFT JOIN communities c ON p.author_type = 'community' AND p.author_id = c.id
+      LEFT JOIN sponsors s   ON p.author_type = 'sponsor'   AND p.author_id = s.id
+      LEFT JOIN venues v     ON p.author_type = 'venue'     AND p.author_id = v.id
+      -- Affinity signals (LEFT JOIN — no match = score contribution of 0)
+      LEFT JOIN engagement_norm en ON en.post_type = p.post_type
+      LEFT JOIN dwell_aff da       ON da.post_type = p.post_type
+      -- Signal 3: category match (NULL for member-authored posts → COALESCE to 0 in score)
+      LEFT JOIN category_match cm  ON cm.post_id = p.id
+      -- Strike-1 penalty: same alias pattern as getFeed's pis_rank join
+      LEFT JOIN post_impression_state pis_disc
+        ON pis_disc.user_id   = $1
+       AND pis_disc.user_type = $2
+       AND pis_disc.post_id   = p.id
+
+      WHERE
+        -- Extended editorial + interactive post types (Phase 1 expansion)
+        p.post_type IN ('media', 'community_voice', 'poll', 'prompt', 'qna', 'challenge')
+
+        -- Recency window: 5 days
+        AND p.created_at >= NOW() - INTERVAL '5 days'
+
+        -- Exclude legacy promo types (mirrors getFeed Condition 1)
+        AND p.post_type NOT IN ('plan_promo', 'event_promo')
+
+        -- Exclude own posts
+        AND NOT (p.author_id = $1 AND p.author_type = $2)
+
+        -- ── Non-followed: negate each of getFeed's OR branches ───────────────
+        -- Standard follows (not superseded)
+        AND NOT EXISTS (
+          SELECT 1 FROM follows f
+          WHERE f.follower_id = $1 AND f.follower_type = $2
+            AND f.following_id = p.author_id AND f.following_type = p.author_type
+            AND f.is_superseded_by_circle = false
+        )
+        -- Creator follows
+        AND NOT (p.author_type = 'member' AND EXISTS (
+          SELECT 1 FROM creator_follows cf
+          WHERE cf.follower_id = $1 AND cf.follower_type = $2
+            AND cf.creator_id = p.author_id
+            AND cf.is_dormant = false
+            AND cf.is_superseded_by_circle = false
+        ))
+        -- Member-member circles
+        AND NOT ($2 = 'member' AND p.author_type = 'member' AND EXISTS (
+          SELECT 1 FROM circles ci
+          WHERE (ci.user_a_id = $1 AND ci.user_b_id = p.author_id)
+             OR (ci.user_b_id = $1 AND ci.user_a_id = p.author_id)
+        ))
+        -- Community-Member circles (viewer is community, author is member)
+        AND NOT ($2 = 'community' AND p.author_type = 'member' AND EXISTS (
+          SELECT 1 FROM community_member_circles cc
+          WHERE cc.community_id = $1 AND cc.member_id = p.author_id
+        ))
+        -- Community-Member circles (viewer is member, author is community)
+        AND NOT ($2 = 'member' AND p.author_type = 'community' AND EXISTS (
+          SELECT 1 FROM community_member_circles cc
+          WHERE cc.community_id = p.author_id AND cc.member_id = $1
+        ))
+
+        -- Condition 3a parity: exclude posts retired for this viewer within 15 days
+        AND NOT EXISTS (
+          SELECT 1 FROM post_impression_state pis
+          WHERE pis.user_id   = $1
+            AND pis.user_type = $2
+            AND pis.post_id   = p.id
+            AND pis.retired_at IS NOT NULL
+            AND pis.retired_at > NOW() - INTERVAL '15 days'
+        )
+
+        -- Condition 3b parity: exclude untimed posts the viewer has liked
+        AND NOT (
+          (p.expires_at IS NULL OR p.expires_at <= NOW())
+          AND EXISTS (
+            SELECT 1 FROM post_likes pl
+            WHERE pl.post_id   = p.id
+              AND pl.liker_id  = $1
+              AND pl.liker_type = $2
+          )
+        )
+
+        -- ── Trickle pacing: daily cap of 5 new introductions per user ─────────
+        -- When the cap is reached, only allow posts already introduced (i.e.
+        -- first_discovered_at already stamped) — never introduce new ones.
+        AND (
+          (SELECT cnt FROM daily_discovery_count) < 5
+          OR EXISTS (
+            SELECT 1 FROM post_impression_state pis_trickle
+             WHERE pis_trickle.user_id             = $1
+               AND pis_trickle.user_type           = $2
+               AND pis_trickle.post_id             = p.id
+               AND pis_trickle.first_discovered_at IS NOT NULL
+          )
+        )
+
+      ORDER BY discovery_score DESC
+      LIMIT 10
+    `;
+
+    // $1/$2 = userId/userType for candidate filtering and affinity CTEs
+    // $3/$4 = viewerId/viewerType for interaction state computed columns (same values)
+    const result = await pool.query(query, [userId, userType, userId, userType]);
+
+    // Parse JSON fields — same approach as getFeed
+    const posts = result.rows.map((post) => ({
+      ...post,
+      image_urls: (() => {
+        try {
+          if (!post.image_urls) return [];
+          if (Array.isArray(post.image_urls)) return post.image_urls;
+          const parsed = JSON.parse(post.image_urls);
+          return Array.isArray(parsed) ? parsed : [parsed];
+        } catch { return post.image_urls ? [post.image_urls] : []; }
+      })(),
+      tagged_entities: (() => {
+        try {
+          if (!post.tagged_entities) return null;
+          if (typeof post.tagged_entities === 'object') return post.tagged_entities;
+          return JSON.parse(post.tagged_entities);
+        } catch { return null; }
+      })(),
+      aspect_ratios: (() => {
+        try {
+          if (!post.aspect_ratios) return null;
+          if (Array.isArray(post.aspect_ratios)) return post.aspect_ratios;
+          const parsed = JSON.parse(post.aspect_ratios);
+          return Array.isArray(parsed) ? parsed : [parsed];
+        } catch { return null; }
+      })(),
+      media_types: (() => {
+        try {
+          if (!post.media_types) return null;
+          if (Array.isArray(post.media_types)) return post.media_types;
+          const parsed = JSON.parse(post.media_types);
+          return Array.isArray(parsed) ? parsed : [parsed];
+        } catch { return null; }
+      })(),
+      crop_metadata: (() => {
+        try {
+          if (!post.crop_metadata) return null;
+          if (Array.isArray(post.crop_metadata)) return post.crop_metadata;
+          const parsed = JSON.parse(post.crop_metadata);
+          return Array.isArray(parsed) ? parsed : [parsed];
+        } catch { return null; }
+      })(),
+      type_data: (() => {
+        try {
+          if (!post.type_data) return {};
+          if (typeof post.type_data === 'object') return post.type_data;
+          return JSON.parse(post.type_data);
+        } catch { return {}; }
+      })(),
+    }));
+
+    console.log(`[getDiscoveryPosts] userId=${userId} → ${posts.length} candidates returned`);
+
+    return res.json({ posts });
+  } catch (error) {
+    console.error('[getDiscoveryPosts] Error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 module.exports = {
   createPost,
   getFeed,
@@ -3294,4 +3769,5 @@ module.exports = {
   unpinPost,
   createPromoPost,
   getPromoteQuota,
+  getDiscoveryPosts,
 };

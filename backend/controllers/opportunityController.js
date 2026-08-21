@@ -1524,7 +1524,305 @@ const getFollowedOpportunities = async (req, res) => {
 };
 
 // ============================================
-// GET COMMUNITY'S PUBLIC OPPORTUNITIES
+// GET /opportunities/discovery
+// Scored non-followed community opportunities for discovery injection into home feed.
+//
+// Mirrors getFollowedOpportunities structurally but with inverted follow gate.
+// Only community-created opportunities (creator_type='community') are candidates,
+// consistent with getFollowedOpportunities which is also community-only.
+//
+// Scoring (3 signals — dwell skipped, no duration column on opportunity_views):
+//   1. Engagement affinity: weighted UNION of likes(×1)/comments(×2)/saves(×3)
+//      across real tables (opportunity_likes, opportunity_comments, opportunity_saves).
+//      No opportunity_shares table exists — share signal excluded (share_count denorm only).
+//   2. Age-normalized popularity: (like_count+comment_count+save_count+share_count) / hours_since_created
+//   3. Category-match (binary 1.0/0.0): viewer's followed-community categories vs.
+//      hosting community's communities.category. No category column on opportunities —
+//      this is the correct indirect path (same community-fallback used by Events).
+//
+// Strike-1: multiply final score × 0.3 when rank_penalty_tier='light' and active.
+// Trickle: max 5 new introductions per 24h via first_discovered_at gate.
+// ============================================
+const getDiscoveryOpportunities = async (req, res) => {
+  try {
+    const userId   = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || userType !== 'member') {
+      return res.status(403).json({ error: 'Only members can access this' });
+    }
+
+    const { limit = 10 } = req.query;
+    const parsedLimit = Math.min(parseInt(limit, 10) || 10, 20);
+
+    const query = `
+      -- ── Viewer's community category affinity ──────────────────────────────────
+      -- Same source as Posts/Events Phase 1: follows + community_member_circles.
+      -- viewer_categories: set of LOWER(communities.category) strings the viewer cares about.
+      WITH viewer_categories AS (
+        SELECT LOWER(com_f.category) AS category
+          FROM follows f_aff
+          JOIN communities com_f ON f_aff.following_id = com_f.id
+                                AND f_aff.following_type = 'community'
+         WHERE f_aff.follower_id   = $1
+           AND f_aff.follower_type = $2
+           AND f_aff.is_superseded_by_circle = false
+           AND com_f.category IS NOT NULL
+        UNION
+        SELECT LOWER(com_c.category) AS category
+          FROM community_member_circles cmc_aff
+          JOIN communities com_c ON cmc_aff.community_id = com_c.id
+         WHERE cmc_aff.member_id = $1
+           AND com_c.category IS NOT NULL
+      ),
+
+      -- ── Engagement affinity: weighted UNION across real tables ───────────────
+      -- opportunity_likes(×1), opportunity_comments(×2), opportunity_saves(×3).
+      -- No opportunity_shares table — share signal excluded (confirmed absent).
+      -- Grouped by opportunity_id (not post_type — opportunities have no type dimension).
+      engagement_raw AS (
+        SELECT opportunity_id, 1.0 AS weight
+          FROM opportunity_likes
+         WHERE liker_id = $1 AND liker_type = $2
+        UNION ALL
+        SELECT opportunity_id, 2.0 AS weight
+          FROM opportunity_comments
+         WHERE commenter_id = $1 AND commenter_type = $2
+        UNION ALL
+        SELECT opportunity_id, 3.0 AS weight
+          FROM opportunity_saves
+         WHERE saver_id = $1 AND saver_type = $2
+      ),
+      engagement_agg AS (
+        SELECT opportunity_id, SUM(weight) AS total_weight
+          FROM engagement_raw
+         GROUP BY opportunity_id
+      ),
+      engagement_max AS (
+        SELECT GREATEST(MAX(total_weight), 1) AS max_weight FROM engagement_agg
+      ),
+      engagement_norm AS (
+        SELECT ea.opportunity_id,
+               ea.total_weight / em.max_weight AS engagement_score
+          FROM engagement_agg ea
+          CROSS JOIN engagement_max em
+      ),
+
+      -- ── Trickle pacing: count distinct opportunities already introduced today ─
+      daily_discovery_count AS (
+        SELECT COUNT(DISTINCT opportunity_id) AS cnt
+          FROM opportunity_impression_state
+         WHERE user_id             = $1
+           AND user_type           = $2
+           AND first_discovered_at >= NOW() - INTERVAL '24 hours'
+      )
+
+      SELECT
+        o.id,
+        o.title,
+        o.opportunity_types,
+        o.work_type,
+        o.work_mode,
+        o.payment_type,
+        o.payment_nature,
+        o.trial_type,
+        o.budget_range,
+        o.experience_level,
+        o.created_at,
+        o.creator_id,
+        o.creator_type,
+        o.expires_at,
+        o.closed_at,
+        COALESCE(o.applicant_count, 0) AS applicant_count,
+        COALESCE(o.like_count, 0)    AS like_count,
+        COALESCE(o.view_count, 0)    AS view_count,
+        COALESCE(o.comment_count, 0) AS comment_count,
+        COALESCE(o.save_count, 0)    AS save_count,
+        COALESCE(o.share_count, 0)   AS share_count,
+        c.name     AS creator_name,
+        c.logo_url AS creator_photo,
+        c.username AS creator_username,
+        false AS is_following,
+        EXISTS (
+          SELECT 1 FROM community_member_circles cc
+          WHERE cc.community_id = o.creator_id::integer AND cc.member_id = $1
+        ) AS is_in_circle,
+        false AS is_circle_requested,
+        false AS author_is_creator,
+
+        -- ── Category-match (binary 1.0 / 0.0) ────────────────────────────────
+        -- No category column on opportunities → use hosting community's category.
+        CASE
+          WHEN c.category IS NOT NULL AND EXISTS (
+            SELECT 1 FROM viewer_categories vc WHERE vc.category = LOWER(c.category)
+          ) THEN 1.0
+          ELSE 0.0
+        END AS category_score,
+
+        -- ── Raw score (before penalty) ────────────────────────────────────────
+        COALESCE(en.engagement_score, 0)
+          + (
+              (COALESCE(o.like_count, 0)
+               + COALESCE(o.comment_count, 0)
+               + COALESCE(o.save_count, 0)
+               + COALESCE(o.share_count, 0))::float
+              / GREATEST(EXTRACT(EPOCH FROM (NOW() - o.created_at)) / 3600.0, 1.0)
+            )
+          + CASE
+              WHEN c.category IS NOT NULL AND EXISTS (
+                SELECT 1 FROM viewer_categories vc WHERE vc.category = LOWER(c.category)
+              ) THEN 1.0
+              ELSE 0.0
+            END
+        AS raw_discovery_score,
+
+        -- ── Final score with strike-1 penalty ──────────────────────────────────
+        -- × 0.3 when rank_penalty_tier='light' and active; same multiplier as Posts/Events.
+        CASE
+          WHEN ois_rank.rank_penalty_tier = 'light'
+           AND ois_rank.rank_penalty_until IS NOT NULL
+           AND NOW() < ois_rank.rank_penalty_until
+          THEN (
+            COALESCE(en.engagement_score, 0)
+            + (
+                (COALESCE(o.like_count, 0)
+                 + COALESCE(o.comment_count, 0)
+                 + COALESCE(o.save_count, 0)
+                 + COALESCE(o.share_count, 0))::float
+                / GREATEST(EXTRACT(EPOCH FROM (NOW() - o.created_at)) / 3600.0, 1.0)
+              )
+            + CASE
+                WHEN c.category IS NOT NULL AND EXISTS (
+                  SELECT 1 FROM viewer_categories vc WHERE vc.category = LOWER(c.category)
+                ) THEN 1.0
+                ELSE 0.0
+              END
+          ) * 0.3
+          ELSE (
+            COALESCE(en.engagement_score, 0)
+            + (
+                (COALESCE(o.like_count, 0)
+                 + COALESCE(o.comment_count, 0)
+                 + COALESCE(o.save_count, 0)
+                 + COALESCE(o.share_count, 0))::float
+                / GREATEST(EXTRACT(EPOCH FROM (NOW() - o.created_at)) / 3600.0, 1.0)
+              )
+            + CASE
+                WHEN c.category IS NOT NULL AND EXISTS (
+                  SELECT 1 FROM viewer_categories vc WHERE vc.category = LOWER(c.category)
+                ) THEN 1.0
+                ELSE 0.0
+              END
+          )
+        END AS discovery_score,
+
+        -- Surface penalty metadata for debugging
+        ois_rank.rank_penalty_tier  AS opp_penalty_tier,
+        ois_rank.rank_penalty_until AS opp_penalty_until
+
+      FROM opportunities o
+      JOIN communities c ON o.creator_id::integer = c.id
+      LEFT JOIN engagement_norm en ON en.opportunity_id = o.id
+      LEFT JOIN opportunity_impression_state ois_rank
+        ON ois_rank.user_id       = $1
+       AND ois_rank.user_type     = $2
+       AND ois_rank.opportunity_id = o.id
+
+      WHERE o.status = 'active'
+        AND o.creator_type = 'community'
+        AND (o.expires_at IS NULL OR o.expires_at > NOW())
+        AND o.closed_at IS NULL
+
+        -- ── Non-followed: exclude communities the viewer follows ────────────────
+        AND NOT EXISTS (
+          SELECT 1 FROM follows f
+          WHERE f.follower_id    = $1
+            AND f.follower_type  = $2
+            AND f.following_id   = o.creator_id::integer
+            AND f.following_type = 'community'
+        )
+
+        -- ── Strike-2: exclude retired opportunities within 15-day cooldown ─────
+        AND NOT EXISTS (
+          SELECT 1 FROM opportunity_impression_state ois
+          WHERE ois.user_id       = $1
+            AND ois.user_type     = $2
+            AND ois.opportunity_id = o.id
+            AND ois.retired_at IS NOT NULL
+            AND ois.retired_at > NOW() - INTERVAL '15 days'
+        )
+
+        -- ── Trickle pacing: daily cap of 5 new introductions ──────────────────
+        -- When cap is reached, only serve already-stamped opportunities.
+        AND (
+          (SELECT cnt FROM daily_discovery_count) < 5
+          OR EXISTS (
+            SELECT 1 FROM opportunity_impression_state ois_trickle
+            WHERE ois_trickle.user_id              = $1
+              AND ois_trickle.user_type            = $2
+              AND ois_trickle.opportunity_id        = o.id
+              AND ois_trickle.first_discovered_at IS NOT NULL
+          )
+        )
+
+      ORDER BY discovery_score DESC, o.created_at DESC
+      LIMIT $3
+    `;
+
+    const result = await pool.query(query, [userId, userType, parsedLimit]);
+
+    // Batch-fetch liked/saved sets
+    const oppIds = result.rows.map(r => r.id);
+    let likedSet = new Set();
+    let savedSet = new Set();
+    if (oppIds.length > 0) {
+      try {
+        const likedRes = await pool.query(
+          `SELECT opportunity_id FROM opportunity_likes WHERE opportunity_id = ANY($1) AND liker_id = $2 AND liker_type = $3`,
+          [oppIds, userId, userType]
+        );
+        likedRes.rows.forEach(r => likedSet.add(r.opportunity_id));
+      } catch (_) { /* non-fatal */ }
+      try {
+        const savedRes = await pool.query(
+          `SELECT opportunity_id FROM opportunity_saves WHERE opportunity_id = ANY($1) AND saver_id = $2 AND saver_type = $3`,
+          [oppIds, userId, userType]
+        );
+        savedRes.rows.forEach(r => savedSet.add(r.opportunity_id));
+      } catch (_) { /* non-fatal */ }
+    }
+
+    // Batch-fetch skill groups (eliminates N+1)
+    let sgByOpp = {};
+    if (oppIds.length > 0) {
+      const sgBatch = await pool.query(
+        `SELECT opportunity_id, role, tools, sample_type FROM opportunity_skill_groups
+         WHERE opportunity_id = ANY($1) ORDER BY display_order`,
+        [oppIds]
+      );
+      for (const sg of sgBatch.rows) {
+        if (!sgByOpp[sg.opportunity_id]) sgByOpp[sg.opportunity_id] = [];
+        sgByOpp[sg.opportunity_id].push(sg);
+      }
+    }
+
+    const opportunities = result.rows.map(opp => ({
+      ...opp,
+      is_liked: likedSet.has(opp.id),
+      is_saved: savedSet.has(opp.id),
+      skill_groups: sgByOpp[opp.id] || [],
+      roles: (sgByOpp[opp.id] || []).map(r => r.role),
+    }));
+
+    console.log(`[getDiscoveryOpportunities] userId=${userId} → ${opportunities.length} candidates`);
+    res.json({ success: true, opportunities });
+  } catch (error) {
+    console.error('[getDiscoveryOpportunities] error:', error);
+    res.status(500).json({ error: 'Failed to get discovery opportunities' });
+  }
+};
+
+
 // Used by CommunityPublicProfileScreen to show opportunity cards
 // ============================================
 const getCommunityOpportunities = async (req, res) => {
@@ -3011,6 +3309,7 @@ module.exports = {
   updateApplicationStatus,
   proxyResume,
   getFollowedOpportunities,
+  getDiscoveryOpportunities,
   getCommunityOpportunities,
   getMemberOpportunities,
   pinOpportunity,
