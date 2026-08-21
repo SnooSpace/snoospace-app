@@ -74,6 +74,7 @@ import { viewQueueService } from "../../services/ViewQueueService";
 import { LinearGradient } from "expo-linear-gradient";
 import { Image as ExpoImage } from "expo-image";
 import { getOptimizedImageUrl } from "../../utils/imageUtils";
+import { windowedShuffle } from "../../utils/feedShuffle";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -1335,9 +1336,32 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       // Append or replace based on reset flag
       // 4A: capture freshly-loaded posts in a ref so triggerSkeletonReveal
       // can read them synchronously (before React re-renders feedItems).
-      if (reset) freshPostsRef.current = mergedPosts;
+      //
+      // Fresh-load only: apply windowed shuffle to vary top-of-feed display order.
+      // Pagination (reset=false) posts are left in exact server order.
+      let postsToStore = mergedPosts;
+      if (reset && mergedPosts.length > 1) {
+        const preShuffleIds = mergedPosts.map((p) => p.id);
+        postsToStore = windowedShuffle(mergedPosts);
+        const postShuffleIds = postsToStore.map((p) => p.id);
+        // ── VERIFICATION LOGS (remove after device testing) ─────────────────
+        console.log('[FeedShuffle] pre-shuffle IDs:', preShuffleIds.join(','));
+        console.log('[FeedShuffle] post-shuffle IDs:', postShuffleIds.join(','));
+        // Verify no post moved more than windowSize=5 positions
+        const maxDrift = preShuffleIds.reduce((max, id, origIdx) => {
+          const newIdx = postShuffleIds.indexOf(id);
+          return Math.max(max, Math.abs(newIdx - origIdx));
+        }, 0);
+        console.log('[FeedShuffle] max position drift:', maxDrift, '(should be ≤ 5)');
+        // ────────────────────────────────────────────────────────────────────
+      } else if (!reset) {
+        // Pagination: log server IDs verbatim to confirm no shuffle applied
+        console.log('[FeedShuffle] pagination page — no shuffle. IDs:', mergedPosts.map((p) => p.id).join(','));
+      }
+
+      if (reset) freshPostsRef.current = postsToStore;
       setPosts((prevPosts) => {
-        if (reset) return mergedPosts;
+        if (reset) return postsToStore;
         const existingIds = new Set(prevPosts.map((p) => p.id));
         const uniqueNew = mergedPosts.filter((p) => !existingIds.has(p.id));
         return [...prevPosts, ...uniqueNew];
@@ -1409,6 +1433,15 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     );
     setRevealedCount(batchSize);
     setRefreshing(false);
+    // Snap scroll position back to the very top after the shuffled data is laid out.
+    // FlashList's native anchor logic tries to keep the previously-first item visible
+    // when the array order changes — the double-rAF fires after that native pass
+    // completes so our imperative scrollToOffset(0) is the final word on position.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
+      });
+    });
   };
 
   // Intentionally a no-op.
