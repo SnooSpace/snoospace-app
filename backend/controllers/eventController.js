@@ -4575,6 +4575,7 @@ const createTicketGift = async (req, res) => {
       });
 
       await pushService.sendPushNotification(
+        pool,
         recipientId,
         "member",
         notifTitle,

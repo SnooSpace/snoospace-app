@@ -34,7 +34,7 @@ const PhoneInputView = ({ phoneNumber, setPhoneNumber, inputStyles, hideTitle = 
         {/* Country Code and Flag for India */}
         <View style={styles.countryCodePill}>
           {/* Using a flag emoji for simplicity */}
-          <Text style={styles.flagEmoji}>ðŸ‡®ðŸ‡³</Text>
+          <Text style={styles.flagEmoji}>🇮🇳</Text>
           <Text style={styles.countryCodeText}>+91</Text>
           <ChevronDown size={12} color={COLORS.textPrimary} style={{ marginLeft: 5 }} />
         </View>

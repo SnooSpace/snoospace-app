@@ -190,7 +190,7 @@ export default function EditProfileScreen({ route, navigation }) {
     profile?.college_info?.campus_name || ""
   );
   const [showCollegePicker, setShowCollegePicker] = useState(false);
-  // Degree picker â€” shared between Education card (non-student) and Student degree sub-field
+  // Degree picker — shared between Education card (non-student) and Student degree sub-field
   const [showDegreePicker, setShowDegreePicker] = useState(false);
   // 'education' = non-student education card, 'student' = student occupation sub-field
   const [degreePickerTarget, setDegreePickerTarget] = useState('education');
@@ -396,7 +396,7 @@ export default function EditProfileScreen({ route, navigation }) {
     try {
       const result = await pickAndCrop("avatar");
       if (!result) return;
-      // Stage the photo locally â€” it will be uploaded when the user taps Save
+      // Stage the photo locally — it will be uploaded when the user taps Save
       setPendingPhotoUri(result.uri);
       setPhotoUrl(result.uri);
       HapticsService.triggerSelection();
@@ -442,7 +442,7 @@ export default function EditProfileScreen({ route, navigation }) {
       });
 
       // Merge structured education fields into occupation_details for non-student occupations
-      // (Students already store degree/year via occupationDetails â€” no double-write needed)
+      // (Students already store degree/year via occupationDetails — no double-write needed)
       if (selectedOccupation !== 'student') {
         if (educationDegree.trim()) cleanDetails.edu_degree = educationDegree.trim();
         else delete cleanDetails.edu_degree;

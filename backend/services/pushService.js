@@ -13,6 +13,24 @@ const { shouldSuppressCreatorSocial } = require("./notificationService");
 const expo = new Expo();
 
 /**
+ * Sanitize notification text to fix any legacy mojibake or corrupted UTF-8 sequences.
+ */
+function cleanNotificationText(str) {
+  if (!str || typeof str !== "string") return str || "";
+  return str
+    .replace(/â\s*¤\s*ï¸\s*|\u00e2\u00a4\u00ef\u00b8\u008f|â\u009d\u00a4\u00ef\u00b8\u008f/g, "❤️")
+    .replace(/ðŸ“Œ|\u00f0\u009f\u0093\u008c/g, "📌")
+    .replace(/ðŸ‡®ðŸ‡³/g, "🇮🇳")
+    .replace(/ðŸ”¥/g, "🔥")
+    .replace(/â€”/g, "—")
+    .replace(/â€“/g, "–")
+    .replace(/â€œ|â€\u009d/g, '"')
+    .replace(/â€˜|â€™/g, "'")
+    .replace(/[\u0000-\u0008\u000B-\u000C\u000E-\u001F\u007F-\u009F]/g, "")
+    .trim();
+}
+
+/**
  * Send push notifications to multiple users
  *
  * @param {Pool} pool - Database connection pool
@@ -153,14 +171,16 @@ const sendPushNotifications = async (pool, notifications) => {
           continue;
         }
 
-        let title = notif.title || "SnooSpace";
-        let body = notif.body || "";
+        let title = cleanNotificationText(notif.title) || "SnooSpace";
+        let body = cleanNotificationText(notif.body) || "";
 
         // If the user has 2 or more accounts registered on this device,
         // format the notification to show the recipient username as the title.
         if (deviceAccountCount >= 2 && recipientUsername) {
           title = `@${recipientUsername}`;
-          body = notif.title ? `${notif.title}: ${notif.body || ""}` : (notif.body || "");
+          const cleanTitle = cleanNotificationText(notif.title);
+          const cleanBody = cleanNotificationText(notif.body);
+          body = cleanTitle ? `${cleanTitle}: ${cleanBody}` : cleanBody;
         }
 
         messages.push({

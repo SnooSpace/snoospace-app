@@ -153,7 +153,7 @@ const createPost = async (req, res) => {
         validatedCropMetadata = cropMetadata;
       }
     } else {
-      console.log("[createPost] No cropMetadata received â€” cropMetadata value:", typeof cropMetadata, cropMetadata === null ? "null" : cropMetadata === undefined ? "undefined" : JSON.stringify(cropMetadata));
+      console.log("[createPost] No cropMetadata received — cropMetadata value:", typeof cropMetadata, cropMetadata === null ? "null" : cropMetadata === undefined ? "undefined" : JSON.stringify(cropMetadata));
     }
 
     // Generate video thumbnails and LQIP using Cloudinary transformation (with crop applied)
@@ -541,7 +541,7 @@ const createPost = async (req, res) => {
               pool,
               entity.id,
               entity.type,
-              "You were tagged ðŸ“Œ",
+              "You were tagged 📌",
               `${actorName || "Someone"} tagged you in a post`,
               {
                 type: "tag",
@@ -1807,7 +1807,7 @@ const likePost = async (req, res) => {
           pool,
           postAuthor.author_id,
           postAuthor.author_type,
-          "Someone liked your post â¤ï¸",
+          "Someone liked your post ❤️",
           `${actorName || "Someone"} liked your post`,
           {
             type: "like",
@@ -1820,7 +1820,7 @@ const likePost = async (req, res) => {
       console.error("Failed to create like notification", e);
     }
 
-    // Emit behavioral signal â€” fire-and-forget, non-blocking
+    // Emit behavioral signal — fire-and-forget, non-blocking
     // Only track likes on other users' posts, not self-likes
     if (postCheck.rows.length > 0) {
       getCategoryForPost(pool, postId).then((category) =>
@@ -2747,7 +2747,7 @@ const updatePost = async (req, res) => {
         }
         if (updates.expires_at !== undefined) {
           if (updates.expires_at === null) {
-            // Clearing the deadline â€” also reset show_proofs_immediately to true
+            // Clearing the deadline — also reset show_proofs_immediately to true
             allowedUpdates.expires_at = null;
             updatedTypeData.show_proofs_immediately = true;
           } else {
@@ -3185,7 +3185,7 @@ const createPromoPost = async (req, res) => {
 
     const source_type = post_type === 'event_promo' ? 'event' : 'plan';
 
-    // â”€â”€ Quota check â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Quota check ───────────────────────────────────────────────────────────
     const weekStart   = getWeekStart();
     const maxPromotes = source_type === 'event' ? 5 : 3;
 
@@ -3206,7 +3206,7 @@ const createPromoPost = async (req, res) => {
       });
     }
 
-    // â”€â”€ Build type_data matching the real controller patterns â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Build type_data matching the real controller patterns ─────────────────
     const ed = engagement_data || {};
     let typeData = {};
 
@@ -3228,7 +3228,7 @@ const createPromoPost = async (req, res) => {
         allow_multiple:           Boolean(ed.allow_multiple),
         show_results_before_vote: Boolean(ed.show_results_before_vote),
         total_votes:              0,
-        // Promo context â€” read by PromoSourceBanner on the frontend
+        // Promo context — read by PromoSourceBanner on the frontend
         promo_source_type:  source_type,
         promo_source_id:    String(source_id),
         promo_text:         promo_text || null,
@@ -3272,7 +3272,7 @@ const createPromoPost = async (req, res) => {
       };
     }
 
-    // â”€â”€ Single INSERT â€” all data in type_data, no sub-tables â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Single INSERT â€” all data in type_data, no sub-tables ─────────────────
     const postResult = await pool.query(
       `INSERT INTO posts (author_id, author_type, post_type, caption, image_urls, type_data, status)
        VALUES ($1, $2, $3, $4, '[]'::jsonb, $5, 'active')
@@ -3283,7 +3283,7 @@ const createPromoPost = async (req, res) => {
 
     console.log(`[createPromoPost] Created ${engagement_type} promo post ${promoPost.id} for ${source_type}:${source_id}`);
 
-    // â”€â”€ Increment quota â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Increment quota ───────────────────────────────────────────────────────
     await pool.query(
       `UPDATE promote_quotas
        SET promotes_used = promotes_used + 1, updated_at = NOW()
@@ -3291,7 +3291,7 @@ const createPromoPost = async (req, res) => {
       [userId, userType, source_type, weekStart],
     );
 
-    // â”€â”€ Emit feed signal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Emit feed signal ──────────────────────────────────────────────────────
     try {
       await emitSignal(pool, { authorId: userId, authorType: userType, postId: promoPost.id });
     } catch (_) {}

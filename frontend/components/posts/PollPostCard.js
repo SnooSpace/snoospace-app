@@ -481,7 +481,7 @@ const PollPostCard = React.memo(({
       if (onSave) onSave(post.id, newSaveState);
     } catch (error) {
       console.error("Failed to save/unsave post:", error);
-      // If server says "already saved", our local state was wrong â€” correct it
+      // If server says "already saved", our local state was wrong — correct it
       if (error?.message?.toLowerCase().includes("already saved")) {
         setIsSaved(true);
         setSaveCount(prevSaveCount);
@@ -814,7 +814,7 @@ const PollPostCard = React.memo(({
         {/* GestureDetector wraps card body only — keeps engagement row fully interactive */}
         <GestureDetector gesture={cardBodyGesture}>
           <View>
-        {/* â”€â”€ PROMO: unified author+promo header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {/* ── PROMO: unified author+promo header ───────────────────────── */}
         {isPromoPost && (
           <View style={styles.promoAuthorRow}>
             <TouchableOpacity style={styles.promoAuthorLeft} onPress={handleUserPress} activeOpacity={0.7}>
@@ -886,7 +886,7 @@ const PollPostCard = React.memo(({
           </View>
         )}
 
-        {/* â”€â”€ NON-PROMO: original Poll badge + menu header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {/* ── NON-PROMO: original Poll badge + menu header ─────────────── */}
         {!isPromoPost && (
         <View style={styles.headerRow}>
           <View style={styles.pollBadge}>
@@ -1013,7 +1013,7 @@ const PollPostCard = React.memo(({
           </Modal>
         )}
 
-        {/* Author Info â€” only in non-promo layout */}
+        {/* Author Info — only in non-promo layout */}
         {!isPromoPost && (
         <View style={styles.authorHeaderRow}>
           <TouchableOpacity style={styles.authorRow} onPress={handleUserPress} disabled={isAnon}>
@@ -1143,7 +1143,7 @@ const PollPostCard = React.memo(({
         </View>
 
         {/* Engagement Row */}
-        {/* Plan / Event preview â€” promo only, BEFORE engagement */}
+        {/* Plan / Event preview — promo only, BEFORE engagement */}
         {isPromoPost && (
           <PlanPreviewCard typeData={typeData} onPress={promoNavHandler} />
         )}
@@ -1303,7 +1303,7 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.m,
   },
 
-  // â”€â”€ Promo unified layout styles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Promo unified layout styles ──────────────────────────────────────────
   promoAuthorRow: {
     flexDirection:  'row',
     alignItems:     'flex-start',
@@ -1356,7 +1356,7 @@ const styles = StyleSheet.create({
     lineHeight:   21,
     marginBottom: 4,
   },
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─────────────────────────────────────────────────────────────────────────
 
   rightHeaderContent: {
     flexDirection: "row",

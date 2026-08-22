@@ -239,7 +239,14 @@ async function deliverReviewPrompts(pool) {
 
       try {
         const pushService = getPushService();
-        await pushService.sendPushNotification(pushToken, title, body, deepLinkData);
+        await pushService.sendPushNotification(
+          pool,
+          prompt.user_id,
+          "member",
+          title,
+          body,
+          deepLinkData
+        );
 
         await pool.query(`
           UPDATE review_prompts_queue SET status = 'sent', sent_at = NOW() WHERE id = $1

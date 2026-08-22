@@ -2080,7 +2080,7 @@ const CreateEventModal = ({
       statusBarTranslucent={true}
     >
       <SafeAreaView style={styles.container}>
-        {/* ðŸ”¥ Custom Header with Progress Bar */}
+        {/* 🔥 Custom Header with Progress Bar */}
         <View style={styles.headerContainer}>
           <View style={styles.headerTopRow}>
             <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
