@@ -58,6 +58,8 @@ import {
   deletePlanDraft,
   formatLastSaved,
 } from "../../utils/planDraftStorage";
+import CommunityPickerSheet from "../../components/plans/CommunityPickerSheet";
+import { getActiveAccount } from "../../api/auth";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const CONTAINER_WIDTH = SCREEN_WIDTH - 40;
@@ -166,6 +168,18 @@ export default function HostPlanBottomSheet({
   const [existingDraft, setExistingDraft] = useState(null);
   const [showVisibilityInfo, setShowVisibilityInfo] = useState(false);
 
+  // ── Community targeting (multi-select, for community_members visibility) ──
+  const [targetCommunityIds, setTargetCommunityIds] = useState([]);
+  const [communityPickerVisible, setCommunityPickerVisible] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState(null);
+
+  // Load current user ID once on mount (needed for community picker fetch)
+  useEffect(() => {
+    getActiveAccount().then(account => {
+      if (account?.id) setCurrentUserId(account.id);
+    }).catch(() => {});
+  }, []);
+
   useEffect(() => {
     const showSub = Keyboard.addListener(
       Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
@@ -218,6 +232,7 @@ export default function HostPlanBottomSheet({
     setBannerBase64(null);
     setExistingDraft(null);
     setShowVisibilityInfo(false);
+    setTargetCommunityIds([]);
   };
 
   const hasUnsavedChanges = useMemo(() => {
@@ -387,6 +402,7 @@ export default function HostPlanBottomSheet({
           : null,
         visibility,
         gender_preference: genderPref,
+        target_community_ids: targetCommunityIds,
         location_public: locationPublic.trim() || null,
         location_private: selectedVenue
           ? JSON.stringify({
@@ -701,6 +717,25 @@ export default function HostPlanBottomSheet({
               </Text>
             </TouchableOpacity>
           </View>
+
+          {/* Community targeting sub-picker (only shown when community_members selected) */}
+          {visibility === "community_members" && (
+            <TouchableOpacity
+              style={styles.communityTargetRow}
+              onPress={() => setCommunityPickerVisible(true)}
+              activeOpacity={0.75}
+            >
+              <Users size={15} color={COLORS.primary} strokeWidth={1.8} />
+              <Text style={styles.communityTargetLabel}>
+                {targetCommunityIds.length === 0
+                  ? "Any shared community (tap to restrict)"
+                  : `${targetCommunityIds.length} communit${
+                      targetCommunityIds.length === 1 ? "y" : "ies"
+                    } selected`}
+              </Text>
+              <ChevronDown size={14} color={COLORS.textSecondary} strokeWidth={2} />
+            </TouchableOpacity>
+          )}
 
           {/* Gender */}
           <Text style={styles.fieldLabel}>Gender preference</Text>
@@ -1071,6 +1106,15 @@ export default function HostPlanBottomSheet({
         }}
         onClose={() => setShowResumeDraftModal(false)}
       />
+
+      {/* Community multi-select picker sheet */}
+      <CommunityPickerSheet
+        isVisible={communityPickerVisible}
+        onClose={() => setCommunityPickerVisible(false)}
+        selectedIds={targetCommunityIds}
+        onSelectionChange={setTargetCommunityIds}
+        currentUserId={currentUserId}
+      />
     </>
   );
 }
@@ -1408,5 +1452,24 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.semiBold,
     fontSize: 11,
     color: '#FFFFFF',
+  },
+  communityTargetRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 8,
+    marginBottom: 2,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: COLORS.surface || "#F7F7FA",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border || "#E0E0E0",
+  },
+  communityTargetLabel: {
+    flex: 1,
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+    color: COLORS.primary,
   },
 });

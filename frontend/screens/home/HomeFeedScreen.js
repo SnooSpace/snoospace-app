@@ -72,7 +72,6 @@ import { viewQueueService } from "../../services/ViewQueueService";
 import { COLORS } from "../../constants/theme";
 import EmptyFeedState from "../../components/skeletons/EmptyFeedState";
 import SnooLoader from "../../components/ui/SnooLoader";
-import { viewQueueService } from "../../services/ViewQueueService";
 import { LinearGradient } from "expo-linear-gradient";
 import { Image as ExpoImage } from "expo-image";
 import { getOptimizedImageUrl } from "../../utils/imageUtils";
@@ -341,6 +340,15 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   const [opportunities, setOpportunities] = useState([]);
   const [discoveryPosts, setDiscoveryPosts] = useState([]);
   const [discoveryOpportunities, setDiscoveryOpportunities] = useState([]);
+  // Guaranteed targeted promo delivery: plan-linked promo posts where viewer is in the
+  // audience of at least one specifically-targeted community (OPVC rows exist).
+  // Broad/everyone promo posts continue through normal getFeed/getDiscoveryPosts paths.
+  const [targetedPromoPosts, setTargetedPromoPosts] = useState([]);
+  // NOTE: no session-cap ref needed here. The "1 per session" guarantee is structural:
+  // loadTargetedPromo fetches exactly one post and is only called on cold-start,
+  // account-switch, or pull-to-refresh — never on pagination. feedItems injects
+  // targetedPromoPosts[0] at position 2 on every recompute (including after page 2
+  // arrives) so the post remains stable across the full scroll session.
 
   const postsRef = useRef(posts);
   const opportunitiesRef = useRef(opportunities);
@@ -678,10 +686,12 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     },
   });
 
-  // Load events for discovery
+  // Load events for discovery.
+  // Limit raised to 30: larger pool needed for the zero-follow cold-start feed path
+  // which has no followed posts to serve as a positional spine.
   const loadEvents = async () => {
     try {
-      const response = await discoverEvents({ limit: 5 });
+      const response = await discoverEvents({ limit: 30 });
       if (response?.events) {
         setEvents(response.events);
       }
@@ -760,11 +770,12 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   };
 
   // Load discovery posts: scored non-followed editorial posts for feed injection.
+  // Request limit=30 (backend default was 10, now parameterized up to 30).
   // Non-fatal — an error silently returns an empty pool (same pattern as loadEvents).
   const loadDiscoveryPosts = async () => {
     try {
       const token = await getAuthToken();
-      const response = await apiGet('/posts/discovery', 10000, token);
+      const response = await apiGet('/posts/discovery?limit=30', 10000, token);
       if (response?.posts && Array.isArray(response.posts)) {
         setDiscoveryPosts(response.posts);
       }
@@ -774,15 +785,32 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   };
 
   // Load discovery opportunities: scored non-followed community opps for feed injection.
+  // Request limit=30 (backend ceiling raised from 20→30 to match zero-follow pool needs).
   // Non-fatal — an error silently returns an empty pool (same pattern as loadDiscoveryPosts).
   const loadDiscoveryOpportunities = async () => {
     try {
-      const response = await getDiscoveryOpportunities(10);
+      const response = await getDiscoveryOpportunities(30);
       if (response?.opportunities && Array.isArray(response.opportunities)) {
         setDiscoveryOpportunities(response.opportunities);
       }
     } catch (error) {
       console.warn('[HomeFeed] Error loading discovery opportunities:', error?.message);
+    }
+  };
+
+  // Load targeted promo posts: plan-linked promo posts where the viewer is explicitly
+  // in the audience of a targeted community (OPVC rows exist). Not scored/capped —
+  // guaranteed delivery only for deliberately scoped plans.
+  const loadTargetedPromo = async () => {
+    try {
+      const token = await getAuthToken();
+      const response = await apiGet('/posts/promo-targeted', 8000, token);
+      if (response?.posts && Array.isArray(response.posts)) {
+        // Backend already returns DESC order; take the first (most recent) as the candidate.
+        setTargetedPromoPosts(response.posts.slice(0, 1));
+      }
+    } catch (error) {
+      console.warn('[HomeFeed] Error loading targeted promo posts:', error?.message);
     }
   };
 
@@ -797,15 +825,18 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   );
 
   const feedItems = useMemo(() => {
-    if (
-      posts.length === 0 &&
-      events.length === 0 &&
-      opportunities.length === 0
-    ) {
-      // Return empty — ListEmptyComponent handles both the loading skeleton
-      // and the empty-state view, so we never need to swap data/key here.
-      return [];
-    }
+    // ── Guard: no content at all ────────────────────────────────────────────────
+    // Include ALL candidate pools in the empty-check so zero-follow users whose
+    // followed posts array is empty but who have discovery candidates don't get
+    // an empty feed. ListEmptyComponent handles loading/empty-state display.
+    const hasAnyContent =
+      posts.length > 0 ||
+      events.length > 0 ||
+      opportunities.length > 0 ||
+      discoveryPosts.length > 0 ||
+      discoveryOpportunities.length > 0 ||
+      targetedPromoPosts.length > 0;
+    if (!hasAnyContent) return [];
 
     const merged = [];
     let eventIndex = 0;
@@ -814,41 +845,74 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     const FIRST_EVENT_AT = 2;
     const SUBSEQUENT_INTERVAL = 5;
     const OPPORTUNITY_INTERVAL = 3;
-    // Phase 2e pacing: at most 2 retroactive (pre-follow) posts per author per session.
-    // Resets on every full feed load (useMemo recomputes when `posts` reference changes).
+
+    // ── Window size matches getFeed page limit (limit=20 — confirmed in loadFeed URL) ──
+    // Used to re-arm quantity caps per scroll window so long sessions still get
+    // discovery/backlog content after the initial cap is exhausted.
+    const WINDOW_SIZE = 20;
+
+    // ── Backlog pacing: at most BACKLOG_CAP per author per WINDOW. ─────────────
+    // Quantity cap is per-window (resets every WINDOW_SIZE posts).
+    // Author diversity (backlogAuthorCount) is session-wide — does NOT reset per
+    // window — to prevent the same author reappearing in every window.
     const BACKLOG_CAP = 2;
-    const backlogAuthorCount = {};
-    // Discovery injection: at most 3 per session, 1 per every 5 followed-post positions.
-    // Mirrors the backlog-cap pattern: session-scoped counter, reset on each fresh load.
+    const backlogAuthorCount = {};    // session-wide: author → total shown this session
+    const backlogWindowCount = {};    // per-window: author → shown in current window
+
+    // ── Discovery posts: 3 per window, 1 per 5 posts, session-wide author diversity ──
+    // DISCOVERY_CAP applies per window (re-arms at each WINDOW_SIZE boundary).
+    // discoveryAuthorCount is session-wide — prevents same author across all windows.
     const DISCOVERY_CAP = 3;
     const DISCOVERY_INTERVAL = 5;
-    let discoveryShown = 0;
-    // Per-author diversity cap: at most 1 discovery post per author per session.
-    // Mirrors backlogAuthorCount pattern. Declared alongside DISCOVERY_CAP for colocation.
-    const discoveryAuthorCount = {};
+    let discoveryShownThisWindow = 0;    // resets at each window boundary
+    let lastDiscoveryWindow = 0;          // tracks which window we're currently in
+    const discoveryAuthorCount = {};      // session-wide author diversity
 
-    // ── Discovery Opportunities: separate constants for independent tuning ────
-    // DISCOVERY_OPP_INTERVAL/CAP are kept distinct from Posts' DISCOVERY_INTERVAL/CAP
-    // so they can be tuned independently without affecting post discovery pacing.
-    const DISCOVERY_OPP_INTERVAL = 5;  // inject 1 discovery opp per N followed-post positions
-    const DISCOVERY_OPP_CAP = 3;       // max discovery opps per session
-    let discoveryOppShown = 0;
+    // ── Discovery Opportunities: 3 per window, same windowing semantics as Discovery Posts ──
+    const DISCOVERY_OPP_INTERVAL = 5;
+    const DISCOVERY_OPP_CAP = 3;
+    let discoveryOppShownThisWindow = 0;  // resets at each window boundary
+    let lastDiscoveryOppWindow = 0;       // tracks which window we're currently in
     let discoveryOppIndex = 0;
-    const discoveryOppAuthorCount = {};  // 1 per author per session (diversity cap)
+    const discoveryOppAuthorCount = {};   // session-wide author diversity
 
     if (posts.length > 0) {
       posts.forEach((post, index) => {
-        // Skip excess backlog posts from the same author
+        const postNumber = index + 1;
+
+        // ── Window index: 0-based, advances every WINDOW_SIZE followed posts ──
+        const currentWindow = Math.floor((postNumber - 1) / WINDOW_SIZE);
+
+        // ── Backlog: quantity cap is per-window, diversity is session-wide ─────
+        // If we've entered a new window, reset the per-window author counter.
         if (post.is_backlog_post) {
           const authorKey = `${post.author_type}-${post.author_id}`;
-          const seen = backlogAuthorCount[authorKey] || 0;
-          if (seen >= BACKLOG_CAP) return;
-          backlogAuthorCount[authorKey] = seen + 1;
+          // Derive per-window key so each window gets a fresh quota per author.
+          const windowKey = `${authorKey}__w${currentWindow}`;
+          const seenThisWindow = backlogWindowCount[windowKey] || 0;
+          if (seenThisWindow >= BACKLOG_CAP) return;
+          // Also guard: if this author already appeared this session (any window),
+          // still allow up to BACKLOG_CAP in the new window (diversity is author-level,
+          // not window-level) — backlogAuthorCount is informational only here, not a gate.
+          backlogWindowCount[windowKey] = seenThisWindow + 1;
+          backlogAuthorCount[authorKey] = (backlogAuthorCount[authorKey] || 0) + 1;
         }
 
         merged.push({ ...post, itemType: 'post' });
 
-        const postNumber = index + 1;
+        // ── Targeted promo: pin at position 2, structural guarantee ────────────
+        // Injected whenever targetedPromoPosts[0] is present and postNumber === 2.
+        // No side-effecting ref — the "1 per session" guarantee is structural:
+        // loadTargetedPromo fetches exactly one post and is only triggered on
+        // cold-start / account-switch / pull-to-refresh, never on pagination.
+        // Re-including it on every useMemo recompute keeps it stable after page 2 loads.
+        if (postNumber === 2 && targetedPromoPosts.length > 0) {
+          merged.push({
+            ...targetedPromoPosts[0],
+            itemType: 'post',
+            is_targeted_promo: true,
+          });
+        }
 
         // Insert Event
         const shouldInsertEvent =
@@ -874,60 +938,70 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           opportunityIndex++;
         }
 
-        // Insert Discovery post: 1 per every DISCOVERY_INTERVAL followed-post positions,
-        // capped at DISCOVERY_CAP total per session, with at most 1 per author.
-        // The scan-forward while loop advances discoveryIndex past any blocked-author
-        // candidates so future slots can still inject different authors.
-        // Without this advance, discoveryIndex would stall at the blocked candidate
-        // forever, silently stopping all discovery injection for the rest of the session.
-        if (postNumber % DISCOVERY_INTERVAL === 0 && discoveryShown < DISCOVERY_CAP) {
-          // Scan past any candidates from an already-shown author
-          while (
-            discoveryIndex < discoveryPosts.length &&
-            (discoveryAuthorCount[
-              `${discoveryPosts[discoveryIndex].author_type}-${discoveryPosts[discoveryIndex].author_id}`
-            ] || 0) >= 1
-          ) {
-            discoveryIndex++;
+        // ── Discovery posts: per-window quota, session-wide author diversity ──────
+        // Re-arms every WINDOW_SIZE posts so long sessions keep getting fresh content.
+        // discoveryAuthorCount is session-wide: prevents same author in any window.
+        if (postNumber % DISCOVERY_INTERVAL === 0) {
+          // Re-arm: if we've entered a new window, reset the per-window shown counter.
+          if (currentWindow > lastDiscoveryWindow) {
+            discoveryShownThisWindow = 0;
+            lastDiscoveryWindow = currentWindow;
           }
-          // Inject next valid candidate (first author not yet shown)
-          if (discoveryIndex < discoveryPosts.length) {
-            const dp = discoveryPosts[discoveryIndex];
-            const dpAuthorKey = `${dp.author_type}-${dp.author_id}`;
-            merged.push({
-              ...dp,
-              itemType: 'post',          // renders via EditorialPostCard — no new branch needed
-              is_discovery_post: true,   // signals Follow button prominence + future UI hints
-            });
-            discoveryAuthorCount[dpAuthorKey] = (discoveryAuthorCount[dpAuthorKey] || 0) + 1;
-            discoveryIndex++;
-            discoveryShown++;
+          if (discoveryShownThisWindow < DISCOVERY_CAP) {
+            // Scan past candidates from an already-shown author (session-wide diversity)
+            while (
+              discoveryIndex < discoveryPosts.length &&
+              (discoveryAuthorCount[
+                `${discoveryPosts[discoveryIndex].author_type}-${discoveryPosts[discoveryIndex].author_id}`
+              ] || 0) >= 1
+            ) {
+              discoveryIndex++;
+            }
+            // Inject next valid candidate (first author not yet shown this session)
+            if (discoveryIndex < discoveryPosts.length) {
+              const dp = discoveryPosts[discoveryIndex];
+              const dpAuthorKey = `${dp.author_type}-${dp.author_id}`;
+              merged.push({
+                ...dp,
+                itemType: 'post',
+                is_discovery_post: true,
+              });
+              discoveryAuthorCount[dpAuthorKey] = (discoveryAuthorCount[dpAuthorKey] || 0) + 1;
+              discoveryIndex++;
+              discoveryShownThisWindow++;
+            }
           }
         }
 
-        // Insert Discovery Opportunity: 1 per DISCOVERY_OPP_INTERVAL positions,
-        // capped at DISCOVERY_OPP_CAP, with at most 1 per author (diversity cap).
-        // Scan-forward while loop prevents author-stall (same guard as discovery posts).
-        if (postNumber % DISCOVERY_OPP_INTERVAL === 0 && discoveryOppShown < DISCOVERY_OPP_CAP) {
-          while (
-            discoveryOppIndex < discoveryOpportunities.length &&
-            (discoveryOppAuthorCount[
-              `${discoveryOpportunities[discoveryOppIndex].creator_type}-${discoveryOpportunities[discoveryOppIndex].creator_id}`
-            ] || 0) >= 1
-          ) {
-            discoveryOppIndex++;
+        // ── Discovery Opportunities: per-window quota, session-wide author diversity ──
+        // Same windowing semantics as Discovery Posts above.
+        if (postNumber % DISCOVERY_OPP_INTERVAL === 0) {
+          // Re-arm: reset per-window counter when crossing a window boundary.
+          if (currentWindow > lastDiscoveryOppWindow) {
+            discoveryOppShownThisWindow = 0;
+            lastDiscoveryOppWindow = currentWindow;
           }
-          if (discoveryOppIndex < discoveryOpportunities.length) {
-            const dopp = discoveryOpportunities[discoveryOppIndex];
-            const doppAuthorKey = `${dopp.creator_type}-${dopp.creator_id}`;
-            merged.push({
-              ...dopp,
-              itemType: 'opportunity',
-              is_discovery_opportunity: true,  // signals follow prominence
-            });
-            discoveryOppAuthorCount[doppAuthorKey] = (discoveryOppAuthorCount[doppAuthorKey] || 0) + 1;
-            discoveryOppIndex++;
-            discoveryOppShown++;
+          if (discoveryOppShownThisWindow < DISCOVERY_OPP_CAP) {
+            while (
+              discoveryOppIndex < discoveryOpportunities.length &&
+              (discoveryOppAuthorCount[
+                `${discoveryOpportunities[discoveryOppIndex].creator_type}-${discoveryOpportunities[discoveryOppIndex].creator_id}`
+              ] || 0) >= 1
+            ) {
+              discoveryOppIndex++;
+            }
+            if (discoveryOppIndex < discoveryOpportunities.length) {
+              const dopp = discoveryOpportunities[discoveryOppIndex];
+              const doppAuthorKey = `${dopp.creator_type}-${dopp.creator_id}`;
+              merged.push({
+                ...dopp,
+                itemType: 'opportunity',
+                is_discovery_opportunity: true,
+              });
+              discoveryOppAuthorCount[doppAuthorKey] = (discoveryOppAuthorCount[doppAuthorKey] || 0) + 1;
+              discoveryOppIndex++;
+              discoveryOppShownThisWindow++;
+            }
           }
         }
       });
@@ -947,17 +1021,142 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         opportunityIndex++;
       }
     } else {
-      // If no posts, just show events then opportunities
-      events.forEach((event) => {
-        merged.push({ ...event, itemType: 'event' });
-      });
-      opportunities.forEach((opp) => {
-        merged.push({ ...opp, itemType: 'opportunity' });
-      });
+      // ── Zero-follow cold-start merge path ───────────────────────────────────
+      // posts.length === 0: user follows nobody. Build a mixed-type discovery feed
+      // by normalizing each type's native score to [0,1] per-type, then sorting
+      // together with a no-3-consecutive-same-type constraint, promo pinned at
+      // position 2, author diversity capped at 2 per author session-wide.
+
+      // ── Step 1: Min-max normalize scores within each type's own batch ────────
+      const minMaxNorm = (items, scoreField) => {
+        const scores = items.map(i => parseFloat(i[scoreField]) || 0);
+        const min = Math.min(...scores);
+        const max = Math.max(...scores);
+        const range = max - min || 1; // avoid /0 when all scores equal
+        return items.map((item, idx) => ({
+          ...item,
+          _normalizedScore: (scores[idx] - min) / range,
+        }));
+      };
+
+      // discovery_score: posts (0–10), opportunities (0–5)
+      // score: events (can include negative recency penalty; follow_bonus=0 here)
+      const normPosts = minMaxNorm(
+        discoveryPosts.map(p => ({ ...p, itemType: 'post', is_discovery_post: true })),
+        'discovery_score'
+      );
+      const normEvents = minMaxNorm(
+        events.map(e => ({ ...e, itemType: 'event' })),
+        'score'
+      );
+      const normDiscoveryOpps = minMaxNorm(
+        discoveryOpportunities.map(o => ({ ...o, itemType: 'opportunity', is_discovery_opportunity: true })),
+        'discovery_score'
+      );
+
+      // ── Step 2: Author diversity cap (max 2 per author, session-wide) ────────
+      const ZF_AUTHOR_CAP = 2;
+      const zfAuthorCount = {};
+      const applyDiversity = (items, authorKeyFn) => {
+        const out = [];
+        for (const item of items) {
+          const key = authorKeyFn(item);
+          const count = zfAuthorCount[key] || 0;
+          if (count < ZF_AUTHOR_CAP) {
+            zfAuthorCount[key] = count + 1;
+            out.push(item);
+          }
+        }
+        return out;
+      };
+
+      const filteredPosts = applyDiversity(
+        normPosts,
+        p => `${p.author_type}-${p.author_id}`
+      );
+      const filteredEvents = applyDiversity(
+        normEvents,
+        e => `community-${e.community_id}`
+      );
+      const filteredDiscoveryOpps = applyDiversity(
+        normDiscoveryOpps,
+        o => `${o.creator_type}-${o.creator_id}`
+      );
+
+      // ── Step 3: Pool & sort descending by normalized score ────────────────────
+      const pool = [
+        ...filteredPosts,
+        ...filteredEvents,
+        ...filteredDiscoveryOpps,
+      ].sort((a, b) => b._normalizedScore - a._normalizedScore);
+
+      // ── Step 4: Pin targeted promo at position 2 (index 1) before constraint walk ──
+      // The promo is treated as its own type ('promo') in the constraint algorithm
+      // so it naturally breaks any post→post run rather than extending it.
+      const promoPost = targetedPromoPosts[0];
+      let preConstrained = pool;
+      if (promoPost) {
+        // Remove promo if it ended up in the scored pool (it shouldn't — it has no
+        // discovery_score — but guard anyway), then insert at index 1.
+        const withoutPromo = preConstrained.filter(item => item.id !== promoPost.id);
+        const promoItem = {
+          ...promoPost,
+          itemType: 'post',
+          is_targeted_promo: true,
+          _normalizedScore: Infinity, // keeps promo from being displaced by constraint swap
+        };
+        preConstrained = [
+          ...withoutPromo.slice(0, 1),
+          promoItem,
+          ...withoutPromo.slice(1),
+        ];
+      }
+
+      // ── Step 5: Apply no-more-than-2-consecutive-same-type constraint ─────────
+      // Walk sorted pool. Promo items are treated as type 'promo' (never 'post')
+      // so they always break a post→post run rather than extending it.
+      // Falls back to the original order when no swap candidate exists (infinite-loop safe).
+      const typeKey = (item) => item.is_targeted_promo ? 'promo' : item.itemType;
+      const constrained = [];
+      const remaining = [...preConstrained];
+      while (remaining.length > 0) {
+        const n = constrained.length;
+        const next = remaining[0];
+        const isSameType =
+          n >= 2 &&
+          typeKey(constrained[n - 1]) === typeKey(next) &&
+          typeKey(constrained[n - 2]) === typeKey(next);
+
+        if (!isSameType) {
+          constrained.push(remaining.shift());
+        } else {
+          // Find first item of a different type to swap forward
+          const swapIdx = remaining.findIndex(r => typeKey(r) !== typeKey(next));
+          if (swapIdx === -1) {
+            // No swap candidate — accept as-is to avoid infinite loop
+            constrained.push(remaining.shift());
+          } else {
+            constrained.push(...remaining.splice(swapIdx, 1));
+          }
+        }
+      }
+
+      // ── Step 6: Apply windowedShuffle to constrained list ────────────────────
+      // Same shuffle used by the followed-feed for freshness variation.
+      // The promo item's _normalizedScore=Infinity keeps it anchored during shuffle
+      // (windowedShuffle sorts within windows — Infinity stays at the top of its window).
+      const shuffled = constrained.length > 1 ? windowedShuffle(constrained) : constrained;
+      const finalZeroFollow = shuffled;
+
+      // ── Step 7: Strip internal scoring field and push to merged ──────────────
+      for (const item of finalZeroFollow) {
+        const { _normalizedScore, ...cleanItem } = item;
+        merged.push(cleanItem);
+      }
     }
 
     return merged;
-  }, [posts, events, opportunities, discoveryPosts, discoveryOpportunities]);
+  }, [posts, events, opportunities, discoveryPosts, discoveryOpportunities, targetedPromoPosts]);
 
   // Trickle pacing stamp: when feedItems updates and includes discovery posts/opportunities,
   // record each one as 'served' so the backend can track first_discovered_at.
@@ -1025,6 +1224,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           loadOpportunities(),
           loadDiscoveryPosts(),
           loadDiscoveryOpportunities(),
+          loadTargetedPromo(),
           loadGreetingName(),
           loadMessageUnreadCount(),
         ]);
@@ -1160,6 +1360,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           loadEvents(),
           loadOpportunities(),
           loadDiscoveryPosts(),
+          loadTargetedPromo(),
           loadMessageUnreadCount(),
         ]);
         // Persist fresh snapshot for the newly active account
@@ -1538,6 +1739,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       loadEvents(),
       loadOpportunities(),
       loadDiscoveryPosts(),
+      loadTargetedPromo(),
       loadMessageUnreadCount(),
     ]);
     // Reveal first batch based on cost budget (no min-skeleton wait needed)
@@ -2222,7 +2424,29 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
             <View style={{ paddingVertical: 20, alignItems: "center" }}>
               <SnooLoader size="small" color={COLORS.primary} />
             </View>
-          ) : null
+          ) : (
+            // ── Zero-follow end-state message ────────────────────────────────
+            // Shown after the user scrolls through the entire cold-start pool.
+            // Once they follow someone and the feed reloads, posts.length > 0
+            // and this branch is never reached (normal path has hasMore + spinner).
+            posts.length === 0 &&
+            feedItems.length > 0 &&
+            revealedCount >= feedItems.length ? (
+              <View style={{ paddingVertical: 32, paddingHorizontal: 24, alignItems: "center" }}>
+                <Text
+                  style={{
+                    fontSize: 14,
+                    color: COLORS.textSecondary || '#8E8E93',
+                    textAlign: 'center',
+                    lineHeight: 20,
+                    fontFamily: 'Manrope_400Regular',
+                  }}
+                >
+                  You're all caught up — follow communities to keep your feed growing
+                </Text>
+              </View>
+            ) : null
+          )
         }
       />
       {/* </React.Profiler> */}

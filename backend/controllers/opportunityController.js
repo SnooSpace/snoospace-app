@@ -1553,7 +1553,7 @@ const getDiscoveryOpportunities = async (req, res) => {
     }
 
     const { limit = 10 } = req.query;
-    const parsedLimit = Math.min(parseInt(limit, 10) || 10, 20);
+    const parsedLimit = Math.min(parseInt(limit, 10) || 10, 30);
 
     const query = `
       -- ── Viewer's community category affinity ──────────────────────────────────

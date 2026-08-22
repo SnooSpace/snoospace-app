@@ -28,9 +28,10 @@ import {
   Venus,
   Mars,
   VenusAndMars,
+  ChevronDown,
 } from 'lucide-react-native';
 import { COLORS, FONTS, BORDER_RADIUS, SHADOWS } from '../../constants/theme';
-import { getAuthToken } from '../../api/auth';
+import { getAuthToken, getActiveAccount } from '../../api/auth';
 import { updatePlan, uploadPlanBanner, cancelPlan } from '../../api/plans';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -38,6 +39,7 @@ import PlanCropImage from './PlanCropImage';
 import { useCrop } from '../../components/media';
 import CustomDatePicker from '../../components/ui/CustomDatePicker';
 import CustomTimePicker from '../../components/ui/CustomTimePicker';
+import CommunityPickerSheet from '../../components/plans/CommunityPickerSheet';
 
 const COST_OPTS = [
   { key: 'free', label: 'Free' },
@@ -83,6 +85,18 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
   const [genderPref, setGenderPref] = useState('all');
   const [showVisibilityInfo, setShowVisibilityInfo] = useState(false);
 
+  // ── Community targeting (multi-select, for community_members visibility) ──
+  const [targetCommunityIds, setTargetCommunityIds] = useState([]);
+  const [communityPickerVisible, setCommunityPickerVisible] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState(null);
+
+  // Load current user ID once on mount (needed for community picker fetch)
+  useEffect(() => {
+    getActiveAccount().then(account => {
+      if (account?.id) setCurrentUserId(account.id);
+    }).catch(() => {});
+  }, []);
+
   // Banner state
   const [bannerUri, setBannerUri] = useState(null);       // local URI if newly picked
   const [bannerBase64, setBannerBase64] = useState(null); // base64 for upload
@@ -110,6 +124,10 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
     setCostAmount(plan.cost_amount_paise ? String(Math.round(plan.cost_amount_paise / 100)) : '');
     setVisibility(plan.visibility || 'community_members');
     setGenderPref(plan.gender_preference || 'all');
+
+    // Reset community targeting when the sheet re-opens
+    // (the plan API doesn't return the OPVC list yet; a future enhancement)
+    setTargetCommunityIds([]);
 
     // Banner pre-fill
     setExistingBannerUrl(plan.banner_image_url || null);
@@ -187,6 +205,7 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
         cost_amount_paise: ['entry_fee', 'split'].includes(costType) && costAmount.trim() ? Math.round(parseFloat(costAmount) * 100) : null,
         visibility: visibility,
         gender_preference: genderPref,
+        target_community_ids: targetCommunityIds,
       };
       const data = await updatePlan(plan.id, body, token);
       onPlanUpdated(data.plan);
@@ -544,6 +563,23 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
             </TouchableOpacity>
           </View>
 
+          {/* Community targeting sub-picker (only shown when community_members selected) */}
+          {visibility === 'community_members' && (
+            <TouchableOpacity
+              style={styles.communityTargetRow}
+              onPress={() => setCommunityPickerVisible(true)}
+              activeOpacity={0.75}
+            >
+              <Users size={15} color={COLORS.primary} strokeWidth={1.8} />
+              <Text style={styles.communityTargetLabel}>
+                {targetCommunityIds.length === 0
+                  ? 'Any shared community (tap to restrict)'
+                  : `${targetCommunityIds.length} communit${targetCommunityIds.length === 1 ? 'y' : 'ies'} selected`}
+              </Text>
+              <ChevronDown size={14} color={COLORS.textSecondary} strokeWidth={2} />
+            </TouchableOpacity>
+          )}
+
           {/* Gender */}
           <Text style={styles.fieldLabel}>Gender preference</Text>
           <View style={styles.chipRow}>
@@ -721,6 +757,15 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
           }}
         />
       )}
+
+      {/* Community multi-select picker sheet */}
+      <CommunityPickerSheet
+        isVisible={communityPickerVisible}
+        onClose={() => setCommunityPickerVisible(false)}
+        selectedIds={targetCommunityIds}
+        onSelectionChange={setTargetCommunityIds}
+        currentUserId={currentUserId}
+      />
     </>
   );
 }
@@ -1098,5 +1143,24 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.semiBold,
     fontSize: 13,
     color: COLORS.textSecondary,
+  },
+  communityTargetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+    marginBottom: 2,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: COLORS.surface || '#F7F7FA',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border || '#E0E0E0',
+  },
+  communityTargetLabel: {
+    flex: 1,
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+    color: COLORS.primary,
   },
 });

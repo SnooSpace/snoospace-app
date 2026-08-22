@@ -1132,6 +1132,8 @@ router.get("/posts/explore", authMiddleware, PostController.getExplore);
 router.get("/posts/promote-quota", authMiddleware, PostController.getPromoteQuota);
 // Discovery: scored non-followed editorial posts for home-feed injection
 router.get("/posts/discovery", authMiddleware, PostController.getDiscoveryPosts);
+// Guaranteed targeted promo delivery: plan-linked promo posts for scoped-community viewers
+router.get("/posts/promo-targeted", authMiddleware, PostController.getPromoTargeted);
 router.get("/posts/:postId", authMiddleware, PostController.getPost);
 router.get(
   "/posts/user/:userId/:userType",

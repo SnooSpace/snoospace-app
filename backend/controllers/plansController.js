@@ -85,7 +85,7 @@ async function createPlan(req, res) {
       cost_type,
       cost_amount_paise,
       visibility,
-      scoped_community_id,
+      target_community_ids, // array of community IDs for community_members scoping; [] / absent = broad
       gender_preference = 'all',
       location_public,
       location_private,
@@ -145,40 +145,68 @@ async function createPlan(req, res) {
       return res.status(400).json({ error: 'recurrence_interval must be weekly when is_recurring is true' });
     }
 
-    const result = await pool.query(
-      `INSERT INTO open_plans (
-         created_by, title, activity_type, custom_activity_label,
-         cost_type, cost_amount_paise, visibility, scoped_community_id,
-         gender_preference, location_public, location_private,
-         scheduled_at, expires_at, max_accepted, is_recurring, recurrence_interval,
-         banner_image_url
-       ) VALUES (
-         $1, $2, $3, $4,
-         $5, $6, $7, $8,
-         $9, $10, $11,
-         $12, $12::timestamptz + INTERVAL '24 hours', $13, $14, $15, $16
-       ) RETURNING *`,
-      [
-        userId,
-        title.trim(),
-        activity_type,
-        custom_activity_label || null,
-        cost_type,
-        cost_amount_paise || null,
-        visibility,
-        scoped_community_id ? parseInt(scoped_community_id, 10) : null,
-        gender_preference,
-        location_public || null,
-        location_private || null,
-        scheduled_at,
-        maxAcceptedInt,
-        !!is_recurring,
-        recurrence_interval || null,
-        banner_image_url || null,
-      ]
-    );
+    // Validate target_community_ids if provided
+    const communityIds = Array.isArray(target_community_ids)
+      ? target_community_ids.map(id => parseInt(id, 10)).filter(id => !isNaN(id))
+      : [];
 
-    res.status(201).json({ plan: result.rows[0] });
+    const client = await pool.connect();
+    let newPlan;
+    try {
+      await client.query('BEGIN');
+
+      const result = await client.query(
+        `INSERT INTO open_plans (
+           created_by, title, activity_type, custom_activity_label,
+           cost_type, cost_amount_paise, visibility,
+           gender_preference, location_public, location_private,
+           scheduled_at, expires_at, max_accepted, is_recurring, recurrence_interval,
+           banner_image_url
+         ) VALUES (
+           $1, $2, $3, $4,
+           $5, $6, $7,
+           $8, $9, $10,
+           $11, $11::timestamptz + INTERVAL '24 hours', $12, $13, $14, $15
+         ) RETURNING *`,
+        [
+          userId,
+          title.trim(),
+          activity_type,
+          custom_activity_label || null,
+          cost_type,
+          cost_amount_paise || null,
+          visibility,
+          gender_preference,
+          location_public || null,
+          location_private || null,
+          scheduled_at,
+          maxAcceptedInt,
+          !!is_recurring,
+          recurrence_interval || null,
+          banner_image_url || null,
+        ]
+      );
+      newPlan = result.rows[0];
+
+      // Insert community targeting rows (multi-community visibility)
+      if (communityIds.length > 0) {
+        const vals = communityIds.map((cid, i) => `($1, $${i + 2})`).join(', ');
+        await client.query(
+          `INSERT INTO open_plan_visible_communities (plan_id, community_id) VALUES ${vals}
+           ON CONFLICT DO NOTHING`,
+          [newPlan.id, ...communityIds]
+        );
+      }
+
+      await client.query('COMMIT');
+    } catch (txErr) {
+      await client.query('ROLLBACK');
+      throw txErr;
+    } finally {
+      client.release();
+    }
+
+    res.status(201).json({ plan: newPlan });
   } catch (err) {
     console.error('[plansController.createPlan]', err);
     res.status(500).json({ error: 'server_error' });
@@ -218,10 +246,13 @@ async function getPlans(req, res) {
         )
         -- Visibility filter
         AND (
-          op.visibility = 'everyone'
+          -- Host always sees their own plan regardless of visibility setting
+          op.created_by = $1
+          OR op.visibility = 'everyone'
           OR (
             op.visibility = 'community_members'
-            AND op.scoped_community_id IS NULL
+            -- No scoped communities → broad: viewer shares any community with host
+            AND NOT EXISTS (SELECT 1 FROM open_plan_visible_communities WHERE plan_id = op.id)
             AND EXISTS (
               SELECT 1 FROM follows f1
               JOIN follows f2
@@ -234,13 +265,22 @@ async function getPlans(req, res) {
           )
           OR (
             op.visibility = 'community_members'
-            AND op.scoped_community_id IS NOT NULL
-            AND EXISTS (
-              SELECT 1 FROM follows
-              WHERE follower_id = $2
-                AND follower_type = 'member'
-                AND following_id = op.scoped_community_id
-                AND following_type = 'community'
+            -- Has scoped communities → targeted: viewer follows/is-member-of any of them
+            AND EXISTS (SELECT 1 FROM open_plan_visible_communities WHERE plan_id = op.id)
+            AND (
+              EXISTS (
+                SELECT 1 FROM follows
+                WHERE follower_id = $2
+                  AND follower_type = 'member'
+                  AND following_id IN (SELECT community_id FROM open_plan_visible_communities WHERE plan_id = op.id)
+                  AND following_type = 'community'
+                  AND is_superseded_by_circle = false
+              )
+              OR EXISTS (
+                SELECT 1 FROM community_member_circles
+                WHERE member_id = $2
+                  AND community_id IN (SELECT community_id FROM open_plan_visible_communities WHERE plan_id = op.id)
+              )
             )
           )
         )
@@ -315,7 +355,8 @@ async function getPlanById(req, res) {
            OR visibility = 'everyone'
            OR (
              visibility = 'community_members'
-             AND scoped_community_id IS NULL
+             -- No scoped communities → broad: viewer shares any community with host
+             AND NOT EXISTS (SELECT 1 FROM open_plan_visible_communities opvc WHERE opvc.plan_id = open_plans.id)
              AND EXISTS (
                SELECT 1 FROM follows f1
                JOIN follows f2
@@ -328,13 +369,22 @@ async function getPlanById(req, res) {
            )
            OR (
              visibility = 'community_members'
-             AND scoped_community_id IS NOT NULL
-             AND EXISTS (
-               SELECT 1 FROM follows
-               WHERE follower_id = $2
-                 AND follower_type = 'member'
-                 AND following_id = open_plans.scoped_community_id
-                 AND following_type = 'community'
+             -- Has scoped communities → targeted: viewer follows/is-member-of any of them
+             AND EXISTS (SELECT 1 FROM open_plan_visible_communities opvc WHERE opvc.plan_id = open_plans.id)
+             AND (
+               EXISTS (
+                 SELECT 1 FROM follows
+                 WHERE follower_id = $2
+                   AND follower_type = 'member'
+                   AND following_id IN (SELECT community_id FROM open_plan_visible_communities WHERE plan_id = open_plans.id)
+                   AND following_type = 'community'
+                   AND is_superseded_by_circle = false
+               )
+               OR EXISTS (
+                 SELECT 1 FROM community_member_circles
+                 WHERE member_id = $2
+                   AND community_id IN (SELECT community_id FROM open_plan_visible_communities WHERE plan_id = open_plans.id)
+               )
              )
            )
          )`,
@@ -453,7 +503,6 @@ async function updatePlan(req, res) {
       const expiresAt = new Date(scheduledDate.getTime() + 24 * 60 * 60 * 1000);
       updates.push(`expires_at = $${idx++}`);
       values.push(expiresAt.toISOString());
-
     }
 
     // --- is_recurring + recurrence_interval ---
@@ -468,16 +517,67 @@ async function updatePlan(req, res) {
       values.push(interval);
     }
 
-    if (updates.length === 0) return res.status(400).json({ error: 'No valid fields to update' });
+    if (updates.length === 0 && req.body.target_community_ids === undefined) {
+      return res.status(400).json({ error: 'No valid fields to update' });
+    }
 
-    values.push(planId, userId);
-    const result = await pool.query(
-      `UPDATE open_plans SET ${updates.join(', ')} WHERE id = $${idx++} AND created_by = $${idx} RETURNING *`,
-      values
-    );
+    const client = await pool.connect();
+    let updatedPlan;
+    try {
+      await client.query('BEGIN');
 
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Plan not found or not authorized' });
-    res.json({ plan: result.rows[0] });
+      if (updates.length > 0) {
+        const updateValues = [...values, planId, userId];
+        const result = await client.query(
+          `UPDATE open_plans SET ${updates.join(', ')} WHERE id = $${idx++} AND created_by = $${idx} RETURNING *`,
+          updateValues
+        );
+        if (result.rows.length === 0) {
+          await client.query('ROLLBACK');
+          return res.status(404).json({ error: 'Plan not found or not authorized' });
+        }
+        updatedPlan = result.rows[0];
+      } else {
+        // Only targeting update — verify ownership
+        const owns = await client.query(
+          'SELECT id FROM open_plans WHERE id = $1 AND created_by = $2',
+          [planId, userId]
+        );
+        if (owns.rows.length === 0) {
+          await client.query('ROLLBACK');
+          return res.status(404).json({ error: 'Plan not found or not authorized' });
+        }
+        updatedPlan = owns.rows[0];
+      }
+
+      // --- target_community_ids: replace all targeting rows atomically ---
+      if (req.body.target_community_ids !== undefined) {
+        const communityIds = Array.isArray(req.body.target_community_ids)
+          ? req.body.target_community_ids.map(id => parseInt(id, 10)).filter(id => !isNaN(id))
+          : [];
+        await client.query(
+          'DELETE FROM open_plan_visible_communities WHERE plan_id = $1',
+          [planId]
+        );
+        if (communityIds.length > 0) {
+          const vals = communityIds.map((cid, i) => `($1, $${i + 2})`).join(', ');
+          await client.query(
+            `INSERT INTO open_plan_visible_communities (plan_id, community_id) VALUES ${vals}
+             ON CONFLICT DO NOTHING`,
+            [planId, ...communityIds]
+          );
+        }
+      }
+
+      await client.query('COMMIT');
+    } catch (txErr) {
+      await client.query('ROLLBACK');
+      throw txErr;
+    } finally {
+      client.release();
+    }
+
+    res.json({ plan: updatedPlan });
   } catch (err) {
     console.error('[plansController.updatePlan]', err);
     res.status(500).json({ error: 'server_error' });

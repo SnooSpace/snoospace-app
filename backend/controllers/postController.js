@@ -786,49 +786,74 @@ const getFeed = async (req, res) => {
         (p.author_id = $1 AND p.author_type = $2)
         
         -- Standard active follows (not superseded)
-        -- Phase 2e: only posts within the 7-day retroactive window (+ all post-follow posts)
+        -- Phase 2e: retroactive window — 15 days for editorial (media/community_voice), 7 days for interactive types
         OR EXISTS (
           SELECT 1 FROM follows f
           WHERE f.follower_id = $1 AND f.follower_type = $2
             AND f.following_id = p.author_id AND f.following_type = p.author_type
             AND f.is_superseded_by_circle = false
-            AND p.created_at >= f.created_at - INTERVAL '7 days'
+            AND p.created_at >= f.created_at - (
+              CASE WHEN p.post_type IN ('media', 'community_voice')
+                   THEN INTERVAL '15 days'
+                   ELSE INTERVAL '7 days'
+              END
+            )
         )
         
         -- Creator follows (member/community follower -> creator member)
-        -- Phase 2e: 7-day backlog window
+        -- Phase 2e: 15-day window for editorial, 7-day for interactive
         OR (p.author_type = 'member' AND EXISTS (
           SELECT 1 FROM creator_follows cf
           WHERE cf.follower_id = $1 AND cf.follower_type = $2
             AND cf.creator_id = p.author_id
             AND cf.is_dormant = false
             AND cf.is_superseded_by_circle = false
-            AND p.created_at >= cf.created_at - INTERVAL '7 days'
+            AND p.created_at >= cf.created_at - (
+              CASE WHEN p.post_type IN ('media', 'community_voice')
+                   THEN INTERVAL '15 days'
+                   ELSE INTERVAL '7 days'
+              END
+            )
         ))
         
         -- Mutual member-member circles
-        -- Phase 2e: 7-day backlog window
+        -- Phase 2e: 15-day window for editorial, 7-day for interactive
         OR ($2 = 'member' AND p.author_type = 'member' AND EXISTS (
           SELECT 1 FROM circles ci
           WHERE ((ci.user_a_id = $1 AND ci.user_b_id = p.author_id)
              OR (ci.user_b_id = $1 AND ci.user_a_id = p.author_id))
-            AND p.created_at >= ci.created_at - INTERVAL '7 days'
+            AND p.created_at >= ci.created_at - (
+              CASE WHEN p.post_type IN ('media', 'community_voice')
+                   THEN INTERVAL '15 days'
+                   ELSE INTERVAL '7 days'
+              END
+            )
         ))
         
         -- Community-Member circles (viewer is community, author is member)
-        -- Phase 2e: 7-day backlog window
+        -- Phase 2e: 15-day window for editorial, 7-day for interactive
         OR ($2 = 'community' AND p.author_type = 'member' AND EXISTS (
           SELECT 1 FROM community_member_circles cc
           WHERE cc.community_id = $1 AND cc.member_id = p.author_id
-            AND p.created_at >= cc.created_at - INTERVAL '7 days'
+            AND p.created_at >= cc.created_at - (
+              CASE WHEN p.post_type IN ('media', 'community_voice')
+                   THEN INTERVAL '15 days'
+                   ELSE INTERVAL '7 days'
+              END
+            )
         ))
         
         -- Community-Member circles (viewer is member, author is community)
-        -- Phase 2e: 7-day backlog window
+        -- Phase 2e: 15-day window for editorial, 7-day for interactive
         OR ($2 = 'member' AND p.author_type = 'community' AND EXISTS (
           SELECT 1 FROM community_member_circles cc
           WHERE cc.community_id = p.author_id AND cc.member_id = $1
-            AND p.created_at >= cc.created_at - INTERVAL '7 days'
+            AND p.created_at >= cc.created_at - (
+              CASE WHEN p.post_type IN ('media', 'community_voice')
+                   THEN INTERVAL '15 days'
+                   ELSE INTERVAL '7 days'
+              END
+            )
         ))
       )
       -- 1. Always exclude legacy plan_promo / event_promo post types (they never render correctly)
@@ -842,6 +867,71 @@ const getFeed = async (req, res) => {
           SELECT 1 FROM open_plans op
           WHERE op.id = (p.type_data->>'promo_source_id')::int
             AND op.scheduled_at < NOW() - INTERVAL '3 hours'
+        )
+      )
+      -- 3. Visibility gate for plan-linked promo posts.
+      --    If a promo post references a plan, apply the exact same 3-branch visibility
+      --    check that getPlans/getPlanById enforce — host bypass / everyone / broad / targeted.
+      --    Non-promo posts and non-plan promo posts pass this unconditionally (first OR arm).
+      AND (
+        -- Not a plan-promo post → always pass
+        NOT (
+          p.post_type IN ('poll', 'qna', 'prompt')
+          AND (p.type_data->>'promo_source_type') = 'plan'
+          AND (p.type_data->>'promo_source_id') IS NOT NULL
+        )
+        -- Is a plan-promo post → must pass plan visibility
+        OR EXISTS (
+          SELECT 1 FROM open_plans op
+          WHERE op.id = (p.type_data->>'promo_source_id')::int
+            AND (
+              -- Host bypass: viewer is the plan creator
+              op.created_by = $1
+              OR op.visibility = 'everyone'
+              OR (
+                -- Broad: community_members, no scoped rows, viewer shares a community with host
+                op.visibility = 'community_members'
+                AND NOT EXISTS (
+                  SELECT 1 FROM open_plan_visible_communities opvc
+                  WHERE opvc.plan_id = op.id
+                )
+                AND EXISTS (
+                  SELECT 1 FROM follows f1
+                  JOIN follows f2
+                    ON f1.following_id = f2.following_id
+                   AND f1.following_type = 'community'
+                   AND f2.following_type = 'community'
+                  WHERE f1.follower_id = $1 AND f1.follower_type = $2
+                    AND f2.follower_id = op.created_by AND f2.follower_type = 'member'
+                )
+              )
+              OR (
+                -- Targeted: viewer follows or is-circle-member-of any scoped community
+                op.visibility = 'community_members'
+                AND EXISTS (
+                  SELECT 1 FROM open_plan_visible_communities opvc
+                  WHERE opvc.plan_id = op.id
+                )
+                AND (
+                  EXISTS (
+                    SELECT 1 FROM follows fv
+                    WHERE fv.follower_id = $1 AND fv.follower_type = $2
+                      AND fv.following_id IN (
+                        SELECT community_id FROM open_plan_visible_communities WHERE plan_id = op.id
+                      )
+                      AND fv.following_type = 'community'
+                      AND fv.is_superseded_by_circle = false
+                  )
+                  OR EXISTS (
+                    SELECT 1 FROM community_member_circles cmc
+                    WHERE cmc.member_id = $1
+                      AND cmc.community_id IN (
+                        SELECT community_id FROM open_plan_visible_communities WHERE plan_id = op.id
+                      )
+                  )
+                )
+              )
+            )
         )
       )
       -- 3a. Exclude posts the viewer has retired via two-strike unseen rule.
@@ -3315,6 +3405,9 @@ const getDiscoveryPosts = async (req, res) => {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
+    // Default 10, frontend-requestable up to 30. Hardcoded cap prevents abuse.
+    const parsedLimit = Math.min(parseInt(req.query.limit, 10) || 10, 30);
+
     const query = `
       -- ── Signal 1: per-post_type engagement affinity for this viewer ─────────
       -- Weighted UNION across four engagement tables; SUM normalised to 0-1.
@@ -3615,6 +3708,59 @@ const getDiscoveryPosts = async (req, res) => {
         -- Exclude legacy promo types (mirrors getFeed Condition 1)
         AND p.post_type NOT IN ('plan_promo', 'event_promo')
 
+        -- Visibility gate for plan-linked promo posts (mirrors getFeed Condition 3).
+        -- Same 3-branch logic as getPlans/getPlanById; non-promo posts pass unconditionally.
+        AND (
+          NOT (
+            p.post_type IN ('poll', 'qna', 'prompt')
+            AND (p.type_data->>'promo_source_type') = 'plan'
+            AND (p.type_data->>'promo_source_id') IS NOT NULL
+          )
+          OR EXISTS (
+            SELECT 1 FROM open_plans op
+            WHERE op.id = (p.type_data->>'promo_source_id')::int
+              AND (
+                op.created_by = $1
+                OR op.visibility = 'everyone'
+                OR (
+                  op.visibility = 'community_members'
+                  AND NOT EXISTS (SELECT 1 FROM open_plan_visible_communities opvc WHERE opvc.plan_id = op.id)
+                  AND EXISTS (
+                    SELECT 1 FROM follows f1
+                    JOIN follows f2
+                      ON f1.following_id = f2.following_id
+                     AND f1.following_type = 'community'
+                     AND f2.following_type = 'community'
+                    WHERE f1.follower_id = $1 AND f1.follower_type = $2
+                      AND f2.follower_id = op.created_by AND f2.follower_type = 'member'
+                  )
+                )
+                OR (
+                  op.visibility = 'community_members'
+                  AND EXISTS (SELECT 1 FROM open_plan_visible_communities opvc WHERE opvc.plan_id = op.id)
+                  AND (
+                    EXISTS (
+                      SELECT 1 FROM follows fv
+                      WHERE fv.follower_id = $1 AND fv.follower_type = $2
+                        AND fv.following_id IN (
+                          SELECT community_id FROM open_plan_visible_communities WHERE plan_id = op.id
+                        )
+                        AND fv.following_type = 'community'
+                        AND fv.is_superseded_by_circle = false
+                    )
+                    OR EXISTS (
+                      SELECT 1 FROM community_member_circles cmc
+                      WHERE cmc.member_id = $1
+                        AND cmc.community_id IN (
+                          SELECT community_id FROM open_plan_visible_communities WHERE plan_id = op.id
+                        )
+                    )
+                  )
+                )
+              )
+          )
+        )
+
         -- Exclude own posts
         AND NOT (p.author_id = $1 AND p.author_type = $2)
 
@@ -3687,12 +3833,13 @@ const getDiscoveryPosts = async (req, res) => {
         )
 
       ORDER BY discovery_score DESC
-      LIMIT 10
+      LIMIT $5
     `;
 
     // $1/$2 = userId/userType for candidate filtering and affinity CTEs
     // $3/$4 = viewerId/viewerType for interaction state computed columns (same values)
-    const result = await pool.query(query, [userId, userType, userId, userType]);
+    // $5    = parsedLimit (default 10, max 30)
+    const result = await pool.query(query, [userId, userType, userId, userType, parsedLimit]);
 
     // Parse JSON fields — same approach as getFeed
     const posts = result.rows.map((post) => ({
@@ -3754,6 +3901,169 @@ const getDiscoveryPosts = async (req, res) => {
   }
 };
 
+/**
+ * GET /posts/promo-targeted
+ *
+ * Returns plan-linked promo posts where:
+ *   - The referenced plan has 1+ rows in open_plan_visible_communities (targeted — not broad/everyone)
+ *   - The viewer is in the audience of at least one of those targeted communities
+ *     (via follows OR community_member_circles — same query as plansController targeted branch)
+ *   - The plan has NOT started yet (plan-start + 3h buffer, same rule as getFeed Condition 2)
+ *   - The post has NOT been retired for this viewer (same 15-day window as getFeed Condition 3a)
+ *
+ * NOT scored, NOT capped, NOT subject to DISCOVERY_INTERVAL/CAP.
+ * Ordered by post created_at DESC — frontend picks the first (most recent) one.
+ * Returns at most 5 candidates so the frontend can enforce a 1-per-session cap locally.
+ *
+ * Broad (no OPVC rows) and everyone plans are explicitly EXCLUDED — those flow through
+ * normal getFeed/getDiscoveryPosts (now visibility-gated per Condition 3 above).
+ */
+const getPromoTargeted = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const query = `
+      SELECT
+        p.*,
+        CASE
+          WHEN p.author_type = 'member' THEN m.name
+          WHEN p.author_type = 'community' THEN c.name
+          WHEN p.author_type = 'sponsor' THEN s.brand_name
+          WHEN p.author_type = 'venue' THEN v.name
+        END AS author_name,
+        CASE
+          WHEN p.author_type = 'member' THEN m.username
+          WHEN p.author_type = 'community' THEN c.username
+          WHEN p.author_type = 'sponsor' THEN s.username
+          WHEN p.author_type = 'venue' THEN v.username
+        END AS author_username,
+        CASE
+          WHEN p.author_type = 'member' THEN m.profile_photo_url
+          WHEN p.author_type = 'community' THEN c.logo_url
+          WHEN p.author_type = 'sponsor' THEN s.logo_url
+          WHEN p.author_type = 'venue' THEN v.logo_url
+        END AS author_photo_url,
+        false AS is_backlog_post,
+        true  AS is_targeted_promo
+      FROM posts p
+      LEFT JOIN members     m ON p.author_type = 'member'    AND p.author_id = m.id
+      LEFT JOIN communities c ON p.author_type = 'community' AND p.author_id = c.id
+      LEFT JOIN sponsors    s ON p.author_type = 'sponsor'   AND p.author_id = s.id
+      LEFT JOIN venues      v ON p.author_type = 'venue'     AND p.author_id = v.id
+      -- Join to the referenced plan (must exist and be targeted)
+      INNER JOIN open_plans op
+        ON op.id = (p.type_data->>'promo_source_id')::int
+
+      WHERE
+        -- Only plan-linked promo posts
+        p.post_type IN ('poll', 'qna', 'prompt')
+        AND (p.type_data->>'promo_source_type') = 'plan'
+        AND (p.type_data->>'promo_source_id') IS NOT NULL
+
+        -- Targeted only: plan MUST have OPVC rows (broad/everyone excluded)
+        AND EXISTS (
+          SELECT 1 FROM open_plan_visible_communities opvc
+          WHERE opvc.plan_id = op.id
+        )
+
+        -- Viewer must be in the audience of at least one targeted community
+        AND (
+          EXISTS (
+            SELECT 1 FROM follows fv
+            WHERE fv.follower_id   = $1
+              AND fv.follower_type = $2
+              AND fv.following_id IN (
+                SELECT community_id FROM open_plan_visible_communities WHERE plan_id = op.id
+              )
+              AND fv.following_type = 'community'
+              AND fv.is_superseded_by_circle = false
+          )
+          OR EXISTS (
+            SELECT 1 FROM community_member_circles cmc
+            WHERE cmc.member_id   = $1
+              AND cmc.community_id IN (
+                SELECT community_id FROM open_plan_visible_communities WHERE plan_id = op.id
+              )
+          )
+        )
+
+        -- Plan must not have started (same +3h buffer as getFeed Condition 2)
+        AND NOT (op.scheduled_at < NOW() - INTERVAL '3 hours')
+
+        -- Not retired for this viewer (same 15-day window as getFeed Condition 3a)
+        AND NOT EXISTS (
+          SELECT 1 FROM post_impression_state pis
+          WHERE pis.user_id   = $1
+            AND pis.user_type = $2
+            AND pis.post_id   = p.id
+            AND pis.retired_at IS NOT NULL
+            AND pis.retired_at > NOW() - INTERVAL '15 days'
+        )
+
+        -- Exclude legacy promo types (belt-and-suspenders)
+        AND p.post_type NOT IN ('plan_promo', 'event_promo')
+
+      ORDER BY p.created_at DESC
+      LIMIT 5
+    `;
+
+    const result = await pool.query(query, [userId, userType]);
+
+    const posts = result.rows.map((post) => ({
+      ...post,
+      image_urls: (() => {
+        try {
+          if (!post.image_urls) return [];
+          if (Array.isArray(post.image_urls)) return post.image_urls;
+          const parsed = JSON.parse(post.image_urls);
+          return Array.isArray(parsed) ? parsed : [parsed];
+        } catch { return post.image_urls ? [post.image_urls] : []; }
+      })(),
+      tagged_entities: (() => {
+        try {
+          if (!post.tagged_entities) return null;
+          if (typeof post.tagged_entities === 'object') return post.tagged_entities;
+          return JSON.parse(post.tagged_entities);
+        } catch { return null; }
+      })(),
+      aspect_ratios: (() => {
+        try {
+          if (!post.aspect_ratios) return null;
+          if (Array.isArray(post.aspect_ratios)) return post.aspect_ratios;
+          const parsed = JSON.parse(post.aspect_ratios);
+          return Array.isArray(parsed) ? parsed : [parsed];
+        } catch { return null; }
+      })(),
+      media_types: (() => {
+        try {
+          if (!post.media_types) return null;
+          if (Array.isArray(post.media_types)) return post.media_types;
+          const parsed = JSON.parse(post.media_types);
+          return Array.isArray(parsed) ? parsed : [parsed];
+        } catch { return null; }
+      })(),
+      type_data: (() => {
+        try {
+          if (!post.type_data) return {};
+          if (typeof post.type_data === 'object') return post.type_data;
+          return JSON.parse(post.type_data);
+        } catch { return {}; }
+      })(),
+    }));
+
+    console.log(`[getPromoTargeted] userId=${userId} → ${posts.length} targeted promo candidates`);
+    return res.json({ posts });
+  } catch (error) {
+    console.error('[getPromoTargeted] Error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 module.exports = {
   createPost,
   getFeed,
@@ -3770,4 +4080,5 @@ module.exports = {
   createPromoPost,
   getPromoteQuota,
   getDiscoveryPosts,
+  getPromoTargeted,
 };
