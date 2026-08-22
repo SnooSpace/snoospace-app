@@ -29,6 +29,11 @@ import {
   Mars,
   VenusAndMars,
   ChevronDown,
+  Globe,
+  Radio,
+  SlidersHorizontal,
+  Check,
+  ChevronRight,
 } from 'lucide-react-native';
 import { COLORS, FONTS, BORDER_RADIUS, SHADOWS } from '../../constants/theme';
 import { getAuthToken, getActiveAccount } from '../../api/auth';
@@ -536,7 +541,33 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
             <TouchableOpacity
               style={[
                 styles.visCard,
-                visibility === 'community_members' && styles.visCardActive,
+                visibility === 'everyone' && styles.visCardEveryoneActive,
+              ]}
+              onPress={() => setVisibility('everyone')}
+              activeOpacity={0.75}
+            >
+              <Earth
+                size={18}
+                color={
+                  visibility === 'everyone'
+                    ? '#0F172A'
+                    : COLORS.textSecondary
+                }
+                strokeWidth={1.8}
+              />
+              <Text
+                style={[
+                  styles.visCardTitle,
+                  visibility === 'everyone' && styles.visCardEveryoneTextActive,
+                ]}
+              >
+                Everyone
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.visCard,
+                visibility === 'community_members' && styles.visCardCommunityActive,
               ]}
               onPress={() => setVisibility('community_members')}
               activeOpacity={0.75}
@@ -545,7 +576,7 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
                 size={18}
                 color={
                   visibility === 'community_members'
-                    ? COLORS.primary
+                    ? '#7C3AED'
                     : COLORS.textSecondary
                 }
                 strokeWidth={1.8}
@@ -553,9 +584,7 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
               <Text
                 style={[
                   styles.visCardTitle,
-                  visibility === 'community_members' && {
-                    color: COLORS.primary,
-                  },
+                  visibility === 'community_members' && styles.visCardCommunityTextActive,
                 ]}
               >
                 Community members
@@ -563,21 +592,102 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
             </TouchableOpacity>
           </View>
 
-          {/* Community targeting sub-picker (only shown when community_members selected) */}
+          {/* Sub-options for Community members */}
           {visibility === 'community_members' && (
-            <TouchableOpacity
-              style={styles.communityTargetRow}
-              onPress={() => setCommunityPickerVisible(true)}
-              activeOpacity={0.75}
-            >
-              <Users size={15} color={COLORS.primary} strokeWidth={1.8} />
-              <Text style={styles.communityTargetLabel}>
-                {targetCommunityIds.length === 0
-                  ? 'Any shared community (tap to restrict)'
-                  : `${targetCommunityIds.length} communit${targetCommunityIds.length === 1 ? 'y' : 'ies'} selected`}
-              </Text>
-              <ChevronDown size={14} color={COLORS.textSecondary} strokeWidth={2} />
-            </TouchableOpacity>
+            <View style={styles.communitySubOptionsWrap}>
+              {/* Option 1: All communities */}
+              <TouchableOpacity
+                style={[
+                  styles.communitySubTile,
+                  targetCommunityIds.length === 0 && styles.communitySubTileActive,
+                ]}
+                onPress={() => setTargetCommunityIds([])}
+                activeOpacity={0.75}
+              >
+                <View
+                  style={[
+                    styles.communitySubTileIconBox,
+                    targetCommunityIds.length === 0 && styles.communitySubTileIconBoxActive,
+                  ]}
+                >
+                  <Radio
+                    size={16}
+                    color={targetCommunityIds.length === 0 ? '#7C3AED' : '#64748B'}
+                    strokeWidth={2}
+                  />
+                </View>
+                <View style={styles.communitySubTileTextWrap}>
+                  <Text
+                    style={[
+                      styles.communitySubTileTitle,
+                      targetCommunityIds.length === 0 && styles.communitySubTileTitleActive,
+                    ]}
+                  >
+                    All communities
+                  </Text>
+                  <Text style={styles.communitySubTileDesc}>
+                    Visible to members across all your communities
+                  </Text>
+                </View>
+                {targetCommunityIds.length === 0 && (
+                  <View style={styles.communityActiveDot}>
+                    <Check size={12} color="#FFFFFF" strokeWidth={3} />
+                  </View>
+                )}
+              </TouchableOpacity>
+
+              {/* Option 2: Select specific communities */}
+              <TouchableOpacity
+                style={[
+                  styles.communitySubTile,
+                  targetCommunityIds.length > 0 && styles.communitySubTileActive,
+                ]}
+                onPress={() => setCommunityPickerVisible(true)}
+                activeOpacity={0.75}
+              >
+                <View
+                  style={[
+                    styles.communitySubTileIconBox,
+                    targetCommunityIds.length > 0 && styles.communitySubTileIconBoxActive,
+                  ]}
+                >
+                  <SlidersHorizontal
+                    size={16}
+                    color={targetCommunityIds.length > 0 ? '#7C3AED' : '#64748B'}
+                    strokeWidth={2}
+                  />
+                </View>
+                <View style={styles.communitySubTileTextWrap}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text
+                      style={[
+                        styles.communitySubTileTitle,
+                        targetCommunityIds.length > 0 && styles.communitySubTileTitleActive,
+                      ]}
+                    >
+                      Select communities
+                    </Text>
+                    {targetCommunityIds.length > 0 && (
+                      <View style={styles.communitySubTileBadge}>
+                        <Text style={styles.communitySubTileBadgeText}>
+                          {targetCommunityIds.length}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={styles.communitySubTileDesc}>
+                    {targetCommunityIds.length === 0
+                      ? 'Choose specific communities'
+                      : `${targetCommunityIds.length} communit${targetCommunityIds.length === 1 ? 'y' : 'ies'} chosen · tap to edit`}
+                  </Text>
+                </View>
+                <ChevronRight
+                  size={16}
+                  color={targetCommunityIds.length > 0 ? '#7C3AED' : '#94A3B8'}
+                  strokeWidth={2}
+                />
+              </TouchableOpacity>
+            </View>
           )}
 
           {/* Gender */}
@@ -1139,28 +1249,87 @@ const styles = StyleSheet.create({
     borderColor: COLORS.primary,
     backgroundColor: '#F0F4FF',
   },
-  visCardTitle: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 13,
-    color: COLORS.textSecondary,
+  visCardEveryoneActive: {
+    borderColor: '#0F172A',
+    backgroundColor: '#F8FAFC',
   },
-  communityTargetRow: {
+  visCardEveryoneTextActive: {
+    color: '#0F172A',
+  },
+  visCardCommunityActive: {
+    borderColor: '#8B5CF6',
+    backgroundColor: '#FAF5FF',
+  },
+  visCardCommunityTextActive: {
+    color: '#6D28D9',
+  },
+  communitySubOptionsWrap: {
+    marginTop: 10,
+    marginBottom: 4,
+    gap: 8,
+  },
+  communitySubTile: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginTop: 8,
-    marginBottom: 2,
-    paddingHorizontal: 12,
     paddingVertical: 10,
-    backgroundColor: COLORS.surface || '#F7F7FA',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: COLORS.border || '#E0E0E0',
+    paddingHorizontal: 12,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    gap: 12,
   },
-  communityTargetLabel: {
+  communitySubTileActive: {
+    backgroundColor: '#FAF5FF',
+    borderColor: '#8B5CF6',
+  },
+  communitySubTileIconBox: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  communitySubTileIconBoxActive: {
+    backgroundColor: '#EDE9FE',
+  },
+  communitySubTileTextWrap: {
     flex: 1,
-    fontFamily: FONTS.medium,
+  },
+  communitySubTileTitle: {
+    fontFamily: FONTS.semiBold,
     fontSize: 13,
-    color: COLORS.primary,
+    color: '#1E293B',
+  },
+  communitySubTileTitleActive: {
+    color: '#6D28D9',
+  },
+  communitySubTileDesc: {
+    fontFamily: FONTS.regular,
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  communityActiveDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#7C3AED',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  communitySubTileBadge: {
+    backgroundColor: '#7C3AED',
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  communitySubTileBadgeText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 10,
+    color: '#FFFFFF',
   },
 });

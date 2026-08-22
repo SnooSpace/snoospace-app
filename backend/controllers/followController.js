@@ -374,6 +374,9 @@ const getFollowing = async (req, res) => {
           (f.following_type = 'venue' AND (v.name ILIKE ${sIdx} OR v.username ILIKE ${sIdx}))
         )` : '';
 
+      const searchCommCircleClause = search ? `
+        AND (c.name ILIKE ${sIdx} OR c.username ILIKE ${sIdx})` : '';
+
       const searchCreatorClause = search ? `
         AND (cr.name ILIKE ${sIdx} OR cr.username ILIKE ${sIdx})` : '';
 
@@ -382,57 +385,79 @@ const getFollowing = async (req, res) => {
           following_id, following_type, following_name, following_username,
           following_photo_url, created_at, true AS is_following, is_creator
         FROM (
-          -- Old-style follows (communities, venues, sponsors, old member follows)
-          SELECT
-            f.following_id,
-            f.following_type,
-            CASE
-              WHEN f.following_type = 'member'    THEN m.name
-              WHEN f.following_type = 'community' THEN c.name
-              WHEN f.following_type = 'sponsor'   THEN s.brand_name
-              WHEN f.following_type = 'venue'     THEN v.name
-            END AS following_name,
-            CASE
-              WHEN f.following_type = 'member'    THEN m.username
-              WHEN f.following_type = 'community' THEN c.username
-              WHEN f.following_type = 'sponsor'   THEN s.username
-              WHEN f.following_type = 'venue'     THEN v.username
-            END AS following_username,
-            CASE
-              WHEN f.following_type = 'member'    THEN m.profile_photo_url
-              WHEN f.following_type = 'community' THEN c.logo_url
-              WHEN f.following_type = 'sponsor'   THEN s.logo_url
-              WHEN f.following_type = 'venue'     THEN NULL
-            END AS following_photo_url,
-            f.created_at,
-            CASE
-              WHEN f.following_type = 'member' THEN m.is_creator_mode_enabled
-              ELSE false
-            END as is_creator
-          FROM follows f
-          LEFT JOIN members     m ON f.following_type = 'member'    AND f.following_id = m.id
-          LEFT JOIN communities c ON f.following_type = 'community' AND f.following_id = c.id
-          LEFT JOIN sponsors    s ON f.following_type = 'sponsor'   AND f.following_id = s.id
-          LEFT JOIN venues      v ON f.following_type = 'venue'     AND f.following_id = v.id
-          WHERE f.follower_id = $1 AND f.follower_type = 'member' AND f.is_superseded_by_circle = false
-            ${searchOldClause}
+          SELECT DISTINCT ON (following_type, following_id)
+            following_id, following_type, following_name, following_username,
+            following_photo_url, created_at, is_creator
+          FROM (
+            -- Follows (communities, venues, sponsors, member follows)
+            SELECT
+              f.following_id,
+              f.following_type,
+              CASE
+                WHEN f.following_type = 'member'    THEN m.name
+                WHEN f.following_type = 'community' THEN c.name
+                WHEN f.following_type = 'sponsor'   THEN s.brand_name
+                WHEN f.following_type = 'venue'     THEN v.name
+              END AS following_name,
+              CASE
+                WHEN f.following_type = 'member'    THEN m.username
+                WHEN f.following_type = 'community' THEN c.username
+                WHEN f.following_type = 'sponsor'   THEN s.username
+                WHEN f.following_type = 'venue'     THEN v.username
+              END AS following_username,
+              CASE
+                WHEN f.following_type = 'member'    THEN m.profile_photo_url
+                WHEN f.following_type = 'community' THEN c.logo_url
+                WHEN f.following_type = 'sponsor'   THEN s.logo_url
+                WHEN f.following_type = 'venue'     THEN NULL
+              END AS following_photo_url,
+              f.created_at,
+              CASE
+                WHEN f.following_type = 'member' THEN m.is_creator_mode_enabled
+                ELSE false
+              END as is_creator
+            FROM follows f
+            LEFT JOIN members     m ON f.following_type = 'member'    AND f.following_id = m.id
+            LEFT JOIN communities c ON f.following_type = 'community' AND f.following_id = c.id
+            LEFT JOIN sponsors    s ON f.following_type = 'sponsor'   AND f.following_id = s.id
+            LEFT JOIN venues      v ON f.following_type = 'venue'     AND f.following_id = v.id
+            WHERE f.follower_id = $1 AND f.follower_type = 'member'
+              ${searchOldClause}
 
-          UNION ALL
+            UNION ALL
 
-          -- Creator follows (member → creator member)
-          SELECT
-            cf.creator_id  AS following_id,
-            'member'       AS following_type,
-            cr.name        AS following_name,
-            cr.username    AS following_username,
-            cr.profile_photo_url AS following_photo_url,
-            cf.created_at,
-            true           AS is_creator
-          FROM creator_follows cf
-          JOIN members cr ON cr.id = cf.creator_id
-          WHERE cf.follower_id = $1 AND cf.is_dormant = false AND cf.is_superseded_by_circle = false
-            ${searchCreatorClause}
-        ) combined
+            -- Community Circle memberships (member is in community's circle)
+            SELECT
+              cmc.community_id AS following_id,
+              'community'      AS following_type,
+              c.name           AS following_name,
+              c.username       AS following_username,
+              c.logo_url       AS following_photo_url,
+              cmc.created_at,
+              false            AS is_creator
+            FROM community_member_circles cmc
+            JOIN communities c ON c.id = cmc.community_id
+            WHERE cmc.member_id = $1
+              ${searchCommCircleClause}
+
+            UNION ALL
+
+            -- Creator follows (member → creator member)
+            SELECT
+              cf.creator_id  AS following_id,
+              'member'       AS following_type,
+              cr.name        AS following_name,
+              cr.username    AS following_username,
+              cr.profile_photo_url AS following_photo_url,
+              cf.created_at,
+              true           AS is_creator
+            FROM creator_follows cf
+            JOIN members cr ON cr.id = cf.creator_id
+            WHERE cf.follower_id = $1 AND cf.is_dormant = false
+              ${searchCreatorClause}
+          ) raw_combined
+          ORDER BY following_type, following_id, created_at DESC
+        ) deduplicated
         ORDER BY created_at DESC
         LIMIT $2 OFFSET $3
       `;

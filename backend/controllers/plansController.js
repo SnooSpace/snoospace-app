@@ -38,14 +38,17 @@ async function getMyRequestStatus(pool, planId, userId) {
 // ---------------------------------------------------------------------------
 async function getSharedCommunityName(pool, memberId1, memberId2) {
   const r = await pool.query(
-    `SELECT c.name FROM follows f1
-     JOIN follows f2
-       ON f1.following_id = f2.following_id
-      AND f1.following_type = 'community'
-      AND f2.following_type = 'community'
-     JOIN communities c ON c.id = f1.following_id
-     WHERE f1.follower_id = $1 AND f1.follower_type = 'member'
-       AND f2.follower_id = $2 AND f2.follower_type = 'member'
+    `SELECT c.name FROM (
+       SELECT following_id AS community_id FROM follows WHERE follower_id = $1 AND follower_type = 'member' AND following_type = 'community'
+       UNION
+       SELECT community_id FROM community_member_circles WHERE member_id = $1
+     ) m1
+     JOIN (
+       SELECT following_id AS community_id FROM follows WHERE follower_id = $2 AND follower_type = 'member' AND following_type = 'community'
+       UNION
+       SELECT community_id FROM community_member_circles WHERE member_id = $2
+     ) m2 ON m1.community_id = m2.community_id
+     JOIN communities c ON c.id = m1.community_id
      LIMIT 1`,
     [memberId1, memberId2]
   );
@@ -57,14 +60,17 @@ async function getSharedCommunityName(pool, memberId1, memberId2) {
 // ---------------------------------------------------------------------------
 async function getSharedCommunities(pool, memberId1, memberId2) {
   const r = await pool.query(
-    `SELECT c.id, c.name, c.logo_url FROM follows f1
-     JOIN follows f2
-       ON f1.following_id = f2.following_id
-      AND f1.following_type = 'community'
-      AND f2.following_type = 'community'
-     JOIN communities c ON c.id = f1.following_id
-     WHERE f1.follower_id = $1 AND f1.follower_type = 'member'
-       AND f2.follower_id = $2 AND f2.follower_type = 'member'`,
+    `SELECT DISTINCT c.id, c.name, c.logo_url FROM (
+       SELECT following_id AS community_id FROM follows WHERE follower_id = $1 AND follower_type = 'member' AND following_type = 'community'
+       UNION
+       SELECT community_id FROM community_member_circles WHERE member_id = $1
+     ) m1
+     JOIN (
+       SELECT following_id AS community_id FROM follows WHERE follower_id = $2 AND follower_type = 'member' AND following_type = 'community'
+       UNION
+       SELECT community_id FROM community_member_circles WHERE member_id = $2
+     ) m2 ON m1.community_id = m2.community_id
+     JOIN communities c ON c.id = m1.community_id`,
     [memberId1, memberId2]
   );
   return r.rows;
@@ -254,13 +260,16 @@ async function getPlans(req, res) {
             -- No scoped communities → broad: viewer shares any community with host
             AND NOT EXISTS (SELECT 1 FROM open_plan_visible_communities WHERE plan_id = op.id)
             AND EXISTS (
-              SELECT 1 FROM follows f1
-              JOIN follows f2
-                ON f1.following_id = f2.following_id
-               AND f1.following_type = 'community'
-               AND f2.following_type = 'community'
-              WHERE f1.follower_id = $2 AND f1.follower_type = 'member'
-                AND f2.follower_id = op.created_by AND f2.follower_type = 'member'
+              SELECT 1 FROM (
+                SELECT following_id AS community_id FROM follows WHERE follower_id = $2 AND follower_type = 'member' AND following_type = 'community'
+                UNION
+                SELECT community_id FROM community_member_circles WHERE member_id = $2
+              ) viewer_comms
+              JOIN (
+                SELECT following_id AS community_id FROM follows WHERE follower_id = op.created_by AND follower_type = 'member' AND following_type = 'community'
+                UNION
+                SELECT community_id FROM community_member_circles WHERE member_id = op.created_by
+              ) host_comms ON viewer_comms.community_id = host_comms.community_id
             )
           )
           OR (
@@ -358,13 +367,16 @@ async function getPlanById(req, res) {
              -- No scoped communities → broad: viewer shares any community with host
              AND NOT EXISTS (SELECT 1 FROM open_plan_visible_communities opvc WHERE opvc.plan_id = open_plans.id)
              AND EXISTS (
-               SELECT 1 FROM follows f1
-               JOIN follows f2
-                 ON f1.following_id = f2.following_id
-                AND f1.following_type = 'community'
-                AND f2.following_type = 'community'
-               WHERE f1.follower_id = $2 AND f1.follower_type = 'member'
-                 AND f2.follower_id = open_plans.created_by AND f2.follower_type = 'member'
+               SELECT 1 FROM (
+                 SELECT following_id AS community_id FROM follows WHERE follower_id = $2 AND follower_type = 'member' AND following_type = 'community'
+                 UNION
+                 SELECT community_id FROM community_member_circles WHERE member_id = $2
+               ) viewer_comms
+               JOIN (
+                 SELECT following_id AS community_id FROM follows WHERE follower_id = open_plans.created_by AND follower_type = 'member' AND following_type = 'community'
+                 UNION
+                 SELECT community_id FROM community_member_circles WHERE member_id = open_plans.created_by
+               ) host_comms ON viewer_comms.community_id = host_comms.community_id
              )
            )
            OR (
