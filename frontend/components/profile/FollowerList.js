@@ -187,7 +187,7 @@ export default function FollowerList({
   );
 
   const handleToggleFollow = useCallback(
-    async (id, isFollowing, entityType = "member") => {
+    async (id, isFollowing, entityType = "member", item = null) => {
       if (!onToggleFollow) return;
 
       const executeToggle = async () => {
@@ -204,7 +204,7 @@ export default function FollowerList({
         });
 
         try {
-          await onToggleFollow(id, isFollowing, entityType);
+          await onToggleFollow(id, isFollowing, entityType, item);
         } catch (error) {
           console.warn("[FollowerList] onToggleFollow failed", error);
           // On error, let the scroll/focus refresh handle it or re-fetch
@@ -213,7 +213,7 @@ export default function FollowerList({
       };
 
       if (isFollowing) {
-        const targetUser = items.find((u) => String(u.id) === String(id));
+        const targetUser = item || items.find((u) => String(u.id) === String(id));
         const displayName = targetUser?.name || targetUser?.username || "this account";
 
         showAlert({
@@ -359,6 +359,7 @@ export default function FollowerList({
                   item.id,
                   !!item.isFollowing,
                   item.type || "member",
+                  item,
                 )
               }
             >

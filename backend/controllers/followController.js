@@ -36,12 +36,25 @@ const follow = async (req, res) => {
     }
 
     // Check if already following
-    const existingFollow = await pool.query(
-      "SELECT id FROM follows WHERE follower_id = $1 AND follower_type = $2 AND following_id = $3 AND following_type = $4",
-      [followerId, followerType, followingId, followingType]
-    );
+    let alreadyFollowing = false;
+    if (followingType === 'member') {
+      const existingCheck = await pool.query(
+        `SELECT 1 FROM follows WHERE follower_id = $1 AND follower_type = $2 AND following_id = $3 AND following_type = 'member'
+         UNION ALL
+         SELECT 1 FROM creator_follows WHERE follower_id = $1 AND creator_id = $3 AND is_dormant = false AND is_superseded_by_circle = false
+         LIMIT 1`,
+        [followerId, followerType, followingId]
+      );
+      alreadyFollowing = existingCheck.rows.length > 0;
+    } else {
+      const existingFollow = await pool.query(
+        "SELECT id FROM follows WHERE follower_id = $1 AND follower_type = $2 AND following_id = $3 AND following_type = $4",
+        [followerId, followerType, followingId, followingType]
+      );
+      alreadyFollowing = existingFollow.rows.length > 0;
+    }
 
-    if (existingFollow.rows.length > 0) {
+    if (alreadyFollowing) {
       return res.status(400).json({ error: "Already following this entity" });
     }
 
@@ -59,11 +72,32 @@ const follow = async (req, res) => {
       }
     }
 
-    // Add follow
-    await pool.query(
-      "INSERT INTO follows (follower_id, follower_type, following_id, following_type) VALUES ($1, $2, $3, $4)",
-      [followerId, followerType, followingId, followingType]
-    );
+    // Add follow (route to creator_follows if target member is in Creator Mode)
+    if (followingType === 'member') {
+      const creatorCheck = await pool.query(
+        "SELECT is_creator_mode_enabled FROM members WHERE id = $1",
+        [followingId]
+      );
+      if (creatorCheck.rows[0]?.is_creator_mode_enabled) {
+        await pool.query(
+          `INSERT INTO creator_follows (follower_id, follower_type, creator_id, is_dormant, created_at)
+           VALUES ($1, $2, $3, false, now())
+           ON CONFLICT (follower_id, creator_id)
+           DO UPDATE SET is_dormant = false, created_at = now()`,
+          [followerId, followerType, followingId]
+        );
+      } else {
+        await pool.query(
+          "INSERT INTO follows (follower_id, follower_type, following_id, following_type) VALUES ($1, $2, $3, $4)",
+          [followerId, followerType, followingId, followingType]
+        );
+      }
+    } else {
+      await pool.query(
+        "INSERT INTO follows (follower_id, follower_type, following_id, following_type) VALUES ($1, $2, $3, $4)",
+        [followerId, followerType, followingId, followingType]
+      );
+    }
 
     // Phase 2d: Clear any retired/struck post_impression_state rows for this
     // author so posts that were hard-retired (two unseen strikes) before this
@@ -205,7 +239,19 @@ const unfollow = async (req, res) => {
       [followerId, followerType, followingId, followingType]
     );
 
-    if (result.rowCount === 0) {
+    let wasDeleted = result.rowCount > 0;
+
+    if (!wasDeleted && followingType === "member") {
+      const cfResult = await pool.query(
+        "DELETE FROM creator_follows WHERE follower_id = $1 AND creator_id = $2",
+        [followerId, followingId]
+      );
+      if (cfResult.rowCount > 0) {
+        wasDeleted = true;
+      }
+    }
+
+    if (!wasDeleted) {
       return res.status(400).json({ error: "Not following this entity" });
     }
 

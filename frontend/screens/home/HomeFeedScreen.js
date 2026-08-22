@@ -1054,8 +1054,10 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         'discovery_score'
       );
 
-      // ── Step 2: Author diversity cap (max 2 per author, session-wide) ────────
-      const ZF_AUTHOR_CAP = 2;
+      // ── Step 2: Author diversity cap (max 1 per author, session-wide) ────────
+      // Matches the strict 1-per-author discipline used by discoveryPosts and
+      // discoveryOpportunities in the followed feed (discoveryAuthorCount >= 1).
+      const ZF_AUTHOR_CAP = 1;
       const zfAuthorCount = {};
       const applyDiversity = (items, authorKeyFn) => {
         const out = [];
@@ -1090,50 +1092,28 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         ...filteredDiscoveryOpps,
       ].sort((a, b) => b._normalizedScore - a._normalizedScore);
 
-      // ── Step 4: Pin targeted promo at position 2 (index 1) before constraint walk ──
-      // The promo is treated as its own type ('promo') in the constraint algorithm
-      // so it naturally breaks any post→post run rather than extending it.
-      const promoPost = targetedPromoPosts[0];
-      let preConstrained = pool;
-      if (promoPost) {
-        // Remove promo if it ended up in the scored pool (it shouldn't — it has no
-        // discovery_score — but guard anyway), then insert at index 1.
-        const withoutPromo = preConstrained.filter(item => item.id !== promoPost.id);
-        const promoItem = {
-          ...promoPost,
-          itemType: 'post',
-          is_targeted_promo: true,
-          _normalizedScore: Infinity, // keeps promo from being displaced by constraint swap
-        };
-        preConstrained = [
-          ...withoutPromo.slice(0, 1),
-          promoItem,
-          ...withoutPromo.slice(1),
-        ];
-      }
-
-      // ── Step 5: Apply no-more-than-2-consecutive-same-type constraint ─────────
-      // Walk sorted pool. Promo items are treated as type 'promo' (never 'post')
-      // so they always break a post→post run rather than extending it.
-      // Falls back to the original order when no swap candidate exists (infinite-loop safe).
-      const typeKey = (item) => item.is_targeted_promo ? 'promo' : item.itemType;
+      // ── Step 4: Apply no-more-than-2-consecutive-same-type constraint ─────────
+      // Walk sorted pool. If inserting the next item would create a 3rd consecutive
+      // run of the same type, look ahead for the next item of a different type and
+      // swap it forward. If no swap candidate exists (e.g. skewed pool near tail),
+      // accept the item as-is to avoid infinite loop or dropping items.
       const constrained = [];
-      const remaining = [...preConstrained];
+      const remaining = [...pool];
       while (remaining.length > 0) {
         const n = constrained.length;
         const next = remaining[0];
         const isSameType =
           n >= 2 &&
-          typeKey(constrained[n - 1]) === typeKey(next) &&
-          typeKey(constrained[n - 2]) === typeKey(next);
+          constrained[n - 1].itemType === next.itemType &&
+          constrained[n - 2].itemType === next.itemType;
 
         if (!isSameType) {
           constrained.push(remaining.shift());
         } else {
           // Find first item of a different type to swap forward
-          const swapIdx = remaining.findIndex(r => typeKey(r) !== typeKey(next));
+          const swapIdx = remaining.findIndex(r => r.itemType !== next.itemType);
           if (swapIdx === -1) {
-            // No swap candidate — accept as-is to avoid infinite loop
+            // No swap candidate — accept as-is to avoid infinite loop / dropped items
             constrained.push(remaining.shift());
           } else {
             constrained.push(...remaining.splice(swapIdx, 1));
@@ -1141,12 +1121,28 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         }
       }
 
-      // ── Step 6: Apply windowedShuffle to constrained list ────────────────────
-      // Same shuffle used by the followed-feed for freshness variation.
-      // The promo item's _normalizedScore=Infinity keeps it anchored during shuffle
-      // (windowedShuffle sorts within windows — Infinity stays at the top of its window).
+      // ── Step 5: Apply windowedShuffle to constrained non-promo pool ───────────
+      // Promo is deliberately EXCLUDED from this array so Fisher-Yates cannot
+      // displace it from position 2.
       const shuffled = constrained.length > 1 ? windowedShuffle(constrained) : constrained;
-      const finalZeroFollow = shuffled;
+
+      // ── Step 6: Pin targeted promo at position 2 (index 1) AFTER shuffle ─────
+      // Spliced in at index 1 on the shuffled list so position 2 is 100% deterministic
+      // across all random seeds and permutations.
+      const promoPost = targetedPromoPosts[0];
+      let finalZeroFollow = shuffled;
+      if (promoPost) {
+        const promoItem = {
+          ...promoPost,
+          itemType: 'post',
+          is_targeted_promo: true,
+        };
+        finalZeroFollow = [
+          ...finalZeroFollow.slice(0, 1),
+          promoItem,
+          ...finalZeroFollow.slice(1),
+        ];
+      }
 
       // ── Step 7: Strip internal scoring field and push to merged ──────────────
       for (const item of finalZeroFollow) {

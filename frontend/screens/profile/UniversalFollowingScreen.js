@@ -3,6 +3,8 @@ import {
   getMemberFollowing,
   followMember,
   unfollowMember,
+  followCreator,
+  unfollowCreator,
   getCircleMembers,
   sendCircleRequest,
   getCommunityCircleMembers,
@@ -176,7 +178,21 @@ export default function UniversalFollowingScreen({ route, navigation }) {
   }, []);
 
   const handleToggleFollow = useCallback(
-    async (id, isFollowing, entityType = "member") => {
+    async (id, isFollowing, entityType = "member", item = null) => {
+      const isCreator = !!(item?.isCreator || item?.is_creator || item?.is_creator_mode_enabled);
+      if (entityType === "member" && isCreator) {
+        if (isFollowing) {
+          await unfollowCreator(id);
+          // Emit event to trigger list refresh (remove from following list)
+          EventBus.emit("follow-updated", { id, isFollowing: false });
+        } else {
+          await followCreator(id);
+          // Emit event to update follow status
+          EventBus.emit("follow-updated", { id, isFollowing: true });
+        }
+        return;
+      }
+
       const apis = FOLLOW_API_MAP[entityType];
       if (!apis) {
         console.error(`No follow API for entityType: ${entityType}`);
