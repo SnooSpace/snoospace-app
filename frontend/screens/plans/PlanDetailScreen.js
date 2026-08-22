@@ -27,6 +27,7 @@ import ReportSheet from '../../components/modals/ReportSheet';
 import SwipeableModal from '../../components/modals/SwipeableModal';
 import ShareModal from '../../components/modals/ShareModal';
 import CustomConfirmDialog from '../../components/ui/CustomConfirmDialog';
+import EventBus from '../../utils/EventBus';
 
 const CARD_PADDING = 16;
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -147,12 +148,50 @@ export default function PlanDetailScreen({ navigation, route }) {
       setPlan(data.plan);
       setLikeCount(data.plan.like_count ?? 0);
       setIsLiked(data.plan.is_liked === true);
-      recordView(planId, token).catch(() => {});
+      recordView(planId, token)
+        .then((res) => {
+          if (res?.is_new) {
+            const updatedCount =
+              res?.view_count !== undefined
+                ? res.view_count
+                : (data.plan.view_count || 0) + 1;
+            setPlan((prev) =>
+              prev ? { ...prev, view_count: updatedCount } : prev,
+            );
+            EventBus.emit("plan-view-updated", {
+              planId,
+              viewCount: updatedCount,
+            });
+          }
+        })
+        .catch(() => {});
     } catch (err) {
       console.error('[PlanDetailScreen]', err.message);
     } finally {
       setLoading(false);
     }
+  }, [planId]);
+
+  useEffect(() => {
+    if (!planId) return;
+    const unsubscribe = EventBus.on("plan-view-updated", (payload) => {
+      if (payload?.planId === planId || payload?.postId === planId) {
+        setPlan((prev) =>
+          prev
+            ? {
+                ...prev,
+                view_count:
+                  payload.viewCount !== undefined
+                    ? Math.max(prev.view_count || 0, payload.viewCount)
+                    : (prev.view_count || 0) + 1,
+              }
+            : prev,
+        );
+      }
+    });
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, [planId]);
 
   useEffect(() => {

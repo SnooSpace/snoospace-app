@@ -36,8 +36,9 @@ import { useNavigation } from '@react-navigation/native';
 import CommentsModal from '../modals/CommentsModal';
 import ContentActionsSheet from '../modals/ContentActionsSheet';
 import HapticsService from '../../services/HapticsService';
-import { recordView, togglePlanInterest, cancelPlan } from '../../api/plans';
+import { recordView, getPlanViewStats, togglePlanInterest, cancelPlan } from '../../api/plans';
 import { getAuthToken } from '../../api/auth';
+import EventBus from '../../utils/EventBus';
 import SwipeableModal from '../modals/SwipeableModal';
 import { getPlanPromoteState } from '../../utils/promoteUtils';
 import CustomConfirmDialog from '../ui/CustomConfirmDialog';
@@ -250,7 +251,7 @@ const OpenPlanCard = ({
   const [likeCount,     setLikeCount]     = useState(plan?.like_count ?? 0);
   const [isLiking,      setIsLiking]      = useState(false);
   const [commentCount,  setCommentCount]  = useState(plan?.comment_count ?? 0);
-  const [viewCount]                       = useState(plan?.view_count ?? 0);
+  const [viewCount,     setViewCount]     = useState(plan?.view_count ?? 0);
   const [commentsVisible, setCommentsVisible] = useState(false);
   const [isSaved,       setIsSaved]       = useState(isInterestedProp);
   const [isSaving,      setIsSaving]      = useState(false);
@@ -259,20 +260,58 @@ const OpenPlanCard = ({
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
   const [deleteConfirmMessage, setDeleteConfirmMessage] = useState('');
 
-  // ── View Insights sheet (plans have no backend stats endpoint — show local count) ──
+  useEffect(() => {
+    setViewCount(plan?.view_count ?? 0);
+  }, [plan?.view_count]);
+
+  // Real-time EventBus view updates
+  useEffect(() => {
+    if (!plan?.id) return;
+    const unsubscribe = EventBus.on("plan-view-updated", (payload) => {
+      if (payload?.planId === plan.id || payload?.postId === plan.id) {
+        setViewCount((prev) =>
+          payload.viewCount !== undefined
+            ? Math.max(prev, payload.viewCount)
+            : prev + 1,
+        );
+      }
+    });
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [plan?.id]);
+
+  // ── View Insights sheet ──
   const [viewStatsVisible, setViewStatsVisible] = useState(false);
+  const [viewStats, setViewStats] = useState(null);
+  const [viewStatsLoading, setViewStatsLoading] = useState(false);
   const viewSheetAnim = useRef(new Animated.Value(0)).current;
 
-  const handleViewPress = useCallback(() => {
+  const handleViewPress = useCallback(async () => {
     HapticsService.triggerView();
     setViewStatsVisible(true);
     Animated.spring(viewSheetAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 11 }).start();
-  }, [viewSheetAnim]);
+    setViewStatsLoading(true);
+    try {
+      const token = tokenRef.current || (await getAuthToken());
+      const data = await getPlanViewStats(plan?.id, token);
+      setViewStats(data);
+      if (data?.unique_views !== undefined) {
+        setViewCount(data.unique_views);
+        EventBus.emit("plan-view-updated", { planId: plan?.id, viewCount: data.unique_views });
+      }
+    } catch {
+      setViewStats({ unique_views: viewCount, total_views: viewCount });
+    } finally {
+      setViewStatsLoading(false);
+    }
+  }, [plan?.id, viewCount, viewSheetAnim]);
 
   const handleCloseViewStats = useCallback(() => {
     HapticsService.triggerClose();
     Animated.timing(viewSheetAnim, { toValue: 0, duration: 220, useNativeDriver: true }).start(() => {
       setViewStatsVisible(false);
+      setViewStats(null);
     });
   }, [viewSheetAnim]);
 
@@ -524,7 +563,12 @@ const OpenPlanCard = ({
         // Fire-and-forget view recording
         try {
           const token = await getAuthToken();
-          await recordView(plan.id, token);
+          const res = await recordView(plan.id, token);
+          if (res?.is_new) {
+            const updatedCount = res?.view_count !== undefined ? res.view_count : viewCount + 1;
+            setViewCount((prev) => res?.view_count !== undefined ? res.view_count : prev + 1);
+            EventBus.emit("plan-view-updated", { planId: plan.id, viewCount: updatedCount });
+          }
         } catch (_) {}
       }, 250);
     }
@@ -793,8 +837,8 @@ const OpenPlanCard = ({
       <ViewInsightsSheet
         visible={viewStatsVisible}
         onClose={handleCloseViewStats}
-        stats={null}
-        loading={false}
+        stats={viewStats}
+        loading={viewStatsLoading}
         sheetAnim={viewSheetAnim}
         liveUniqueViews={viewCount}
       />

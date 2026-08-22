@@ -28,6 +28,31 @@ export const getSocket = () => {
       console.error('[SocketService] Socket connection error:', error.message);
     });
 
+    // Real-time View Updates across all content types
+    socket.on('post_view_updated', (data) => {
+      if (data?.postId) {
+        EventBus.emit('post-view-updated', data);
+      }
+    });
+
+    socket.on('event_view_updated', (data) => {
+      if (data?.eventId) {
+        EventBus.emit('event-view-updated', data);
+      }
+    });
+
+    socket.on('opportunity_view_updated', (data) => {
+      if (data?.opportunityId) {
+        EventBus.emit('opportunity-view-updated', data);
+      }
+    });
+
+    socket.on('plan_view_updated', (data) => {
+      if (data?.planId) {
+        EventBus.emit('plan-view-updated', data);
+      }
+    });
+
     // On reconnect: re-join user personal room and notify listeners.
     // Without re-registering, the server doesn't know which user_${id} room
     // this socket belongs to, so `new_message` emits won't be delivered.

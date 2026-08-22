@@ -235,7 +235,11 @@ export const VoicePostCard = React.memo(({ post, onComment }) => {
     };
     const handleViewUpdate = (payload) => {
       if (payload.postId === post.id) {
-        setViewCount((prev) => prev + 1);
+        setViewCount((prev) =>
+          payload.viewCount !== undefined
+            ? Math.max(prev, payload.viewCount)
+            : prev + 1,
+        );
       }
     };
     const handleShareUpdate = (payload) => {

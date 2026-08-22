@@ -911,10 +911,15 @@ export default function MemberProfileScreen({ navigation }) {
   useEffect(() => {
     const handlePostViewUpdate = (payload) => {
       if (!payload?.postId) return;
+      const getNewCount = (current) =>
+        payload.viewCount !== undefined
+          ? Math.max(current || 0, payload.viewCount)
+          : (current || 0) + 1;
+
       setPosts((prev) =>
         prev.map((post) =>
           post.id === payload.postId
-            ? { ...post, public_view_count: (post.public_view_count || 0) + 1 }
+            ? { ...post, public_view_count: getNewCount(post.public_view_count) }
             : post,
         ),
       );
@@ -922,7 +927,7 @@ export default function MemberProfileScreen({ navigation }) {
         if (prevSelected && prevSelected.id === payload.postId) {
           return {
             ...prevSelected,
-            public_view_count: (prevSelected.public_view_count || 0) + 1,
+            public_view_count: getNewCount(prevSelected.public_view_count),
           };
         }
         return prevSelected;

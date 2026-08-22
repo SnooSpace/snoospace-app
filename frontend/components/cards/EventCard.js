@@ -282,8 +282,12 @@ function EventCard({
     try {
       const data = await apiGet(`/events/${event.id}/view-stats`, 8000, authToken);
       setViewStats(data);
+      if (data?.unique_views !== undefined) {
+        setViewCount(data.unique_views);
+        EventBus.emit("event-view-updated", { eventId: event.id, viewCount: data.unique_views });
+      }
     } catch {
-      setViewStats({ unique_views: event.view_count || 0, total_views: event.view_count || 0 });
+      setViewStats({ unique_views: viewCount, total_views: viewCount });
     } finally {
       setViewStatsLoading(false);
     }
@@ -398,33 +402,41 @@ function EventCard({
   // Also sync view_count from prop when the event ID changes (new card load), but NOT on every
   // prop change — to avoid clobbering mid-session server-tracked view increments.
   useEffect(() => {
-    console.log(
-      `[EventCard] Reset viewTrackedRef for event ${event?.id}, current view_count from prop: ${event?.view_count}`,
-    );
     viewTrackedRef.current = false;
     if (event?.view_count !== undefined) setViewCount(event.view_count);
+  }, [event?.id, event?.view_count]);
+
+  // Real-time EventBus view updates
+  useEffect(() => {
+    if (!event?.id) return;
+    const unsubscribe = EventBus.on("event-view-updated", (payload) => {
+      if (payload?.eventId === event.id) {
+        setViewCount((prev) =>
+          payload.viewCount !== undefined
+            ? Math.max(prev, payload.viewCount)
+            : prev + 1,
+        );
+      }
+    });
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, [event?.id]);
 
   // View tracking: record a view after the card has been visible for 2.5s
   useEffect(() => {
-    console.log(
-      `[EventCard] Tracking effect fired for event ${event?.id}, tracked=${viewTrackedRef.current}`,
-    );
     if (!event?.id || viewTrackedRef.current) return;
     const timer = setTimeout(async () => {
       if (viewTrackedRef.current) return;
       viewTrackedRef.current = true;
-      console.log(`[EventCard] Calling recordEventView for event ${event.id}`);
       try {
         const res = await recordEventView(event.id);
-        console.log(
-          `[EventCard] recordEventView response for event ${event.id}:`,
-          JSON.stringify(res),
-        );
         if (res?.view_count !== undefined) {
           setViewCount(res.view_count);
+          EventBus.emit("event-view-updated", { eventId: event.id, viewCount: res.view_count });
         } else if (res?.is_new) {
           setViewCount((c) => c + 1);
+          EventBus.emit("event-view-updated", { eventId: event.id });
         }
       } catch (err) {
         console.error(

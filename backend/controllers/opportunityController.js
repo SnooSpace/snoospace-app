@@ -2420,6 +2420,14 @@ const viewOpportunity = async (req, res) => {
     }
 
     const row = await pool.query(`SELECT view_count FROM opportunities WHERE id = $1`, [id]);
+    const finalViewCount = row.rows[0]?.view_count || 0;
+
+    if (isNew && req.app.locals.io) {
+      req.app.locals.io.emit("opportunity_view_updated", {
+        opportunityId: id,
+        viewCount: finalViewCount,
+      });
+    }
 
     // Reset unseen impression state on EVERY qualified dwell — unconditional,
     // runs whether this is a first-ever view or a repeat.
@@ -2430,7 +2438,7 @@ const viewOpportunity = async (req, res) => {
       [userId, userType, id]
     ).catch(e => console.error("[viewOpportunity] impression reset error:", e.message));
 
-    res.json({ success: true, is_new: isNew, view_count: row.rows[0]?.view_count || 0 });
+    res.json({ success: true, is_new: isNew, view_count: finalViewCount });
   } catch (e) {
     console.error('Error recording opportunity view:', e);
     res.status(500).json({ error: 'Internal server error' });

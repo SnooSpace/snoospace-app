@@ -458,6 +458,10 @@ const OpportunityFeedCard = React.memo(({
     opportunity.view_count || opportunity.public_view_count || 0,
   [opportunity.id]);
 
+  useEffect(() => {
+    setViewCount(opportunity.view_count || opportunity.public_view_count || 0);
+  }, [opportunity.view_count, opportunity.public_view_count]);
+
   // ── View Insights sheet ─────────────────────────────────────────────────
   const [viewStatsVisible, setViewStatsVisible] = useRecyclingState(false, [opportunity.id]);
   const [viewStats, setViewStats] = useRecyclingState(null, [opportunity.id]);
@@ -473,12 +477,16 @@ const OpportunityFeedCard = React.memo(({
       const token = tokenRef.current || authToken;
       const data = await apiGet(`/opportunities/${opportunity.id}/view-stats`, 8000, token);
       setViewStats(data);
+      if (data?.unique_views !== undefined) {
+        setViewCount(data.unique_views);
+        EventBus.emit("opportunity-view-updated", { opportunityId: opportunity.id, viewCount: data.unique_views });
+      }
     } catch {
-      setViewStats({ unique_views: opportunity.view_count || 0, total_views: opportunity.view_count || 0 });
+      setViewStats({ unique_views: viewCount, total_views: viewCount });
     } finally {
       setViewStatsLoading(false);
     }
-  }, [opportunity.id, opportunity.view_count, authToken, viewSheetAnim]);
+  }, [opportunity.id, viewCount, authToken, viewSheetAnim]);
 
   const handleCloseViewStats = useCallback(() => {
     HapticsService.triggerClose();
@@ -487,6 +495,23 @@ const OpportunityFeedCard = React.memo(({
       setViewStats(null);
     });
   }, [viewSheetAnim]);
+
+  // Real-time EventBus view updates
+  useEffect(() => {
+    if (!opportunity?.id) return;
+    const unsubscribe = EventBus.on("opportunity-view-updated", (payload) => {
+      if (payload?.opportunityId === opportunity.id) {
+        setViewCount((prev) =>
+          payload.viewCount !== undefined
+            ? Math.max(prev, payload.viewCount)
+            : prev + 1,
+        );
+      }
+    });
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [opportunity?.id]);
 
   // ── Like state (shared debounced hook) ───────────────────────────────────
   const { isLiked, likeCount, toggle: toggleLike, reset: resetLike } =
@@ -523,7 +548,9 @@ const OpportunityFeedCard = React.memo(({
           token,
         );
         if (res?.is_new) {
-          setViewCount((prev) => prev + 1);
+          const updatedCount = res?.view_count !== undefined ? res.view_count : viewCount + 1;
+          setViewCount((prev) => res?.view_count !== undefined ? res.view_count : prev + 1);
+          EventBus.emit("opportunity-view-updated", { opportunityId: opportunity.id, viewCount: updatedCount });
         }
       } catch (_e) {
         // non-fatal
@@ -539,7 +566,7 @@ const OpportunityFeedCard = React.memo(({
         }
       }
     };
-  }, [opportunity.id]);
+  }, [opportunity.id, viewCount]);
 
 
 

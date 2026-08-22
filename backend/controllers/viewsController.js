@@ -90,13 +90,14 @@ async function submitViewsBatch(req, res) {
           );
 
           // Increment public view count (first-time qualification only)
-          await client.query(
-            `UPDATE posts SET public_view_count = COALESCE(public_view_count, 0) + 1 WHERE id = $1`,
+          const updateRes = await client.query(
+            `UPDATE posts SET public_view_count = COALESCE(public_view_count, 0) + 1 WHERE id = $1 RETURNING public_view_count`,
             [postId],
           );
+          const updatedCount = updateRes.rows[0]?.public_view_count;
 
           await client.query(`RELEASE SAVEPOINT ${savepointName}`);
-          accepted.push(postId);
+          accepted.push({ postId, viewCount: updatedCount });
         } catch (e) {
           // Rollback to savepoint to allow transaction to continue
           await client.query(`ROLLBACK TO SAVEPOINT ${savepointName}`);
@@ -320,8 +321,17 @@ async function submitViewsBatch(req, res) {
 
     await client.query("COMMIT");
 
+    if (req.app.locals.io && accepted.length > 0) {
+      accepted.forEach((item) => {
+        const id = typeof item === "object" ? item.postId : item;
+        const viewCount = typeof item === "object" ? item.viewCount : undefined;
+        req.app.locals.io.emit("post_view_updated", { postId: id, viewCount });
+      });
+    }
+
     return res.json({
-      accepted,
+      accepted: accepted.map((item) => (typeof item === "object" ? item.postId : item)),
+      accepted_details: accepted,
       duplicate,
       repeat_logged: repeatLogged,
     });

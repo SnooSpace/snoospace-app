@@ -1594,16 +1594,21 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
 
     const handlePostViewUpdate = (payload) => {
       if (!payload?.postId) return;
+      const getNewCount = (current) =>
+        payload.viewCount !== undefined
+          ? Math.max(current || 0, payload.viewCount)
+          : (current || 0) + 1;
+
       setPosts((prevPosts) =>
         prevPosts.map((post) =>
           post.id === payload.postId
-            ? { ...post, public_view_count: (post.public_view_count || 0) + 1 }
+            ? { ...post, public_view_count: getNewCount(post.public_view_count) }
             : post,
         ),
       );
       setSelectedPost((prev) => {
         if (prev && prev.id === payload.postId) {
-          return { ...prev, public_view_count: (prev.public_view_count || 0) + 1 };
+          return { ...prev, public_view_count: getNewCount(prev.public_view_count) };
         }
         return prev;
       });

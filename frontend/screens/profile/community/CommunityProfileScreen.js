@@ -1337,7 +1337,13 @@ export default function CommunityProfileScreen({ navigation, route }) {
       setPosts((prevPosts) =>
         prevPosts.map((post) =>
           post.id === payload.postId
-            ? { ...post, public_view_count: (post.public_view_count || 0) + 1 }
+            ? {
+                ...post,
+                public_view_count:
+                  payload.viewCount !== undefined
+                    ? Math.max(post.public_view_count || 0, payload.viewCount)
+                    : (post.public_view_count || 0) + 1,
+              }
             : post,
         ),
       );

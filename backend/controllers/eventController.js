@@ -6340,6 +6340,13 @@ async function recordEventView(req, res) {
       [userId, userType, parseInt(eventId, 10)]
     ).catch(e => console.error("[recordEventView] impression reset error:", e.message));
 
+    if (is_new && req.app.locals.io) {
+      req.app.locals.io.emit("event_view_updated", {
+        eventId: parseInt(eventId, 10),
+        viewCount: view_count,
+      });
+    }
+
     return res.json({ success: true, is_new, view_count });
   } catch (err) {
     console.error("[recordEventView]", err.message);

@@ -114,7 +114,13 @@ const SavedPostsScreen = ({ navigation }) => {
       setAllPosts((prev) =>
         prev.map((p) =>
           p.id === payload.postId
-            ? { ...p, public_view_count: (p.public_view_count || 0) + 1 }
+            ? {
+                ...p,
+                public_view_count:
+                  payload.viewCount !== undefined
+                    ? Math.max(p.public_view_count || 0, payload.viewCount)
+                    : (p.public_view_count || 0) + 1,
+              }
             : p,
         ),
       );

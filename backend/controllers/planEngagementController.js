@@ -113,14 +113,55 @@ async function recordView(req, res) {
     const planId = parseInt(req.params.planId, 10);
 
     // ON CONFLICT DO NOTHING — trigger only fires on INSERT, not conflict
-    await pool.query(
-      `INSERT INTO open_plan_views (plan_id, viewer_id) VALUES ($1, $2) ON CONFLICT (plan_id, viewer_id) DO NOTHING`,
+    const insertRes = await pool.query(
+      `INSERT INTO open_plan_views (plan_id, viewer_id) VALUES ($1, $2) ON CONFLICT (plan_id, viewer_id) DO NOTHING RETURNING id`,
       [planId, userId]
     );
 
-    res.json({ success: true });
+    const isNew = (insertRes.rowCount || 0) > 0;
+    const planRes = await pool.query(`SELECT view_count FROM plans WHERE id = $1`, [planId]);
+    const viewCount = parseInt(planRes.rows[0]?.view_count || 0, 10);
+
+    if (isNew && req.app.locals.io) {
+      req.app.locals.io.emit('plan_view_updated', {
+        planId,
+        viewCount,
+      });
+    }
+
+    res.json({ success: true, is_new: isNew, view_count: viewCount });
   } catch (err) {
     console.error('[planEngagementController.recordView]', err);
+    res.status(500).json({ error: 'server_error' });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// GET /plans/:planId/view-stats
+// ---------------------------------------------------------------------------
+async function getPlanViewStats(req, res) {
+  try {
+    const pool = req.app.locals.pool;
+    const planId = parseInt(req.params.planId, 10);
+    const result = await pool.query(
+      `SELECT
+         COALESCE(p.view_count, 0) AS unique_views,
+         COALESCE(p.view_count, 0) AS total_views
+       FROM plans p
+       WHERE p.id = $1`,
+      [planId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Plan not found' });
+    }
+    const row = result.rows[0];
+    res.json({
+      plan_id: planId,
+      unique_views: parseInt(row.unique_views || 0, 10),
+      total_views: parseInt(row.total_views || 0, 10),
+    });
+  } catch (err) {
+    console.error('[planEngagementController.getPlanViewStats]', err);
     res.status(500).json({ error: 'server_error' });
   }
 }
@@ -510,6 +551,7 @@ module.exports = {
   likePlan,
   unlikePlan,
   recordView,
+  getPlanViewStats,
   getComments,
   addComment,
   deleteComment,

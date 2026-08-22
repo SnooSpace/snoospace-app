@@ -233,7 +233,14 @@ class ViewQueueService {
 
       // Server returns which posts were accepted as unique
       // Update local cache with server truth and notify UI
-      if (response.accepted && Array.isArray(response.accepted)) {
+      if (response.accepted_details && Array.isArray(response.accepted_details)) {
+        response.accepted_details.forEach((item) => {
+          const id = typeof item === "object" ? item.postId : item;
+          const viewCount = typeof item === "object" ? item.viewCount : undefined;
+          this.viewedPostsCache.add(String(id));
+          EventBus.emit("post-view-updated", { postId: id, viewCount });
+        });
+      } else if (response.accepted && Array.isArray(response.accepted)) {
         response.accepted.forEach((id) => {
           this.viewedPostsCache.add(String(id));
           // Only increment the visible count for server-confirmed new views

@@ -44,20 +44,18 @@ const ViewInsightsSheet = ({ visible, onClose, stats, loading, sheetAnim, liveUn
     outputRange: [300, 0],
   });
 
-  // Use the live local viewCount if provided — it's already kept up-to-date
-  // by the in-card view tracking logic with no extra server requests needed.
-  // Fall back to the server-fetched stats if liveUniqueViews is not passed.
+  // Always show the highest authoritative view count between live local state and server-fetched stats.
   const uniqueViewsToShow =
-    liveUniqueViews != null
-      ? liveUniqueViews
-      : (stats?.unique_views ?? 0);
+    stats?.unique_views != null
+      ? (liveUniqueViews != null ? Math.max(Number(liveUniqueViews) || 0, Number(stats.unique_views) || 0) : Number(stats.unique_views) || 0)
+      : (Number(liveUniqueViews) || 0);
 
-  // Total impressions always come from the server fetch (includes repeat views).
-  // If not yet fetched, show the same local value as a reasonable baseline.
+  // Total impressions come from the server fetch (includes repeat views),
+  // ensuring it is at least as large as the unique viewers count.
   const totalViewsToShow =
     stats?.total_views != null
-      ? stats.total_views
-      : (liveUniqueViews ?? 0);
+      ? Math.max(Number(stats.total_views) || 0, uniqueViewsToShow)
+      : uniqueViewsToShow;
 
   return (
     <Modal

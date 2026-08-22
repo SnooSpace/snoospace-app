@@ -389,6 +389,10 @@ const PromptPostCard = React.memo(({
   [post.id]);
   const dwellTimerRef = useRef(null);
 
+  useEffect(() => {
+    setViewCount(post.public_view_count || post.view_count || 0);
+  }, [post.public_view_count, post.view_count]);
+
   // ── View Insights sheet ────────────────────────────────────────────────────
   const [viewStatsVisible, setViewStatsVisible] = React.useState(false);
   const [viewStats, setViewStats] = React.useState(null);
@@ -405,12 +409,16 @@ const PromptPostCard = React.memo(({
       const token = await getAuthToken();
       const data = await apiGet(`/posts/${post.id}/view-stats`, 8000, token);
       setViewStats(data);
+      if (data?.unique_views !== undefined) {
+        setViewCount(data.unique_views);
+        EventBus.emit("post-view-updated", { postId: post.id, viewCount: data.unique_views });
+      }
     } catch (e) {
-      setViewStats({ unique_views: post.public_view_count || post.view_count || 0, total_views: post.view_count || 0 });
+      setViewStats({ unique_views: viewCount, total_views: viewCount });
     } finally {
       setViewStatsLoading(false);
     }
-  }, [post.id, post.public_view_count, post.view_count, viewSheetAnim]);
+  }, [post.id, viewCount, viewSheetAnim]);
 
   const handleCloseViewStats = React.useCallback(() => {
     HapticsService.triggerClose();
@@ -452,7 +460,13 @@ const PromptPostCard = React.memo(({
 
   useEffect(() => {
     const unsubscribe = EventBus.on("post-view-updated", (payload) => {
-      if (payload?.postId === post.id) setViewCount((prev) => prev + 1);
+      if (payload?.postId === post.id) {
+        setViewCount((prev) =>
+          payload.viewCount !== undefined
+            ? Math.max(prev, payload.viewCount)
+            : prev + 1,
+        );
+      }
     });
     return () => {
       if (unsubscribe) unsubscribe();

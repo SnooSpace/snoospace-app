@@ -65,6 +65,10 @@ export async function recordView(planId, token) {
   return apiPost(`/plans/${planId}/views`, {}, 10000, token);
 }
 
+export async function getPlanViewStats(planId, token) {
+  return apiGet(`/plans/${planId}/view-stats`, 10000, token);
+}
+
 export async function getComments(planId, token) {
   return apiGet(`/plans/${planId}/comments`, 15000, token);
 }

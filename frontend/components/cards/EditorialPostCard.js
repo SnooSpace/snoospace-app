@@ -317,8 +317,31 @@ const DefaultEditorialPostCard = ({
     post.save_count || post.saves_count || 0,
     [post.id],
   );
+  const [viewCount, setViewCount] = useRecyclingState(
+    post.public_view_count || post.view_count || 0,
+    [post.id],
+  );
   const [videoViewCounted, setVideoViewCounted] = useRecyclingState(false, [post.id]);
   const [imageViewCounted, setImageViewCounted] = useRecyclingState(false, [post.id]);
+
+  useEffect(() => {
+    setViewCount(post.public_view_count || post.view_count || 0);
+  }, [post.public_view_count, post.view_count]);
+
+  useEffect(() => {
+    const unsubscribe = EventBus.on("post-view-updated", (payload) => {
+      if (payload?.postId === post.id) {
+        setViewCount((prev) =>
+          payload.viewCount !== undefined
+            ? Math.max(prev, payload.viewCount)
+            : prev + 1,
+        );
+      }
+    });
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [post.id]);
 
   // Custom Alert Modal State
   const [alertVisible, setAlertVisible] = useState(false);
@@ -970,15 +993,19 @@ const DefaultEditorialPostCard = ({
       const token = await getAuthToken();
       const data = await apiGet(`/posts/${post.id}/view-stats`, 8000, token);
       setViewStats(data);
+      if (data?.unique_views !== undefined) {
+        setViewCount(data.unique_views);
+        EventBus.emit("post-view-updated", { postId: post.id, viewCount: data.unique_views });
+      }
     } catch (e) {
       setViewStats({
-        unique_views: post.public_view_count || 0,
-        total_views: post.view_count || post.public_view_count || 0,
+        unique_views: viewCount,
+        total_views: viewCount,
       });
     } finally {
       setViewStatsLoading(false);
     }
-  }, [post.id, post.public_view_count, post.view_count, viewSheetAnim]);
+  }, [post.id, viewCount, viewSheetAnim]);
 
   const handleCloseViewStats = useCallback(() => {
     HapticsService.triggerClose();
@@ -1398,7 +1425,7 @@ const DefaultEditorialPostCard = ({
             color={COLORS.editorial.textSecondary}
           />
           <Text style={styles.engagementCount}>
-            {formatCount(post.public_view_count || post.view_count || 0)}
+            {formatCount(viewCount)}
           </Text>
         </GHPressable>
 
@@ -1497,8 +1524,9 @@ const DefaultEditorialPostCard = ({
                     <View style={viewStyles.statTextCol}>
                       <Text style={viewStyles.statValue}>
                         {formatCount(
-                          viewStats?.unique_views ??
-                            (post.public_view_count || 0),
+                          viewStats?.unique_views != null
+                            ? Math.max(viewCount, viewStats.unique_views)
+                            : viewCount,
                         )}
                       </Text>
                       <Text style={viewStyles.statLabel}>Unique viewers</Text>
@@ -1516,7 +1544,9 @@ const DefaultEditorialPostCard = ({
                     <View style={viewStyles.statTextCol}>
                       <Text style={viewStyles.statValue}>
                         {formatCount(
-                          viewStats?.total_views ?? (post.view_count || 0),
+                          viewStats?.total_views != null
+                            ? Math.max(viewStats.total_views, viewStats.unique_views ?? viewCount)
+                            : (viewStats?.unique_views ?? viewCount),
                         )}
                       </Text>
                       <Text style={viewStyles.statLabel}>

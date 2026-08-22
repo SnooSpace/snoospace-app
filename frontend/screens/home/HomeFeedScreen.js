@@ -31,7 +31,7 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import { MessageCircle, Bell } from "lucide-react-native";
+import { MessageCircle, Bell, BadgeCheck } from "lucide-react-native";
 import { useNotifications } from "../../context/NotificationsContext";
 import { useVideoContext, VideoProvider } from "../../context/VideoContext";
 import { apiGet, apiPost, apiDelete } from "../../api/client";
@@ -295,6 +295,105 @@ const HeaderIcon = ({ IconComponent, onPress, showDot }) => {
         {showDot && <View style={styles.indicatorDot} />}
       </RNAnimated.View>
     </TouchableOpacity>
+  );
+};
+
+/**
+ * Animated Caught-Up Footer Component
+ * - 360-degree rotation animation with smooth spring deceleration
+ * - Subtle pop & scale-in with soft tinted circular container
+ * - Staggered text entrance (fade + slide up)
+ * - Lucide BadgeCheck icon
+ * - Hierarchy: BasicCommercial-Bold title + Manrope-Regular descriptive text
+ */
+const CaughtUpFooter = ({ subtitle }) => {
+  const rotateAnim = useRef(new RNAnimated.Value(0)).current;
+  const scaleAnim = useRef(new RNAnimated.Value(0.3)).current;
+  const opacityAnim = useRef(new RNAnimated.Value(0)).current;
+  const textFadeAnim = useRef(new RNAnimated.Value(0)).current;
+  const textSlideAnim = useRef(new RNAnimated.Value(10)).current;
+
+  useEffect(() => {
+    HapticsService.triggerImpactLight();
+
+    RNAnimated.parallel([
+      // Container / Icon Fade In
+      RNAnimated.timing(opacityAnim, {
+        toValue: 1,
+        duration: 350,
+        useNativeDriver: true,
+        easing: Easing.out(Easing.quad),
+      }),
+      // Spring Scale Up
+      RNAnimated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 6,
+        tension: 50,
+        useNativeDriver: true,
+      }),
+      // 360 Rotation with smooth deceleration settling
+      RNAnimated.timing(rotateAnim, {
+        toValue: 1,
+        duration: 850,
+        useNativeDriver: true,
+        easing: Easing.bezier(0.16, 1, 0.3, 1),
+      }),
+      // Staggered Text Entrance (Fade + Slide)
+      RNAnimated.sequence([
+        RNAnimated.delay(200),
+        RNAnimated.parallel([
+          RNAnimated.timing(textFadeAnim, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: true,
+            easing: Easing.out(Easing.quad),
+          }),
+          RNAnimated.spring(textSlideAnim, {
+            toValue: 0,
+            friction: 7,
+            tension: 40,
+            useNativeDriver: true,
+          }),
+        ]),
+      ]),
+    ]).start();
+  }, []);
+
+  const spin = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "360deg"],
+  });
+
+  return (
+    <View style={styles.caughtUpContainer}>
+      <RNAnimated.View
+        style={[
+          styles.caughtUpIconCircle,
+          {
+            opacity: opacityAnim,
+            transform: [
+              { scale: scaleAnim },
+              { rotate: spin },
+            ],
+          },
+        ]}
+      >
+        <BadgeCheck size={26} color={COLORS.primary} strokeWidth={2.2} />
+      </RNAnimated.View>
+
+      <RNAnimated.View
+        style={{
+          alignItems: "center",
+          opacity: textFadeAnim,
+          transform: [{ translateY: textSlideAnim }],
+        }}
+      >
+        <Text style={styles.caughtUpTitle}>You're all caught up</Text>
+        <Text style={styles.caughtUpSubtitle}>
+          {subtitle || "Follow communities to keep your feed growing"}
+        </Text>
+      </RNAnimated.View>
+    </View>
   );
 };
 
@@ -1465,11 +1564,68 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       const updater = (prev) =>
         prev.map((post) =>
           post.id === payload.postId
-            ? { ...post, public_view_count: (post.public_view_count || 0) + 1 }
+            ? {
+                ...post,
+                public_view_count:
+                  payload.viewCount !== undefined
+                    ? Math.max(post.public_view_count || 0, payload.viewCount)
+                    : (post.public_view_count || 0) + 1,
+              }
             : post,
         );
       setPosts(updater);
       setOpportunities(updater);
+    };
+
+    const handleEventViewUpdate = (payload) => {
+      if (!payload?.eventId) return;
+      setEvents((prev) =>
+        prev.map((event) =>
+          event.id === payload.eventId
+            ? {
+                ...event,
+                view_count:
+                  payload.viewCount !== undefined
+                    ? Math.max(event.view_count || 0, payload.viewCount)
+                    : (event.view_count || 0) + 1,
+              }
+            : event,
+        ),
+      );
+    };
+
+    const handleOppViewUpdate = (payload) => {
+      if (!payload?.opportunityId) return;
+      setOpportunities((prev) =>
+        prev.map((opp) =>
+          opp.id === payload.opportunityId
+            ? {
+                ...opp,
+                view_count:
+                  payload.viewCount !== undefined
+                    ? Math.max(opp.view_count || 0, payload.viewCount)
+                    : (opp.view_count || 0) + 1,
+              }
+            : opp,
+        ),
+      );
+    };
+
+    const handlePlanViewUpdate = (payload) => {
+      if (!payload?.planId) return;
+      setPlans((prev) =>
+        prev.map((plan) =>
+          plan.id === payload.planId
+            ? {
+                ...plan,
+                view_count:
+                  payload.viewCount !== undefined
+                    ? Math.max(plan.view_count || 0, payload.viewCount)
+                    : (plan.view_count || 0) + 1,
+              }
+            : plan,
+        ),
+      );
     };
 
     const handlePostShareUpdate = (payload) => {
@@ -1514,6 +1670,9 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     };
 
     const unsubscribeView = EventBus.on("post-view-updated", handlePostViewUpdate);
+    const unsubscribeEventView = EventBus.on("event-view-updated", handleEventViewUpdate);
+    const unsubscribeOppView = EventBus.on("opportunity-view-updated", handleOppViewUpdate);
+    const unsubscribePlanView = EventBus.on("plan-view-updated", handlePlanViewUpdate);
     const unsubscribeShare = EventBus.on("post-share-updated", handlePostShareUpdate);
     const unsubscribeSave = EventBus.on("post-save-updated", handlePostSaveUpdate);
     const unsubscribeFollow = EventBus.on("post-follow-updated", handlePostFollowUpdated);
@@ -1525,6 +1684,9 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       if (unsubscribeLike) unsubscribeLike();
       if (unsubscribeComment) unsubscribeComment();
       if (unsubscribeView) unsubscribeView();
+      if (unsubscribeEventView) unsubscribeEventView();
+      if (unsubscribeOppView) unsubscribeOppView();
+      if (unsubscribePlanView) unsubscribePlanView();
       if (unsubscribeShare) unsubscribeShare();
       if (unsubscribeSave) unsubscribeSave();
       if (unsubscribeFollow) unsubscribeFollow();
@@ -2421,26 +2583,17 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
               <SnooLoader size="small" color={COLORS.primary} />
             </View>
           ) : (
-            // ── Zero-follow end-state message ────────────────────────────────
-            // Shown after the user scrolls through the entire cold-start pool.
-            // Once they follow someone and the feed reloads, posts.length > 0
-            // and this branch is never reached (normal path has hasMore + spinner).
-            posts.length === 0 &&
-            feedItems.length > 0 &&
-            revealedCount >= feedItems.length ? (
-              <View style={{ paddingVertical: 32, paddingHorizontal: 24, alignItems: "center" }}>
-                <Text
-                  style={{
-                    fontSize: 14,
-                    color: COLORS.textSecondary || '#8E8E93',
-                    textAlign: 'center',
-                    lineHeight: 20,
-                    fontFamily: 'Manrope_400Regular',
-                  }}
-                >
-                  You're all caught up — follow communities to keep your feed growing
-                </Text>
-              </View>
+            // ── End-state message ───────────────────────────────────────────
+            // Shown when user has scrolled through all available feed items
+            ((posts.length === 0 && feedItems.length > 0 && revealedCount >= feedItems.length) ||
+             (!hasMore && feedItems.length > 0 && revealedCount >= feedItems.length)) ? (
+              <CaughtUpFooter
+                subtitle={
+                  posts.length === 0
+                    ? "Follow communities to keep your feed growing"
+                    : "Follow more communities to keep your feed growing"
+                }
+              />
             ) : null
           )
         }
@@ -2936,5 +3089,38 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: "Manrope-Regular",
     color: COLORS.textSecondary,
+  },
+  caughtUpContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 36,
+    paddingHorizontal: 24,
+    marginBottom: 20,
+  },
+  caughtUpIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "rgba(41, 98, 255, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(41, 98, 255, 0.14)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+  caughtUpTitle: {
+    fontFamily: "BasicCommercial-Bold",
+    fontSize: 16,
+    color: COLORS.textPrimary || "#1a2d4a",
+    marginBottom: 4,
+    textAlign: "center",
+  },
+  caughtUpSubtitle: {
+    fontFamily: "Manrope-Regular",
+    fontSize: 13,
+    color: COLORS.textSecondary || "#8E8E93",
+    textAlign: "center",
+    lineHeight: 18,
+    maxWidth: 280,
   },
 });
