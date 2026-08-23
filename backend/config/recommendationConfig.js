@@ -22,7 +22,7 @@ module.exports = {
   // How long (days) before a dismissed candidate can resurface.
   DISMISSAL_COOLDOWN_DAYS: 14,
 
-  // ── Scoring weights (w1–w10) ───────────────────────────────────────────────────
+  // ── Scoring weights (w1–w11) ───────────────────────────────────────────────────
   // Tuned post-launch based on engagement data. Starting values per spec.
   weights: {
     shared_events:        3.0,  // w1 — most on-thesis (physically co-present)
@@ -41,6 +41,14 @@ module.exports = {
     // Review Signal 10 contribution logs for the first 2 weeks post-launch
     // (logged individually in computeRecommendations.js) before trusting this silently.
     co_attendee_rating:   0.15,
+
+    // w11 — Spotify shared top-artist overlap
+    // Supporting signal: meaningfully lower than primary social graph signals (1.5–3.0).
+    // Ranks 1–10; shared #1 artist weights ~20 pts, shared #10 ~2 pts before normalization.
+    // Max normalized raw score ≈ 1.0 (10 fully-overlapping rank-1 artists, which is impossible
+    // in practice — real overlap is 1–3 shared artists, giving 0.1–0.4 raw).
+    // Set to 0 to disable without touching job logic.
+    spotify_artist_overlap: 0.5,
   },
 
   // ── Signal caps ───────────────────────────────────────────────────────────

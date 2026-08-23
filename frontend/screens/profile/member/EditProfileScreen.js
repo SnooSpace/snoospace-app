@@ -137,11 +137,11 @@ export default function EditProfileScreen({ route, navigation }) {
   });
 
   useEffect(() => {
-    console.log('[EDIT_PROFILE][MOUNT_PERF] useEffect #', renderCount.current, performance.now());
+    console.log('[EDIT_PROFILE][MOUNT_PERF] useEffect (mount)', performance.now());
     return () => {
-      console.log('[EDIT_PROFILE] UNMOUNT', performance.now());
+      console.log('[EDIT_PROFILE] UNMOUNT (actual component unmount)', performance.now());
     };
-  });
+  }, []);
 
   const profile = route?.params?.profile;
   const scrollViewRef = useRef(null);
@@ -291,7 +291,8 @@ export default function EditProfileScreen({ route, navigation }) {
 
   useEffect(() => {
     console.log('[EDIT_PROFILE][EFFECT] catalog START');
-    loadInterestsCatalog();
+    // loadInterestsCatalog();
+    console.log('[EDIT_PROFILE] loadInterestsCatalog DISABLED (catalogSize remains 0 for A/B test)');
     loadPronounsCatalog();
     console.log('[EDIT_PROFILE][EFFECT] catalog END');
   }, []);
@@ -920,13 +921,195 @@ export default function EditProfileScreen({ route, navigation }) {
 
         {/* Card 3: Occupation */}
         <Profiler id="Card3_Occupation" onRender={onProfileRender}>
-        <View style={styles.card}>
-          <BlurView intensity={60} tint="light" style={[StyleSheet.absoluteFill, { borderRadius: 20, overflow: 'hidden' }]} />
-          {renderSectionHeader("OCCUPATION", Briefcase)}
+        {(() => {
+          const card3Start = performance.now();
+          console.log('[OCCUPATION][PERF] card3Render START', card3Start.toFixed(2));
 
-          <View style={styles.inputGroupLast}>
-            {/* Selected Occupation Display */}
-            {selectedOccupation && (
+          let selectedOccJSX = null;
+          if (selectedOccupation) {
+            const tSel0 = performance.now();
+            const occCat = getOccupationCategory(selectedOccupation);
+            const occLabel = selectedOccupation === "other"
+              ? (customOccupation.trim() || "Other")
+              : getOccupationLabel(selectedOccupation);
+
+            let otherCategoryPickerJSX = null;
+            if (selectedOccupation === "other" && customOccupation.trim().length > 0) {
+              const otherCatKeys = Object.keys(CATEGORY_GENERIC_FIELDS).filter(k => k !== "OTHER");
+              otherCategoryPickerJSX = (
+                <View style={{ marginTop: 16 }}>
+                  <Text style={[styles.inputLabel, { marginBottom: 10 }]}>WHICH CATEGORY FITS YOU BEST?</Text>
+                  <View style={styles.vibesContainer}>
+                    {otherCatKeys.map((catKey) => {
+                      const catInfo = OCCUPATION_CATEGORIES[catKey];
+                      const isSelected = occupationCategory === catKey;
+                      return (
+                        <TouchableOpacity
+                          key={catKey}
+                          onPress={() => {
+                            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                            setOccupationCategory(isSelected ? null : catKey);
+                            if (isSelected) setOccupationDetails({});
+                            HapticsService.triggerSelection();
+                          }}
+                          style={[
+                            styles.optionChip,
+                            isSelected && { backgroundColor: catInfo?.bg || "#F5F5F5", borderColor: catInfo?.text || "#424242" },
+                          ]}
+                        >
+                          <Text style={[
+                            styles.optionText,
+                            isSelected && { color: catInfo?.text || "#424242", fontFamily: "Manrope-SemiBold" },
+                          ]}>
+                            {catInfo?.label || catKey}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              );
+            }
+
+            const subFields = selectedOccupation === "other"
+              ? getSubFieldsForCategory(occupationCategory)
+              : getSubFieldsForOccupation(selectedOccupation);
+
+            let subFieldsJSX = null;
+            if (subFields && subFields.length > 0) {
+              subFieldsJSX = (
+                <View style={{ marginTop: 16 }}>
+                  {subFields.map((field) => {
+                    if (selectedOccupation === 'student' && field.key === 'institution') {
+                      const displayLabel = collegeDisplayName
+                        ? `${collegeDisplayName}${collegeCampusName ? ` • ${collegeCampusName}` : ''}`
+                        : null;
+                      return (
+                        <View key={field.key} style={{ marginBottom: 14 }}>
+                          <Text style={styles.inputLabel}>{field.label}</Text>
+                          <TouchableOpacity
+                            style={[styles.input, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+                            onPress={() => setShowCollegePicker(true)}
+                            activeOpacity={0.7}
+                          >
+                            <Text
+                              style={[styles.inputText, !displayLabel && { color: TEXT_SECONDARY }]}
+                              numberOfLines={1}
+                            >
+                              {displayLabel || field.placeholder}
+                            </Text>
+                            <ChevronRight size={16} color={TEXT_SECONDARY} strokeWidth={2} />
+                          </TouchableOpacity>
+                          {campusId && (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+                              <TouchableOpacity
+                                style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
+                                onPress={() => { setShowCollege(!showCollege); HapticsService.triggerSelection(); }}
+                                activeOpacity={0.7}
+                              >
+                                <View style={{
+                                  width: 18, height: 18, borderRadius: 5, borderWidth: 2,
+                                  borderColor: showCollege ? ACCENT_COLOR : BORDER_COLOR,
+                                  backgroundColor: showCollege ? ACCENT_COLOR : 'transparent',
+                                  alignItems: 'center', justifyContent: 'center',
+                                }}>
+                                  {showCollege && <Check size={11} color="#FFFFFF" strokeWidth={3} />}
+                                </View>
+                                <Text style={{ fontFamily: 'Manrope-Regular', fontSize: 13, color: TEXT_SECONDARY }}>
+                                  Show college on my profile
+                                </Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                                onPress={() => {
+                                  setCampusId(null);
+                                  setCollegeDisplayName("");
+                                  setCollegeCampusName("");
+                                }}
+                                activeOpacity={0.7}
+                              >
+                                <Trash2 size={13} color="#EF4444" strokeWidth={2} />
+                                <Text style={{ fontFamily: 'Manrope-Medium', fontSize: 13, color: '#EF4444' }}>
+                                  Remove
+                                </Text>
+                              </TouchableOpacity>
+                            </View>
+                          )}
+                        </View>
+                      );
+                    }
+                    if (selectedOccupation === 'student' && field.key === 'degree') {
+                      const currentDegree = occupationDetails['degree'] || '';
+                      return (
+                        <View key={field.key} style={{ marginBottom: 14 }}>
+                          <Text style={styles.inputLabel}>{field.label}</Text>
+                          <TouchableOpacity
+                            style={[styles.input, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+                            onPress={() => { setDegreePickerTarget('student'); setShowDegreePicker(true); }}
+                            activeOpacity={0.7}
+                          >
+                            <Text
+                              style={[styles.inputText, !currentDegree && { color: TEXT_SECONDARY }]}
+                              numberOfLines={1}
+                            >
+                              {currentDegree || field.placeholder}
+                            </Text>
+                            <ChevronRight size={16} color={TEXT_SECONDARY} strokeWidth={2} />
+                          </TouchableOpacity>
+                        </View>
+                      );
+                    }
+                    return (
+                      <View key={field.key} style={{ marginBottom: 14 }}>
+                        <Text style={styles.inputLabel}>
+                          {field.label}{field.optional ? " (OPTIONAL)" : ""}
+                        </Text>
+                        <FormTextInput
+                          id={field.key}
+                          style={styles.input}
+                          value={occupationDetails[field.key] || ""}
+                          onChangeText={handleOccupationDetailChange}
+                          placeholder={field.placeholder}
+                          placeholderTextColor={TEXT_SECONDARY}
+                          maxLength={200}
+                          keyboardType={field.keyboardType || "default"}
+                          autoCapitalize="words"
+                          returnKeyType="done"
+                        />
+                      </View>
+                    );
+                  })}
+                </View>
+              );
+            }
+
+            const showPortfolio = shouldShowPortfolio(selectedOccupation, occupationCategory);
+            let portfolioJSX = null;
+            if (showPortfolio) {
+              portfolioJSX = (
+                <View style={{ marginTop: selectedOccupation === "other" ? 2 : 16, marginBottom: 4 }}>
+                  <Text style={styles.inputLabel}>PORTFOLIO / WEBSITE</Text>
+                  <FormTextInput
+                    style={styles.input}
+                    value={portfolioLink}
+                    onChangeText={setPortfolioLink}
+                    placeholder="https://yourportfolio.com"
+                    placeholderTextColor={TEXT_SECONDARY}
+                    maxLength={255}
+                    keyboardType="url"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    returnKeyType="done"
+                  />
+                </View>
+              );
+            }
+
+            const selDuration = performance.now() - tSel0;
+            console.log(`[OCCUPATION][PERF] selectedOccupationSection occ="${selectedOccupation}" subFieldsCount=${subFields?.length || 0} hasPortfolio=${showPortfolio} duration=${selDuration.toFixed(2)}ms`);
+
+            selectedOccJSX = (
+              <Profiler id="Occupation_SelectedSection" onRender={onProfileRender}>
               <View style={styles.selectedVibesSection}>
                 <TouchableOpacity
                   activeOpacity={0.7}
@@ -941,23 +1124,20 @@ export default function EditProfileScreen({ route, navigation }) {
                   }}
                   style={[
                     styles.vibeChip,
-                    { backgroundColor: getOccupationCategory(selectedOccupation).bg, paddingRight: 8 },
+                    { backgroundColor: occCat.bg, paddingRight: 8 },
                   ]}
                 >
                   <View style={styles.vibeContent}>
-                    <Check size={14} color={getOccupationCategory(selectedOccupation).text} strokeWidth={2.5} />
-                    <Text style={[styles.vibeText, { color: getOccupationCategory(selectedOccupation).text }]}>
-                      {selectedOccupation === "other"
-                        ? (customOccupation.trim() || "Other")
-                        : getOccupationLabel(selectedOccupation)}
+                    <Check size={14} color={occCat.text} strokeWidth={2.5} />
+                    <Text style={[styles.vibeText, { color: occCat.text }]}>
+                      {occLabel}
                     </Text>
                   </View>
                   <View style={styles.removeIconContainer}>
-                    <X size={12} color={getOccupationCategory(selectedOccupation).text} strokeWidth={3} />
+                    <X size={12} color={occCat.text} strokeWidth={3} />
                   </View>
                 </TouchableOpacity>
 
-                {/* Free-text input when "Other" is selected */}
                 {selectedOccupation === "other" && (
                   <View style={{ marginTop: 12 }}>
                     <TextInput
@@ -973,264 +1153,132 @@ export default function EditProfileScreen({ route, navigation }) {
                   </View>
                 )}
 
-                {/* Category picker for "Other" */}
-                {selectedOccupation === "other" && customOccupation.trim().length > 0 && (
-                  <View style={{ marginTop: 16 }}>
-                    <Text style={[styles.inputLabel, { marginBottom: 10 }]}>WHICH CATEGORY FITS YOU BEST?</Text>
-                    <View style={styles.vibesContainer}>
-                      {Object.keys(CATEGORY_GENERIC_FIELDS).filter(k => k !== "OTHER").map((catKey) => {
-                        const catInfo = OCCUPATION_CATEGORIES[catKey];
-                        const isSelected = occupationCategory === catKey;
-                        return (
-                          <TouchableOpacity
-                            key={catKey}
-                            onPress={() => {
-                              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                              setOccupationCategory(isSelected ? null : catKey);
-                              if (isSelected) setOccupationDetails({});
-                              HapticsService.triggerSelection();
-                            }}
-                            style={[
-                              styles.optionChip,
-                              isSelected && { backgroundColor: catInfo?.bg || "#F5F5F5", borderColor: catInfo?.text || "#424242" },
-                            ]}
-                          >
-                            <Text style={[
-                              styles.optionText,
-                              isSelected && { color: catInfo?.text || "#424242", fontFamily: "Manrope-SemiBold" },
-                            ]}>
-                              {catInfo?.label || catKey}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  </View>
-                )}
-
-                {/* Dynamic sub-fields based on occupation or category */}
-                {(() => {
-                  const subFields = selectedOccupation === "other"
-                    ? getSubFieldsForCategory(occupationCategory)
-                    : getSubFieldsForOccupation(selectedOccupation);
-                  if (!subFields || subFields.length === 0) return null;
-                  return (
-                    <View style={{ marginTop: 16 }}>
-                      {subFields.map((field) => {
-                        // For students: replace the institution text field with the CollegePickerModal button
-                        if (selectedOccupation === 'student' && field.key === 'institution') {
-                          const displayLabel = collegeDisplayName
-                            ? `${collegeDisplayName}${collegeCampusName ? ` • ${collegeCampusName}` : ''}`
-                            : null;
-                          return (
-                            <View key={field.key} style={{ marginBottom: 14 }}>
-                              <Text style={styles.inputLabel}>{field.label}</Text>
-                              <TouchableOpacity
-                                style={[styles.input, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
-                                onPress={() => setShowCollegePicker(true)}
-                                activeOpacity={0.7}
-                              >
-                                <Text
-                                  style={[styles.inputText, !displayLabel && { color: TEXT_SECONDARY }]}
-                                  numberOfLines={1}
-                                >
-                                  {displayLabel || field.placeholder}
-                                </Text>
-                                <ChevronRight size={16} color={TEXT_SECONDARY} strokeWidth={2} />
-                              </TouchableOpacity>
-                              {campusId && (
-                                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
-                                  <TouchableOpacity
-                                    style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
-                                    onPress={() => { setShowCollege(!showCollege); HapticsService.triggerSelection(); }}
-                                    activeOpacity={0.7}
-                                  >
-                                    <View style={{
-                                      width: 18, height: 18, borderRadius: 5, borderWidth: 2,
-                                      borderColor: showCollege ? ACCENT_COLOR : BORDER_COLOR,
-                                      backgroundColor: showCollege ? ACCENT_COLOR : 'transparent',
-                                      alignItems: 'center', justifyContent: 'center',
-                                    }}>
-                                      {showCollege && <Check size={11} color="#FFFFFF" strokeWidth={3} />}
-                                    </View>
-                                    <Text style={{ fontFamily: 'Manrope-Regular', fontSize: 13, color: TEXT_SECONDARY }}>
-                                      Show college on my profile
-                                    </Text>
-                                  </TouchableOpacity>
-                                  <TouchableOpacity
-                                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
-                                    onPress={() => {
-                                      setCampusId(null);
-                                      setCollegeDisplayName("");
-                                      setCollegeCampusName("");
-                                    }}
-                                    activeOpacity={0.7}
-                                  >
-                                    <Trash2 size={13} color="#EF4444" strokeWidth={2} />
-                                    <Text style={{ fontFamily: 'Manrope-Medium', fontSize: 13, color: '#EF4444' }}>
-                                      Remove
-                                    </Text>
-                                  </TouchableOpacity>
-                                </View>
-                              )}
-                            </View>
-                          );
-                        }
-                        // For students: replace the 'degree' field with the DegreePickerModal button
-                        if (selectedOccupation === 'student' && field.key === 'degree') {
-                          const currentDegree = occupationDetails['degree'] || '';
-                          return (
-                            <View key={field.key} style={{ marginBottom: 14 }}>
-                              <Text style={styles.inputLabel}>{field.label}</Text>
-                              <TouchableOpacity
-                                style={[styles.input, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
-                                onPress={() => { setDegreePickerTarget('student'); setShowDegreePicker(true); }}
-                                activeOpacity={0.7}
-                              >
-                                <Text
-                                  style={[styles.inputText, !currentDegree && { color: TEXT_SECONDARY }]}
-                                  numberOfLines={1}
-                                >
-                                  {currentDegree || field.placeholder}
-                                </Text>
-                                <ChevronRight size={16} color={TEXT_SECONDARY} strokeWidth={2} />
-                              </TouchableOpacity>
-                            </View>
-                          );
-                        }
-                        return (
-                          <View key={field.key} style={{ marginBottom: 14 }}>
-                            <Text style={styles.inputLabel}>
-                              {field.label}{field.optional ? " (OPTIONAL)" : ""}
-                            </Text>
-                            <FormTextInput
-                              id={field.key}
-                              style={styles.input}
-                              value={occupationDetails[field.key] || ""}
-                              onChangeText={handleOccupationDetailChange}
-                              placeholder={field.placeholder}
-                              placeholderTextColor={TEXT_SECONDARY}
-                              maxLength={200}
-                              keyboardType={field.keyboardType || "default"}
-                              autoCapitalize="words"
-                              returnKeyType="done"
-                            />
-                          </View>
-                        );
-                      })}
-                    </View>
-                  );
-                })()}
-
-                {/* Portfolio link for relevant occupations */}
-                {shouldShowPortfolio(selectedOccupation, occupationCategory) && (
-                  <View style={{ marginTop: selectedOccupation === "other" ? 2 : 16, marginBottom: 4 }}>
-                    <Text style={styles.inputLabel}>PORTFOLIO / WEBSITE</Text>
-                    <FormTextInput
-                      style={styles.input}
-                      value={portfolioLink}
-                      onChangeText={setPortfolioLink}
-                      placeholder="https://yourportfolio.com"
-                      placeholderTextColor={TEXT_SECONDARY}
-                      maxLength={255}
-                      keyboardType="url"
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      returnKeyType="done"
-                    />
-                  </View>
-                )}
+                {otherCategoryPickerJSX}
+                {subFieldsJSX}
+                {portfolioJSX}
 
                 <View style={styles.divider} />
               </View>
-            )}
+              </Profiler>
+            );
+          }
 
-            {/* Occupation Categories Accordion */}
-            <View style={styles.categoriesContainer}>
-              {Object.keys(OCCUPATION_CATEGORIES).map((key) => {
-                const category = OCCUPATION_CATEGORIES[key];
-                const isExpanded = occupationCategoryExpanded === key;
-                const Icon = category.icon;
+          const tAccordion0 = performance.now();
+          const occCatKeys = Object.keys(OCCUPATION_CATEGORIES);
+          let totalExpandedChips = 0;
 
-                // Filter out the currently selected occupation
-                const availableOccupations = category.occupations.filter(
-                  (occ) => occ.value !== selectedOccupation
-                );
+          const renderedAccordion = occCatKeys.map((key) => {
+            const category = OCCUPATION_CATEGORIES[key];
+            const isExpanded = occupationCategoryExpanded === key;
+            const Icon = category.icon;
 
-                const hasAnyOccupations = category.occupations.length > 0;
-                if (!hasAnyOccupations) return null;
+            const availableOccupations = category.occupations.filter(
+              (occ) => occ.value !== selectedOccupation
+            );
 
-                return (
-                  <View key={key} style={styles.categoryRow}>
-                    <TouchableOpacity
-                      activeOpacity={0.7}
-                      onPress={() => {
-                        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                        setOccupationCategoryExpanded(isExpanded ? null : key);
-                      }}
+            if (category.occupations.length === 0) return null;
+
+            let expandedChipsJSX = null;
+            if (isExpanded) {
+              totalExpandedChips += availableOccupations.length;
+              expandedChipsJSX = (
+                <View style={styles.categoryContent}>
+                  {availableOccupations.length === 0 ? (
+                    <Text style={[styles.optionText, { color: TEXT_SECONDARY, fontStyle: 'italic', paddingLeft: 4 }]}>
+                      All selected
+                    </Text>
+                  ) : (
+                    <View style={styles.vibesContainer}>
+                      {availableOccupations.map((occ) => (
+                        <TouchableOpacity
+                          key={occ.value}
+                          onPress={() => {
+                            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                            setSelectedOccupation(occ.value);
+                            if (occ.value !== "other") setCustomOccupation("");
+                            setOccupationDetails({});
+                            setOccupationCategory(null);
+                            setPortfolioLink("");
+                            HapticsService.triggerSelection();
+                          }}
+                          style={styles.optionChip}
+                        >
+                          <Text style={styles.optionText}>{occ.label}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              );
+            }
+
+            return (
+              <Profiler key={key} id={`Occupation_CategoryRow_${key}`} onRender={onProfileRender}>
+              <View style={styles.categoryRow}>
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                    setOccupationCategoryExpanded(isExpanded ? null : key);
+                  }}
+                  style={[
+                    styles.categoryHeader,
+                    isExpanded && styles.categoryHeaderExpanded,
+                    { backgroundColor: isExpanded ? category.bg : "transparent" },
+                  ]}
+                >
+                  <View style={styles.categoryHeaderLeft}>
+                    <View style={[styles.categoryIcon, { backgroundColor: category.bg }]}>
+                      <Icon size={14} color={category.text} />
+                    </View>
+                    <Text
                       style={[
-                        styles.categoryHeader,
-                        isExpanded && styles.categoryHeaderExpanded,
-                        { backgroundColor: isExpanded ? category.bg : "transparent" },
+                        styles.categoryTitle,
+                        isExpanded && { color: category.text, fontWeight: "600" },
                       ]}
                     >
-                      <View style={styles.categoryHeaderLeft}>
-                        <View style={[styles.categoryIcon, { backgroundColor: category.bg }]}>
-                          <Icon size={14} color={category.text} />
-                        </View>
-                        <Text
-                          style={[
-                            styles.categoryTitle,
-                            isExpanded && { color: category.text, fontWeight: "600" },
-                          ]}
-                        >
-                          {category.label}
-                        </Text>
-                      </View>
-                      {isExpanded ? (
-                        <ChevronDown size={16} color={TEXT_SECONDARY} />
-                      ) : (
-                        <ChevronRight size={16} color={TEXT_SECONDARY} />
-                      )}
-                    </TouchableOpacity>
-
-                    {isExpanded && (
-                      <View style={styles.categoryContent}>
-                        {availableOccupations.length === 0 ? (
-                          <Text style={[styles.optionText, { color: TEXT_SECONDARY, fontStyle: 'italic', paddingLeft: 4 }]}>
-                            All selected
-                          </Text>
-                        ) : (
-                          <View style={styles.vibesContainer}>
-                            {availableOccupations.map((occ) => (
-                              <TouchableOpacity
-                                key={occ.value}
-                                onPress={() => {
-                                  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                                  setSelectedOccupation(occ.value);
-                                  if (occ.value !== "other") setCustomOccupation("");
-                                  setOccupationDetails({});
-                                  setOccupationCategory(null);
-                                  setPortfolioLink("");
-                                  HapticsService.triggerSelection();
-                                }}
-                                style={styles.optionChip}
-                              >
-                                <Text style={styles.optionText}>{occ.label}</Text>
-                              </TouchableOpacity>
-                            ))}
-                          </View>
-                        )}
-                      </View>
-                    )}
+                      {category.label}
+                    </Text>
                   </View>
-                );
-              })}
-            </View>
+                  {isExpanded ? (
+                    <ChevronDown size={16} color={TEXT_SECONDARY} />
+                  ) : (
+                    <ChevronRight size={16} color={TEXT_SECONDARY} />
+                  )}
+                </TouchableOpacity>
 
-            <Text style={styles.helperText}>Optional • Shown on your profile</Text>
-          </View>
-        </View>
+                {expandedChipsJSX}
+              </View>
+              </Profiler>
+            );
+          });
+
+          const accordionDuration = performance.now() - tAccordion0;
+          console.log(`[OCCUPATION][PERF] accordionCategories catCount=${occCatKeys.length} expandedCategory="${occupationCategoryExpanded}" expandedChips=${totalExpandedChips} duration=${accordionDuration.toFixed(2)}ms`);
+
+          const card3End = performance.now();
+          console.log(`[OCCUPATION][PERF] card3Render END totalDuration=${(card3End - card3Start).toFixed(2)}ms`);
+
+          return (
+            <View style={styles.card}>
+              <BlurView intensity={60} tint="light" style={[StyleSheet.absoluteFill, { borderRadius: 20, overflow: 'hidden' }]} />
+              {renderSectionHeader("OCCUPATION", Briefcase)}
+
+              <View style={styles.inputGroupLast}>
+                {selectedOccJSX}
+
+                {/* Occupation Categories Accordion */}
+                <Profiler id="Occupation_Accordion" onRender={onProfileRender}>
+                <View style={styles.categoriesContainer}>
+                  {renderedAccordion}
+                </View>
+                </Profiler>
+
+                <Text style={styles.helperText}>Optional • Shown on your profile</Text>
+              </View>
+            </View>
+          );
+        })()}
         </Profiler>
 
         {/* Card 4: Education / College */}
@@ -1333,56 +1381,60 @@ export default function EditProfileScreen({ route, navigation }) {
 
         {/* Card 5: My Vibes (Scalable Redesign) */}
         <Profiler id="Card5_MyVibes" onRender={onProfileRender}>
-        <View style={styles.card}>
-          <BlurView intensity={60} tint="light" style={[StyleSheet.absoluteFill, { borderRadius: 20, overflow: 'hidden' }]} />
-          {renderSectionHeader("MY VIBES", RollerCoaster)}
+        {(() => {
+          const card5Start = performance.now();
+          console.log('[MY_VIBES][PERF] card5Render START', card5Start.toFixed(2));
 
-          <View style={[styles.inputGroupLast, { marginTop: 12 }]}>
-            {/* 1. Selected Vibes (Pinned Top) */}
-            {interests.length > 0 && (
+          let selectedVibesJSX = null;
+          if (interests.length > 0) {
+            const tSel0 = performance.now();
+            const visibleInterests = interests.slice(0, showAllSelected ? undefined : 8);
+            const mappedVibes = visibleInterests.map((interest) => {
+              const style = getInterestStyle(interest);
+              const Icon = style.icon;
+              return (
+                <TouchableOpacity
+                  key={interest}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    LayoutAnimation.configureNext(
+                      LayoutAnimation.Presets.easeInEaseOut,
+                    );
+                    setInterests(
+                      interests.filter((i) => i !== interest),
+                    );
+                    HapticsService.triggerSelection();
+                  }}
+                  style={[
+                    styles.vibeChip,
+                    { backgroundColor: style.bg, paddingRight: 8 },
+                  ]}
+                >
+                  <View style={styles.vibeContent}>
+                    <Icon
+                      size={14}
+                      color={style.text}
+                      strokeWidth={2.5}
+                    />
+                    <Text
+                      style={[styles.vibeText, { color: style.text }]}
+                    >
+                      {interest}
+                    </Text>
+                  </View>
+                  <View style={styles.removeIconContainer}>
+                    <X size={12} color={style.text} strokeWidth={3} />
+                  </View>
+                </TouchableOpacity>
+              );
+            });
+            const selDuration = performance.now() - tSel0;
+            console.log(`[MY_VIBES][PERF] selectedVibesMap count=${visibleInterests.length} totalInterests=${interests.length} duration=${selDuration.toFixed(2)}ms`);
+
+            selectedVibesJSX = (
               <View style={styles.selectedVibesSection}>
                 <View style={styles.vibesContainer}>
-                  {interests
-                    .slice(0, showAllSelected ? undefined : 8)
-                    .map((interest) => {
-                      const style = getInterestStyle(interest);
-                      const Icon = style.icon;
-                      return (
-                        <TouchableOpacity
-                          key={interest}
-                          activeOpacity={0.7}
-                          onPress={() => {
-                            LayoutAnimation.configureNext(
-                              LayoutAnimation.Presets.easeInEaseOut,
-                            );
-                            setInterests(
-                              interests.filter((i) => i !== interest),
-                            );
-                            HapticsService.triggerSelection();
-                          }}
-                          style={[
-                            styles.vibeChip,
-                            { backgroundColor: style.bg, paddingRight: 8 },
-                          ]}
-                        >
-                          <View style={styles.vibeContent}>
-                            <Icon
-                              size={14}
-                              color={style.text}
-                              strokeWidth={2.5}
-                            />
-                            <Text
-                              style={[styles.vibeText, { color: style.text }]}
-                            >
-                              {interest}
-                            </Text>
-                          </View>
-                          <View style={styles.removeIconContainer}>
-                            <X size={12} color={style.text} strokeWidth={3} />
-                          </View>
-                        </TouchableOpacity>
-                      );
-                    })}
+                  {mappedVibes}
                   {interests.length > 8 && !showAllSelected && (
                     <TouchableOpacity
                       onPress={() => {
@@ -1414,180 +1466,214 @@ export default function EditProfileScreen({ route, navigation }) {
                 </View>
                 <View style={styles.divider} />
               </View>
-            )}
+            );
+          }
 
-            {/* 2. Search & Add */}
-            <View style={styles.searchContainer}>
-              <SearchIcon
-                size={16}
-                color={TEXT_SECONDARY}
-                style={styles.searchIcon}
-              />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search interests..."
-                placeholderTextColor={TEXT_SECONDARY}
-                value={searchQuery}
-                onChangeText={(text) => {
-                  LayoutAnimation.configureNext(
-                    LayoutAnimation.Presets.easeInEaseOut,
-                  );
-                  setSearchQuery(text);
-                  if (text) setExpandedCategory(null); // Close categories when searching
+          let categoriesOrSearchJSX = null;
+          if (searchQuery) {
+            const tSearch0 = performance.now();
+            const filteredCatalog = interestsCatalog.filter(
+              (i) =>
+                !interests.includes(i) &&
+                i.toLowerCase().includes(searchQuery.toLowerCase()),
+            );
+            const searchResultsJSX = filteredCatalog.map((interest) => (
+              <TouchableOpacity
+                key={interest}
+                onPress={() => {
+                  setInterests([...interests, interest]);
+                  setSearchQuery("");
+                  HapticsService.triggerSelection();
                 }}
-              />
-            </View>
+                style={styles.optionChip}
+              >
+                <Text style={styles.optionText}>{interest}</Text>
+                <Plus size={14} color={TEXT_SECONDARY} />
+              </TouchableOpacity>
+            ));
+            const searchDuration = performance.now() - tSearch0;
+            console.log(`[MY_VIBES][PERF] searchFilterAndMap catalogSize=${interestsCatalog.length} matchCount=${filteredCatalog.length} duration=${searchDuration.toFixed(2)}ms`);
 
-            {/* 3. Categories or Search Results */}
-            <View style={styles.categoriesContainer}>
-              {searchQuery ? (
-                // Search Results
-                <View style={styles.vibesContainer}>
-                  {interestsCatalog
-                    .filter(
-                      (i) =>
-                        !interests.includes(i) &&
-                        i.toLowerCase().includes(searchQuery.toLowerCase()),
-                    )
-                    .map((interest) => (
-                      <TouchableOpacity
-                        key={interest}
-                        onPress={() => {
-                          setInterests([...interests, interest]);
-                          setSearchQuery(""); // Clear search after add
-                          HapticsService.triggerSelection();
-                        }}
-                        style={styles.optionChip}
-                      >
-                        <Text style={styles.optionText}>{interest}</Text>
-                        <Plus size={14} color={TEXT_SECONDARY} />
-                      </TouchableOpacity>
-                    ))}
-                  {/* Add Custom Interest in Search */}
-                  <TouchableOpacity
-                    onPress={() => {
-                      if (!interests.includes(searchQuery)) {
-                        setInterests([...interests, searchQuery]);
-                        setSearchQuery("");
-                        HapticsService.triggerSelection();
-                      }
-                    }}
-                    style={styles.addCustomSearchResult}
-                  >
-                    <Plus size={14} color={ACCENT_COLOR} />
-                    <Text style={styles.addCustomText}>
-                      Add "{searchQuery}"
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                // Category List
-                Object.keys(INTEREST_CATEGORIES)
-                  .filter((key) => key !== "DEFAULT")
-                  .map((key) => {
-                    const category = INTEREST_CATEGORIES[key];
-                    const isExpanded = expandedCategory === key;
-                    const Icon = category.icon;
+            categoriesOrSearchJSX = (
+              <View style={styles.vibesContainer}>
+                {searchResultsJSX}
+                <TouchableOpacity
+                  onPress={() => {
+                    if (!interests.includes(searchQuery)) {
+                      setInterests([...interests, searchQuery]);
+                      setSearchQuery("");
+                      HapticsService.triggerSelection();
+                    }
+                  }}
+                  style={styles.addCustomSearchResult}
+                >
+                  <Plus size={14} color={ACCENT_COLOR} />
+                  <Text style={styles.addCustomText}>
+                    Add "{searchQuery}"
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            );
+          } else {
+            const tCatGroup0 = performance.now();
+            const catKeys = Object.keys(INTEREST_CATEGORIES).filter((key) => key !== "DEFAULT");
+            let totalCategoryFilterTime = 0;
+            let totalTagsRendered = 0;
 
-                    // Filter interests for this category
-                    const categoryInterests = interestsCatalog.filter(
-                      (i) =>
-                        !interests.includes(i) &&
-                        category.keywords.some((k) =>
-                          i.toLowerCase().includes(k),
-                        ),
-                    );
+            const renderedCategories = catKeys.map((key) => {
+              const tSingleCat0 = performance.now();
+              const category = INTEREST_CATEGORIES[key];
+              const isExpanded = expandedCategory === key;
+              const Icon = category.icon;
 
-                    const hasAnyInterests = interestsCatalog.some(
-                      (i) => category.keywords.some((k) => i.toLowerCase().includes(k))
-                    );
+              const categoryInterests = interestsCatalog.filter(
+                (i) =>
+                  !interests.includes(i) &&
+                  category.keywords.some((k) =>
+                    i.toLowerCase().includes(k),
+                  ),
+              );
 
-                    if (!hasAnyInterests) return null;
+              const hasAnyInterests = interestsCatalog.some(
+                (i) => category.keywords.some((k) => i.toLowerCase().includes(k))
+              );
 
-                    // If no interests in this category available to add, maybe skip?
-                    // Spec says "Show all categories", so keeping it.
+              const singleCatFilterTime = performance.now() - tSingleCat0;
+              totalCategoryFilterTime += singleCatFilterTime;
 
-                    return (
-                      <View key={key} style={styles.categoryRow}>
+              if (!hasAnyInterests) return null;
+
+              let chipsJSX = null;
+              if (isExpanded) {
+                totalTagsRendered += categoryInterests.length;
+                chipsJSX = (
+                  <View style={styles.categoryContent}>
+                    <View style={styles.vibesContainer}>
+                      {categoryInterests.map((interest) => (
                         <TouchableOpacity
-                          activeOpacity={0.7}
+                          key={interest}
                           onPress={() => {
-                            LayoutAnimation.configureNext(
-                              LayoutAnimation.Presets.easeInEaseOut,
-                            );
-                            setExpandedCategory(isExpanded ? null : key);
+                            setInterests([...interests, interest]);
+                            HapticsService.triggerSelection();
                           }}
-                          style={[
-                            styles.categoryHeader,
-                            isExpanded && styles.categoryHeaderExpanded,
-                            {
-                              backgroundColor: isExpanded
-                                ? category.bg
-                                : "transparent",
-                            }, // Tint on expand
-                          ]}
+                          style={styles.optionChip}
                         >
-                          <View style={styles.categoryHeaderLeft}>
-                            <View
-                              style={[
-                                styles.categoryIcon,
-                                { backgroundColor: category.bg },
-                              ]}
-                            >
-                              <Icon size={14} color={category.text} />
-                            </View>
-                            <Text
-                              style={[
-                                styles.categoryTitle,
-                                isExpanded && {
-                                  color: category.text,
-                                  fontWeight: "600",
-                                },
-                              ]}
-                            >
-                              {category.label}
-                            </Text>
-                          </View>
-                          {isExpanded ? (
-                            <ChevronDown size={16} color={TEXT_SECONDARY} />
-                          ) : (
-                            <ChevronRight size={16} color={TEXT_SECONDARY} />
-                          )}
+                          <Text style={styles.optionText}>
+                            {interest}
+                          </Text>
+                          <Plus size={14} color={TEXT_SECONDARY} />
                         </TouchableOpacity>
+                      ))}
+                      {categoryInterests.length === 0 && (
+                        <Text style={[styles.optionText, { color: TEXT_SECONDARY, fontStyle: 'italic', paddingLeft: 4 }]}>
+                          All selected
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                );
+              }
 
-                        {isExpanded && (
-                          <View style={styles.categoryContent}>
-                            <View style={styles.vibesContainer}>
-                              {categoryInterests.map((interest) => (
-                                <TouchableOpacity
-                                  key={interest}
-                                  onPress={() => {
-                                    setInterests([...interests, interest]);
-                                    HapticsService.triggerSelection();
-                                  }}
-                                  style={styles.optionChip}
-                                >
-                                  <Text style={styles.optionText}>
-                                    {interest}
-                                  </Text>
-                                  <Plus size={14} color={TEXT_SECONDARY} />
-                                </TouchableOpacity>
-                              ))}
-                              {categoryInterests.length === 0 && (
-                                <Text style={[styles.optionText, { color: TEXT_SECONDARY, fontStyle: 'italic', paddingLeft: 4 }]}>
-                                  All selected
-                                </Text>
-                              )}
-                            </View>
-                          </View>
-                        )}
+              return (
+                <View key={key} style={styles.categoryRow}>
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      LayoutAnimation.configureNext(
+                        LayoutAnimation.Presets.easeInEaseOut,
+                      );
+                      setExpandedCategory(isExpanded ? null : key);
+                    }}
+                    style={[
+                      styles.categoryHeader,
+                      isExpanded && styles.categoryHeaderExpanded,
+                      {
+                        backgroundColor: isExpanded
+                          ? category.bg
+                          : "transparent",
+                      },
+                    ]}
+                  >
+                    <View style={styles.categoryHeaderLeft}>
+                      <View
+                        style={[
+                          styles.categoryIcon,
+                          { backgroundColor: category.bg },
+                        ]}
+                      >
+                        <Icon size={14} color={category.text} />
                       </View>
-                    );
-                  })
-              )}
+                      <Text
+                        style={[
+                          styles.categoryTitle,
+                          isExpanded && {
+                            color: category.text,
+                            fontWeight: "600",
+                          },
+                        ]}
+                      >
+                        {category.label}
+                      </Text>
+                    </View>
+                    {isExpanded ? (
+                      <ChevronDown size={16} color={TEXT_SECONDARY} />
+                    ) : (
+                      <ChevronRight size={16} color={TEXT_SECONDARY} />
+                    )}
+                  </TouchableOpacity>
+
+                  {chipsJSX}
+                </View>
+              );
+            });
+
+            const catGroupDuration = performance.now() - tCatGroup0;
+            console.log(`[MY_VIBES][PERF] buildCategories catCount=${catKeys.length} catalogSize=${interestsCatalog.length} filterTime=${totalCategoryFilterTime.toFixed(2)}ms expandedTags=${totalTagsRendered} totalDuration=${catGroupDuration.toFixed(2)}ms`);
+
+            categoriesOrSearchJSX = renderedCategories;
+          }
+
+          const card5End = performance.now();
+          console.log(`[MY_VIBES][PERF] card5Render END totalDuration=${(card5End - card5Start).toFixed(2)}ms`);
+
+          return (
+            <View style={styles.card}>
+              <BlurView intensity={60} tint="light" style={[StyleSheet.absoluteFill, { borderRadius: 20, overflow: 'hidden' }]} />
+              {renderSectionHeader("MY VIBES", RollerCoaster)}
+
+              <View style={[styles.inputGroupLast, { marginTop: 12 }]}>
+                {selectedVibesJSX}
+
+                {/* 2. Search & Add */}
+                <View style={styles.searchContainer}>
+                  <SearchIcon
+                    size={16}
+                    color={TEXT_SECONDARY}
+                    style={styles.searchIcon}
+                  />
+                  <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search interests..."
+                    placeholderTextColor={TEXT_SECONDARY}
+                    value={searchQuery}
+                    onChangeText={(text) => {
+                      LayoutAnimation.configureNext(
+                        LayoutAnimation.Presets.easeInEaseOut,
+                      );
+                      setSearchQuery(text);
+                      if (text) setExpandedCategory(null);
+                    }}
+                  />
+                </View>
+
+                {/* 3. Categories or Search Results */}
+                <View style={styles.categoriesContainer}>
+                  {categoriesOrSearchJSX}
+                </View>
+              </View>
             </View>
-          </View>
-        </View>
+          );
+        })()}
         </Profiler>
 
 

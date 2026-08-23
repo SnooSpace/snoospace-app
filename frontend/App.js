@@ -220,7 +220,7 @@ function AppContent() {
       const now = performance.now();
       const delta = now - last;
       if (delta > 100) {
-        console.log(`[JS_STALL] ${delta.toFixed(1)}ms`);
+        console.log(`[JS_STALL] ${delta.toFixed(1)}ms (from ${last.toFixed(2)} to ${now.toFixed(2)})`);
       }
       last = now;
     }, 50);

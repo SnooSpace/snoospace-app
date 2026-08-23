@@ -529,6 +529,7 @@ function formatReason(reason) {
     case 'shared_interest':   return `You both like ${label}`;
     case 'same_college':      return `Both from ${label}`;
     case 'mutual_circles':    return label; // backend formats: "{N} mutual connection(s)"
+    case 'shared_artist':     return label; // backend formats: "You both like {Artist Name}"
     default:                  return label || null;
   }
 }

@@ -35,6 +35,19 @@ import SwipeableModal from "../../components/modals/SwipeableModal";
 const { width } = Dimensions.get("window");
 const CARD_RADIUS = 24;
 
+// Test background options from assets/background
+const BACKGROUND_IMAGES = [
+  { id: 1, name: "Option 1 (12.08.25 AM)", source: require("../../assets/background/WhatsApp Image 2026-08-24 at 12.08.25 AM.jpeg") },
+  { id: 2, name: "Option 2 (12.08.25 AM (1))", source: require("../../assets/background/WhatsApp Image 2026-08-24 at 12.08.25 AM (1).jpeg") },
+  { id: 3, name: "Option 3 (12.08.26 AM)", source: require("../../assets/background/WhatsApp Image 2026-08-24 at 12.08.26 AM.jpeg") },
+  { id: 4, name: "Option 4 (12.08.26 AM (1))", source: require("../../assets/background/WhatsApp Image 2026-08-24 at 12.08.26 AM (1).jpeg") },
+  { id: 5, name: "Option 5 (12.08.26 AM (2))", source: require("../../assets/background/WhatsApp Image 2026-08-24 at 12.08.26 AM (2).jpeg") },
+];
+
+// Active background index (0 to 4) - Currently applying Option 5
+const ACTIVE_BG_INDEX = 4;
+const CURRENT_BG = BACKGROUND_IMAGES[ACTIVE_BG_INDEX].source;
+
 // Strict Typography Mappings
 const TYPOGRAPHY = {
   name: { fontFamily: "BasicCommercial-Black", fontSize: 20, color: "#1E293B" },
@@ -441,12 +454,12 @@ export default function ProfileFeedScreen({ route, navigation }) {
       const attendeeCount = eventData?.attendee_count || 0;
 
       return (
-        <LinearGradient
-          colors={["#ace1ff", "#ebfff6"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.gradientContainer}
-        >
+        <View style={styles.gradientContainer}>
+          <Image
+            source={CURRENT_BG}
+            style={StyleSheet.absoluteFillObject}
+            contentFit="cover"
+          />
           <SafeAreaView style={styles.gateScreenContainer} edges={EDGES}>
             <View style={styles.gateHeader}>
               <TouchableOpacity onPress={handleBack} activeOpacity={0.8}>
@@ -565,18 +578,18 @@ export default function ProfileFeedScreen({ route, navigation }) {
               </TouchableOpacity>
             </View>
           </SafeAreaView>
-        </LinearGradient>
+        </View>
       );
     }
 
     if (attendees.length > 0 && currentIndex >= attendees.length) {
       return (
-        <LinearGradient
-          colors={["#DCEFFE", "#F0F7FF", "#FFFFFF"]}
-          start={{ x: 0.5, y: 0 }}
-          end={{ x: 0.5, y: 1 }}
-          style={styles.gradientContainer}
-        >
+        <View style={styles.gradientContainer}>
+          <Image
+            source={CURRENT_BG}
+            style={StyleSheet.absoluteFillObject}
+            contentFit="cover"
+          />
           <SafeAreaView style={styles.container} edges={EDGES}>
             {/* Header */}
             <View style={styles.header}>
@@ -697,7 +710,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
               </View>
             </View>
           </SafeAreaView>
-        </LinearGradient>
+        </View>
       );
     }    const hasFilters = (activeFilters.spark_ids?.length > 0) || 
                        (activeFilters.interests?.length > 0) || 
@@ -708,12 +721,12 @@ export default function ProfileFeedScreen({ route, navigation }) {
     if (!currentAttendee) {
       if (hasFilters) {
         return (
-          <LinearGradient
-            colors={["#DCEFFE", "#F0F7FF", "#FFFFFF"]}
-            start={{ x: 0.5, y: 0 }}
-            end={{ x: 0.5, y: 1 }}
-            style={styles.gradientContainer}
-          >
+          <View style={styles.gradientContainer}>
+            <Image
+              source={CURRENT_BG}
+              style={StyleSheet.absoluteFillObject}
+              contentFit="cover"
+            />
             <SafeAreaView style={styles.container} edges={EDGES}>
               {/* Header */}
               <View style={styles.header}>
@@ -759,36 +772,43 @@ export default function ProfileFeedScreen({ route, navigation }) {
                 </View>
               </View>
             </SafeAreaView>
-          </LinearGradient>
+          </View>
         );
       }
 
       return (
-        <SafeAreaView style={styles.container}>
-          <View style={styles.header}>
-            <TouchableOpacity
-              onPress={handleBack}
-              style={styles.backBtn}
-            >
-              <ArrowLeft size={26} color={COLORS.editorial.textSecondary} />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>{eventData?.title || "Attendees"}</Text>
-            <View style={{ width: 40 }} />
-          </View>
-          <View style={styles.center}>
-            <Text style={styles.emptyText}>No one here yet.</Text>
-          </View>
-        </SafeAreaView>
+        <View style={styles.gradientContainer}>
+          <Image
+            source={CURRENT_BG}
+            style={StyleSheet.absoluteFillObject}
+            contentFit="cover"
+          />
+          <SafeAreaView style={styles.container}>
+            <View style={styles.header}>
+              <TouchableOpacity
+                onPress={handleBack}
+                style={styles.backBtn}
+              >
+                <ArrowLeft size={26} color={COLORS.editorial.textSecondary} />
+              </TouchableOpacity>
+              <Text style={styles.headerTitle}>{eventData?.title || "Attendees"}</Text>
+              <View style={{ width: 40 }} />
+            </View>
+            <View style={styles.center}>
+              <Text style={styles.emptyText}>No one here yet.</Text>
+            </View>
+          </SafeAreaView>
+        </View>
       );
     }
 
   return (
-    <LinearGradient
-      colors={["#DCEFFE", "#F0F7FF", "#FFFFFF"]}
-      start={{ x: 0.5, y: 0 }}
-      end={{ x: 0.5, y: 1 }}
-      style={styles.gradientContainer}
-    >
+    <View style={styles.gradientContainer}>
+      <Image
+        source={CURRENT_BG}
+        style={StyleSheet.absoluteFillObject}
+        contentFit="cover"
+      />
       <SafeAreaView style={styles.container} edges={EDGES}>
         {/* Header */}
         <View style={styles.header}>
@@ -1300,7 +1320,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
           </SwipeableModal.ScrollView>
         </SwipeableModal>
       </SafeAreaView>
-    </LinearGradient>
+    </View>
   );
   } catch (err) {
     console.error("[ProfileFeedScreen] Render crash:", err);
@@ -1363,37 +1383,14 @@ const ContentCard = React.memo(({ children, onPress, style, innerStyle, variant,
   const end = isPrompt ? { x: 1, y: 0 } : { x: 0, y: 1 };
   const shadowStyle = isPrompt ? styles.promptShadow : styles.photoShadow;
 
-  // Dynamic shadow color matching the bottom of the card gradient
-  const dynamicShadowStyle = useMemo(() => {
-    if (isPrompt) return {};
-    return {
-      shadowColor: colors[colors.length - 1],
-    };
-  }, [colors, isPrompt]);
-
-  // Dynamically derive the layers based on the selected colors
-  const glowColorsLayer1 = useMemo(() => {
-    const alpha = isPrompt ? 0.22 : 0.28;
-    return colors.map((c) => hexToRgba(c, alpha));
-  }, [colors, isPrompt]);
-
-  const glowColorsLayer2 = useMemo(() => {
-    const alpha = isPrompt ? 0.11 : 0.13;
-    return colors.map((c) => hexToRgba(c, alpha));
-  }, [colors, isPrompt]);
-
-  const glowColorsLayer3 = useMemo(() => {
-    const alpha = isPrompt ? 0.04 : 0.05;
-    return colors.map((c) => hexToRgba(c, alpha));
-  }, [colors, isPrompt]);
-
   return (
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.9}
-      style={[shadowStyle, dynamicShadowStyle, style]}
+      style={[shadowStyle, style]}
     >
-      {/* Glow Layer 3 (Toned-down widest spread, 12px) */}
+      {/* Glowing feature commented out */}
+      {/*
       <LinearGradient
         colors={glowColorsLayer3}
         locations={locations}
@@ -1402,7 +1399,6 @@ const ContentCard = React.memo(({ children, onPress, style, innerStyle, variant,
         style={[styles.glowHalo, { top: -12, bottom: -12, left: -12, right: -12, borderRadius: CARD_RADIUS + 12 }]}
         pointerEvents="none"
       />
-      {/* Glow Layer 2 (Toned-down medium spread, 7px) */}
       <LinearGradient
         colors={glowColorsLayer2}
         locations={locations}
@@ -1411,7 +1407,6 @@ const ContentCard = React.memo(({ children, onPress, style, innerStyle, variant,
         style={[styles.glowHalo, { top: -7, bottom: -7, left: -7, right: -7, borderRadius: CARD_RADIUS + 7 }]}
         pointerEvents="none"
       />
-      {/* Glow Layer 1 (Toned-down tightest spread, 3px) */}
       <LinearGradient
         colors={glowColorsLayer1}
         locations={locations}
@@ -1420,23 +1415,16 @@ const ContentCard = React.memo(({ children, onPress, style, innerStyle, variant,
         style={[styles.glowHalo, { top: -3, bottom: -3, left: -3, right: -3, borderRadius: CARD_RADIUS + 3 }]}
         pointerEvents="none"
       />
+      */}
 
       {isPrompt ? (
         <View style={[styles.cardInnerContentPrompt, innerStyle]}>
           {children}
         </View>
       ) : (
-        <LinearGradient
-          colors={colors}
-          locations={locations}
-          start={start}
-          end={end}
-          style={[styles.gradientBorder, innerStyle]}
-        >
-          <View style={[styles.cardInnerContent, innerStyle]}>
-            {children}
-          </View>
-        </LinearGradient>
+        <View style={[styles.cardInnerContent, innerStyle]}>
+          {children}
+        </View>
       )}
     </TouchableOpacity>
   );
@@ -1831,28 +1819,30 @@ const styles = StyleSheet.create({
   vitalsSection: {},
   interestsSection: {},
   sparksGlassContainer: {
-    backgroundColor: "rgba(119, 141, 94, 0.18)", // Sage Green tinted glass (#778d5e)
+    backgroundColor: "rgba(244, 247, 240, 0.94)", // Opaque Sage Green container
     borderRadius: 20,
     padding: 16,
     borderWidth: 1.5,
     borderColor: "rgba(119, 141, 94, 0.35)", // Tinted matching border
     marginBottom: 24, // spacing between components
-    shadowColor: "#778d5e",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.05,
     shadowRadius: 8,
+    elevation: 2,
   },
   interestsGlassContainer: {
-    backgroundColor: "rgba(139, 140, 223, 0.18)", // Soft Purple tinted glass (#8b8cdf)
+    backgroundColor: "rgba(242, 242, 252, 0.94)", // Opaque Soft Purple container
     borderRadius: 20,
     padding: 16,
     borderWidth: 1.5,
     borderColor: "rgba(139, 140, 223, 0.35)", // Tinted matching border
     marginBottom: 24, // spacing between components
-    shadowColor: "#8b8cdf",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.05,
     shadowRadius: 8,
+    elevation: 2,
   },
   sectionLabel: {
     fontFamily: FONTS.primary, // BasicCommercial-Bold
@@ -1950,21 +1940,21 @@ const styles = StyleSheet.create({
   promptShadow: {
     width: "100%",
     marginBottom: SPACING.l,
-    shadowColor: "#d150e0", // Vibrant magenta/purple glow
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 18,
-    elevation: 0, // Disable native Android dark shadow to let gradient glows shine
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 2,
     overflow: "visible",
   },
   photoShadow: {
     width: "100%",
     marginBottom: SPACING.l,
-    shadowColor: "#93C5FD", // Soft pastel sky blue glow matching the bottom of the photo card
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.45,
-    shadowRadius: 18,
-    elevation: 0, // Disable native Android dark shadow to let gradient glows shine
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 3,
     overflow: "visible",
   },
   glowHalo: {
@@ -1985,7 +1975,7 @@ const styles = StyleSheet.create({
   },
   cardInnerContentPrompt: {
     width: "100%",
-    backgroundColor: "rgba(255, 255, 255, 0.82)", // Frosted glass backing to let background glow show through
+    backgroundColor: "rgba(255, 255, 255, 0.95)", // High opacity backing for crisp legibility
     borderRadius: CARD_RADIUS,
     overflow: "hidden", // Clip inner contents to the border radius
     borderWidth: 1.5, // Crisp white outline glass highlight rim
@@ -3032,17 +3022,17 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   sharedCommGlassContainer: {
-    backgroundColor: "rgba(217, 119, 6, 0.08)", // Premium soft creamish amber tinted glass
+    backgroundColor: "rgba(254, 247, 238, 0.94)", // Opaque warm cream/amber container
     borderWidth: 1.5,
-    borderColor: "rgba(217, 119, 6, 0.22)", // Tinted matching border
+    borderColor: "rgba(217, 119, 6, 0.25)", // Tinted matching border
     borderRadius: 20, // Match Interests/Sparks exactly
     padding: 16,
     marginBottom: 24, // spacing between components
-    shadowColor: "#B45309",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
+    shadowOpacity: 0.05,
     shadowRadius: 8,
-    elevation: 0,
+    elevation: 2,
   },
   sharedCommHeaderRow: {
     flexDirection: 'row',

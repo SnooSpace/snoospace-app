@@ -242,6 +242,21 @@ async function loadInterestAdopterCounts(pool) {
   return new Map(rows.map(r => [r.interest_label, parseInt(r.cnt, 10)]));
 }
 
+/**
+ * Load the Spotify top_artists array for a user.
+ * Returns an array of { id, name, rank } objects, or null if the user has no
+ * Spotify profile (not connected). Null is the sentinel for "skip this signal",
+ * which is explicitly neutral (0 score) — not negative.
+ */
+async function loadUserSpotifyArtists(pool, userId) {
+  const { rows } = await pool.query(
+    `SELECT top_artists FROM spotify_profile WHERE user_id = $1 LIMIT 1`,
+    [userId]
+  );
+  if (rows.length === 0 || !Array.isArray(rows[0].top_artists)) return null;
+  return rows[0].top_artists;
+}
+
 // ── Signal scoring ────────────────────────────────────────────────────────────
 
 /**
@@ -333,6 +348,57 @@ function computeSharedInterestSignal(userInterests, candidateInterests, adopterC
   return { score: totalScore, rarestLabel };
 }
 
+/**
+ * Compute Spotify top-artist overlap signal between two users.
+ *
+ * For each shared artist (matched by Spotify artist `id`), computes:
+ *   contribution = (11 - rank_A) + (11 - rank_B)
+ * where ranks are 1–10 (rank 1 = highest). A shared #1 artist contributes 20,
+ * a shared #10 artist contributes 2.
+ *
+ * Raw sum is normalized by dividing by MAX_RAW_PER_ARTIST (20 = max single-artist
+ * contribution, for two rank-1 overlapping artists), then capped at 1.0 so it
+ * fits the same [0,1] scale as other signals.
+ *
+ * Returns:
+ *   { score: number (0–1), topArtistName: string|null }
+ * If either user has no Spotify profile (null), returns { score: 0, topArtistName: null }
+ * — absence of data is explicitly neutral, not negative.
+ */
+function computeSpotifyArtistOverlap(userArtists, candidateArtists) {
+  if (!userArtists || !candidateArtists) return { score: 0, topArtistName: null };
+
+  // Build a map of artist_id → rank for the user
+  const userMap = new Map();
+  for (const a of userArtists) {
+    if (a.id) userMap.set(a.id, { rank: a.rank || 10, name: a.name || '' });
+  }
+
+  const MAX_RAW_PER_ARTIST = 20; // (11 - 1) + (11 - 1) for two rank-1 artists
+
+  let rawScore = 0;
+  let topArtistName = null;
+  let topContribution = 0;
+
+  for (const ca of candidateArtists) {
+    if (!ca.id || !userMap.has(ca.id)) continue;
+    const { rank: rankA, name } = userMap.get(ca.id);
+    const rankB = ca.rank || 10;
+    const contribution = (11 - Math.min(rankA, 10)) + (11 - Math.min(rankB, 10));
+    rawScore += contribution;
+    if (contribution > topContribution) {
+      topContribution = contribution;
+      topArtistName = name || ca.name || null;
+    }
+  }
+
+  if (rawScore === 0) return { score: 0, topArtistName: null };
+
+  // Normalize: divide by max possible single-artist contribution, cap at 1.0
+  const score = Math.min(rawScore / MAX_RAW_PER_ARTIST, 1.0);
+  return { score, topArtistName };
+}
+
 // ── Top reasons builder ───────────────────────────────────────────────────────
 
 /**
@@ -367,6 +433,7 @@ async function scoreUserCandidates(pool, userId, userData, sharedData) {
     communityMemberCounts, // Map<communityId, memberCount>
     userCity,
     userEmail,             // email — switcher-group gate
+    userSpotifyArtists,    // array|null — null if not connected
   } = sharedData;
 
   const candidates = await fetchCandidates(pool, userId, userCity, sharedData.userEmail);
@@ -376,17 +443,25 @@ async function scoreUserCandidates(pool, userId, userData, sharedData) {
 
   for (const candidate of candidates) {
     try {
+      // Short-circuit Spotify signal: only load candidate artists if user has Spotify connected.
+      // This avoids an extra DB query for the common case where neither user has connected.
+      const candidateSpotifyArtistsPromise = userSpotifyArtists
+        ? loadUserSpotifyArtists(pool, candidate.id)
+        : Promise.resolve(null);
+
       // Load candidate-specific data (these are per-pair)
       const [
         candidateEvents,
         candidateCommunities,
         candidateSparks,
         mutualCirclesCount,
+        candidateSpotifyArtists,
       ] = await Promise.all([
         loadUserAttendedEvents(pool, candidate.id),
         loadUserCommunities(pool, candidate.id),
         loadUserSparks(pool, candidate.id),
         loadMutualCirclesCount(pool, userId, candidate.id),
+        candidateSpotifyArtistsPromise,
       ]);
 
       // ── Signal 1: Shared events ──────────────────────────────────────────
@@ -490,19 +565,27 @@ async function scoreUserCandidates(pool, userId, userData, sharedData) {
         coAttendeeSignal = coRatingResult.rows.length > 0 ? 1 : 0;
       }
 
-      // ── Total weighted score ──────────────────────────────────────────
+      // ── Signal 11: Spotify top-artist overlap ───────────────────────────
+      // Short-circuits to 0 if either user has no Spotify profile (null).
+      // computeSpotifyArtistOverlap handles null args internally.
+      const spotifyResult = cfg.weights.spotify_artist_overlap > 0
+        ? computeSpotifyArtistOverlap(userSpotifyArtists, candidateSpotifyArtists)
+        : { score: 0, topArtistName: null };
+
+      // ── Total weighted score ────────────────────────────────────────────────
       const W = cfg.weights;
-      const s1  = W.shared_events        * sharedEventScore;
-      const s2  = W.shared_communities   * sharedCommunityScore;
-      const s3  = W.mutual_circles       * mutualCapped;
-      const s4  = W.sparks               * sparkResult.score;
-      const s5  = W.same_college         * sameCollege;
-      const s6  = W.occupation           * occupationMatch;
-      const s7  = W.shared_interests     * interestResult.score;
-      const s8  = W.proximity            * proximity;
-      const s9  = W.verification         * verificationBoost;
-      const s10 = W.co_attendee_rating   * coAttendeeSignal;
-      const totalScore = s1 + s2 + s3 + s4 + s5 + s6 + s7 + s8 + s9 + s10;
+      const s1  = W.shared_events           * sharedEventScore;
+      const s2  = W.shared_communities      * sharedCommunityScore;
+      const s3  = W.mutual_circles          * mutualCapped;
+      const s4  = W.sparks                  * sparkResult.score;
+      const s5  = W.same_college            * sameCollege;
+      const s6  = W.occupation              * occupationMatch;
+      const s7  = W.shared_interests        * interestResult.score;
+      const s8  = W.proximity               * proximity;
+      const s9  = W.verification            * verificationBoost;
+      const s10 = W.co_attendee_rating      * coAttendeeSignal;
+      const s11 = W.spotify_artist_overlap  * spotifyResult.score;
+      const totalScore = s1 + s2 + s3 + s4 + s5 + s6 + s7 + s8 + s9 + s10 + s11;
 
       // Q4 per-signal logging: log Signal 10 contribution individually so
       // it can be monitored before trusting it silently post-launch.
@@ -512,6 +595,15 @@ async function scoreUserCandidates(pool, userId, userData, sharedData) {
           `[Recs:Signal10] user=${userId} candidate=${candidate.id} ` +
           `s10_contribution=${s10.toFixed(4)} total=${totalScore.toFixed(4)} ` +
           `(s1=${s1.toFixed(3)} s2=${s2.toFixed(3)} s3=${s3.toFixed(3)})`
+        );
+      }
+      // Signal 11 logging: monitor Spotify overlap contribution during rollout.
+      // Remove once Spotify adoption is sufficient to trust silently.
+      if (s11 > 0) {
+        console.log(
+          `[Recs:Signal11] user=${userId} candidate=${candidate.id} ` +
+          `artist="${spotifyResult.topArtistName}" raw=${spotifyResult.score.toFixed(3)} ` +
+          `s11=${s11.toFixed(4)} total=${totalScore.toFixed(4)}`
         );
       }
 
@@ -564,6 +656,15 @@ async function scoreUserCandidates(pool, userId, userData, sharedData) {
           type: 'co_attendee_rating',
           weightedScore: s10,
           label: coAttendeeSignal ? 'You rated them positively after meeting' : null,
+        },
+        {
+          type: 'shared_artist',
+          weightedScore: s11,
+          // Single best-weighted shared artist — one specific human reason reads better
+          // than a data dump. The label is already human-readable (e.g. "You both like X").
+          label: spotifyResult.topArtistName
+            ? `You both like ${spotifyResult.topArtistName}`
+            : null,
         },
       ];
 
@@ -673,11 +774,16 @@ async function runRecommendationsJob(pool) {
       }
 
       // Load user-level signal data
-      const [attendedEvents, communities, sparks] = await Promise.all([
+      const [attendedEvents, communities, sparks, userSpotifyArtists] = await Promise.all([
         loadUserAttendedEvents(pool, user.id),
         loadUserCommunities(pool, user.id),
         loadUserSparks(pool, user.id),
+        loadUserSpotifyArtists(pool, user.id),  // null if not connected
       ]);
+
+      if (userSpotifyArtists) {
+        console.log(`[RecsJob] user=${user.id} spotify_artists=${userSpotifyArtists.length}`);
+      }
 
       // Pre-load attendee/member counts for all user's events and communities
       // (avoids N queries inside the candidate loop)
@@ -695,6 +801,7 @@ async function runRecommendationsJob(pool) {
         communityMemberCounts,
         userCity: user.city,
         userEmail: user.email,   // switcher-group gate
+        userSpotifyArtists,      // null if not connected (Signal 11)
       };
 
       // Score all candidates for this user
