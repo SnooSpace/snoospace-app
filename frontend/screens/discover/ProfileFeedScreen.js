@@ -42,11 +42,36 @@ const BACKGROUND_IMAGES = [
   { id: 3, name: "Option 3 (12.08.26 AM)", source: require("../../assets/background/WhatsApp Image 2026-08-24 at 12.08.26 AM.jpeg") },
   { id: 4, name: "Option 4 (12.08.26 AM (1))", source: require("../../assets/background/WhatsApp Image 2026-08-24 at 12.08.26 AM (1).jpeg") },
   { id: 5, name: "Option 5 (12.08.26 AM (2))", source: require("../../assets/background/WhatsApp Image 2026-08-24 at 12.08.26 AM (2).jpeg") },
+  { id: 6, name: "Option 6 (12.31.29 AM)", source: require("../../assets/background/WhatsApp Image 2026-08-24 at 12.31.29 AM.jpeg") },
+  { id: 7, name: "Option 7 (12.31.29 AM (1))", source: require("../../assets/background/WhatsApp Image 2026-08-24 at 12.31.29 AM (1).jpeg") },
+  { id: 8, name: "Option 8 (12.31.30 AM)", source: require("../../assets/background/WhatsApp Image 2026-08-24 at 12.31.30 AM.jpeg") },
+  { id: 9, name: "Option 9 (1.21.31 AM)", source: require("../../assets/background/WhatsApp Image 2026-08-24 at 1.21.31 AM.jpeg") },
 ];
 
-// Active background index (0 to 4) - Currently applying Option 5
+// Active background index (0 to 8) - Currently applying Option 5 (12.08.26 AM (2))
 const ACTIVE_BG_INDEX = 4;
 const CURRENT_BG = BACKGROUND_IMAGES[ACTIVE_BG_INDEX].source;
+
+// Background Filter Configuration (Adjust these values to fine-tune the look!)
+const BG_FILTER = {
+  blurRadius: 10, // Soft depth blur (try: 0 = sharp, 6 = subtle, 12 = creamy, 20 = heavy blur)
+  overlayColor: "rgba(255, 255, 255, 0.15)", // Translucent wash (try: "rgba(255,255,255,0.2)" or null)
+  opacity: 1, // Background image opacity
+};
+
+const ScreenBackground = () => (
+  <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+    <Image
+      source={CURRENT_BG}
+      style={[StyleSheet.absoluteFillObject, { opacity: BG_FILTER.opacity }]}
+      contentFit="cover"
+      blurRadius={BG_FILTER.blurRadius}
+    />
+    {!!BG_FILTER.overlayColor && (
+      <View style={[StyleSheet.absoluteFillObject, { backgroundColor: BG_FILTER.overlayColor }]} />
+    )}
+  </View>
+);
 
 // Strict Typography Mappings
 const TYPOGRAPHY = {
@@ -455,11 +480,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
 
       return (
         <View style={styles.gradientContainer}>
-          <Image
-            source={CURRENT_BG}
-            style={StyleSheet.absoluteFillObject}
-            contentFit="cover"
-          />
+          <ScreenBackground />
           <SafeAreaView style={styles.gateScreenContainer} edges={EDGES}>
             <View style={styles.gateHeader}>
               <TouchableOpacity onPress={handleBack} activeOpacity={0.8}>
@@ -585,11 +606,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
     if (attendees.length > 0 && currentIndex >= attendees.length) {
       return (
         <View style={styles.gradientContainer}>
-          <Image
-            source={CURRENT_BG}
-            style={StyleSheet.absoluteFillObject}
-            contentFit="cover"
-          />
+          <ScreenBackground />
           <SafeAreaView style={styles.container} edges={EDGES}>
             {/* Header */}
             <View style={styles.header}>
@@ -722,11 +739,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
       if (hasFilters) {
         return (
           <View style={styles.gradientContainer}>
-            <Image
-              source={CURRENT_BG}
-              style={StyleSheet.absoluteFillObject}
-              contentFit="cover"
-            />
+            <ScreenBackground />
             <SafeAreaView style={styles.container} edges={EDGES}>
               {/* Header */}
               <View style={styles.header}>
@@ -778,11 +791,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
 
       return (
         <View style={styles.gradientContainer}>
-          <Image
-            source={CURRENT_BG}
-            style={StyleSheet.absoluteFillObject}
-            contentFit="cover"
-          />
+          <ScreenBackground />
           <SafeAreaView style={styles.container}>
             <View style={styles.header}>
               <TouchableOpacity
@@ -804,11 +813,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
 
   return (
     <View style={styles.gradientContainer}>
-      <Image
-        source={CURRENT_BG}
-        style={StyleSheet.absoluteFillObject}
-        contentFit="cover"
-      />
+      <ScreenBackground />
       <SafeAreaView style={styles.container} edges={EDGES}>
         {/* Header */}
         <View style={styles.header}>
@@ -1015,29 +1020,10 @@ export default function ProfileFeedScreen({ route, navigation }) {
               <ChevronsRight size={18} color="#64748B" strokeWidth={2.5} />
             </View>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.connectButton} onPress={handleConnect} activeOpacity={0.8}>
-            <View style={styles.connectButtonGradientContainer}>
-              {/* Frosted glass backing */}
-              <LinearGradient
-                colors={["rgba(255, 255, 255, 0.25)", "rgba(255, 255, 255, 0.65)"]}
-                start={{ x: 0.5, y: 0 }}
-                end={{ x: 0.5, y: 1 }}
-                style={styles.connectButtonBacking}
-              />
-              
-              {/* Gorgeous diagonal blue glow wash across the glass button */}
-              <LinearGradient
-                colors={["rgba(0, 82, 255, 0.72)", "rgba(0, 136, 255, 0.45)", "rgba(0, 136, 255, 0.1)"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.connectButtonGlowBubble}
-              />
-              
-              {/* Text & Icon content */}
-              <View style={styles.connectButtonContent}>
-                <Text style={styles.connectButtonText}>Connect</Text>
-                <UserPlus size={18} color="#133d70" strokeWidth={2.5} />
-              </View>
+          <TouchableOpacity style={styles.connectButton} onPress={handleConnect} activeOpacity={0.85}>
+            <View style={styles.connectButtonContent}>
+              <Text style={styles.connectButtonText}>Connect</Text>
+              <UserPlus size={18} color="#FFFFFF" strokeWidth={2.5} />
             </View>
           </TouchableOpacity>
         </View>
@@ -1777,8 +1763,12 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontFamily: FONTS.primary, // BasicCommercial-Bold
-    fontSize: 18,
-    color: "#1a2d4a",
+    fontSize: 28,
+    color: "#FFFFFF", // Crisp light text
+    letterSpacing: -0.5,
+    textShadowColor: "rgba(0, 0, 0, 0.2)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   backBtn: {
     padding: 4,
@@ -1967,11 +1957,9 @@ const styles = StyleSheet.create({
   },
   cardInnerContent: {
     width: "100%",
-    backgroundColor: "#FFFFFF",
-    borderRadius: CARD_RADIUS - 3,
+    backgroundColor: "transparent",
+    borderRadius: CARD_RADIUS,
     overflow: "hidden", // Clip inner contents to the border radius
-    borderWidth: 1, // Inner white core of the neon light
-    borderColor: "rgba(255, 255, 255, 0.85)", // High brightness core line
   },
   cardInnerContentPrompt: {
     width: "100%",
@@ -2150,41 +2138,27 @@ const styles = StyleSheet.create({
     width: 200,
     height: 56,
     borderRadius: 28,
-    backgroundColor: "transparent",
-    shadowColor: "#1a2d4a",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  connectButtonGradientContainer: {
-    width: "100%",
-    height: "100%",
-    borderRadius: 28,
-    overflow: "hidden", // Crucial for clipping the glow bubble!
-    borderWidth: 1.5,
-    borderColor: "rgba(255, 255, 255, 0.85)", // Outer glass highlight border
-    position: "relative",
+    backgroundColor: "#2962FF", // Solid Brand Blue
+    shadowColor: "#2962FF",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 4,
     justifyContent: "center",
     alignItems: "center",
   },
-  connectButtonBacking: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  connectButtonGlowBubble: {
-    ...StyleSheet.absoluteFillObject,
-  },
   connectButtonContent: {
+    width: "100%",
+    height: "100%",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    zIndex: 2, // Ensure text is above the glow bubble
   },
   connectButtonText: {
     fontFamily: FONTS.semiBold,
     fontSize: 16,
-    color: "#133d70", // Deep slate blue matching the reference
+    color: "#FFFFFF",
     letterSpacing: 0.3,
   },
   binaryGenderChip: {

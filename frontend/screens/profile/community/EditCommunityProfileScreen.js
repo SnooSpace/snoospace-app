@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { StyleSheet, View, Text, TextInput, TouchableOpacity, Alert, Platform, Image, Modal, LayoutAnimation, UIManager, ImageBackground, KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import PillShape from "../../../assets/background/PillShape.jpeg";
+import PillShape from "../../../assets/background/PillShape.webp";
 import { ScrollView } from "react-native";
 import { BlurView } from "expo-blur";
 import {
@@ -1362,8 +1362,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(0,0,0,0.05)",
+    borderBottomWidth: 0,
     backgroundColor: "rgba(255, 255, 255, 0.7)", // Frosted header
     position: "relative",
     minHeight: 60,

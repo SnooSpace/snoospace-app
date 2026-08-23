@@ -2,7 +2,7 @@ import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, Profi
 import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, Alert, LayoutAnimation, UIManager, Platform, Image, Keyboard, TouchableWithoutFeedback, ImageBackground, KeyboardAvoidingView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
-import PillShape from "../../../assets/background/PillShape.jpeg";
+import PillShape from "../../../assets/background/PillShape.webp";
 import { CircleCheck, CircleX } from "lucide-react-native";
 // Use transparent Lucid icons if available or standard Ionicons
 import {
@@ -147,19 +147,16 @@ export default function EditProfileScreen({ route, navigation }) {
   const scrollViewRef = useRef(null);
   const phoneInputRef = useRef(null);
 
-  // Hide parent tab bar on mount, restore on unmount (TEMPORARILY DISABLED FOR DIAGNOSTIC)
-  // useEffect(() => {
-  //   navigation.getParent()?.setOptions({
-  //     tabBarStyle: { display: "none" },
-  //   });
-  //   return () => {
-  //     navigation.getParent()?.setOptions({
-  //       tabBarStyle: undefined,
-  //     });
-  //   };
-  // }, [navigation]);
+  // Hide parent tab bar on mount, restore on unmount
   useEffect(() => {
-    console.log('[EDIT_PROFILE] TAB_BAR_EFFECT_DISABLED');
+    navigation.getParent()?.setOptions({
+      tabBarStyle: { display: "none" },
+    });
+    return () => {
+      navigation.getParent()?.setOptions({
+        tabBarStyle: undefined,
+      });
+    };
   }, [navigation]);
 
   const cleanLabel = (val) => {
@@ -291,8 +288,7 @@ export default function EditProfileScreen({ route, navigation }) {
 
   useEffect(() => {
     console.log('[EDIT_PROFILE][EFFECT] catalog START');
-    // loadInterestsCatalog();
-    console.log('[EDIT_PROFILE] loadInterestsCatalog DISABLED (catalogSize remains 0 for A/B test)');
+    loadInterestsCatalog();
     loadPronounsCatalog();
     console.log('[EDIT_PROFILE][EFFECT] catalog END');
   }, []);
@@ -1381,60 +1377,56 @@ export default function EditProfileScreen({ route, navigation }) {
 
         {/* Card 5: My Vibes (Scalable Redesign) */}
         <Profiler id="Card5_MyVibes" onRender={onProfileRender}>
-        {(() => {
-          const card5Start = performance.now();
-          console.log('[MY_VIBES][PERF] card5Render START', card5Start.toFixed(2));
+        <View style={styles.card}>
+          <BlurView intensity={60} tint="light" style={[StyleSheet.absoluteFill, { borderRadius: 20, overflow: 'hidden' }]} />
+          {renderSectionHeader("MY VIBES", RollerCoaster)}
 
-          let selectedVibesJSX = null;
-          if (interests.length > 0) {
-            const tSel0 = performance.now();
-            const visibleInterests = interests.slice(0, showAllSelected ? undefined : 8);
-            const mappedVibes = visibleInterests.map((interest) => {
-              const style = getInterestStyle(interest);
-              const Icon = style.icon;
-              return (
-                <TouchableOpacity
-                  key={interest}
-                  activeOpacity={0.7}
-                  onPress={() => {
-                    LayoutAnimation.configureNext(
-                      LayoutAnimation.Presets.easeInEaseOut,
-                    );
-                    setInterests(
-                      interests.filter((i) => i !== interest),
-                    );
-                    HapticsService.triggerSelection();
-                  }}
-                  style={[
-                    styles.vibeChip,
-                    { backgroundColor: style.bg, paddingRight: 8 },
-                  ]}
-                >
-                  <View style={styles.vibeContent}>
-                    <Icon
-                      size={14}
-                      color={style.text}
-                      strokeWidth={2.5}
-                    />
-                    <Text
-                      style={[styles.vibeText, { color: style.text }]}
-                    >
-                      {interest}
-                    </Text>
-                  </View>
-                  <View style={styles.removeIconContainer}>
-                    <X size={12} color={style.text} strokeWidth={3} />
-                  </View>
-                </TouchableOpacity>
-              );
-            });
-            const selDuration = performance.now() - tSel0;
-            console.log(`[MY_VIBES][PERF] selectedVibesMap count=${visibleInterests.length} totalInterests=${interests.length} duration=${selDuration.toFixed(2)}ms`);
-
-            selectedVibesJSX = (
+          <View style={[styles.inputGroupLast, { marginTop: 12 }]}>
+            {/* 1. Selected Vibes (Pinned Top) */}
+            {interests.length > 0 && (
               <View style={styles.selectedVibesSection}>
                 <View style={styles.vibesContainer}>
-                  {mappedVibes}
+                  {interests
+                    .slice(0, showAllSelected ? undefined : 8)
+                    .map((interest) => {
+                      const style = getInterestStyle(interest);
+                      const Icon = style.icon;
+                      return (
+                        <TouchableOpacity
+                          key={interest}
+                          activeOpacity={0.7}
+                          onPress={() => {
+                            LayoutAnimation.configureNext(
+                              LayoutAnimation.Presets.easeInEaseOut,
+                            );
+                            setInterests(
+                              interests.filter((i) => i !== interest),
+                            );
+                            HapticsService.triggerSelection();
+                          }}
+                          style={[
+                            styles.vibeChip,
+                            { backgroundColor: style.bg, paddingRight: 8 },
+                          ]}
+                        >
+                          <View style={styles.vibeContent}>
+                            <Icon
+                              size={14}
+                              color={style.text}
+                              strokeWidth={2.5}
+                            />
+                            <Text
+                              style={[styles.vibeText, { color: style.text }]}
+                            >
+                              {interest}
+                            </Text>
+                          </View>
+                          <View style={styles.removeIconContainer}>
+                            <X size={12} color={style.text} strokeWidth={3} />
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
                   {interests.length > 8 && !showAllSelected && (
                     <TouchableOpacity
                       onPress={() => {
@@ -1466,214 +1458,180 @@ export default function EditProfileScreen({ route, navigation }) {
                 </View>
                 <View style={styles.divider} />
               </View>
-            );
-          }
+            )}
 
-          let categoriesOrSearchJSX = null;
-          if (searchQuery) {
-            const tSearch0 = performance.now();
-            const filteredCatalog = interestsCatalog.filter(
-              (i) =>
-                !interests.includes(i) &&
-                i.toLowerCase().includes(searchQuery.toLowerCase()),
-            );
-            const searchResultsJSX = filteredCatalog.map((interest) => (
-              <TouchableOpacity
-                key={interest}
-                onPress={() => {
-                  setInterests([...interests, interest]);
-                  setSearchQuery("");
-                  HapticsService.triggerSelection();
+            {/* 2. Search & Add */}
+            <View style={styles.searchContainer}>
+              <SearchIcon
+                size={16}
+                color={TEXT_SECONDARY}
+                style={styles.searchIcon}
+              />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search interests..."
+                placeholderTextColor={TEXT_SECONDARY}
+                value={searchQuery}
+                onChangeText={(text) => {
+                  LayoutAnimation.configureNext(
+                    LayoutAnimation.Presets.easeInEaseOut,
+                  );
+                  setSearchQuery(text);
+                  if (text) setExpandedCategory(null); // Close categories when searching
                 }}
-                style={styles.optionChip}
-              >
-                <Text style={styles.optionText}>{interest}</Text>
-                <Plus size={14} color={TEXT_SECONDARY} />
-              </TouchableOpacity>
-            ));
-            const searchDuration = performance.now() - tSearch0;
-            console.log(`[MY_VIBES][PERF] searchFilterAndMap catalogSize=${interestsCatalog.length} matchCount=${filteredCatalog.length} duration=${searchDuration.toFixed(2)}ms`);
-
-            categoriesOrSearchJSX = (
-              <View style={styles.vibesContainer}>
-                {searchResultsJSX}
-                <TouchableOpacity
-                  onPress={() => {
-                    if (!interests.includes(searchQuery)) {
-                      setInterests([...interests, searchQuery]);
-                      setSearchQuery("");
-                      HapticsService.triggerSelection();
-                    }
-                  }}
-                  style={styles.addCustomSearchResult}
-                >
-                  <Plus size={14} color={ACCENT_COLOR} />
-                  <Text style={styles.addCustomText}>
-                    Add "{searchQuery}"
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            );
-          } else {
-            const tCatGroup0 = performance.now();
-            const catKeys = Object.keys(INTEREST_CATEGORIES).filter((key) => key !== "DEFAULT");
-            let totalCategoryFilterTime = 0;
-            let totalTagsRendered = 0;
-
-            const renderedCategories = catKeys.map((key) => {
-              const tSingleCat0 = performance.now();
-              const category = INTEREST_CATEGORIES[key];
-              const isExpanded = expandedCategory === key;
-              const Icon = category.icon;
-
-              const categoryInterests = interestsCatalog.filter(
-                (i) =>
-                  !interests.includes(i) &&
-                  category.keywords.some((k) =>
-                    i.toLowerCase().includes(k),
-                  ),
-              );
-
-              const hasAnyInterests = interestsCatalog.some(
-                (i) => category.keywords.some((k) => i.toLowerCase().includes(k))
-              );
-
-              const singleCatFilterTime = performance.now() - tSingleCat0;
-              totalCategoryFilterTime += singleCatFilterTime;
-
-              if (!hasAnyInterests) return null;
-
-              let chipsJSX = null;
-              if (isExpanded) {
-                totalTagsRendered += categoryInterests.length;
-                chipsJSX = (
-                  <View style={styles.categoryContent}>
-                    <View style={styles.vibesContainer}>
-                      {categoryInterests.map((interest) => (
-                        <TouchableOpacity
-                          key={interest}
-                          onPress={() => {
-                            setInterests([...interests, interest]);
-                            HapticsService.triggerSelection();
-                          }}
-                          style={styles.optionChip}
-                        >
-                          <Text style={styles.optionText}>
-                            {interest}
-                          </Text>
-                          <Plus size={14} color={TEXT_SECONDARY} />
-                        </TouchableOpacity>
-                      ))}
-                      {categoryInterests.length === 0 && (
-                        <Text style={[styles.optionText, { color: TEXT_SECONDARY, fontStyle: 'italic', paddingLeft: 4 }]}>
-                          All selected
-                        </Text>
-                      )}
-                    </View>
-                  </View>
-                );
-              }
-
-              return (
-                <View key={key} style={styles.categoryRow}>
-                  <TouchableOpacity
-                    activeOpacity={0.7}
-                    onPress={() => {
-                      LayoutAnimation.configureNext(
-                        LayoutAnimation.Presets.easeInEaseOut,
-                      );
-                      setExpandedCategory(isExpanded ? null : key);
-                    }}
-                    style={[
-                      styles.categoryHeader,
-                      isExpanded && styles.categoryHeaderExpanded,
-                      {
-                        backgroundColor: isExpanded
-                          ? category.bg
-                          : "transparent",
-                      },
-                    ]}
-                  >
-                    <View style={styles.categoryHeaderLeft}>
-                      <View
-                        style={[
-                          styles.categoryIcon,
-                          { backgroundColor: category.bg },
-                        ]}
-                      >
-                        <Icon size={14} color={category.text} />
-                      </View>
-                      <Text
-                        style={[
-                          styles.categoryTitle,
-                          isExpanded && {
-                            color: category.text,
-                            fontWeight: "600",
-                          },
-                        ]}
-                      >
-                        {category.label}
-                      </Text>
-                    </View>
-                    {isExpanded ? (
-                      <ChevronDown size={16} color={TEXT_SECONDARY} />
-                    ) : (
-                      <ChevronRight size={16} color={TEXT_SECONDARY} />
-                    )}
-                  </TouchableOpacity>
-
-                  {chipsJSX}
-                </View>
-              );
-            });
-
-            const catGroupDuration = performance.now() - tCatGroup0;
-            console.log(`[MY_VIBES][PERF] buildCategories catCount=${catKeys.length} catalogSize=${interestsCatalog.length} filterTime=${totalCategoryFilterTime.toFixed(2)}ms expandedTags=${totalTagsRendered} totalDuration=${catGroupDuration.toFixed(2)}ms`);
-
-            categoriesOrSearchJSX = renderedCategories;
-          }
-
-          const card5End = performance.now();
-          console.log(`[MY_VIBES][PERF] card5Render END totalDuration=${(card5End - card5Start).toFixed(2)}ms`);
-
-          return (
-            <View style={styles.card}>
-              <BlurView intensity={60} tint="light" style={[StyleSheet.absoluteFill, { borderRadius: 20, overflow: 'hidden' }]} />
-              {renderSectionHeader("MY VIBES", RollerCoaster)}
-
-              <View style={[styles.inputGroupLast, { marginTop: 12 }]}>
-                {selectedVibesJSX}
-
-                {/* 2. Search & Add */}
-                <View style={styles.searchContainer}>
-                  <SearchIcon
-                    size={16}
-                    color={TEXT_SECONDARY}
-                    style={styles.searchIcon}
-                  />
-                  <TextInput
-                    style={styles.searchInput}
-                    placeholder="Search interests..."
-                    placeholderTextColor={TEXT_SECONDARY}
-                    value={searchQuery}
-                    onChangeText={(text) => {
-                      LayoutAnimation.configureNext(
-                        LayoutAnimation.Presets.easeInEaseOut,
-                      );
-                      setSearchQuery(text);
-                      if (text) setExpandedCategory(null);
-                    }}
-                  />
-                </View>
-
-                {/* 3. Categories or Search Results */}
-                <View style={styles.categoriesContainer}>
-                  {categoriesOrSearchJSX}
-                </View>
-              </View>
+              />
             </View>
-          );
-        })()}
+
+            {/* 3. Categories or Search Results */}
+            <View style={styles.categoriesContainer}>
+              {searchQuery ? (
+                // Search Results
+                <View style={styles.vibesContainer}>
+                  {interestsCatalog
+                    .filter(
+                      (i) =>
+                        !interests.includes(i) &&
+                        i.toLowerCase().includes(searchQuery.toLowerCase()),
+                    )
+                    .map((interest) => (
+                      <TouchableOpacity
+                        key={interest}
+                        onPress={() => {
+                          setInterests([...interests, interest]);
+                          setSearchQuery(""); // Clear search after add
+                          HapticsService.triggerSelection();
+                        }}
+                        style={styles.optionChip}
+                      >
+                        <Text style={styles.optionText}>{interest}</Text>
+                        <Plus size={14} color={TEXT_SECONDARY} />
+                      </TouchableOpacity>
+                    ))}
+                  {/* Add Custom Interest in Search */}
+                  <TouchableOpacity
+                    onPress={() => {
+                      if (!interests.includes(searchQuery)) {
+                        setInterests([...interests, searchQuery]);
+                        setSearchQuery("");
+                        HapticsService.triggerSelection();
+                      }
+                    }}
+                    style={styles.addCustomSearchResult}
+                  >
+                    <Plus size={14} color={ACCENT_COLOR} />
+                    <Text style={styles.addCustomText}>
+                      Add "{searchQuery}"
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                // Category List
+                Object.keys(INTEREST_CATEGORIES)
+                  .filter((key) => key !== "DEFAULT")
+                  .map((key) => {
+                    const category = INTEREST_CATEGORIES[key];
+                    const isExpanded = expandedCategory === key;
+                    const Icon = category.icon;
+
+                    // Filter interests for this category
+                    const categoryInterests = interestsCatalog.filter(
+                      (i) =>
+                        !interests.includes(i) &&
+                        category.keywords.some((k) =>
+                          i.toLowerCase().includes(k),
+                        ),
+                    );
+
+                    const hasAnyInterests = interestsCatalog.some(
+                      (i) => category.keywords.some((k) => i.toLowerCase().includes(k))
+                    );
+
+                    if (!hasAnyInterests) return null;
+
+                    // If no interests in this category available to add, maybe skip?
+                    // Spec says "Show all categories", so keeping it.
+
+                    return (
+                      <View key={key} style={styles.categoryRow}>
+                        <TouchableOpacity
+                          activeOpacity={0.7}
+                          onPress={() => {
+                            LayoutAnimation.configureNext(
+                              LayoutAnimation.Presets.easeInEaseOut,
+                            );
+                            setExpandedCategory(isExpanded ? null : key);
+                          }}
+                          style={[
+                            styles.categoryHeader,
+                            isExpanded && styles.categoryHeaderExpanded,
+                            {
+                              backgroundColor: isExpanded
+                                ? category.bg
+                                : "transparent",
+                            }, // Tint on expand
+                          ]}
+                        >
+                          <View style={styles.categoryHeaderLeft}>
+                            <View
+                              style={[
+                                styles.categoryIcon,
+                                { backgroundColor: category.bg },
+                              ]}
+                            >
+                              <Icon size={14} color={category.text} />
+                            </View>
+                            <Text
+                              style={[
+                                styles.categoryTitle,
+                                isExpanded && {
+                                  color: category.text,
+                                  fontWeight: "600",
+                                },
+                              ]}
+                            >
+                              {category.label}
+                            </Text>
+                          </View>
+                          {isExpanded ? (
+                            <ChevronDown size={16} color={TEXT_SECONDARY} />
+                          ) : (
+                            <ChevronRight size={16} color={TEXT_SECONDARY} />
+                          )}
+                        </TouchableOpacity>
+
+                        {isExpanded && (
+                          <View style={styles.categoryContent}>
+                            <View style={styles.vibesContainer}>
+                              {categoryInterests.map((interest) => (
+                                <TouchableOpacity
+                                  key={interest}
+                                  onPress={() => {
+                                    setInterests([...interests, interest]);
+                                    HapticsService.triggerSelection();
+                                  }}
+                                  style={styles.optionChip}
+                                >
+                                  <Text style={styles.optionText}>
+                                    {interest}
+                                  </Text>
+                                  <Plus size={14} color={TEXT_SECONDARY} />
+                                </TouchableOpacity>
+                              ))}
+                              {categoryInterests.length === 0 && (
+                                <Text style={[styles.optionText, { color: TEXT_SECONDARY, fontStyle: 'italic', paddingLeft: 4 }]}>
+                                  All selected
+                                </Text>
+                              )}
+                            </View>
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })
+              )}
+            </View>
+          </View>
+        </View>
         </Profiler>
 
 
@@ -1826,8 +1784,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(0,0,0,0.05)",
+    borderBottomWidth: 0,
     backgroundColor: "rgba(255, 255, 255, 0.7)", //Frosted glass style header
     position: "relative",
     minHeight: 60,
