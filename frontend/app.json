@@ -2,6 +2,7 @@
   "expo": {
     "name": "SnooSpace",
     "slug": "snoospace",
+    "scheme": "snoospace",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/logos/adaptive-icon-scaled.png",

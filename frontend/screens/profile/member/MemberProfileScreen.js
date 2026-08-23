@@ -232,23 +232,6 @@ const ProfileBioHeader = React.memo(({ profile, setShowCollegeHub }) => {
           )}
         </View>
       ) : null}
-
-      {/* Spotify Top Artists Card */}
-      {profile.spotify_connected && Array.isArray(profile.spotify_top_artists) && profile.spotify_top_artists.length > 0 && (
-        <View style={styles.spotifyCard}>
-          <View style={styles.spotifyHeader}>
-            <Music size={16} color="#1DB954" strokeWidth={2.5} style={{ marginRight: 6 }} />
-            <Text style={styles.spotifyTitle}>Spotify Top Artists</Text>
-          </View>
-          <View style={styles.spotifyArtistsContainer}>
-            {profile.spotify_top_artists.map((artist, idx) => (
-              <View key={idx} style={styles.spotifyArtistBadge}>
-                <Text style={styles.spotifyArtistText}>{artist}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-      )}
     </>
   );
 });
@@ -532,6 +515,14 @@ const normalizePosts = (postsArray) => {
 };
 
 export default function MemberProfileScreen({ navigation }) {
+  const renderCount = useRef(0);
+  renderCount.current += 1;
+  console.log(
+    '[MEMBER_PROFILE] RENDER',
+    renderCount.current,
+    performance.now()
+  );
+
   const route = useRoute();
   const { showToast } = useToast();
   const { memberProfile, memberPosts, setMemberProfile, setMemberPosts } = useProfileCache();
@@ -616,23 +607,11 @@ export default function MemberProfileScreen({ navigation }) {
 
   useFocusEffect(
     useCallback(() => {
-      console.log("[MemberProfileScreen] useFocusEffect run:", {
-        showAccountSwitcher,
-        showAddAccountModal,
-        hasParent: !!navigation.getParent(),
-      });
-      if (showAccountSwitcher || showAddAccountModal) {
-        console.log("[MemberProfileScreen] Hiding tab bar");
-        navigation.getParent()?.setOptions({
-          tabBarStyle: { display: "none" },
-        });
-      } else {
-        console.log("[MemberProfileScreen] Showing/restoring tab bar");
-        navigation.getParent()?.setOptions({
-          tabBarStyle: undefined,
-        });
-      }
-    }, [showAccountSwitcher, showAddAccountModal, navigation]),
+      console.log('[MemberProfileScreen] FOCUS');
+      return () => {
+        console.log('[MemberProfileScreen] BLUR');
+      };
+    }, [])
   );
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showCollegeHub, setShowCollegeHub] = useState(false);
@@ -1373,9 +1352,25 @@ export default function MemberProfileScreen({ navigation }) {
 
 
   const handleEditProfile = () => {
+    const t0 = performance.now();
+    console.log('[EDIT_PROFILE] TAP (T0)', t0);
+
     HapticsService.triggerEditProfile();
-    // Navigate to EditProfile (same stack - ProfileStackNavigator)
+
+    const t1 = performance.now();
+    console.log('[EDIT_PROFILE] BEFORE navigate() (T1)', t1, 'haptics duration:', t1 - t0);
+
     navigation.navigate("EditProfile", { profile });
+
+    const t2 = performance.now();
+    console.log(
+      '[EDIT_PROFILE] AFTER navigate() returned (T2)',
+      t2,
+      'navigate() call duration:',
+      t2 - t1,
+      'total from tap:',
+      t2 - t0
+    );
   };
 
   // Change Photo moved to Edit Profile screen

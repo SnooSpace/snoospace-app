@@ -9,12 +9,6 @@ const { emitSignal, getCategoryForPost } = require("../utils/signalEmitter");
 
 const pool = createPool();
 
-// Idempotent migration to add is_anonymous column to poll_votes
-pool.query(
-  `ALTER TABLE poll_votes ADD COLUMN IF NOT EXISTS is_anonymous BOOLEAN DEFAULT FALSE`
-).catch((err) => {
-  console.error("[pollController] Failed to run migration for poll_votes is_anonymous:", err);
-});
 
 /**
  * Create a poll post

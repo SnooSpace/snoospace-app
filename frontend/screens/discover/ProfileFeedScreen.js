@@ -881,15 +881,6 @@ export default function ProfileFeedScreen({ route, navigation }) {
             </View>
           ))}
 
-          {currentAttendee?.spotify_connected && (
-            <View style={{ marginBottom: 24 }}>
-              <SpotifyArtistsCard
-                artists={currentAttendee.spotify_top_artists}
-                targetUsername={name}
-              />
-            </View>
-          )}
-
           {/* Interests Group (Bottom of Profile) */}
           {interests.length > 0 && (
             <View style={styles.interestsGlassContainer}>
@@ -909,6 +900,16 @@ export default function ProfileFeedScreen({ route, navigation }) {
                   </TouchableOpacity>
                 ))}
               </View>
+            </View>
+          )}
+
+          {/* Spotify Top Artists Card (After Interests at the end) */}
+          {currentAttendee?.spotify_connected && Array.isArray(currentAttendee?.spotify_top_artists) && currentAttendee.spotify_top_artists.length > 0 && (
+            <View style={{ marginBottom: 20 }}>
+              <SpotifyArtistsCard
+                artists={currentAttendee.spotify_top_artists}
+                targetUsername={name}
+              />
             </View>
           )}
 

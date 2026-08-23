@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, Alert, BackHandler, Platform, TextInput, Modal, Animated, TouchableWithoutFeedback, InteractionManager, StatusBar, LayoutAnimation, UIManager, Keyboard } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect } from "@react-navigation/native";
 import { Svg, Circle, Defs, LinearGradient, Stop } from "react-native-svg";
 import { getAuthToken } from "../../api/auth";
 import { apiGet } from "../../api/client";
@@ -314,6 +315,29 @@ export default function EditDiscoverProfileScreen({ navigation }) {
       return () => task.cancel();
     }
   }, [loadProfile]);
+
+  // Re-fetch Spotify connection status on screen focus (e.g. return from browser)
+  const refreshSpotifyStatus = useCallback(async () => {
+    try {
+      const token = await getAuthToken();
+      if (!token) return;
+      const res = await apiGet("/api/auth/spotify/profile", 8000, token);
+      if (res && typeof res.connected === "boolean") {
+        setSpotifyConnected(res.connected);
+        if (Array.isArray(res.top_artists)) {
+          setSpotifyTopArtists(res.top_artists);
+        }
+      }
+    } catch (err) {
+      // Non-blocking background sync
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshSpotifyStatus();
+    }, [refreshSpotifyStatus])
+  );
 
   useEffect(() => {
     const loadCatalog = async () => {

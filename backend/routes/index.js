@@ -61,7 +61,7 @@ const userPlansRouter    = require('./userPlans');
 const blocksRouter       = require('./blocks');
 const verificationsRouter = require('./verifications');
 const BlocksController = require('../controllers/blocksController');
-const spotifyRouter = require('./spotify');
+const spotifyAuthRouter = require('./spotifyAuth');
 const locationRouter = require('./location');
 
 
@@ -2076,7 +2076,9 @@ router.use('/plans', plansRouter);
 router.use('/users/me/plans', userPlansRouter);
 router.use('/users', blocksRouter);
 router.use('/verifications', verificationsRouter);
-router.use('/spotify', spotifyRouter);
+router.use('/api/auth/spotify', spotifyAuthRouter);
+router.use('/api/spotify', spotifyAuthRouter);
+router.use('/spotify', spotifyAuthRouter);
 
 // ============================================
 // COLLAB REQUESTS

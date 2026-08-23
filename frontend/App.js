@@ -213,6 +213,20 @@ function AppContent() {
     return cleanup;
   }, []);
 
+  // ── JS Event-Loop Stall Monitor ──────────────────────────────────────────
+  useEffect(() => {
+    let last = performance.now();
+    const interval = setInterval(() => {
+      const now = performance.now();
+      const delta = now - last;
+      if (delta > 100) {
+        console.log(`[JS_STALL] ${delta.toFixed(1)}ms`);
+      }
+      last = now;
+    }, 50);
+    return () => clearInterval(interval);
+  }, []);
+
   /**
    * Recursively resolve the currently active route name and its stack depth
    * from React Navigation's state tree.

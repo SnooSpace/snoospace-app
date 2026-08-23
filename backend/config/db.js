@@ -272,6 +272,11 @@ async function ensureTables(pool) {
       CREATE INDEX IF NOT EXISTS idx_post_saves_saver ON post_saves(saver_id, saver_type);
       CREATE INDEX IF NOT EXISTS idx_post_saves_created_at ON post_saves(created_at DESC);
       
+      -- Poll votes: support anonymous voting
+      DO $$ BEGIN
+        ALTER TABLE poll_votes ADD COLUMN IF NOT EXISTS is_anonymous BOOLEAN DEFAULT FALSE;
+      EXCEPTION WHEN duplicate_column THEN NULL; WHEN undefined_table THEN NULL; END $$;
+      
       -- Follows table
       CREATE TABLE IF NOT EXISTS follows (
         id BIGSERIAL PRIMARY KEY,

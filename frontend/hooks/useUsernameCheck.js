@@ -30,6 +30,8 @@ export function useUsernameCheck(username) {
   const abortRef = useRef(null);
 
   useEffect(() => {
+    console.log(`[USERNAME_CHECK][EFFECT] username="${username}"`);
+
     // Cancel any in-flight debounce + fetch from the previous render
     clearTimeout(debounceRef.current);
     if (abortRef.current) {
@@ -39,11 +41,14 @@ export function useUsernameCheck(username) {
 
     // Don't check if input is too short — saves network & avoids spurious 400s
     if (!username || username.length < 3) {
+      console.log('[USERNAME_CHECK][STATE] status -> idle');
       setStatus('idle');
+      console.log('[USERNAME_CHECK][STATE] suggestions -> length 0');
       setSuggestions([]);
       return;
     }
 
+    console.log('[USERNAME_CHECK][STATE] status -> checking');
     setStatus('checking');
 
     debounceRef.current = setTimeout(async () => {
@@ -60,16 +65,22 @@ export function useUsernameCheck(username) {
 
         if (!res.ok) {
           // 400 (too short, reserved) — treat as taken so the user sees feedback
+          console.log('[USERNAME_CHECK][STATE] status -> taken');
           setStatus('taken');
+          console.log(`[USERNAME_CHECK][STATE] suggestions -> length ${(data.suggestions || []).length}`);
           setSuggestions(data.suggestions || []);
           return;
         }
 
-        setStatus(data.available ? 'available' : 'taken');
+        const nextStatus = data.available ? 'available' : 'taken';
+        console.log(`[USERNAME_CHECK][STATE] status -> ${nextStatus}`);
+        setStatus(nextStatus);
+        console.log(`[USERNAME_CHECK][STATE] suggestions -> length ${(data.suggestions || []).length}`);
         setSuggestions(data.suggestions || []);
       } catch (e) {
         // AbortError is expected when the component unmounts or username changes quickly
         if (e.name !== 'AbortError') {
+          console.log('[USERNAME_CHECK][STATE] status -> error');
           setStatus('error');
         }
       }

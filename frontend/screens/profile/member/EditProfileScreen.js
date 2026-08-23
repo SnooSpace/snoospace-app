@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, Profiler } from "react";
 import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, Alert, LayoutAnimation, UIManager, Platform, Image, Keyboard, TouchableWithoutFeedback, ImageBackground, KeyboardAvoidingView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
@@ -118,21 +118,48 @@ const getPronounStyles = (pronoun, isSelected) => {
   return PRONOUN_STYLE_CONFIG.selected;
 };
 
+const sectionRenderCounts = {};
+const onProfileRender = (id, phase, actualDuration, baseDuration, startTime, commitTime) => {
+  sectionRenderCounts[id] = (sectionRenderCounts[id] || 0) + 1;
+  console.log(
+    `[EDIT_PROFILE][PROFILE] id="${id}" count=${sectionRenderCounts[id]} phase=${phase} actualDuration=${actualDuration.toFixed(2)}ms baseDuration=${baseDuration.toFixed(2)}ms startTime=${startTime.toFixed(2)} commitTime=${commitTime.toFixed(2)}`
+  );
+};
+
 export default function EditProfileScreen({ route, navigation }) {
+  const renderCount = useRef(0);
+  renderCount.current += 1;
+  const renderStartTime = performance.now();
+  console.log('[EDIT_PROFILE][MOUNT_PERF] renderStart #', renderCount.current, renderStartTime);
+
+  useLayoutEffect(() => {
+    console.log('[EDIT_PROFILE][MOUNT_PERF] useLayoutEffect #', renderCount.current, performance.now());
+  });
+
+  useEffect(() => {
+    console.log('[EDIT_PROFILE][MOUNT_PERF] useEffect #', renderCount.current, performance.now());
+    return () => {
+      console.log('[EDIT_PROFILE] UNMOUNT', performance.now());
+    };
+  });
+
   const profile = route?.params?.profile;
   const scrollViewRef = useRef(null);
   const phoneInputRef = useRef(null);
 
-  // Hide parent tab bar on mount, restore on unmount
+  // Hide parent tab bar on mount, restore on unmount (TEMPORARILY DISABLED FOR DIAGNOSTIC)
+  // useEffect(() => {
+  //   navigation.getParent()?.setOptions({
+  //     tabBarStyle: { display: "none" },
+  //   });
+  //   return () => {
+  //     navigation.getParent()?.setOptions({
+  //       tabBarStyle: undefined,
+  //     });
+  //   };
+  // }, [navigation]);
   useEffect(() => {
-    navigation.getParent()?.setOptions({
-      tabBarStyle: { display: "none" },
-    });
-    return () => {
-      navigation.getParent()?.setOptions({
-        tabBarStyle: undefined,
-      });
-    };
+    console.log('[EDIT_PROFILE] TAB_BAR_EFFECT_DISABLED');
   }, [navigation]);
 
   const cleanLabel = (val) => {
@@ -225,15 +252,52 @@ export default function EditProfileScreen({ route, navigation }) {
   const [expandedCategory, setExpandedCategory] = useState(null); // Default closed
   const [showAllSelected, setShowAllSelected] = useState(false);
 
+  // Diagnostic: Render-state diff tracker
+  const prevTrackedState = useRef(null);
+  const currentTrackedState = {
+    hasChanges,
+    usernameStatus,
+    usernameSuggestionsLength: (usernameSuggestions || []).length,
+    interestsCatalogLength: (interestsCatalog || []).length,
+    pronounPresetsLength: (pronounPresets || []).length,
+    customPronounTextLength: (customPronounText || '').length,
+    saving,
+    uploadingPhoto,
+    pendingPhotoUriPresent: !!pendingPhotoUri,
+    showCollegePicker,
+    showDegreePicker,
+    showUnsavedModal,
+    emailChangeModalVisible,
+    showAllSelected,
+    expandedCategory,
+    occupationCategoryExpanded,
+  };
+
+  if (renderCount.current > 1 && prevTrackedState.current) {
+    const diffs = [];
+    for (const key of Object.keys(currentTrackedState)) {
+      if (prevTrackedState.current[key] !== currentTrackedState[key]) {
+        diffs.push(`  ${key}: ${prevTrackedState.current[key]} -> ${currentTrackedState[key]}`);
+      }
+    }
+    if (diffs.length > 0) {
+      console.log(`[EDIT_PROFILE][RENDER_DIFF] #${renderCount.current}\n` + diffs.join('\n'));
+    }
+  }
+  prevTrackedState.current = currentTrackedState;
+
   const allowLeaveRef = useRef(false);
   const pendingActionRef = useRef(null);
 
   useEffect(() => {
+    console.log('[EDIT_PROFILE][EFFECT] catalog START');
     loadInterestsCatalog();
     loadPronounsCatalog();
+    console.log('[EDIT_PROFILE][EFFECT] catalog END');
   }, []);
 
   useEffect(() => {
+    console.log('[EDIT_PROFILE][EFFECT] pronoun-init START');
     const loadedPronouns = profile?.pronouns
       ? (Array.isArray(profile.pronouns)
           ? profile.pronouns
@@ -243,16 +307,22 @@ export default function EditProfileScreen({ route, navigation }) {
     const defaultPresets = ["He/Him", "She/Her", "They/Them"];
     const customItems = loadedPronouns.filter(p => !defaultPresets.includes(p));
     if (customItems.length > 0) {
+      console.log('[EDIT_PROFILE][STATE] customPronounText update');
       setCustomPronounText(customItems.join(", "));
     }
+    console.log('[EDIT_PROFILE][EFFECT] pronoun-init END');
   }, [profile]);
 
   useEffect(() => {
+    const start = performance.now();
     checkForChanges();
+    const duration = performance.now() - start;
+    console.log('[EDIT_PROFILE] checkForChanges duration:', duration.toFixed(2), 'ms');
   }, [name, nickname, bio, username, phone, pronouns, customPronounText, interests, email, educationDegree, educationYear, selectedOccupation, customOccupation, occupationDetails, occupationCategory, portfolioLink, campusId, showCollege, pendingPhotoUri, spotifyConnected, spotifyTopArtists]);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("beforeRemove", (e) => {
+      console.log('[EDIT_PROFILE][NAV] beforeRemove');
       Keyboard.dismiss();
       if (!hasChanges || saving || allowLeaveRef.current) {
         return;
@@ -266,6 +336,7 @@ export default function EditProfileScreen({ route, navigation }) {
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("blur", () => {
+      console.log('[EDIT_PROFILE][NAV] blur');
       Keyboard.dismiss();
     });
     return unsubscribe;
@@ -289,8 +360,10 @@ export default function EditProfileScreen({ route, navigation }) {
   const loadPronounsCatalog = async () => {
     try {
       const data = await fetchPronouns();
+      console.log('[EDIT_PROFILE] fetchPronouns resolved, count:', data?.length || 0);
       if (data && data.length > 0) {
         const labels = data.map((p) => p.label);
+        console.log('[EDIT_PROFILE][STATE] pronounPresets update');
         setPronounPresets(labels);
 
         const loadedPronouns = profile?.pronouns
@@ -301,6 +374,7 @@ export default function EditProfileScreen({ route, navigation }) {
           : [];
         const customItems = loadedPronouns.filter(p => !labels.includes(p));
         if (customItems.length > 0) {
+          console.log('[EDIT_PROFILE][STATE] customPronounText update');
           setCustomPronounText(customItems.join(", "));
         }
       }
@@ -312,6 +386,8 @@ export default function EditProfileScreen({ route, navigation }) {
   const loadInterestsCatalog = async () => {
     try {
       const catalog = await fetchInterests();
+      console.log('[EDIT_PROFILE] fetchInterests resolved, count:', catalog?.length || 0);
+      console.log('[EDIT_PROFILE][STATE] interestsCatalog update');
       setInterestsCatalog(catalog || []);
     } catch (error) {
       console.error("Error loading interests catalog:", error);
@@ -378,7 +454,12 @@ export default function EditProfileScreen({ route, navigation }) {
       spotifyConnected !== (!!profile?.spotify_connected) ||
       JSON.stringify(spotifyTopArtists) !== JSON.stringify(profile?.spotify_top_artists || []);
 
-    setHasChanges(!!changed);
+    const prevHasChanges = hasChanges;
+    const nextHasChanges = !!changed;
+    if (prevHasChanges !== nextHasChanges) {
+      console.log(`[EDIT_PROFILE][STATE] hasChanges ${prevHasChanges} -> ${nextHasChanges}`);
+    }
+    setHasChanges(nextHasChanges);
   };
 
   const handleUsernameChange = useCallback((value) => {
@@ -598,7 +679,11 @@ export default function EditProfileScreen({ route, navigation }) {
     );
   };
 
+  const renderEndTime = performance.now();
+  console.log(`[EDIT_PROFILE][MOUNT_PERF] renderEnd #${renderCount.current} duration=${(renderEndTime - renderStartTime).toFixed(2)}ms`);
+
   return (
+    <Profiler id="EntireEditProfileScreen" onRender={onProfileRender}>
     <SafeAreaView style={styles.container} edges={["top"]}>
       <ImageBackground
         source={PillShape}
@@ -608,6 +693,7 @@ export default function EditProfileScreen({ route, navigation }) {
         blurRadius={20}
       >
         {/* Header */}
+        <Profiler id="Header" onRender={onProfileRender}>
         <View style={styles.header}>
         <TouchableOpacity
           onPress={() => {
@@ -637,6 +723,7 @@ export default function EditProfileScreen({ route, navigation }) {
           )}
         </TouchableOpacity>
       </View>
+        </Profiler>
 
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -650,6 +737,7 @@ export default function EditProfileScreen({ route, navigation }) {
           keyboardShouldPersistTaps="handled"
         >
         {/* Profile Photo - Global Section 2 */}
+        <Profiler id="ProfilePhoto" onRender={onProfileRender}>
         <View style={styles.photoSection}>
           <TouchableOpacity
             activeOpacity={0.8}
@@ -663,8 +751,10 @@ export default function EditProfileScreen({ route, navigation }) {
             </View>
           </TouchableOpacity>
         </View>
+        </Profiler>
 
         {/* Card 1: The Basics */}
+        <Profiler id="Card1_Basics" onRender={onProfileRender}>
         <View style={styles.card}>
           <BlurView intensity={60} tint="light" style={[StyleSheet.absoluteFill, { borderRadius: 20, overflow: 'hidden' }]} />
           {renderSectionHeader("THE BASICS", User)}
@@ -806,8 +896,10 @@ export default function EditProfileScreen({ route, navigation }) {
             </View>
           </View>
         </View>
+        </Profiler>
 
         {/* Card 2: About Me */}
+        <Profiler id="Card2_AboutMe" onRender={onProfileRender}>
         <View style={styles.card}>
           <BlurView intensity={60} tint="light" style={[StyleSheet.absoluteFill, { borderRadius: 20, overflow: 'hidden' }]} />
           {renderSectionHeader("ABOUT ME", NotebookText)}
@@ -824,8 +916,10 @@ export default function EditProfileScreen({ route, navigation }) {
             <Text style={styles.charCount}>{bio.length} / 150</Text>
           </View>
         </View>
+        </Profiler>
 
         {/* Card 3: Occupation */}
+        <Profiler id="Card3_Occupation" onRender={onProfileRender}>
         <View style={styles.card}>
           <BlurView intensity={60} tint="light" style={[StyleSheet.absoluteFill, { borderRadius: 20, overflow: 'hidden' }]} />
           {renderSectionHeader("OCCUPATION", Briefcase)}
@@ -1137,11 +1231,10 @@ export default function EditProfileScreen({ route, navigation }) {
             <Text style={styles.helperText}>Optional • Shown on your profile</Text>
           </View>
         </View>
+        </Profiler>
 
-        {/* Card 4: Education / College
-             Hidden when occupation = student because student sub-fields already capture institution & degree.
-             The college picker (campus_id) is surfaced inside the Occupation card when student is selected.
-        */}
+        {/* Card 4: Education / College */}
+        <Profiler id="Card4_Education" onRender={onProfileRender}>
         {selectedOccupation !== 'student' && (
           <View style={styles.card}>
             <BlurView intensity={60} tint="light" style={[StyleSheet.absoluteFill, { borderRadius: 20, overflow: 'hidden' }]} />
@@ -1236,8 +1329,10 @@ export default function EditProfileScreen({ route, navigation }) {
             </View>
           </View>
         )}
+        </Profiler>
 
         {/* Card 5: My Vibes (Scalable Redesign) */}
+        <Profiler id="Card5_MyVibes" onRender={onProfileRender}>
         <View style={styles.card}>
           <BlurView intensity={60} tint="light" style={[StyleSheet.absoluteFill, { borderRadius: 20, overflow: 'hidden' }]} />
           {renderSectionHeader("MY VIBES", RollerCoaster)}
@@ -1493,10 +1588,12 @@ export default function EditProfileScreen({ route, navigation }) {
             </View>
           </View>
         </View>
+        </Profiler>
 
 
 
         {/* Card 6: Private Details */}
+        <Profiler id="Card6_PrivateDetails" onRender={onProfileRender}>
         <View style={styles.card}>
           <BlurView intensity={60} tint="light" style={[StyleSheet.absoluteFill, { borderRadius: 20, overflow: 'hidden' }]} />
           {renderSectionHeader("PRIVATE DETAILS", Lock)}
@@ -1558,24 +1655,30 @@ export default function EditProfileScreen({ route, navigation }) {
             </View>
           </View>
         </View>
+        </Profiler>
 
         <View style={{ height: 0 }} />
         </ScrollView>
       </KeyboardAvoidingView>
 
+      <Profiler id="Modal_EmailChange" onRender={onProfileRender}>
       <EmailChangeModal
         visible={emailChangeModalVisible}
         currentEmail={email}
         onClose={() => setEmailChangeModalVisible(false)}
         onComplete={handleEmailChangeComplete}
       />
+      </Profiler>
 
+      <Profiler id="Modal_UnsavedChanges" onRender={onProfileRender}>
       <UnsavedChangesModal
         visible={showUnsavedModal}
         onKeepEditing={handleKeepEditing}
         onDiscard={handleDiscardChanges}
       />
+      </Profiler>
 
+      <Profiler id="Modal_CollegePicker" onRender={onProfileRender}>
       <CollegePickerModal
         visible={showCollegePicker}
         onClose={() => setShowCollegePicker(false)}
@@ -1593,7 +1696,9 @@ export default function EditProfileScreen({ route, navigation }) {
           setShowCollege(true);
         }}
       />
+      </Profiler>
 
+      <Profiler id="Modal_DegreePicker" onRender={onProfileRender}>
       <DegreePickerModal
         visible={showDegreePicker}
         initialValue={
@@ -1610,8 +1715,10 @@ export default function EditProfileScreen({ route, navigation }) {
         }}
         onClose={() => setShowDegreePicker(false)}
       />
+      </Profiler>
       </ImageBackground>
     </SafeAreaView>
+    </Profiler>
   );
 }
 

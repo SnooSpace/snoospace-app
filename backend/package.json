@@ -16,7 +16,8 @@
     "test:community:consent": "node tests/community/verifyConsentToggle.js",
     "test:community:cleanup": "node tests/community/cleanup.js",
     "test:community:all": "npm run test:community:consent && npm run test:community:seed && npm run test:community:verify",
-    "resolver:trigger": "node scripts/triggerAttendanceResolver.js"
+    "resolver:trigger": "node scripts/triggerAttendanceResolver.js",
+    "tunnel": "node scripts/start_tunnel.js"
   },
   "keywords": [],
   "author": "",

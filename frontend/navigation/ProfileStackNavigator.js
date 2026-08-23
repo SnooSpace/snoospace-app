@@ -20,9 +20,9 @@ export default function ProfileStackNavigator() {
         gestureEnabled: true,
         ...(Platform.OS === "ios" ? { animationDuration: 350 } : {}),
       }}
-      initialRouteName="Profile"
+      initialRouteName="ProfileHome"
     >
-      <Stack.Screen name="Profile" component={MemberProfileScreen} />
+      <Stack.Screen name="ProfileHome" component={MemberProfileScreen} />
 
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       <Stack.Screen name="CreatePost" component={CreatePostScreen} />

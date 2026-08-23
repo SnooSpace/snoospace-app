@@ -1563,23 +1563,6 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
               </View>
             ) : null}
 
-            {/* Spotify Top Artists Card */}
-            {profile?.spotify_connected && Array.isArray(profile?.spotify_top_artists) && profile.spotify_top_artists.length > 0 && (
-              <View style={styles.spotifyCard}>
-                <View style={styles.spotifyHeader}>
-                  <Music size={16} color="#1DB954" strokeWidth={2.5} style={{ marginRight: 6 }} />
-                  <Text style={styles.spotifyTitle}>Spotify Top Artists</Text>
-                </View>
-                <View style={styles.spotifyArtistsContainer}>
-                  {profile.spotify_top_artists.map((artist, idx) => (
-                    <View key={idx} style={styles.spotifyArtistBadge}>
-                      <Text style={styles.spotifyArtistText}>{artist}</Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            )}
-
             <View style={styles.statsContainer}>
               <View style={styles.statItem}>
                 <Text style={styles.statNumber}>

@@ -9,9 +9,16 @@ import {
   Linking,
 } from 'react-native';
 import { Music, MessageSquare } from 'lucide-react-native';
+import Svg, { Path } from 'react-native-svg';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { FONTS, COLORS } from '../../constants/theme';
 import HapticsService from '../../services/HapticsService';
+
+const SpotifyLogo = ({ size = 18, color = "#FFFFFF" }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+    <Path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.503 17.308c-.216.354-.676.464-1.028.249-2.818-1.722-6.365-2.111-10.542-1.157-.403.092-.804-.16-.896-.562-.092-.402.159-.804.563-.895 4.571-1.045 8.492-.595 11.655 1.338.353.214.464.675.248 1.027zm1.469-3.267c-.271.44-.847.578-1.287.308-3.225-1.982-8.142-2.557-11.958-1.398-.494.149-1.017-.13-1.167-.624-.149-.495.13-1.016.624-1.167 4.358-1.323 9.776-.682 13.48 1.594.44.27.578.846.308 1.287zm.126-3.403C15.23 8.341 8.85 8.13 5.157 9.251c-.593.18-1.22-.155-1.4-.748-.18-.593.155-1.22.748-1.4 4.239-1.287 11.285-1.038 15.738 1.605.533.317.708 1.005.392 1.538-.317.533-1.007.709-1.537.392z" />
+  </Svg>
+);
 
 const GENRE_COLORS = {
   'pop':        '#3B5BDB',
@@ -31,7 +38,7 @@ export function SpotifyArtistsCard({ artists = [], targetUsername }) {
   if (!artists || artists.length === 0) return null;
 
   const topGenres = [...new Set(
-    artists.flatMap(a => a.genres || [])
+    artists.flatMap(a => (typeof a === 'object' && Array.isArray(a.genres) ? a.genres : []))
   )].slice(0, 4);
 
   const handleArtistPress = useCallback((artistName) => {
@@ -46,7 +53,7 @@ export function SpotifyArtistsCard({ artists = [], targetUsername }) {
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <View style={styles.spotifyLogoContainer}>
-            <Music size={16} color="#FFFFFF" strokeWidth={2.5} />
+            <SpotifyLogo size={18} color="#FFFFFF" />
           </View>
           <View style={styles.headerText}>
             <Text style={styles.headerTitle}>Top Artists</Text>
@@ -61,35 +68,44 @@ export function SpotifyArtistsCard({ artists = [], targetUsername }) {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.artistsRow}
       >
-        {artists.map((artist) => (
-          <TouchableOpacity
-            key={artist.spotify_artist_id}
-            style={styles.artistItem}
-            onPress={() => handleArtistPress(artist.artist_name)}
-            activeOpacity={0.75}
-          >
-            <View style={styles.imageWrapper}>
-              {artist.artist_image_url ? (
-                <Image
-                  source={{ uri: artist.artist_image_url }}
-                  style={styles.artistImage}
-                />
-              ) : (
-                <View style={[styles.artistImage, styles.artistImageFallback]}>
-                  <Music size={22} color="#868E96" />
-                </View>
-              )}
-              {artist.rank === 1 && (
-                <View style={styles.rankBadge}>
-                  <Text style={styles.rankBadgeText}>♯1</Text>
-                </View>
-              )}
-            </View>
-            <Text style={styles.artistName} numberOfLines={2}>
-              {artist.artist_name}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        {artists.map((artist, idx) => {
+          const artistName = typeof artist === 'string' ? artist : (artist.name || artist.artist_name || '');
+          const imageUrl = typeof artist === 'object' ? (artist.image_url || artist.artist_image_url) : null;
+          const key = (typeof artist === 'object' && (artist.id || artist.spotify_artist_id)) || `${artistName}-${idx}`;
+          const isRank1 = typeof artist === 'object' ? (artist.rank === 1) : (idx === 0);
+
+          if (!artistName) return null;
+
+          return (
+            <TouchableOpacity
+              key={key}
+              style={styles.artistItem}
+              onPress={() => handleArtistPress(artistName)}
+              activeOpacity={0.75}
+            >
+              <View style={styles.imageWrapper}>
+                {imageUrl ? (
+                  <Image
+                    source={{ uri: imageUrl }}
+                    style={styles.artistImage}
+                  />
+                ) : (
+                  <View style={[styles.artistImage, styles.artistImageFallback]}>
+                    <Music size={22} color="#868E96" />
+                  </View>
+                )}
+                {isRank1 && (
+                  <View style={styles.rankBadge}>
+                    <Text style={styles.rankBadgeText}>♯1</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={styles.artistName} numberOfLines={2}>
+                {artistName}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
 
       {/* Genre tags */}
