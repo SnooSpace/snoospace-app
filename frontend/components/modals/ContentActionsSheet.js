@@ -32,6 +32,7 @@ import {
 import { MoreHorizontal, Flag, X } from "lucide-react-native";
 import ReportSheet from "./ReportSheet";
 import { FONTS, COLORS } from "../../constants/theme";
+import HapticsService from "../../services/HapticsService";
 
 const { height: SCREEN_H } = Dimensions.get("window");
 
@@ -43,6 +44,7 @@ export default function ContentActionsSheet({
   iconColor = "#94A3B8",
   iconSize = 20,
   hitSlop = { top: 10, bottom: 10, left: 10, right: 10 },
+  triggerStyle,
 }) {
   const [menuVisible, setMenuVisible] = useState(false);
   const [reportVisible, setReportVisible] = useState(false);
@@ -51,6 +53,7 @@ export default function ContentActionsSheet({
   const overlayOpacity = useRef(new Animated.Value(0)).current;
 
   const openMenu = () => {
+    HapticsService.triggerSelection();
     setMenuVisible(true);
     Animated.parallel([
       Animated.timing(slideAnim, {
@@ -97,8 +100,9 @@ export default function ContentActionsSheet({
         onPress={openMenu}
         hitSlop={hitSlop}
         activeOpacity={0.7}
+        style={triggerStyle}
       >
-        <MoreHorizontal size={iconSize} color={iconColor} strokeWidth={2} />
+        <MoreHorizontal size={iconSize} color={iconColor} strokeWidth={2.2} />
       </TouchableOpacity>
 
       {/* Action Sheet Modal */}

@@ -1437,8 +1437,9 @@ const PromptCard = React.memo(({ item, onCommentPress, memberId, memberName }) =
           targetId={memberId}
           targetName={memberName}
           label="Person"
-          iconColor="#64748B"
-          iconSize={20}
+          iconColor="#475569"
+          iconSize={18}
+          triggerStyle={styles.cardReportButtonInner}
         />
       </View>
     )}
@@ -1512,8 +1513,9 @@ const PhotoCard = React.memo(({ url, isHero, name, age, gender, pronouns, shared
           targetId={memberId}
           targetName={memberName}
           label="Person"
-          iconColor="#64748B"
-          iconSize={20}
+          iconColor="#475569"
+          iconSize={18}
+          triggerStyle={styles.cardReportButtonInner}
         />
       </View>
     )}
@@ -2739,20 +2741,26 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 16,
     right: 16,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(255, 255, 255, 0.75)",
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.94)",
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.9)",
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 255, 255, 0.85)",
     zIndex: 10,
-    shadowColor: "#000",
+    shadowColor: "#0F172A",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  cardReportButtonInner: {
+    width: "100%",
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "center",
   },
   commSheet: {
     backgroundColor: COLORS.surface,
@@ -2929,25 +2937,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(100,116,139,0.15)",
     marginLeft: 8,
-  },
-  cardReportButton: {
-    position: "absolute",
-    top: 16,
-    right: 16,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(255, 255, 255, 0.75)",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.9)",
-    zIndex: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
   },
   commSheet: {
     backgroundColor: COLORS.surface,
