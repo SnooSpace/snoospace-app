@@ -1,4 +1,5 @@
 // Auto-generated barrel exports for components/cards
+export { default as CompactEventCard } from './CompactEventCard';
 export { default as EditorialPostCard } from './EditorialPostCard';
 export { default as EventCard } from './EventCard';
 export { default as OpportunityFeedCard } from './OpportunityFeedCard';

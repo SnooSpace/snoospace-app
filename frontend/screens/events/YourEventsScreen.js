@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl, Image, Animated, Pressable, Platform, InteractionManager, Share, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ArrowLeft, Calendar, Heart, Bookmark } from "lucide-react-native";
+import { ArrowLeft, Calendar, Heart, Bookmark, LayoutGrid, LayoutList } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { apiGet } from "../../api/client";
 import { getAuthToken, getActiveAccount } from "../../api/auth";
@@ -23,8 +23,10 @@ import { useLocationName } from "../../utils/locationNameCache";
 import SnooLoader from "../../components/ui/SnooLoader";
 import GradientSafeArea from "../../components/ui/GradientSafeArea";
 import EventCard from "../../components/cards/EventCard";
+import CompactEventCard from "../../components/cards/CompactEventCard";
 import CommentsModal from "../../components/modals/CommentsModal";
 import OpenPlanCard from "../../components/plans/OpenPlanCard";
+import CompactPlanCard from "../../components/plans/CompactPlanCard";
 import ShareModal from "../../components/modals/ShareModal";
 
 const PRIMARY_COLOR = COLORS.primary;
@@ -248,6 +250,8 @@ const cardStyles = StyleSheet.create({
 export default function YourEventsScreen({ navigation, route }) {
   const initialTab = route?.params?.initialTab || route?.params?.tab || "Hosted";
   const [activeTab, setActiveTab] = useState(initialTab);
+  const [isGrid, setIsGrid] = useState(true);
+  const [typeFilter, setTypeFilter] = useState("all"); // 'all' | 'events' | 'plans'
 
   useEffect(() => {
     const targetTab = route?.params?.initialTab || route?.params?.tab;
@@ -482,6 +486,8 @@ export default function YourEventsScreen({ navigation, route }) {
       is_interested: interestedIds.has(e.id),
     }));
 
+    let result = [];
+
     switch (activeTab) {
       case "Going": {
         const goingEvents = mappedEvents.filter((e) => {
@@ -494,7 +500,7 @@ export default function YourEventsScreen({ navigation, route }) {
         const goingPlans = attendingPlans
           .filter(p => new Date(p.scheduled_at) >= now)
           .map(p => ({ ...p, _type: 'plan', is_interested: interestedPlanIds.has(p.id) }));
-        return [
+        result = [
           ...goingEvents,
           ...goingPlans,
         ].sort((a, b) => {
@@ -502,16 +508,19 @@ export default function YourEventsScreen({ navigation, route }) {
           const db = new Date(b.scheduled_at || b.start_datetime || b.event_date);
           return da - db;
         });
+        break;
       }
       case "Hosted":
-        return hostedPlans;
+        result = hostedPlans.map(p => ({ ...p, _type: 'plan' }));
+        break;
       case "Interested": {
         const intEvents = interestedEvents
           .filter((e) => !e.is_past)
           .map((e) => ({ ...e, _type: 'event', is_interested: true }));
         const intPlans = interestedPlans
           .map(p => ({ ...p, _type: 'plan', is_interested: true }));
-        return [...intPlans, ...intEvents];
+        result = [...intPlans, ...intEvents];
+        break;
       }
       case "Past": {
         const pastEvents = mappedEvents.filter((e) => {
@@ -524,7 +533,7 @@ export default function YourEventsScreen({ navigation, route }) {
         const pastPlans = attendingPlans
           .filter(p => new Date(p.scheduled_at) < now)
           .map(p => ({ ...p, _type: 'plan', is_interested: interestedPlanIds.has(p.id) }));
-        return [
+        result = [
           ...pastEvents,
           ...pastPlans,
         ].sort((a, b) => {
@@ -532,10 +541,22 @@ export default function YourEventsScreen({ navigation, route }) {
           const db = new Date(b.scheduled_at || b.start_datetime || b.event_date);
           return db - da;
         });
+        break;
       }
       default:
-        return [];
+        result = [];
     }
+
+    if ((activeTab === "Going" || activeTab === "Past") && typeFilter !== "all") {
+      if (typeFilter === "events") {
+        return result.filter(item => item._type === 'event');
+      }
+      if (typeFilter === "plans") {
+        return result.filter(item => item._type === 'plan');
+      }
+    }
+
+    return result;
   };
 
   // Format date for display: "30 Dec"
@@ -675,67 +696,110 @@ export default function YourEventsScreen({ navigation, route }) {
   }, []);
 
   const renderEvent = useCallback(({ item }) => {
+    if (isGrid) {
+      if (activeTab === "Hosted" || item._type === 'plan') {
+        return (
+          <View style={styles.cardWrapperGrid}>
+            <CompactPlanCard
+              plan={item}
+              currentUserId={currentUserId}
+              onPress={(planId) => navigation.navigate("PlanDetail", { planId })}
+              navigation={navigation}
+              variant="light"
+            />
+          </View>
+        );
+      }
+      return (
+        <View style={styles.cardWrapperGrid}>
+          <CompactEventCard
+            event={item}
+            onPress={handleEventPress}
+            isPast={activeTab === "Past"}
+          />
+        </View>
+      );
+    }
+
     if (activeTab === "Hosted") {
       return (
-        <OpenPlanCard
-          plan={item}
-          currentUserId={currentUserId}
-          compact={true}
-          onPress={(planId) => navigation.navigate("PlanDetail", { planId })}
-          onLike={handlePlanLike}
-          onShare={(plan) => {
-            setSharingPlan(plan);
-            setShareModalVisible(true);
-          }}
-          onComment={(planId) => openCommentsModal(planId, "plan")}
-          onPromote={(plan) => {
-            setPromotingPlan(plan);
-            setShowPromoteSheet(true);
-          }}
-          onDelete={(planId) => {
-            setHostedPlans(prev => prev.filter(p => p.id !== planId));
-          }}
-          navigation={navigation}
-        />
+        <View style={styles.cardWrapper}>
+          <OpenPlanCard
+            plan={item}
+            currentUserId={currentUserId}
+            compact={true}
+            onPress={(planId) => navigation.navigate("PlanDetail", { planId })}
+            onLike={handlePlanLike}
+            onShare={(plan) => {
+              setSharingPlan(plan);
+              setShareModalVisible(true);
+            }}
+            onComment={(planId) => openCommentsModal(planId, "plan")}
+            onPromote={(plan) => {
+              setPromotingPlan(plan);
+              setShowPromoteSheet(true);
+            }}
+            onDelete={(planId) => {
+              setHostedPlans(prev => prev.filter(p => p.id !== planId));
+            }}
+            navigation={navigation}
+          />
+        </View>
       );
     }
     if (item._type === 'plan') {
       const isPlanInterested = interestedPlans.some(p => p.id === item.id);
       return (
-        <OpenPlanCard
-          plan={item}
-          currentUserId={currentUserId}
-          compact={true}
-          isInterested={item.is_interested || isPlanInterested}
-          onPress={(planId) => navigation.navigate('PlanDetail', { planId })}
-          onLike={handlePlanLike}
-          onShare={(plan) => {
-            setSharingPlan(plan);
-            setShareModalVisible(true);
-          }}
-          onInterest={async () => {
-            await handleTogglePlanInterest(item);
-          }}
-          onComment={(planId) => openCommentsModal(planId, "plan")}
-          navigation={navigation}
-        />
+        <View style={styles.cardWrapper}>
+          <OpenPlanCard
+            plan={item}
+            currentUserId={currentUserId}
+            compact={true}
+            isInterested={item.is_interested || isPlanInterested}
+            onPress={(planId) => navigation.navigate('PlanDetail', { planId })}
+            onLike={handlePlanLike}
+            onShare={(plan) => {
+              setSharingPlan(plan);
+              setShareModalVisible(true);
+            }}
+            onInterest={async () => {
+              await handleTogglePlanInterest(item);
+            }}
+            onComment={(planId) => openCommentsModal(planId, "plan")}
+            navigation={navigation}
+          />
+        </View>
       );
     }
     return (
-      <EventListCard
-        item={item}
-        onPress={handleEventPress}
-        onRemoveInterest={handleRemoveInterest}
-        getLowestPrice={getLowestPrice}
-        formatDateBadge={formatDateBadge}
-        formatTime={formatTime}
-        showRemoveButton={activeTab === "Interested"}
-        isPast={activeTab === "Past"}
-        onComment={(id) => openCommentsModal(id, "event")}
-        onAttendancePress={handleOpenAttendanceModal}
-      />
+      <View style={styles.cardWrapper}>
+        <EventListCard
+          item={item}
+          onPress={handleEventPress}
+          onRemoveInterest={handleRemoveInterest}
+          getLowestPrice={getLowestPrice}
+          formatDateBadge={formatDateBadge}
+          formatTime={formatTime}
+          showRemoveButton={activeTab === "Interested"}
+          isPast={activeTab === "Past"}
+          onComment={(id) => openCommentsModal(id, "event")}
+          onAttendancePress={handleOpenAttendanceModal}
+        />
+      </View>
     );
-  }, [handleEventPress, handleRemoveInterest, handleTogglePlanInterest, interestedPlans, activeTab, navigation, openCommentsModal, currentUserId, handlePlanLike, handleOpenAttendanceModal]);
+  }, [
+    isGrid,
+    activeTab,
+    currentUserId,
+    navigation,
+    handlePlanLike,
+    openCommentsModal,
+    interestedPlans,
+    handleTogglePlanInterest,
+    handleEventPress,
+    handleRemoveInterest,
+    handleOpenAttendanceModal,
+  ]);
 
   const filteredEvents = getFilteredEvents();
 
@@ -752,6 +816,21 @@ export default function YourEventsScreen({ navigation, route }) {
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Your Events</Text>
+          <TouchableOpacity
+            style={styles.layoutToggleBtn}
+            onPress={() => {
+              HapticsService.triggerImpactLight();
+              setIsGrid((prev) => !prev);
+            }}
+            activeOpacity={0.7}
+            hitSlop={12}
+          >
+            {isGrid ? (
+              <LayoutList size={20} color={TEXT_COLOR} strokeWidth={2} />
+            ) : (
+              <LayoutGrid size={20} color={TEXT_COLOR} strokeWidth={2} />
+            )}
+          </TouchableOpacity>
         </View>
 
         {/* Tabs */}
@@ -763,6 +842,7 @@ export default function YourEventsScreen({ navigation, route }) {
               onPress={() => {
                 HapticsService.triggerImpactLight();
                 setActiveTab(tab);
+                setTypeFilter("all");
               }}
               onLayout={(e) => handleTabLayout(tab, e)}
             >
@@ -787,6 +867,39 @@ export default function YourEventsScreen({ navigation, route }) {
             ]}
           />
         </View>
+
+        {/* Sub-Filter Pills for Going and Past tabs */}
+        {(activeTab === "Going" || activeTab === "Past") && (
+          <View style={styles.filterContainer}>
+            {[
+              { label: "All", value: "all" },
+              { label: "Events", value: "events" },
+              { label: "Open Plans", value: "plans" },
+            ].map((opt) => {
+              const isActive = typeFilter === opt.value;
+              return (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={[styles.filterPill, isActive && styles.filterPillActive]}
+                  onPress={() => {
+                    HapticsService.triggerImpactLight();
+                    setTypeFilter(opt.value);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.filterText,
+                      isActive && styles.filterTextActive,
+                    ]}
+                  >
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
       </SafeAreaView>
 
       {/* Events List */}
@@ -801,11 +914,14 @@ export default function YourEventsScreen({ navigation, route }) {
           }}
         >
           <FlatList
+            key={isGrid ? "grid" : "list"}
+            numColumns={isGrid ? 2 : 1}
             data={filteredEvents}
             keyExtractor={(item) => `${item._type || 'event'}-${item.id}`}
             renderItem={renderEvent}
+            columnWrapperStyle={isGrid ? styles.columnWrapper : null}
             initialNumToRender={8}
-            maxToRenderPerBatch={5}
+            maxToRenderPerBatch={6}
             windowSize={5}
             removeClippedSubviews={Platform.OS === "android"}
             updateCellsBatchingPeriod={50}
@@ -856,7 +972,9 @@ export default function YourEventsScreen({ navigation, route }) {
                 ) : (
                   <View style={styles.emptyContent}>
                     <Text style={styles.emptyDescription}>
-                      You're not going to any events yet
+                      {activeTab === "Hosted"
+                        ? "You haven't hosted any plans or events yet"
+                        : "You're not going to any events yet"}
                     </Text>
                   </View>
                 )}
@@ -865,7 +983,9 @@ export default function YourEventsScreen({ navigation, route }) {
             contentContainerStyle={
               filteredEvents.length === 0
                 ? { flexGrow: 1 }
-                : { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 100 }
+                : isGrid
+                ? styles.listContentGrid
+                : styles.listContent
             }
           />
         </View>
@@ -983,7 +1103,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "flex-start",
+    justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 8,
@@ -994,6 +1114,16 @@ const styles = StyleSheet.create({
     fontSize: 34,
     color: TEXT_COLOR,
     letterSpacing: -1,
+  },
+  layoutToggleBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: "#F1F5F9",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
   },
   tabs: {
     flexDirection: "row",
@@ -1020,6 +1150,55 @@ const styles = StyleSheet.create({
     height: 2,
     backgroundColor: PRIMARY_COLOR,
     borderRadius: 1,
+  },
+  filterContainer: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 6,
+    gap: 8,
+  },
+  filterPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  filterPillActive: {
+    backgroundColor: PRIMARY_COLOR,
+    borderColor: PRIMARY_COLOR,
+  },
+  filterText: {
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+    color: LIGHT_TEXT_COLOR,
+  },
+  filterTextActive: {
+    color: "#FFFFFF",
+    fontFamily: FONTS.semiBold,
+  },
+  listContent: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 100,
+  },
+  listContentGrid: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 100,
+  },
+  cardWrapper: {
+    marginBottom: 0,
+  },
+  cardWrapperGrid: {
+    flex: 0.5,
+    maxWidth: "48.5%",
+    marginBottom: 12,
+  },
+  columnWrapper: {
+    justifyContent: "space-between",
   },
   emptyContainer: {
     flex: 1,
