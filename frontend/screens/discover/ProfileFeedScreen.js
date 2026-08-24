@@ -80,6 +80,28 @@ const getGoalStyle = (goal) => {
 
 const EDGES = ["top"];
 
+const ScreenHeader = React.memo(({ title = "Meet People", showFilter = true, onBack, onFilter }) => (
+  <View style={styles.header}>
+    <TouchableOpacity onPress={onBack} activeOpacity={0.8}>
+      <View style={styles.glassButton}>
+        <ArrowLeft size={20} color="#1a2d4a" strokeWidth={2.5} />
+      </View>
+    </TouchableOpacity>
+    
+    <Text style={styles.headerTitle}>{title}</Text>
+    
+    {showFilter ? (
+      <TouchableOpacity onPress={onFilter} activeOpacity={0.8}>
+        <View style={styles.glassButton}>
+          <SlidersHorizontal size={20} color="#1a2d4a" strokeWidth={2.5} />
+        </View>
+      </TouchableOpacity>
+    ) : (
+      <View style={{ width: 42 }} />
+    )}
+  </View>
+));
+
 export default function ProfileFeedScreen({ route, navigation }) {
   const { event: initialEvent } = route.params || {};
   const [eventData, setEventData] = useState(initialEvent || null);
@@ -112,7 +134,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
     console.log("[ProfileFeedScreen] Mounted");
     return () => console.log("[ProfileFeedScreen] Unmounted");
   }, []);
-  console.log(`[ProfileFeedScreen] Render #${++renderCount.current} (loading: ${loading}, filterLoading: ${filterLoading}, filterSheetVisible: ${filterSheetVisible}, attendees: ${attendees.length})`);
+  console.log(`[ProfileFeedScreen] Render #${++renderCount.current} (loading: ${loading}, filterLoading: ${filterLoading}, attendees: ${attendees.length})`);
 
   // Pure callback: no outer component state or props referenced, depend only on arguments
   const loadAttendees = useCallback(async (filters, targetEventId, showGlobalLoader = false) => {
@@ -469,7 +491,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
                 </View>
               </TouchableOpacity>
               <View style={styles.headerTitleContainer}>
-                <Text style={styles.gateHeaderTitle}>Discover People</Text>
+                <Text style={styles.gateHeaderTitle}>Meet People</Text>
                 {subtitle ? (
                   <Text style={styles.gateHeaderSubtitle} numberOfLines={1}>
                     {subtitle}
@@ -589,15 +611,11 @@ export default function ProfileFeedScreen({ route, navigation }) {
           <ScreenBackground />
           <SafeAreaView style={styles.container} edges={EDGES}>
             {/* Header */}
-            <View style={styles.header}>
-              <TouchableOpacity onPress={handleBack} activeOpacity={0.8}>
-                <View style={styles.glassButton}>
-                  <ArrowLeft size={20} color="#1a2d4a" strokeWidth={2.5} />
-                </View>
-              </TouchableOpacity>
-              <Text style={styles.headerTitle}>Discover</Text>
-              <View style={{ width: 42 }} />
-            </View>
+            <ScreenHeader
+              title="Meet People"
+              showFilter={false}
+              onBack={handleBack}
+            />
 
             <View style={styles.endOfFeedContainer}>
               <View style={styles.endOfFeedCard}>
@@ -722,19 +740,12 @@ export default function ProfileFeedScreen({ route, navigation }) {
             <ScreenBackground />
             <SafeAreaView style={styles.container} edges={EDGES}>
               {/* Header */}
-              <View style={styles.header}>
-                <TouchableOpacity onPress={handleBack} activeOpacity={0.8}>
-                  <View style={styles.glassButton}>
-                    <ArrowLeft size={20} color="#1a2d4a" strokeWidth={2.5} />
-                  </View>
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Discover</Text>
-                <TouchableOpacity onPress={handleOpenFilters} activeOpacity={0.8}>
-                  <View style={styles.glassButton}>
-                    <SlidersHorizontal size={20} color="#1a2d4a" strokeWidth={2.5} />
-                  </View>
-                </TouchableOpacity>
-              </View>
+              <ScreenHeader
+                title="Meet People"
+                showFilter={true}
+                onBack={handleBack}
+                onFilter={handleOpenFilters}
+              />
 
               <View style={styles.endOfFeedContainer}>
                 <View style={styles.endOfFeedCard}>
@@ -796,19 +807,12 @@ export default function ProfileFeedScreen({ route, navigation }) {
       <ScreenBackground />
       <SafeAreaView style={styles.container} edges={EDGES}>
         {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={handleBack} activeOpacity={0.8}>
-            <View style={styles.glassButton}>
-              <ArrowLeft size={20} color="#1a2d4a" strokeWidth={2.5} />
-            </View>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Discover</Text>
-          <TouchableOpacity onPress={handleOpenFilters} activeOpacity={0.8}>
-            <View style={styles.glassButton}>
-              <SlidersHorizontal size={20} color="#1a2d4a" strokeWidth={2.5} />
-            </View>
-          </TouchableOpacity>
-        </View>
+        <ScreenHeader
+          title="Meet People"
+          showFilter={true}
+          onBack={handleBack}
+          onFilter={handleOpenFilters}
+        />
 
         <Animated.View style={{ flex: 1, transform: [{ translateX }], opacity }}>
           <ScrollView
@@ -1357,6 +1361,11 @@ const ContentCard = React.memo(({ children, onPress, style, innerStyle, variant,
     return [0, 0.15, 0.65, 1]; // Uneven color boundaries
   }, [isPrompt]);
 
+  // Glowing multi-layer colors for realistic diffusion blur (only for Icebreaker / prompt cards)
+  const glowColorsLayer1 = useMemo(() => isPrompt ? colors.map(c => hexToRgba(c, 0.45)) : null, [colors, isPrompt]);
+  const glowColorsLayer2 = useMemo(() => isPrompt ? colors.map(c => hexToRgba(c, 0.25)) : null, [colors, isPrompt]);
+  const glowColorsLayer3 = useMemo(() => isPrompt ? colors.map(c => hexToRgba(c, 0.12)) : null, [colors, isPrompt]);
+
   const start = isPrompt ? { x: 0, y: 1 } : { x: 0, y: 0 };
   const end = isPrompt ? { x: 1, y: 0 } : { x: 0, y: 1 };
   const shadowStyle = isPrompt ? styles.promptShadow : styles.photoShadow;
@@ -1367,33 +1376,32 @@ const ContentCard = React.memo(({ children, onPress, style, innerStyle, variant,
       activeOpacity={0.9}
       style={[shadowStyle, style]}
     >
-      {/* Glowing feature commented out */}
-      {/*
-      <LinearGradient
-        colors={glowColorsLayer3}
-        locations={locations}
-        start={start}
-        end={end}
-        style={[styles.glowHalo, { top: -12, bottom: -12, left: -12, right: -12, borderRadius: CARD_RADIUS + 12 }]}
-        pointerEvents="none"
-      />
-      <LinearGradient
-        colors={glowColorsLayer2}
-        locations={locations}
-        start={start}
-        end={end}
-        style={[styles.glowHalo, { top: -7, bottom: -7, left: -7, right: -7, borderRadius: CARD_RADIUS + 7 }]}
-        pointerEvents="none"
-      />
-      <LinearGradient
-        colors={glowColorsLayer1}
-        locations={locations}
-        start={start}
-        end={end}
-        style={[styles.glowHalo, { top: -3, bottom: -3, left: -3, right: -3, borderRadius: CARD_RADIUS + 3 }]}
-        pointerEvents="none"
-      />
-      */}
+      {/* Glowing aura effect for Icebreaker cards */}
+      {isPrompt && (
+        <>
+          <LinearGradient
+            colors={glowColorsLayer3}
+            start={start}
+            end={end}
+            style={[styles.glowHalo, { top: -12, bottom: -12, left: -12, right: -12, borderRadius: CARD_RADIUS + 12 }]}
+            pointerEvents="none"
+          />
+          <LinearGradient
+            colors={glowColorsLayer2}
+            start={start}
+            end={end}
+            style={[styles.glowHalo, { top: -7, bottom: -7, left: -7, right: -7, borderRadius: CARD_RADIUS + 7 }]}
+            pointerEvents="none"
+          />
+          <LinearGradient
+            colors={glowColorsLayer1}
+            start={start}
+            end={end}
+            style={[styles.glowHalo, { top: -3, bottom: -3, left: -3, right: -3, borderRadius: CARD_RADIUS + 3 }]}
+            pointerEvents="none"
+          />
+        </>
+      )}
 
       {isPrompt ? (
         <View style={[styles.cardInnerContentPrompt, innerStyle]}>
@@ -1534,8 +1542,8 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   gateHeaderTitle: {
-    fontFamily: FONTS.primary, // BasicCommercial-Bold
-    fontSize: 18,
+    fontFamily: "BasicCommercial-Black",
+    fontSize: 20,
     color: "#1a2d4a",
     textAlign: "center",
   },
@@ -1754,13 +1762,10 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   headerTitle: {
-    fontFamily: FONTS.primary, // BasicCommercial-Bold
+    fontFamily: "BasicCommercial-Black",
     fontSize: 28,
-    color: "#FFFFFF", // Crisp light text
+    color: "#FFFFFF",
     letterSpacing: -0.5,
-    textShadowColor: "rgba(0, 0, 0, 0.2)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
   },
   backBtn: {
     padding: 4,
@@ -1814,31 +1819,31 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   sparksSectionLabel: {
-    fontFamily: FONTS.primary, // BasicCommercial-Bold
-    fontSize: 18,
+    fontFamily: FONTS.bricolageExtraBold || "BricolageGrotesque-ExtraBold",
+    fontSize: 19,
     color: "#4338CA", // Deep indigo / violet
     marginBottom: 12,
-    letterSpacing: -0.3,
+    letterSpacing: -0.4,
   },
   interestsGlassContainer: {
-    backgroundColor: "#F7F2D8", // Soft warm buttercup / pastel linen yellow from Pinterest "Files" card
+    backgroundColor: "#F7F2D8", // Soft warm buttercup / pastel linen yellow
     borderRadius: 24,
     padding: 18,
     borderWidth: 1.5,
-    borderColor: "rgba(180, 150, 95, 0.3)", // Matching golden-cream border
+    borderColor: "#FDE047", // Bright, luminous sunny golden border
     marginBottom: 24,
-    shadowColor: "#8B703C",
+    shadowColor: "#F59E0B",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.12,
     shadowRadius: 12,
     elevation: 2,
   },
   interestsSectionLabel: {
-    fontFamily: FONTS.primary, // BasicCommercial-Bold
-    fontSize: 18,
+    fontFamily: FONTS.bricolageExtraBold || "BricolageGrotesque-ExtraBold",
+    fontSize: 19,
     color: "#8B703C", // Deep golden-ochre / amber brown matching "Files" typography
     marginBottom: 12,
-    letterSpacing: -0.3,
+    letterSpacing: -0.4,
   },
   sectionLabel: {
     fontFamily: FONTS.primary, // BasicCommercial-Bold
@@ -1919,9 +1924,10 @@ const styles = StyleSheet.create({
     color: "#4C3B8F",
   },
   goalChipText: {
-    fontFamily: FONTS.semiBold,
+    fontFamily: FONTS.bricolageSemiBold || "BricolageGrotesque-SemiBold",
     fontSize: 13,
     color: "#4338CA",
+    letterSpacing: -0.2,
   },
   ageChipText: {
     flexDirection: "row",

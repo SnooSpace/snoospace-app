@@ -20,6 +20,16 @@ import {
   Nunito_800ExtraBold,
   Nunito_800ExtraBold_Italic,
 } from "@expo-google-fonts/nunito";
+import {
+  BricolageGrotesque_600SemiBold,
+  BricolageGrotesque_700Bold,
+  BricolageGrotesque_800ExtraBold,
+} from "@expo-google-fonts/bricolage-grotesque";
+import {
+  Syne_600SemiBold,
+  Syne_700Bold,
+  Syne_800ExtraBold,
+} from "@expo-google-fonts/syne";
 import AppNavigator from "./navigation/AppNavigator";
 import {
   getAuthToken,
@@ -308,6 +318,12 @@ export default function App() {
     "PlusJakartaSans-ExtraBoldItalic": PlusJakartaSans_800ExtraBold_Italic,
     "Nunito-ExtraBold": Nunito_800ExtraBold,
     "Nunito-ExtraBoldItalic": Nunito_800ExtraBold_Italic,
+    "BricolageGrotesque-SemiBold": BricolageGrotesque_600SemiBold,
+    "BricolageGrotesque-Bold": BricolageGrotesque_700Bold,
+    "BricolageGrotesque-ExtraBold": BricolageGrotesque_800ExtraBold,
+    "Syne-SemiBold": Syne_600SemiBold,
+    "Syne-Bold": Syne_700Bold,
+    "Syne-ExtraBold": Syne_800ExtraBold,
   });
 
   // Auto-refresh tokens when app comes to foreground

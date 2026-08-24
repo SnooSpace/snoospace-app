@@ -62,8 +62,9 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   text: {
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.bricolageSemiBold || "BricolageGrotesque-SemiBold",
     fontSize: 13,
+    letterSpacing: -0.2,
   },
 });
 

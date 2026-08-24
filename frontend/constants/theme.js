@@ -56,6 +56,8 @@ export const COLORS = {
 
 export const FONTS = {
   primary: "BasicCommercial-Bold",
+  basicCommercialBold: "BasicCommercial-Bold",
+  basicCommercialBlack: "BasicCommercial-Black",
   black: "PlusJakartaSans-ExtraBold",
   regular: "Manrope-Regular",
   medium: "Manrope-Medium",
@@ -64,6 +66,12 @@ export const FONTS = {
   plusJakartaExtraBoldItalic: "PlusJakartaSans-ExtraBoldItalic",
   nunitoExtraBold: "Nunito-ExtraBold",
   nunitoExtraBoldItalic: "Nunito-ExtraBoldItalic",
+  bricolageSemiBold: "BricolageGrotesque-SemiBold",
+  bricolageBold: "BricolageGrotesque-Bold",
+  bricolageExtraBold: "BricolageGrotesque-ExtraBold",
+  syneSemiBold: "Syne-SemiBold",
+  syneBold: "Syne-Bold",
+  syneExtraBold: "Syne-ExtraBold",
 };
 
 export const SPACING = {

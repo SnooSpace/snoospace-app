@@ -79,13 +79,12 @@ const RangeSlider = ({
   };
 
   const leftGesture = Gesture.Pan()
-    .activeOffsetX([-10, 10]) // Prioritize horizontal movement
+    .activeOffsetX([-10, 10])
     .onStart(() => {
       startLeftX.value = leftX.value;
-      leftScale.value = withSpring(1.18, { damping: 12 });
-      leftTooltipOpacity.value = withSpring(1, { damping: 15 });
-      leftTooltipScale.value = withSpring(1, { damping: 15 });
-      leftTooltipTranslateY.value = withSpring(0, { damping: 15 });
+      leftTooltipOpacity.value = 1;
+      leftTooltipScale.value = 1;
+      leftTooltipTranslateY.value = 0;
     })
     .onUpdate((e) => {
       const w = containerWidth.value;
@@ -104,20 +103,18 @@ const RangeSlider = ({
       }
     })
     .onEnd(() => {
-      leftScale.value = withSpring(1, { damping: 12 });
-      leftTooltipOpacity.value = withSpring(0, { damping: 15 });
-      leftTooltipScale.value = withSpring(0, { damping: 15 });
-      leftTooltipTranslateY.value = withSpring(5, { damping: 15 });
+      leftTooltipOpacity.value = 0;
+      leftTooltipScale.value = 0;
+      leftTooltipTranslateY.value = 5;
     });
 
   const rightGesture = Gesture.Pan()
     .activeOffsetX([-10, 10])
     .onStart(() => {
       startRightX.value = rightX.value;
-      rightScale.value = withSpring(1.18, { damping: 12 });
-      rightTooltipOpacity.value = withSpring(1, { damping: 15 });
-      rightTooltipScale.value = withSpring(1, { damping: 15 });
-      rightTooltipTranslateY.value = withSpring(0, { damping: 15 });
+      rightTooltipOpacity.value = 1;
+      rightTooltipScale.value = 1;
+      rightTooltipTranslateY.value = 0;
     })
     .onUpdate((e) => {
       const w = containerWidth.value;
@@ -136,23 +133,20 @@ const RangeSlider = ({
       }
     })
     .onEnd(() => {
-      rightScale.value = withSpring(1, { damping: 12 });
-      rightTooltipOpacity.value = withSpring(0, { damping: 15 });
-      rightTooltipScale.value = withSpring(0, { damping: 15 });
-      rightTooltipTranslateY.value = withSpring(5, { damping: 15 });
+      rightTooltipOpacity.value = 0;
+      rightTooltipScale.value = 0;
+      rightTooltipTranslateY.value = 5;
     });
 
   const leftStyle = useAnimatedStyle(() => ({
     transform: [
       { translateX: leftX.value - HIT_SLOP / 2 },
-      { scale: leftScale.value },
     ],
   }));
 
   const rightStyle = useAnimatedStyle(() => ({
     transform: [
       { translateX: rightX.value - HIT_SLOP / 2 },
-      { scale: rightScale.value },
     ],
   }));
 
@@ -192,10 +186,7 @@ const RangeSlider = ({
           </Animated.View>
 
           <View style={styles.thumb}>
-            <View style={styles.thumbGripContainer}>
-              <View style={styles.thumbGripLine} />
-              <View style={styles.thumbGripLine} />
-            </View>
+            <Text style={styles.thumbEmoji}>🧒</Text>
           </View>
         </Animated.View>
       </GestureDetector>
@@ -210,10 +201,7 @@ const RangeSlider = ({
           </Animated.View>
 
           <View style={styles.thumb}>
-            <View style={styles.thumbGripContainer}>
-              <View style={styles.thumbGripLine} />
-              <View style={styles.thumbGripLine} />
-            </View>
+            <Text style={styles.thumbEmoji}>🧔</Text>
           </View>
         </Animated.View>
       </GestureDetector>
@@ -248,36 +236,30 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   thumb: {
-    height: THUMB_SIZE,
-    width: THUMB_SIZE,
-    borderRadius: THUMB_SIZE / 2,
+    height: 34,
+    width: 34,
+    borderRadius: 17,
     backgroundColor: "#FFFFFF",
     justifyContent: "center",
     alignItems: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
-    shadowRadius: 5,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
+    shadowRadius: 4,
+    elevation: 3,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
   },
-  thumbGripContainer: {
-    flexDirection: "row",
-    gap: 3,
-  },
-  thumbGripLine: {
-    width: 2,
-    height: 10,
-    borderRadius: 1,
-    backgroundColor: "#9CA3AF", // Soft slate/gray grab indicators
+  thumbEmoji: {
+    fontSize: 16,
+    textAlign: "center",
   },
   tooltipContainer: {
     position: "absolute",
     top: -38,
     width: 60,
     alignItems: "center",
-    left: -8, // Centers the 60 width container over the 44 width parent hitArea
+    left: -8,
   },
   tooltipBubble: {
     backgroundColor: COLORS.primary,
