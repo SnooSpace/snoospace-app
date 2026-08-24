@@ -1538,7 +1538,6 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     borderWidth: 1,
     borderColor: "rgba(0, 0, 0, 0.04)",
-    ...SHADOWS.sm,
   },
   imageContainer: {
     height: 200,

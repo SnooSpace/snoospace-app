@@ -61,8 +61,10 @@ const hexToRgba = (hex, alpha) => {
 const CIRCLE_COLOR = "#448AFF";
 const DEBOUNCE_MS = 300;
 
-export default function SearchScreen({ navigation }) {
+export default function SearchScreen({ navigation, route }) {
   const isScreenFocused = useIsFocused();
+  const initialFilter = route?.params?.filter || "events";
+  const initialAutoFocus = Boolean(route?.params?.autoFocus);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [following, setFollowing] = useState({}); // id -> boolean
@@ -76,13 +78,23 @@ export default function SearchScreen({ navigation }) {
   const [hasMore, setHasMore] = useState(false);
   const inFlightRef = useRef(null);
   const inputRef = useRef(null);
-  const [focused, setFocused] = useState(false);
+  const [focused, setFocused] = useState(initialAutoFocus);
   const [recents, setRecents] = useState([]);
   const [userId, setUserId] = useState(null);
   const [userType, setUserType] = useState(null);
-  const [activeFilter, setActiveFilter] = useState("events"); // 'events', 'people', 'communities', 'creators'
+  const [activeFilter, setActiveFilter] = useState(initialFilter); // 'events', 'people', 'communities', 'creators'
   const [eventResults, setEventResults] = useState([]); // Separate state for event results
   const [eventSubFilter, setEventSubFilter] = useState("all"); // 'all', 'upcoming', 'live', 'past'
+
+  useEffect(() => {
+    if (route?.params?.filter) {
+      setActiveFilter(route.params.filter);
+      if (route.params.autoFocus) {
+        setFocused(true);
+        setTimeout(() => inputRef.current?.focus(), 150);
+      }
+    }
+  }, [route?.params?.filter, route?.params?.autoFocus]);
 
   // Explore feed state
   const [exploreFeedData, setExploreFeedData] = useState({});

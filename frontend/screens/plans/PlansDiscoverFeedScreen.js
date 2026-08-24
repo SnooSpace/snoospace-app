@@ -351,12 +351,14 @@ export default function PlansDiscoverFeedScreen({ navigation, route }) {
                 <LayoutGrid size={20} color={COLORS.textPrimary} strokeWidth={2} />
               )}
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.hostBtn}
-              onPress={() => setHostSheetOpen(true)}
-            >
-              <Plus size={18} color="#FFF" strokeWidth={2.5} />
-            </TouchableOpacity>
+            {plans.length > 0 && (
+              <TouchableOpacity
+                style={styles.hostBtn}
+                onPress={() => setHostSheetOpen(true)}
+              >
+                <Plus size={18} color="#FFF" strokeWidth={2.5} />
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </SafeAreaView>

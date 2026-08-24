@@ -245,8 +245,16 @@ const cardStyles = StyleSheet.create({
   },
 });
 
-export default function YourEventsScreen({ navigation }) {
-  const [activeTab, setActiveTab] = useState("Hosted");
+export default function YourEventsScreen({ navigation, route }) {
+  const initialTab = route?.params?.initialTab || route?.params?.tab || "Hosted";
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  useEffect(() => {
+    const targetTab = route?.params?.initialTab || route?.params?.tab;
+    if (targetTab) {
+      setActiveTab(targetTab);
+    }
+  }, [route?.params?.initialTab, route?.params?.tab]);
   const [events, setEvents] = useState([]);
   const [interestedEvents, setInterestedEvents] = useState([]);
   const [hostedPlans, setHostedPlans] = useState([]);

@@ -10,6 +10,8 @@ import ActivityInsightsScreen from "../screens/discover/ActivityInsightsScreen";
 import ChatScreen from "../screens/messages/ChatScreen";
 import OpportunityViewScreen from "../screens/home/member/OpportunityViewScreen";
 import ApplyToOpportunityScreen from "../screens/home/member/ApplyToOpportunityScreen";
+import PlansDiscoverFeedScreen from "../screens/plans/PlansDiscoverFeedScreen";
+import PlanDetailScreen from "../screens/plans/PlanDetailScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -49,6 +51,11 @@ export default function DiscoverStackNavigator() {
         name="ApplyToOpportunity"
         component={ApplyToOpportunityScreen}
       />
+      <Stack.Screen
+        name="PlansDiscoverFeed"
+        component={PlansDiscoverFeedScreen}
+      />
+      <Stack.Screen name="PlanDetail" component={PlanDetailScreen} />
     </Stack.Navigator>
   );
 }

@@ -3,7 +3,7 @@ import {
   View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { Plus, Clock, MapPin, Users, ArrowRight, Pencil } from 'lucide-react-native';
+import { Plus, Clock, MapPin, Users, ArrowRight, Pencil, ChevronRight } from 'lucide-react-native';
 import { COLORS, FONTS, SPACING, SHADOWS } from '../../constants/theme';
 import { getAuthToken, getActiveAccount } from '../../api/auth';
 import { getPlans } from '../../api/plans';
@@ -284,14 +284,24 @@ export default function OpenPlansSection({ navigation, currentUserId, refreshKey
         <View style={styles.headerLeft}>
           <Text style={styles.sectionTitle}>Open Plans</Text>
         </View>
-        <TouchableOpacity
-          style={styles.hostBtn}
-          onPress={() => setHostSheetOpen(true)}
-          activeOpacity={0.8}
-        >
-          <Plus size={13} color="#FFFFFF" strokeWidth={2.5} />
-          <Text style={styles.hostBtnText}>Host</Text>
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          <TouchableOpacity
+            style={styles.hostBtn}
+            onPress={() => setHostSheetOpen(true)}
+            activeOpacity={0.8}
+          >
+            <Plus size={13} color="#FFFFFF" strokeWidth={2.5} />
+            <Text style={styles.hostBtnText}>Host</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.browseAllButton}
+            onPress={() => navigation.navigate('PlansDiscoverFeed')}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={styles.browseAllText}>Browse all</Text>
+            <ChevronRight size={18} color={COLORS.primary} strokeWidth={2.2} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Content */}
@@ -370,6 +380,23 @@ const styles = StyleSheet.create({
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  browseAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingVertical: 4,
+    paddingLeft: 8,
+  },
+  browseAllText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 14,
+    color: COLORS.primary,
   },
   sectionTitle: {
     fontFamily: FONTS.primary,

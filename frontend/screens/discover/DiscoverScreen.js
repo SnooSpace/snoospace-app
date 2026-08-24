@@ -150,8 +150,18 @@ export default function DiscoverScreen({ navigation }) {
     navigation.navigate("CommunityPublicProfile", { communityId });
   }, [navigation]);
 
-  const handleSearchPress = useCallback(() => {
-    navigation.navigate("Search");
+  const handlePastEventsPress = useCallback(() => {
+    navigation.navigate("YourEvents", {
+      screen: "YourEventsList",
+      params: { tab: "Past", initialTab: "Past" },
+    });
+  }, [navigation]);
+
+  const handleBrowseTribesPress = useCallback(() => {
+    navigation.navigate("Search", {
+      screen: "SearchMain",
+      params: { filter: "communities", autoFocus: true },
+    });
   }, [navigation]);
 
   const handleInsightsPress = useCallback(() => {
@@ -171,8 +181,13 @@ export default function DiscoverScreen({ navigation }) {
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Catch the Ones You Missed</Text>
-          <TouchableOpacity onPress={handleSearchPress}>
-            <Text style={styles.seeAllText}>See all</Text>
+          <TouchableOpacity
+            style={styles.browseAllButton}
+            onPress={handlePastEventsPress}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={styles.browseAllText}>See all</Text>
+            <ChevronRight size={18} color={COLORS.primary} strokeWidth={2.2} />
           </TouchableOpacity>
         </View>
         <ScrollView
@@ -216,7 +231,7 @@ export default function DiscoverScreen({ navigation }) {
           </View>
           <TouchableOpacity
             style={styles.browseAllButton}
-            onPress={handleSearchPress}
+            onPress={handleBrowseTribesPress}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <Text style={styles.browseAllText}>Browse all</Text>
