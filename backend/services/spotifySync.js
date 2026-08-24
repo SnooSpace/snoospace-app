@@ -170,9 +170,10 @@ async function syncSpotifyProfile(userId, pool, options = {}) {
   await pool.query(
     `UPDATE members
      SET spotify_connected = TRUE,
-         spotify_top_artists = $1::jsonb
-     WHERE id = $2`,
-    [JSON.stringify(topArtists), userId]
+         spotify_top_artists = $1::jsonb,
+         spotify_top_tracks = $2::jsonb
+     WHERE id = $3`,
+    [JSON.stringify(topArtists), JSON.stringify(topTracks), userId]
   );
 
   console.log(`[Spotify Sync] Successfully synced ${topArtists.length} artists & ${topTracks.length} tracks for user ${userId}`);
@@ -196,7 +197,8 @@ async function disconnectSpotify(userId, pool) {
   await pool.query(
     `UPDATE members
      SET spotify_connected = FALSE,
-         spotify_top_artists = NULL
+         spotify_top_artists = NULL,
+         spotify_top_tracks = NULL
      WHERE id = $1`,
     [userId]
   );

@@ -17,6 +17,7 @@ import {
   ChevronsRight,
   Undo2,
   Users,
+  Music,
 } from "lucide-react-native";
 import { apiGet } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
@@ -35,23 +36,6 @@ import SwipeableModal from "../../components/modals/SwipeableModal";
 const { width } = Dimensions.get("window");
 const CARD_RADIUS = 24;
 
-// Test background options from assets/background
-const BACKGROUND_IMAGES = [
-  { id: 1, name: "Option 1 (12.08.25 AM)", source: require("../../assets/background/WhatsApp Image 2026-08-24 at 12.08.25 AM.jpeg") },
-  { id: 2, name: "Option 2 (12.08.25 AM (1))", source: require("../../assets/background/WhatsApp Image 2026-08-24 at 12.08.25 AM (1).jpeg") },
-  { id: 3, name: "Option 3 (12.08.26 AM)", source: require("../../assets/background/WhatsApp Image 2026-08-24 at 12.08.26 AM.jpeg") },
-  { id: 4, name: "Option 4 (12.08.26 AM (1))", source: require("../../assets/background/WhatsApp Image 2026-08-24 at 12.08.26 AM (1).jpeg") },
-  { id: 5, name: "Option 5 (12.08.26 AM (2))", source: require("../../assets/background/WhatsApp Image 2026-08-24 at 12.08.26 AM (2).jpeg") },
-  { id: 6, name: "Option 6 (12.31.29 AM)", source: require("../../assets/background/WhatsApp Image 2026-08-24 at 12.31.29 AM.jpeg") },
-  { id: 7, name: "Option 7 (12.31.29 AM (1))", source: require("../../assets/background/WhatsApp Image 2026-08-24 at 12.31.29 AM (1).jpeg") },
-  { id: 8, name: "Option 8 (12.31.30 AM)", source: require("../../assets/background/WhatsApp Image 2026-08-24 at 12.31.30 AM.jpeg") },
-  { id: 9, name: "Option 9 (1.21.31 AM)", source: require("../../assets/background/WhatsApp Image 2026-08-24 at 1.21.31 AM.jpeg") },
-];
-
-// Active background index (0 to 8) - Currently applying Option 5 (12.08.26 AM (2))
-const ACTIVE_BG_INDEX = 4;
-const CURRENT_BG = BACKGROUND_IMAGES[ACTIVE_BG_INDEX].source;
-
 // Background Filter Configuration (Adjust these values to fine-tune the look!)
 const BG_FILTER = {
   blurRadius: 10, // Soft depth blur (try: 0 = sharp, 6 = subtle, 12 = creamy, 20 = heavy blur)
@@ -60,17 +44,13 @@ const BG_FILTER = {
 };
 
 const ScreenBackground = () => (
-  <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
-    <Image
-      source={CURRENT_BG}
-      style={[StyleSheet.absoluteFillObject, { opacity: BG_FILTER.opacity }]}
-      contentFit="cover"
-      blurRadius={BG_FILTER.blurRadius}
-    />
-    {!!BG_FILTER.overlayColor && (
-      <View style={[StyleSheet.absoluteFillObject, { backgroundColor: BG_FILTER.overlayColor }]} />
-    )}
-  </View>
+  <LinearGradient
+    colors={["#A4CCF4", "#C6E1F8", "#E6F1FC", "#F6FAFD"]}
+    start={{ x: 0.5, y: 0 }}
+    end={{ x: 0.5, y: 1 }}
+    style={StyleSheet.absoluteFillObject}
+    pointerEvents="none"
+  />
 );
 
 // Strict Typography Mappings
@@ -850,21 +830,19 @@ export default function ProfileFeedScreen({ route, navigation }) {
             />
           )}
 
-          {/* Goals Group (Positioned after the first photo) */}
+          {/* Goals Group (Positioned after the first photo) - Green Card */}
           {goalBadges.length > 0 && (
             <View style={styles.sparksGlassContainer}>
-              <Text style={styles.sectionLabel}>Sparks</Text>
+              <Text style={styles.sparksSectionLabel}>Sparks</Text>
               <View style={styles.vitalsRow}>
                 {goalBadges.map((badge, i) => {
                   const label = badge.label || badge;
-                  const goalStyle = getGoalStyle(label);
                   return (
                     <TouchableOpacity
                       key={badge.id ? `goal-${badge.id}` : `goal-${i}`}
                       style={[
                         styles.chip,
                         styles.goalChip,
-                        { backgroundColor: goalStyle.bg },
                       ]}
                       onPress={() => handleOpenCommentModal({ type: "spark", label })}
                       activeOpacity={0.8}
@@ -873,7 +851,6 @@ export default function ProfileFeedScreen({ route, navigation }) {
                         style={[
                           styles.chipText,
                           styles.goalChipText,
-                          { color: goalStyle.text },
                         ]}
                       >
                         {label}
@@ -906,10 +883,10 @@ export default function ProfileFeedScreen({ route, navigation }) {
             </View>
           ))}
 
-          {/* Interests Group (Bottom of Profile) */}
+          {/* Interests Group (Bottom of Profile) - Pink Card */}
           {interests.length > 0 && (
             <View style={styles.interestsGlassContainer}>
-              <Text style={styles.sectionLabel}>Interests</Text>
+              <Text style={styles.interestsSectionLabel}>Interests</Text>
               <View style={styles.interestsContainer}>
                 {interests.map((interest, i) => (
                   <TouchableOpacity
@@ -928,12 +905,17 @@ export default function ProfileFeedScreen({ route, navigation }) {
             </View>
           )}
 
-          {/* Spotify Top Artists Card (After Interests at the end) */}
-          {currentAttendee?.spotify_connected && Array.isArray(currentAttendee?.spotify_top_artists) && currentAttendee.spotify_top_artists.length > 0 && (
+          {/* Spotify Top Artists & Tracks Card (After Interests at the end) */}
+          {currentAttendee?.spotify_connected && (
+            (Array.isArray(currentAttendee?.spotify_top_artists) && currentAttendee.spotify_top_artists.length > 0) ||
+            (Array.isArray(currentAttendee?.spotify_top_tracks) && currentAttendee.spotify_top_tracks.length > 0)
+          ) && (
             <View style={{ marginBottom: 20 }}>
               <SpotifyArtistsCard
-                artists={currentAttendee.spotify_top_artists}
+                artists={currentAttendee.spotify_top_artists || []}
+                tracks={currentAttendee.spotify_top_tracks || []}
                 targetUsername={name}
+                onPromptPress={() => handleOpenCommentModal({ type: "music" })}
               />
             </View>
           )}
@@ -1084,6 +1066,16 @@ export default function ProfileFeedScreen({ route, navigation }) {
                       label={selectedContent.label}
                       style={{ alignSelf: "flex-start" }}
                     />
+                  </View>
+                ) : selectedContent?.type === "music" ? (
+                  <View style={styles.modalChipPreviewContainer}>
+                    <Text style={styles.modalChipPreviewLabel}>Asking about music taste:</Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#F0FDF4", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, alignSelf: "flex-start", borderWidth: 1, borderColor: "#DCFCE7" }}>
+                      <Music size={14} color="#16A34A" strokeWidth={2.5} />
+                      <Text style={{ fontFamily: FONTS.semiBold, fontSize: 13, color: "#166534" }}>
+                        Spotify Top Music
+                      </Text>
+                    </View>
                   </View>
                 ) : null}
 
@@ -1809,35 +1801,49 @@ const styles = StyleSheet.create({
   vitalsSection: {},
   interestsSection: {},
   sparksGlassContainer: {
-    backgroundColor: "rgba(244, 247, 240, 0.94)", // Opaque Sage Green container
-    borderRadius: 20,
-    padding: 16,
+    backgroundColor: "#E2E2F9", // Soft pastel lavender / purple card
+    borderRadius: 24,
+    padding: 18,
     borderWidth: 1.5,
-    borderColor: "rgba(119, 141, 94, 0.35)", // Tinted matching border
-    marginBottom: 24, // spacing between components
-    shadowColor: "#000",
+    borderColor: "rgba(139, 140, 223, 0.4)", // Matching soft purple border
+    marginBottom: 24,
+    shadowColor: "#4338CA",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
     elevation: 2,
   },
+  sparksSectionLabel: {
+    fontFamily: FONTS.primary, // BasicCommercial-Bold
+    fontSize: 18,
+    color: "#4338CA", // Deep indigo / violet
+    marginBottom: 12,
+    letterSpacing: -0.3,
+  },
   interestsGlassContainer: {
-    backgroundColor: "rgba(242, 242, 252, 0.94)", // Opaque Soft Purple container
-    borderRadius: 20,
-    padding: 16,
+    backgroundColor: "#F7F2D8", // Soft warm buttercup / pastel linen yellow from Pinterest "Files" card
+    borderRadius: 24,
+    padding: 18,
     borderWidth: 1.5,
-    borderColor: "rgba(139, 140, 223, 0.35)", // Tinted matching border
-    marginBottom: 24, // spacing between components
-    shadowColor: "#000",
+    borderColor: "rgba(180, 150, 95, 0.3)", // Matching golden-cream border
+    marginBottom: 24,
+    shadowColor: "#8B703C",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
     elevation: 2,
+  },
+  interestsSectionLabel: {
+    fontFamily: FONTS.primary, // BasicCommercial-Bold
+    fontSize: 18,
+    color: "#8B703C", // Deep golden-ochre / amber brown matching "Files" typography
+    marginBottom: 12,
+    letterSpacing: -0.3,
   },
   sectionLabel: {
     fontFamily: FONTS.primary, // BasicCommercial-Bold
-    fontSize: 18, // Bigger title size
-    color: "#1e2d4a", // Premium dark contrast color
+    fontSize: 18,
+    color: "#1e2d4a",
     marginBottom: 12,
     letterSpacing: -0.3,
   },
@@ -1881,7 +1887,13 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 18,
     paddingHorizontal: 16,
-    backgroundColor: "rgba(255, 255, 255, 0.85)",
+    backgroundColor: "rgba(255, 255, 255, 0.88)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.95)",
+    shadowColor: "#4338CA",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
   },
   genderChip: {
     backgroundColor: "rgba(238, 233, 255, 0.85)",
@@ -1909,6 +1921,7 @@ const styles = StyleSheet.create({
   goalChipText: {
     fontFamily: FONTS.semiBold,
     fontSize: 13,
+    color: "#4338CA",
   },
   ageChipText: {
     flexDirection: "row",
@@ -2176,28 +2189,28 @@ const styles = StyleSheet.create({
   },
   modalBackdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(15, 23, 42, 0.45)", // Smooth dark backdrop wash
+    backgroundColor: "rgba(15, 23, 42, 0.45)", // Richer dark dim backdrop
     justifyContent: "center",
     alignItems: "center",
   },
   modalContainer: {
     width: "100%",
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     justifyContent: "center",
     alignItems: "center",
   },
   modalContentCard: {
     width: "100%",
-    backgroundColor: "rgba(255, 255, 255, 0.96)",
+    backgroundColor: "#FFFFFF", // 100% solid opaque
     borderRadius: 24,
     padding: 24,
-    borderWidth: 1.5,
-    borderColor: "rgba(255, 255, 255, 0.9)",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.15,
-    shadowRadius: 24,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.25,
+    shadowRadius: 32,
+    elevation: 12,
   },
   modalTitle: {
     fontFamily: FONTS.primary, // BasicCommercial-Bold
@@ -2207,12 +2220,12 @@ const styles = StyleSheet.create({
     letterSpacing: -0.4,
   },
   modalPromptPreview: {
-    backgroundColor: "rgba(241, 245, 249, 0.6)",
+    backgroundColor: "#F8FAFC",
     borderRadius: 14,
-    padding: 12,
+    padding: 14,
     borderWidth: 1,
     borderColor: "#E2E8F0",
-    marginBottom: 20,
+    marginBottom: 18,
   },
   modalPromptLabel: {
     fontFamily: FONTS.regular,
@@ -2229,12 +2242,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    backgroundColor: "rgba(241, 245, 249, 0.6)",
+    backgroundColor: "#F8FAFC",
     borderRadius: 14,
-    padding: 8,
+    padding: 10,
     borderWidth: 1,
     borderColor: "#E2E8F0",
-    marginBottom: 20,
+    marginBottom: 18,
   },
   modalPhotoPreview: {
     width: 48,

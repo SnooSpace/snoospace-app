@@ -856,6 +856,7 @@ const getEventAttendees = async (req, res) => {
         m.openers,
         m.spotify_connected,
         m.spotify_top_artists,
+        m.spotify_top_tracks,
         -- Fetch shared communities via subquery
         COALESCE((
           SELECT json_agg(json_build_object(

@@ -171,7 +171,7 @@ async function getProfile(req, res) {
               occupation_details, occupation_category, portfolio_link, education,
               follower_count, following_count, instagram_username,
               is_creator_mode_enabled, creator_mode_enabled_at,
-              spotify_connected, spotify_top_artists
+              spotify_connected, spotify_top_artists, spotify_top_tracks
        FROM members WHERE id = $1`,
       [userId]
     );
@@ -305,6 +305,10 @@ async function getProfile(req, res) {
         typeof member.spotify_top_artists === "string"
           ? JSON.parse(member.spotify_top_artists)
           : member.spotify_top_artists || [],
+      spotify_top_tracks:
+        typeof member.spotify_top_tracks === "string"
+          ? JSON.parse(member.spotify_top_tracks)
+          : member.spotify_top_tracks || [],
     };
 
     // Fetch user sparks from relational table
@@ -477,7 +481,7 @@ async function getPublicMember(req, res) {
     const memberR = await pool.query(
       `SELECT id, username, name as full_name, nickname, bio, profile_photo_url, created_at, interests, pronouns, occupation,
               occupation_details, occupation_category, portfolio_link, education, campus_id, show_college,
-              instagram_username, is_creator_mode_enabled, spotify_connected, spotify_top_artists,
+              instagram_username, is_creator_mode_enabled, spotify_connected, spotify_top_artists, spotify_top_tracks,
               follower_count AS followers_count, following_count, circle_count,
               (SELECT COUNT(*) FROM creator_follows
                WHERE creator_id = $1 AND is_dormant = false AND is_superseded_by_circle = false)::int AS creator_follower_count,
@@ -612,6 +616,10 @@ async function getPublicMember(req, res) {
         typeof profile.spotify_top_artists === "string"
           ? JSON.parse(profile.spotify_top_artists)
           : profile.spotify_top_artists || [],
+      spotify_top_tracks:
+        typeof profile.spotify_top_tracks === "string"
+          ? JSON.parse(profile.spotify_top_tracks)
+          : profile.spotify_top_tracks || [],
       college_info: null, // populated below if show_college is true
       shared_communities: [],
     };
@@ -712,6 +720,7 @@ async function patchProfile(req, res) {
       education,
       spotify_connected,
       spotify_top_artists,
+      spotify_top_tracks,
     } = req.body || {};
 
     const updates = [];
@@ -1016,6 +1025,15 @@ async function patchProfile(req, res) {
       }
     }
 
+    if (spotify_top_tracks !== undefined) {
+      if (spotify_top_tracks === null) {
+        updates.push(`spotify_top_tracks = NULL`);
+      } else if (Array.isArray(spotify_top_tracks)) {
+        updates.push(`spotify_top_tracks = $${paramIndex++}::jsonb`);
+        values.push(JSON.stringify(spotify_top_tracks.slice(0, 10)));
+      }
+    }
+
     if (updates.length === 0) {
       return res.status(400).json({ error: "No valid fields to update" });
     }
@@ -1023,7 +1041,7 @@ async function patchProfile(req, res) {
     values.push(userId);
     const query = `UPDATE members SET ${updates.join(
       ", "
-    )} WHERE id = $${paramIndex} RETURNING id, name, nickname, bio, phone, pronouns, interests, location, spotify_connected, spotify_top_artists`;
+    )} WHERE id = $${paramIndex} RETURNING id, name, nickname, bio, phone, pronouns, interests, location, spotify_connected, spotify_top_artists, spotify_top_tracks`;
 
     const result = await pool.query(query, values);
     if (result.rows.length === 0) {
@@ -1083,6 +1101,10 @@ async function patchProfile(req, res) {
           typeof member.spotify_top_artists === "string"
             ? JSON.parse(member.spotify_top_artists)
             : member.spotify_top_artists || [],
+        spotify_top_tracks:
+          typeof member.spotify_top_tracks === "string"
+            ? JSON.parse(member.spotify_top_tracks)
+            : member.spotify_top_tracks || [],
       },
     });
   } catch (err) {

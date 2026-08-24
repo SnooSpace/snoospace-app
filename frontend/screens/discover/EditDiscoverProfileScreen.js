@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, Alert, BackHandler, Platform, TextInput, Modal, Animated, TouchableWithoutFeedback, InteractionManager, StatusBar, LayoutAnimation, UIManager, Keyboard } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
-import { Svg, Circle, Defs, LinearGradient, Stop } from "react-native-svg";
+import { Svg, Path, Circle, Defs, LinearGradient, Stop } from "react-native-svg";
 import { getAuthToken } from "../../api/auth";
 import { apiGet } from "../../api/client";
 import { updateMemberProfile, fetchPronouns, fetchInterests } from "../../api/members";
@@ -83,6 +83,12 @@ const LIGHT_TEXT_COLOR = CONSTANTS_COLORS.textSecondary;
 const PRIMARY_COLOR = CONSTANTS_COLORS.primaryBlue;
 
 const EDGES = ["top"];
+
+const SpotifyLogo = ({ size = 18, color = "#1DB954" }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+    <Path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.503 17.308c-.216.354-.676.464-1.028.249-2.818-1.722-6.365-2.111-10.542-1.157-.403.092-.804-.16-.896-.562-.092-.402.159-.804.563-.895 4.571-1.045 8.492-.595 11.655 1.338.353.214.464.675.248 1.027zm1.469-3.267c-.271.44-.847.578-1.287.308-3.225-1.982-8.142-2.557-11.958-1.398-.494.149-1.017-.13-1.167-.624-.149-.495.13-1.016.624-1.167 4.358-1.323 9.776-.682 13.48 1.594.44.27.578.846.308 1.287zm.126-3.403C15.23 8.341 8.85 8.13 5.157 9.251c-.593.18-1.22-.155-1.4-.748-.18-.593.155-1.22.748-1.4 4.239-1.287 11.285-1.038 15.738 1.605.533.317.708 1.005.392 1.538-.317.533-1.007.709-1.537.392z" />
+  </Svg>
+);
 
 // ── Category configuration for Sparks ─────────────────────────────────────────
 const SPARK_CATEGORIES_CONFIG = {
@@ -177,6 +183,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
   } = useLocationSearch({ debounceMs: 350 });
   const [spotifyConnected, setSpotifyConnected] = useState(false);
   const [spotifyTopArtists, setSpotifyTopArtists] = useState([]);
+  const [spotifyTopTracks, setSpotifyTopTracks] = useState([]);
   const [interests, setInterests] = useState([]);
   const [interestsCatalog, setInterestsCatalog] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -280,6 +287,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
           appearInDiscover: profile.appear_in_discover !== false,
           spotifyConnected: !!profile.spotify_connected,
           spotifyTopArtists: profile.spotify_top_artists || [],
+          spotifyTopTracks: profile.spotify_top_tracks || [],
           interests: profile.interests || [],
         };
 
@@ -295,6 +303,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
         setAppearInDiscover(loadedState.appearInDiscover);
         setSpotifyConnected(loadedState.spotifyConnected);
         setSpotifyTopArtists(loadedState.spotifyTopArtists);
+        setSpotifyTopTracks(loadedState.spotifyTopTracks);
         setInterests(loadedState.interests);
         setInitialState(loadedState);
       }
@@ -1105,7 +1114,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
           </View>
         </View>
 
-        {/* SECTION 2.5: Connections (Spotify) */}
+        {/* SECTION 2.5: Spotify Connection */}
         <View style={styles.section}>
           <View style={styles.sectionCardRounded}>
             <View style={styles.cardHeader}>
@@ -1116,9 +1125,9 @@ export default function EditDiscoverProfileScreen({ navigation }) {
                     { backgroundColor: "#E8FBF0" },
                   ]}
                 >
-                  <Music size={18} color="#1DB954" />
+                  <SpotifyLogo size={18} color="#1DB954" />
                 </View>
-                <Text style={styles.cardTitle}>Connections</Text>
+                <Text style={styles.cardTitle}>Spotify Connection</Text>
               </View>
             </View>
             <View style={styles.cardContent}>
@@ -1127,6 +1136,8 @@ export default function EditDiscoverProfileScreen({ navigation }) {
                 onConnectedChange={setSpotifyConnected}
                 topArtists={spotifyTopArtists}
                 onArtistsChange={setSpotifyTopArtists}
+                topTracks={spotifyTopTracks}
+                onTracksChange={setSpotifyTopTracks}
                 accentColor={PRIMARY_COLOR}
                 onRefreshProfile={loadProfile}
               />
