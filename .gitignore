@@ -46,3 +46,8 @@ GoogleService-Info.plist
 # generated native folders
 /ios
 /android
+
+# Load testing tokens & artifacts
+loadtest_tokens.json
+**/loadtest_tokens.json
+*.tokens.json

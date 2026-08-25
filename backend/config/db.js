@@ -14,7 +14,12 @@ function createPool() {
     ssl: process.env.DB_SSL === 'true'
       ? { rejectUnauthorized: false }
       : false,
-    max: 20,
+    // ⚠️ EXPERIMENTAL — TEMPORARY FOR LOAD TESTING (raised from 20 to 50)
+    // Added 2026-08-24 to isolate whether pg.Pool max size is the binding 
+    // constraint on feed endpoint throughput under k6 load test.
+    // REVERT to max: 20 (or a deliberately chosen production value) before merging 
+    // or deploying this branch. See conversation/audit notes for context.
+    max: 50,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000,
   });

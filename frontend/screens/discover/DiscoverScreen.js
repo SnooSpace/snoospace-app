@@ -11,6 +11,7 @@ import SnooLoader from "../../components/ui/SnooLoader";
 import GradientSafeArea from "../../components/ui/GradientSafeArea";
 import OpenPlansSection from "../plans/OpenPlansSection";
 import EventCard from "../../components/cards/EventCard";
+import CompactEventCard from "../../components/cards/CompactEventCard";
 import EventBus from "../../utils/EventBus";
 import {
   COLORS,
@@ -199,19 +200,13 @@ export default function DiscoverScreen({ navigation }) {
           onMomentumScrollEnd={() => EventBus.emit("enable-tab-swipe")}
         >
           {slicedEvents.map((event) => (
-            <EventCard
-              key={event.id}
-              event={event}
-              onPress={handleEventPress}
-              onAttendeesPress={() => handleEventPress(event)}
-              hideEngagement={true}
-              hideRsvp={true}
-              hideQr={true}
-              hidePriceDetails={true}
-              showStatusLabel={true}
-              compact={true}
-              style={{ width: 312, marginHorizontal: 0, marginVertical: 4 }}
-            />
+            <View key={event.id} style={{ width: 175 }}>
+              <CompactEventCard
+                event={event}
+                onPress={handleEventPress}
+                isPast={true}
+              />
+            </View>
           ))}
         </ScrollView>
       </View>

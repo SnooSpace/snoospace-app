@@ -16,3 +16,9 @@ npm-debug.log*
 
 # Runtime
 .DS_Store
+
+# Load test sensitive artifacts & tokens
+loadtest_tokens.json
+scripts/loadtest_tokens.json
+loadtest/loadtest_tokens.json
+*.tokens.json
