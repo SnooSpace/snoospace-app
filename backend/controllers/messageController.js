@@ -577,7 +577,6 @@ const getMessages = async (req, res) => {
   }
 };
 
-
 // ─── sendMessage ──────────────────────────────────────────────────────────────
 const sendMessage = async (req, res) => {
   try {
@@ -611,17 +610,21 @@ const sendMessage = async (req, res) => {
     }
 
     let convId;
+    let convRow;
 
     if (conversationId) {
-      // Look up the conversation to determine if it's a group or DM
+      // Look up the conversation once with all needed fields
       const convLookup = await pool.query(
-        `SELECT id, is_group, messaging_restricted, status FROM conversations WHERE id = $1`,
+        `SELECT id, is_group, messaging_restricted, status,
+                participant1_id, participant1_type, participant2_id, participant2_type, group_name
+         FROM conversations WHERE id = $1`,
         [conversationId],
       );
       if (convLookup.rows.length === 0) {
         return res.status(404).json({ error: "Conversation not found" });
       }
-      const { is_group: isGroup, messaging_restricted: restricted, status } = convLookup.rows[0];
+      convRow = convLookup.rows[0];
+      const { is_group: isGroup, messaging_restricted: restricted, status } = convRow;
 
       if (isGroup) {
         // Group chat: verify the user is a participant and check messaging restriction
@@ -651,24 +654,17 @@ const sendMessage = async (req, res) => {
         }
       } else {
         // DM via conversationId: verify participant + check block
-        const dmCheck = await pool.query(
-          `SELECT id, participant1_id, participant1_type, participant2_id, participant2_type
-           FROM conversations
-           WHERE id = $1
-             AND (
-               (participant1_id = $2 AND participant1_type = $3)
-               OR (participant2_id = $2 AND participant2_type = $3)
-             )`,
-          [conversationId, userId, userType],
-        );
-        if (dmCheck.rows.length === 0) {
+        const isP1 = String(convRow.participant1_id) === String(userId) && convRow.participant1_type === userType;
+        const isP2 = String(convRow.participant2_id) === String(userId) && convRow.participant2_type === userType;
+
+        if (!isP1 && !isP2) {
           return res.status(403).json({ error: "Not a participant of this conversation" });
         }
+
         // Resolve the other participant and check blocks (member-to-member only)
         if (userType === 'member') {
-          const conv = dmCheck.rows[0];
-          const otherId   = String(conv.participant1_id) === String(userId) ? conv.participant2_id   : conv.participant1_id;
-          const otherType = String(conv.participant1_id) === String(userId) ? conv.participant2_type : conv.participant1_type;
+          const otherId   = isP1 ? convRow.participant2_id   : convRow.participant1_id;
+          const otherType = isP1 ? convRow.participant2_type : convRow.participant1_type;
           if (otherType === 'member') {
             const blockCheck = await pool.query(
               `SELECT blocker_id FROM user_blocks
@@ -724,28 +720,53 @@ const sendMessage = async (req, res) => {
         }
       }
       convId = await getOrCreateConversation(userId, userType, recipientId, recipientType);
+      convRow = {
+        id: convId,
+        is_group: false,
+        messaging_restricted: false,
+        status: 'ACTIVE',
+        participant1_id: userId,
+        participant1_type: userType,
+        participant2_id: recipientId,
+        participant2_type: recipientType,
+        group_name: null,
+      };
     }
 
     const finalText = messageText?.trim() || "";
     const metadataJson = metadata ? JSON.stringify(metadata) : null;
     const isHidden = !!req.body._hiddenForRecipient;
 
-    // Insert message (is_hidden=true means stored but not shown to recipient while block is active)
-    const msgResult = await pool.query(
-      `INSERT INTO messages
-         (conversation_id, sender_id, sender_type, message_text, message_type, reply_to_message_id, metadata, is_hidden)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       RETURNING id, created_at`,
-      [convId, userId, userType, finalText, messageType, reply_to_message_id || null, metadataJson, isHidden],
-    );
-    const message = msgResult.rows[0];
+    // Transaction: Insert message & conditionally update conversations.last_message_at
+    const client = await pool.connect();
+    let message;
+    try {
+      await client.query("BEGIN");
 
-    // Only update last_message_at for non-hidden messages so conversation order isn't polluted
-    if (!isHidden) {
-      await pool.query(
-        `UPDATE conversations SET last_message_at = $1 WHERE id = $2`,
-        [message.created_at, convId],
+      // Insert message (is_hidden=true means stored but not shown to recipient while block is active)
+      const msgResult = await client.query(
+        `INSERT INTO messages
+           (conversation_id, sender_id, sender_type, message_text, message_type, reply_to_message_id, metadata, is_hidden)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         RETURNING id, created_at`,
+        [convId, userId, userType, finalText, messageType, reply_to_message_id || null, metadataJson, isHidden],
       );
+      message = msgResult.rows[0];
+
+      // Only update last_message_at for non-hidden messages so conversation order isn't polluted
+      if (!isHidden) {
+        await client.query(
+          `UPDATE conversations SET last_message_at = $1 WHERE id = $2`,
+          [message.created_at, convId],
+        );
+      }
+
+      await client.query("COMMIT");
+    } catch (txErr) {
+      await client.query("ROLLBACK");
+      throw txErr;
+    } finally {
+      client.release();
     }
 
     // Sender info
@@ -754,17 +775,28 @@ const sendMessage = async (req, res) => {
       : "SELECT name, username, logo_url AS profile_photo_url FROM communities WHERE id = $1";
     const senderInfo = await pool.query(senderQ, [userId]);
 
-    // Trigger push notification to recipient(s) if not hidden and they're not active in the room
+    // Push notification & Socket emissions
     if (!isHidden) {
+      const isGroup = convRow?.is_group || false;
+      let groupParticipants = [];
+
+      // Fetch group participants ONCE for both push notifications and socket emissions
+      if (isGroup) {
+        try {
+          const participantsResult = await pool.query(
+            `SELECT participant_id, participant_type FROM conversation_participants
+             WHERE conversation_id = $1 AND (participant_id != $2 OR participant_type != $3)`,
+            [convId, userId, userType]
+          );
+          groupParticipants = participantsResult.rows;
+        } catch (gpErr) {
+          console.error("Error fetching group participants:", gpErr);
+        }
+      }
+
+      // Trigger push notification to recipient(s) if not active in the room
       try {
-        const convInfo = await pool.query(
-          `SELECT is_group, participant1_id, participant1_type, participant2_id, participant2_type, group_name
-           FROM conversations WHERE id = $1`,
-          [convId]
-        );
-        const convRow = convInfo.rows[0];
         if (convRow) {
-          const isGroup = convRow.is_group || false;
           const io = req.app.locals.io;
           const roomName = `chat_${convId}`;
           const room = io?.sockets.adapter.rooms.get(roomName);
@@ -776,12 +808,9 @@ const sendMessage = async (req, res) => {
             : `Sent a ${messageType === 'multi_media' ? 'media attachment' : messageType}`;
 
           if (!isGroup) {
-            const otherId = String(convRow.participant1_id) === String(userId) && convRow.participant1_type === userType
-              ? convRow.participant2_id
-              : convRow.participant1_id;
-            const otherType = String(convRow.participant1_id) === String(userId) && convRow.participant1_type === userType
-              ? convRow.participant2_type
-              : convRow.participant1_type;
+            const isP1 = String(convRow.participant1_id) === String(userId) && convRow.participant1_type === userType;
+            const otherId = isP1 ? convRow.participant2_id : convRow.participant1_id;
+            const otherType = isP1 ? convRow.participant2_type : convRow.participant1_type;
 
             let isRecipientActive = false;
             if (io && room) {
@@ -800,12 +829,6 @@ const sendMessage = async (req, res) => {
               );
             }
           } else {
-            const participantsResult = await pool.query(
-              `SELECT participant_id, participant_type FROM conversation_participants
-               WHERE conversation_id = $1 AND (participant_id != $2 OR participant_type != $3)`,
-              [convId, userId, userType]
-            );
-
             const activeUserIds = new Set();
             if (io && room) {
               const socketsInChat = await io.in(roomName).fetchSockets();
@@ -814,7 +837,7 @@ const sendMessage = async (req, res) => {
               });
             }
 
-            for (const participant of participantsResult.rows) {
+            for (const participant of groupParticipants) {
               const partIdStr = String(participant.participant_id);
               if (!activeUserIds.has(partIdStr)) {
                 await pushService.sendPushNotification(
@@ -832,10 +855,9 @@ const sendMessage = async (req, res) => {
       } catch (err) {
         console.error("Error triggering message push notification:", err);
       }
-    }
-    // Notify active participants in the chat screen via the chat room,
-    // and others via their personal socket rooms.
-    if (!isHidden) {
+
+      // Notify active participants in the chat screen via the chat room,
+      // and others via their personal socket rooms.
       try {
         const io = req.app.locals.io;
         if (io) {
@@ -898,28 +920,16 @@ const sendMessage = async (req, res) => {
           io.to(`chat_${convId}`).emit('new_chat_message', chatPayload);
 
           // 2. Emit 'new_message' to personal rooms for inbox list updates
-          const convInfoForSocket = await pool.query(
-            `SELECT is_group, participant1_id, participant1_type, participant2_id, participant2_type
-             FROM conversations WHERE id = $1`,
-            [convId]
-          );
-          const convRowSocket = convInfoForSocket.rows[0];
-          if (convRowSocket) {
+          if (convRow) {
             const socketPayload = { conversationId: convId };
-            if (!convRowSocket.is_group) {
+            if (!isGroup) {
               // DM: emit to the other participant's personal room
-              const otherId = String(convRowSocket.participant1_id) === String(userId) && convRowSocket.participant1_type === userType
-                ? convRowSocket.participant2_id
-                : convRowSocket.participant1_id;
+              const isP1 = String(convRow.participant1_id) === String(userId) && convRow.participant1_type === userType;
+              const otherId = isP1 ? convRow.participant2_id : convRow.participant1_id;
               io.to(`user_${otherId}`).emit('new_message', socketPayload);
             } else {
-              // Group: emit to every participant except the sender
-              const groupParticipants = await pool.query(
-                `SELECT participant_id FROM conversation_participants
-                 WHERE conversation_id = $1 AND (participant_id != $2 OR participant_type != $3)`,
-                [convId, userId, userType]
-              );
-              for (const row of groupParticipants.rows) {
+              // Group: emit to every participant except the sender (reusing groupParticipants)
+              for (const row of groupParticipants) {
                 io.to(`user_${row.participant_id}`).emit('new_message', socketPayload);
               }
             }
@@ -932,7 +942,6 @@ const sendMessage = async (req, res) => {
     }
 
     res.status(201).json({
-
       success: true,
       message: {
         id:             message.id,
