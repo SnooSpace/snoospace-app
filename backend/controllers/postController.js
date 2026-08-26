@@ -6,6 +6,7 @@ const {
   findVideoIndex,
 } = require("../utils/cloudinaryVideo");
 const notificationService = require("../services/notificationService");
+const { hydratePostInteractions } = require("../services/postHydration");
 
 const pool = createPool();
 
@@ -1007,413 +1008,113 @@ const getFeed = async (req, res) => {
     console.log("Feed query result:", result.rows.length, "posts found");
 
     // Parse JSON fields
-    const posts = await Promise.all(
-      result.rows.map(async (post) => {
-        const parsedPost = {
-          ...post,
-          image_urls: (() => {
-            try {
-              if (!post.image_urls) return [];
-              if (Array.isArray(post.image_urls)) return post.image_urls;
-              const parsed = JSON.parse(post.image_urls);
-              return Array.isArray(parsed) ? parsed : [parsed];
-            } catch {
-              return post.image_urls ? [post.image_urls] : [];
-            }
-          })(),
-          tagged_entities: (() => {
-            try {
-              if (!post.tagged_entities) return null;
-              if (typeof post.tagged_entities === "object")
-                return post.tagged_entities;
-              return JSON.parse(post.tagged_entities);
-            } catch {
-              return null;
-            }
-          })(),
-          aspect_ratios: (() => {
-            try {
-              if (!post.aspect_ratios) return null;
-              if (Array.isArray(post.aspect_ratios)) return post.aspect_ratios;
-              const parsed = JSON.parse(post.aspect_ratios);
-              return Array.isArray(parsed) ? parsed : [parsed];
-            } catch {
-              return null;
-            }
-          })(),
-          media_types: (() => {
-            try {
-              if (!post.media_types) return null;
-              if (Array.isArray(post.media_types)) return post.media_types;
-              const parsed = JSON.parse(post.media_types);
-              return Array.isArray(parsed) ? parsed : [parsed];
-            } catch {
-              return null;
-            }
-          })(),
-          crop_metadata: (() => {
-            try {
-              if (!post.crop_metadata) return null;
-              if (Array.isArray(post.crop_metadata)) return post.crop_metadata;
-              const parsed = JSON.parse(post.crop_metadata);
-              return Array.isArray(parsed) ? parsed : [parsed];
-            } catch {
-              return null;
-            }
-          })(),
-          type_data: (() => {
-            try {
-              if (!post.type_data) return {};
-              if (typeof post.type_data === "object") return post.type_data;
-              return JSON.parse(post.type_data);
-            } catch {
-              return {};
-            }
-          })(),
-        };
-
-        const isAnon = parsedPost.type_data?.is_anonymous === true;
-        const isOwn = String(parsedPost.author_id) === String(viewerId) && parsedPost.author_type === viewerType;
-
-        if (isAnon) {
-          parsedPost.author_name = "Anonymous";
-          parsedPost.author_username = null;
-          parsedPost.author_photo_url = null;
-          if (!isOwn) {
-            parsedPost.author_id = null;
-            parsedPost.author_type = null;
-          }
-        }
-
-        // Extract video data with HLS streaming support
-        const videoIndex = findVideoIndex(parsedPost.media_types);
-        if (videoIndex !== -1 && parsedPost.image_urls[videoIndex]) {
-          const rawVideoUrl = parsedPost.image_urls[videoIndex];
-          const aspectRatio = parsedPost.aspect_ratios?.[videoIndex] || null;
-          const videoCropMeta = parsedPost.crop_metadata?.[videoIndex] || null;
-          const videoMeta = generateVideoMetadata(rawVideoUrl, aspectRatio, videoCropMeta);
-
-          // Merge video metadata into post
-          parsedPost.video_url = videoMeta.video_url;
-          parsedPost.video_hls_url = videoMeta.video_hls_url;
-          parsedPost.video_thumbnail = videoMeta.video_thumbnail;
-          parsedPost.video_lqip = videoMeta.video_lqip;
-          parsedPost.video_aspect_ratio = videoMeta.video_aspect_ratio;
-          parsedPost.video_crop_transform = videoMeta.video_crop_transform;
-
-          console.log(`[Feed] Post ${parsedPost.id} video metadata:`, {
-            hasHls: !!parsedPost.video_hls_url,
-            hasThumb: !!parsedPost.video_thumbnail,
-            hasCropMeta: !!videoCropMeta,
-            media_types: parsedPost.media_types,
-            videoAR: parsedPost.video_aspect_ratio,
-          });
-        }
-
-        // For poll posts, check if user has voted
-        if (parsedPost.post_type === "poll" && viewerId && viewerType) {
+    const parsedPosts = result.rows.map((post) => {
+      const parsedPost = {
+        ...post,
+        image_urls: (() => {
           try {
-            const voteResult = await pool.query(
-              `SELECT option_index FROM poll_votes 
-               WHERE post_id = $1 AND voter_id = $2 AND voter_type = $3`,
-              [post.id, viewerId, viewerType],
-            );
-            parsedPost.has_voted = voteResult.rows.length > 0;
-            parsedPost.voted_indexes = voteResult.rows.map(
-              (r) => r.option_index,
-            );
-          } catch (e) {
-            parsedPost.has_voted = false;
-            parsedPost.voted_indexes = [];
+            if (!post.image_urls) return [];
+            if (Array.isArray(post.image_urls)) return post.image_urls;
+            const parsed = JSON.parse(post.image_urls);
+            return Array.isArray(parsed) ? parsed : [parsed];
+          } catch {
+            return post.image_urls ? [post.image_urls] : [];
           }
-        }
-
-        // For prompt posts, check if user has submitted AND get real-time submission count
-        if (parsedPost.post_type === "prompt") {
+        })(),
+        tagged_entities: (() => {
           try {
-            // Get real-time submission count AND total reply count (including nested replies)
-            const countResult = await pool.query(
-              `SELECT 
-                (SELECT COUNT(*) FROM prompt_submissions WHERE post_id = $1) as count,
-                COALESCE((
-                  SELECT COUNT(*) 
-                  FROM prompt_replies pr
-                  JOIN prompt_submissions ps ON pr.submission_id = ps.id
-                  WHERE ps.post_id = $1 AND ps.status = 'approved'
-                ), 0) as total_reply_count`,
-              [post.id],
-            );
-            parsedPost.type_data = {
-              ...parsedPost.type_data,
-              submission_count: parseInt(countResult.rows[0]?.count || 0),
-              total_reply_count: parseInt(
-                countResult.rows[0]?.total_reply_count || 0,
-              ),
-            };
-
-            // Check if current user has an active (non-rejected) submission
-            if (viewerId && viewerType) {
-              const subResult = await pool.query(
-                `SELECT id, status FROM prompt_submissions 
-                 WHERE post_id = $1 AND author_id = $2 AND author_type = $3
-                   AND status IN ('pending', 'approved')`,
-                [post.id, viewerId, viewerType],
-              );
-              parsedPost.has_submitted = subResult.rows.length > 0;
-              parsedPost.submission_status = subResult.rows[0]?.status || null;
-
-              // If no active submission, check if they have a rejected one
-              // so the frontend can show a "Try again" hint
-              if (!parsedPost.has_submitted) {
-                const rejectedResult = await pool.query(
-                  `SELECT id FROM prompt_submissions 
-                   WHERE post_id = $1 AND author_id = $2 AND author_type = $3
-                     AND status = 'rejected'
-                   LIMIT 1`,
-                  [post.id, viewerId, viewerType],
-                );
-                if (rejectedResult.rows.length > 0) {
-                  parsedPost.submission_status = "rejected";
-                }
-              }
-            }
-
-            // Get preview submission (pinned first, then latest approved)
-            const previewResult = await pool.query(
-              `SELECT 
-                s.id, s.content, s.created_at, s.status, s.is_pinned, s.reply_count,
-                CASE 
-                  WHEN s.author_type = 'member' THEN m.name
-                  WHEN s.author_type = 'community' THEN c.name
-                  WHEN s.author_type = 'sponsor' THEN sp.brand_name
-                END as author_name,
-                CASE 
-                  WHEN s.author_type = 'member' THEN m.profile_photo_url
-                  WHEN s.author_type = 'community' THEN c.logo_url
-                  WHEN s.author_type = 'sponsor' THEN sp.logo_url
-                END as author_photo_url
-              FROM prompt_submissions s
-              LEFT JOIN members m ON s.author_type = 'member' AND s.author_id = m.id
-              LEFT JOIN communities c ON s.author_type = 'community' AND s.author_id = c.id
-              LEFT JOIN sponsors sp ON s.author_type = 'sponsor' AND s.author_id = sp.id
-              WHERE s.post_id = $1 AND s.status = 'approved'
-              ORDER BY 
-                s.is_pinned DESC,
-                s.created_at DESC
-              LIMIT 1`,
-              [post.id],
-            );
-            parsedPost.preview_submission = previewResult.rows[0] || null;
-          } catch (e) {
-            parsedPost.has_submitted = false;
-            parsedPost.preview_submission = null;
+            if (!post.tagged_entities) return null;
+            if (typeof post.tagged_entities === "object")
+              return post.tagged_entities;
+            return JSON.parse(post.tagged_entities);
+          } catch {
+            return null;
           }
-        }
-
-        // For Q&A posts, get question count, answered count, and top question preview
-        if (parsedPost.post_type === "qna") {
+        })(),
+        aspect_ratios: (() => {
           try {
-            // Get question and answered counts
-            const countResult = await pool.query(
-              `SELECT 
-                COUNT(*) as question_count,
-                COUNT(*) FILTER (WHERE answered_at IS NOT NULL) as answered_count
-               FROM qna_questions 
-               WHERE post_id = $1 AND is_hidden = false`,
-              [post.id],
-            );
-            parsedPost.type_data = {
-              ...parsedPost.type_data,
-              question_count: parseInt(
-                countResult.rows[0]?.question_count || 0,
-              ),
-              answered_count: parseInt(
-                countResult.rows[0]?.answered_count || 0,
-              ),
-            };
-
-            // Check how many questions current user has asked
-            if (viewerId && viewerType) {
-              const userQuestionResult = await pool.query(
-                `SELECT COUNT(*) as count FROM qna_questions 
-                 WHERE post_id = $1 AND author_id = $2 AND author_type = $3`,
-                [post.id, viewerId, viewerType],
-              );
-              parsedPost.user_question_count = parseInt(
-                userQuestionResult.rows[0]?.count || 0,
-              );
-            } else {
-              parsedPost.user_question_count = 0;
-            }
-
-            // Get top question preview (by upvotes, unanswered first)
-            const previewResult = await pool.query(
-              `SELECT 
-                q.id, q.question as content, q.upvote_count, q.is_pinned,
-                q.is_anonymous,
-                q.answered_at IS NOT NULL as is_answered,
-                CASE 
-                  WHEN $2::int IS NOT NULL AND $3::text IS NOT NULL THEN EXISTS (
-                    SELECT 1 FROM qna_question_upvotes u
-                    WHERE u.question_id = q.id AND u.voter_id = $2 AND u.voter_type = $3
-                  )
-                  ELSE false
-                END as has_upvoted,
-                CASE 
-                  WHEN q.is_anonymous THEN NULL
-                  WHEN q.author_type = 'member' THEN m.name
-                  WHEN q.author_type = 'community' THEN c.name
-                END as author_name,
-                CASE 
-                  WHEN q.is_anonymous THEN NULL
-                  WHEN q.author_type = 'member' THEN m.username
-                  WHEN q.author_type = 'community' THEN c.username
-                END as author_username,
-                CASE 
-                  WHEN q.is_anonymous THEN NULL
-                  WHEN q.author_type = 'member' THEN m.profile_photo_url
-                  WHEN q.author_type = 'community' THEN c.logo_url
-                END as author_photo_url
-               FROM qna_questions q
-               LEFT JOIN members m ON q.author_type = 'member' AND q.author_id = m.id
-               LEFT JOIN communities c ON q.author_type = 'community' AND q.author_id = c.id
-               WHERE q.post_id = $1 AND q.is_hidden = false
-               ORDER BY q.is_pinned DESC, q.upvote_count DESC, q.created_at DESC
-               LIMIT 1`,
-              [post.id, viewerId || null, viewerType || null],
-            );
-            parsedPost.preview_question = previewResult.rows[0] || null;
-          } catch (e) {
-            console.error("[getFeed] Error hydrating Q&A post:", e);
-            parsedPost.user_question_count = 0;
-            parsedPost.preview_question = null;
+            if (!post.aspect_ratios) return null;
+            if (Array.isArray(post.aspect_ratios)) return post.aspect_ratios;
+            const parsed = JSON.parse(post.aspect_ratios);
+            return Array.isArray(parsed) ? parsed : [parsed];
+          } catch {
+            return null;
           }
-        }
-
-        // For Challenge posts, get participant count and user join status
-        if (parsedPost.post_type === "challenge") {
+        })(),
+        media_types: (() => {
           try {
-            // Get participant and submission counts
-            const countResult = await pool.query(
-              `SELECT 
-                COUNT(*) as participant_count,
-                COUNT(*) FILTER (WHERE status = 'completed') as completed_count
-               FROM challenge_participations 
-               WHERE post_id = $1`,
-              [post.id],
-            );
-            parsedPost.type_data = {
-              ...parsedPost.type_data,
-              participant_count: parseInt(
-                countResult.rows[0]?.participant_count || 0,
-              ),
-              completed_count: parseInt(
-                countResult.rows[0]?.completed_count || 0,
-              ),
-            };
-
-            // Check if current user has joined
-            if (viewerId && viewerType) {
-              const joinedResult = await pool.query(
-                `SELECT id, status, progress FROM challenge_participations 
-                 WHERE post_id = $1 AND participant_id = $2 AND participant_type = $3`,
-                [post.id, viewerId, viewerType],
-              );
-              parsedPost.has_joined = joinedResult.rows.length > 0;
-              parsedPost.user_participation = joinedResult.rows[0] || null;
-
-              // Get user's active (non-rejected) submission count + status for this challenge
-              if (parsedPost.has_joined && joinedResult.rows[0]?.id) {
-                const userSubResult = await pool.query(
-                  `SELECT COUNT(*) as count,
-                          MAX(CASE WHEN is_featured THEN 'featured' ELSE status END) as top_status
-                   FROM challenge_submissions
-                   WHERE participant_id = $1 AND status NOT IN ('rejected', 'withdrawn')`,
-                  [joinedResult.rows[0].id],
-                );
-                parsedPost.user_submission_count = parseInt(
-                  userSubResult.rows[0]?.count || 0,
-                );
-                parsedPost.user_submission_status =
-                  userSubResult.rows[0]?.top_status || null;
-
-                // For progress challenges, recompute progress live from actual
-                // active submissions so stale stored values are never shown
-                if (
-                  parsedPost.type_data?.challenge_type === "progress" &&
-                  parsedPost.user_participation
-                ) {
-                  const targetCount =
-                    parseInt(parsedPost.type_data.target_count) || 1;
-                  const liveProgress = Math.min(
-                    100,
-                    Math.round(
-                      (parsedPost.user_submission_count / targetCount) * 100,
-                    ),
-                  );
-                  parsedPost.user_participation = {
-                    ...parsedPost.user_participation,
-                    progress: liveProgress,
-                  };
-                }
-              } else {
-                parsedPost.user_submission_count = 0;
-                parsedPost.user_submission_status = null;
-              }
-
-            }
-
-            // Get featured submission preview
-            const previewResult = await pool.query(
-              `SELECT 
-                cs.id, cs.content, cs.media_urls, cs.video_url, cs.video_thumbnail,
-                cs.like_count, cs.is_featured,
-                cp.participant_id, cp.participant_type,
-                CASE 
-                  WHEN cp.participant_type = 'member' THEN m.name
-                  WHEN cp.participant_type = 'community' THEN c.name
-                END as participant_name,
-                CASE 
-                  WHEN cp.participant_type = 'member' THEN m.profile_photo_url
-                  WHEN cp.participant_type = 'community' THEN c.logo_url
-                END as participant_photo_url
-               FROM challenge_submissions cs
-               JOIN challenge_participations cp ON cs.participant_id = cp.id
-               LEFT JOIN members m ON cp.participant_type = 'member' AND cp.participant_id = m.id
-               LEFT JOIN communities c ON cp.participant_type = 'community' AND cp.participant_id = c.id
-               WHERE cs.post_id = $1 AND cs.status = 'approved'
-               ORDER BY cs.is_featured DESC, cs.like_count DESC, cs.created_at DESC
-               LIMIT 1`,
-              [post.id],
-            );
-            if (previewResult.rows[0]) {
-              const preview = previewResult.rows[0];
-              parsedPost.preview_submission = {
-                ...preview,
-                media_urls: (() => {
-                  try {
-                    if (!preview.media_urls) return [];
-                    if (Array.isArray(preview.media_urls))
-                      return preview.media_urls;
-                    return JSON.parse(preview.media_urls);
-                  } catch {
-                    return [];
-                  }
-                })(),
-              };
-            } else {
-              parsedPost.preview_submission = null;
-            }
-          } catch (e) {
-            console.error("[getFeed] Error hydrating Challenge post:", e);
-            parsedPost.has_joined = false;
-            parsedPost.preview_submission = null;
+            if (!post.media_types) return null;
+            if (Array.isArray(post.media_types)) return post.media_types;
+            const parsed = JSON.parse(post.media_types);
+            return Array.isArray(parsed) ? parsed : [parsed];
+          } catch {
+            return null;
           }
-        }
+        })(),
+        crop_metadata: (() => {
+          try {
+            if (!post.crop_metadata) return null;
+            if (Array.isArray(post.crop_metadata)) return post.crop_metadata;
+            const parsed = JSON.parse(post.crop_metadata);
+            return Array.isArray(parsed) ? parsed : [parsed];
+          } catch {
+            return null;
+          }
+        })(),
+        type_data: (() => {
+          try {
+            if (!post.type_data) return {};
+            if (typeof post.type_data === "object") return post.type_data;
+            return JSON.parse(post.type_data);
+          } catch {
+            return {};
+          }
+        })(),
+      };
 
-        return parsedPost;
-      }),
-    );
+      const isAnon = parsedPost.type_data?.is_anonymous === true;
+      const isOwn = String(parsedPost.author_id) === String(viewerId) && parsedPost.author_type === viewerType;
+
+      if (isAnon) {
+        parsedPost.author_name = "Anonymous";
+        parsedPost.author_username = null;
+        parsedPost.author_photo_url = null;
+        if (!isOwn) {
+          parsedPost.author_id = null;
+          parsedPost.author_type = null;
+        }
+      }
+
+      // Extract video data with HLS streaming support
+      const videoIndex = findVideoIndex(parsedPost.media_types);
+      if (videoIndex !== -1 && parsedPost.image_urls[videoIndex]) {
+        const rawVideoUrl = parsedPost.image_urls[videoIndex];
+        const aspectRatio = parsedPost.aspect_ratios?.[videoIndex] || null;
+        const videoCropMeta = parsedPost.crop_metadata?.[videoIndex] || null;
+        const videoMeta = generateVideoMetadata(rawVideoUrl, aspectRatio, videoCropMeta);
+
+        // Merge video metadata into post
+        parsedPost.video_url = videoMeta.video_url;
+        parsedPost.video_hls_url = videoMeta.video_hls_url;
+        parsedPost.video_thumbnail = videoMeta.video_thumbnail;
+        parsedPost.video_lqip = videoMeta.video_lqip;
+        parsedPost.video_aspect_ratio = videoMeta.video_aspect_ratio;
+        parsedPost.video_crop_transform = videoMeta.video_crop_transform;
+
+        console.log(`[Feed] Post ${parsedPost.id} video metadata:`, {
+          hasHls: !!parsedPost.video_hls_url,
+          hasThumb: !!parsedPost.video_thumbnail,
+          hasCropMeta: !!videoCropMeta,
+          media_types: parsedPost.media_types,
+          videoAR: parsedPost.video_aspect_ratio,
+        });
+      }
+
+      return parsedPost;
+    });
+
+    // Batched type-specific interaction hydration (polls, prompts, Q&As, challenges)
+    const posts = await hydratePostInteractions(parsedPosts, viewerId, viewerType, pool);
 
     // Determine pagination metadata
     const hasMore = posts.length > parsedLimit;
