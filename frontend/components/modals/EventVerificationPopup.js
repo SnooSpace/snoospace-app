@@ -21,7 +21,7 @@ export default function EventVerificationPopup({
 
   // Conversational text based on verification type
   const headerText = isGoing ? "Upcoming Event" : "How did it go?";
-  const eventName = event.title || "the event";
+  const eventName = event?.title || "the event";
   const questionText = isGoing
     ? `Still planning to attend "${eventName}"?`
     : `Did you attend "${eventName}"?`;
@@ -40,27 +40,27 @@ export default function EventVerificationPopup({
         disabled={loading}
         hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
       >
-        <X size={18} color="#6B7280" />
+        <X size={18} color="#78716C" strokeWidth={2} />
       </TouchableOpacity>
 
       {/* Row with icon and conversational header */}
       <View style={styles.headerRow}>
         <View style={styles.iconContainer}>
           {isGoing ? (
-            <Calendar size={20} color={COLORS.primary} strokeWidth={2} />
+            <Calendar size={18} color={COLORS.primary} strokeWidth={2} />
           ) : (
-            <HelpCircle size={20} color={COLORS.primary} strokeWidth={2} />
+            <HelpCircle size={18} color={COLORS.primary} strokeWidth={2} />
           )}
         </View>
         <View style={styles.headerTextContainer}>
-          <Text style={[styles.headerText, { fontFamily: "Manrope-SemiBold" }]}>
+          <Text style={styles.headerText}>
             {headerText}
           </Text>
         </View>
       </View>
 
       {/* Question / Description */}
-      <Text style={[styles.questionText, { fontFamily: "Manrope-Regular" }]} numberOfLines={3}>
+      <Text style={styles.questionText} numberOfLines={3}>
         {questionText}
       </Text>
 
@@ -71,9 +71,10 @@ export default function EventVerificationPopup({
           style={[styles.actionButton, styles.rejectButton]}
           onPress={onReject}
           disabled={loading}
+          activeOpacity={0.7}
         >
-          <XCircle size={16} color="#4B5563" strokeWidth={2} />
-          <Text style={[styles.rejectText, { fontFamily: "Manrope-SemiBold" }]}>
+          <XCircle size={16} color="#78716C" strokeWidth={2} />
+          <Text style={styles.rejectText}>
             {rejectText}
           </Text>
         </TouchableOpacity>
@@ -83,6 +84,7 @@ export default function EventVerificationPopup({
           style={styles.actionButton}
           onPress={onConfirm}
           disabled={loading}
+          activeOpacity={0.85}
         >
           <LinearGradient
             colors={COLORS.primaryGradient}
@@ -95,7 +97,7 @@ export default function EventVerificationPopup({
             ) : (
               <>
                 <Check size={16} color="#FFFFFF" strokeWidth={2.5} />
-                <Text style={[styles.confirmText, { fontFamily: "Manrope-SemiBold" }]}>
+                <Text style={styles.confirmText}>
                   {confirmText}
                 </Text>
               </>
@@ -109,8 +111,9 @@ export default function EventVerificationPopup({
         style={styles.askLaterButton}
         onPress={onAskLater}
         disabled={loading}
+        hitSlop={{ top: 8, bottom: 8, left: 16, right: 16 }}
       >
-        <Text style={[styles.askLaterText, { fontFamily: "Manrope-SemiBold" }]}>
+        <Text style={styles.askLaterText}>
           Ask me later
         </Text>
       </TouchableOpacity>
@@ -123,50 +126,63 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 16,
     right: 16,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
+    backgroundColor: "#F6F4ED", // Warm cream/oatmeal surface
+    borderRadius: 20,
     padding: 18,
     shadowColor: "#000000",
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 8,
+    shadowOpacity: 0.14,
+    shadowRadius: 14,
+    elevation: 10,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: "#E7E2D6", // Soft warm border
     zIndex: 9999,
   },
   closeButton: {
     position: "absolute",
-    top: 14,
-    right: 14,
+    top: 16,
+    right: 16,
     zIndex: 10,
+    width: 28,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 10,
-    gap: 8,
+    marginBottom: 12,
+    gap: 10,
   },
   iconContainer: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "rgba(99, 102, 241, 0.1)", // soft primary tint
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E5E0D4",
     justifyContent: "center",
     alignItems: "center",
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   headerTextContainer: {
     flex: 1,
   },
   headerText: {
-    fontSize: 14,
-    color: "#6B7280",
+    fontFamily: FONTS.basicCommercialBold,
+    fontSize: 13,
+    color: "#78716C",
     textTransform: "uppercase",
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
   },
   questionText: {
-    fontSize: 16,
-    color: "#1F2937",
+    fontFamily: FONTS.regular,
+    fontSize: 15,
+    color: "#1C1917",
     marginBottom: 16,
     lineHeight: 22,
   },
@@ -179,17 +195,22 @@ const styles = StyleSheet.create({
   actionButton: {
     flex: 1,
     height: 44,
-    borderRadius: 10,
+    borderRadius: 12,
     overflow: "hidden",
   },
   rejectButton: {
     borderWidth: 1,
-    borderColor: "#D1D5DB",
-    backgroundColor: "#F9FAFB",
+    borderColor: "#E5E0D4",
+    backgroundColor: "#FFFFFF",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+    elevation: 1,
   },
   confirmGradient: {
     width: "100%",
@@ -200,20 +221,25 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   rejectText: {
+    fontFamily: FONTS.semiBold,
     fontSize: 14,
-    color: "#374151",
+    color: "#44403C",
   },
   confirmText: {
+    fontFamily: FONTS.semiBold,
     fontSize: 14,
     color: "#FFFFFF",
   },
   askLaterButton: {
     alignSelf: "center",
     paddingVertical: 4,
+    paddingHorizontal: 8,
   },
   askLaterText: {
-    fontSize: 14,
-    color: COLORS.primary,
+    fontFamily: FONTS.semiBold,
+    fontSize: 13,
+    color: "#78716C",
     textAlign: "center",
+    textDecorationLine: "underline",
   },
 });

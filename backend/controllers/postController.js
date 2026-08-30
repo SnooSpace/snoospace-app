@@ -3499,6 +3499,21 @@ const getDiscoveryPosts = async (req, res) => {
           WHERE cc.community_id = p.author_id AND cc.member_id = $1
         ))
 
+        -- ── Block filter: exclude blocked members (bidirectional) & blocked communities ─
+        AND NOT (
+          p.author_type = 'member' AND $2 = 'member' AND EXISTS (
+            SELECT 1 FROM user_blocks ub
+            WHERE (ub.blocker_id = $1 AND ub.blocked_id = p.author_id)
+               OR (ub.blocker_id = p.author_id AND ub.blocked_id = $1)
+          )
+        )
+        AND NOT (
+          p.author_type = 'community' AND $2 = 'member' AND EXISTS (
+            SELECT 1 FROM community_blocks cb
+            WHERE cb.blocker_id = $1 AND cb.blocked_community_id = p.author_id
+          )
+        )
+
         -- Condition 3a parity: exclude posts retired for this viewer within 15 days
         AND NOT EXISTS (
           SELECT 1 FROM post_impression_state pis

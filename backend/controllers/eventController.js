@@ -1553,6 +1553,13 @@ const discoverEvents = async (req, res) => {
               AND eis.retired_at IS NOT NULL
               AND eis.retired_at > NOW() - INTERVAL '15 days'
           )
+          -- Block filter: exclude events hosted by blocked communities
+          AND NOT (
+            $2 = 'member' AND EXISTS (
+              SELECT 1 FROM community_blocks cb
+              WHERE cb.blocker_id = $1 AND cb.blocked_community_id = e.community_id
+            )
+          )
         ORDER BY score DESC, e.start_datetime ASC
         LIMIT $3 OFFSET $4
       )

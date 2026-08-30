@@ -1752,6 +1752,21 @@ const getDiscoveryOpportunities = async (req, res) => {
             AND ois.retired_at > NOW() - INTERVAL '15 days'
         )
 
+        -- ── Block filter: exclude blocked communities & creators (bidirectional) ─
+        AND NOT (
+          o.creator_type = 'community' AND $2 = 'member' AND EXISTS (
+            SELECT 1 FROM community_blocks cb
+            WHERE cb.blocker_id = $1 AND cb.blocked_community_id = o.creator_id::integer
+          )
+        )
+        AND NOT (
+          o.creator_type = 'member' AND $2 = 'member' AND EXISTS (
+            SELECT 1 FROM user_blocks ub
+            WHERE (ub.blocker_id = $1 AND ub.blocked_id = o.creator_id::integer)
+               OR (ub.blocker_id = o.creator_id::integer AND ub.blocked_id = $1)
+          )
+        )
+
         -- ── Trickle pacing: daily cap of 5 new introductions ──────────────────
         -- When cap is reached, only serve already-stamped opportunities.
         AND (
