@@ -145,7 +145,7 @@ const getItemRenderCost = (item) => {
 };
 
 // How many items starting at `startIndex` fit within the cost `budget`
-const computeBatchSize = (items, startIndex = 0, budget = 6) => {
+const computeBatchSize = (items, startIndex = 0, budget = 12) => {
   if (!items || !Array.isArray(items) || items.length === 0) return 0;
   let remaining = budget;
   let count = 0;
@@ -1479,7 +1479,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         const candidateItems = rawPosts.length > 0
           ? rawPosts.map((p) => ({ ...p, itemType: 'post' }))
           : (feedItems || []);
-        const batchSize = Math.max(1, computeBatchSize(candidateItems, 0, 6));
+        const batchSize = Math.max(1, computeBatchSize(candidateItems, 0, 12));
         const firstBatch = candidateItems.slice(0, batchSize);
 
         const prefetchPromise = prefetchBatchImages(firstBatch);
@@ -1617,7 +1617,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         const candidateItems = rawPosts.length > 0
           ? rawPosts.map((p) => ({ ...p, itemType: 'post' }))
           : (feedItems || []);
-        const batchSize = Math.max(1, computeBatchSize(candidateItems, 0, 6));
+        const batchSize = Math.max(1, computeBatchSize(candidateItems, 0, 12));
         const firstBatch = candidateItems.slice(0, batchSize);
         const elapsed = Date.now() - skeletonStartTimeRef.current;
         await Promise.race([
@@ -2063,7 +2063,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     const candidateItems = rawPosts.length > 0
       ? rawPosts.map((p) => ({ ...p, itemType: 'post' }))
       : (feedItems || []);
-    const batchSize = Math.max(1, computeBatchSize(candidateItems, 0, 6));
+    const batchSize = Math.max(1, computeBatchSize(candidateItems, 0, 12));
     setRevealedCount(batchSize);
     setRefreshing(false);
     // Snap scroll position back to the very top after the shuffled data is laid out.
@@ -2360,9 +2360,10 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     skeleton: 700,
     post_media: 682,
     post_poll: 560,
-    post_prompt: 411,
-    post_qna: 411,
+    post_prompt: 470,
+    post_qna: 470,
     post_challenge: 445,
+    post_opportunity: 200,
   };
 
   const handleCellLayout = useCallback((item, e) => {
@@ -2737,19 +2738,20 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         estimatedItemSize={682}
         removeClippedSubviews={false}
         // Per-type size hints based on real device [CELL-HEIGHT] measurements:
-        // event: 579, post_media: 682, post_poll: 560, post_prompt: 411,
-        // post_challenge: 445, opportunity: 496, skeleton: 700.
-        // ⚠️ post_qna is NOT YET MEASURED — using post_prompt's 411 as placeholder.
+        // event: 579, post_media: 682, post_poll: 560, post_prompt: 470,
+        // post_challenge: 445, opportunity: 496, skeleton: 700, post_opportunity: 200.
+        // ⚠️ post_qna is NOT YET MEASURED — using post_prompt's 470 as placeholder.
         overrideItemLayout={(layout, item) => {
           if (item.itemType === "event") { layout.size = 579; return; }
           if (item.itemType === "opportunity") { layout.size = 496; return; }
           if (item.itemType === "skeleton") { layout.size = 700; return; }
           switch (item.post_type) {
-            case "poll":      layout.size = 560; break;
-            case "prompt":    layout.size = 411; break;
-            case "qna":       layout.size = 411; break; // [DIAG-HEIGHT] UNMEASURED placeholder (matches prompt: 411)
-            case "challenge": layout.size = 445; break;
-            default:          layout.size = 682; // media / text
+            case "opportunity": layout.size = 200; break;
+            case "poll":        layout.size = 560; break;
+            case "prompt":      layout.size = 470; break;
+            case "qna":         layout.size = 470; break; // [DIAG-HEIGHT] UNMEASURED placeholder (matches prompt: 470)
+            case "challenge":   layout.size = 445; break;
+            default:            layout.size = 682; // media / text
           }
         }}
         drawDistance={800}
@@ -2792,7 +2794,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
             isRevealingRef.current = true;
             setIsScrollBlocked(true);
 
-            const budget = 10; // ≈ 1.8s batch window
+            const budget = 12; // ≈ 2s batch window
             const nextSize = computeBatchSize(feedItems, revealedCount, budget);
             const nextBatch = feedItems.slice(revealedCount, revealedCount + nextSize);
 

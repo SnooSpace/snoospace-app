@@ -268,6 +268,17 @@ async function seedSyntheticFeed() {
       'Coffee & Code Saturday Morning Build Session'
     ];
 
+    const eventBannerPool = [
+      'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1200',
+      'https://images.unsplash.com/photo-1511578314322-379afb476865?w=1200',
+      'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=1200',
+      'https://images.unsplash.com/photo-1475721027785-f74eccf877e2?w=1200',
+      'https://images.unsplash.com/photo-1505373877841-8d25f7d46678?w=1200',
+      'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=1200',
+      'https://images.unsplash.com/photo-1523580494863-6f3031224c94?w=1200',
+      'https://images.unsplash.com/photo-1528605248644-14dd04022da1?w=1200'
+    ];
+
     for (let i = 0; i < 35; i++) {
       const commId = communityIds[i % communityIds.length];
       const title = eventTitles[i];
@@ -278,7 +289,7 @@ async function seedSyntheticFeed() {
         ? getRandomTimestamp(-4, -1) 
         : new Date(Date.now() + ((i + 1) * 0.8 * 24 * 60 * 60 * 1000));
       
-      const bannerUrl = `https://images.unsplash.com/photo-${1500000000000 + (i * 1234567) % 9999999}?w=1200`;
+      const bannerUrl = eventBannerPool[i % eventBannerPool.length];
       const ticketPrice = (i % 3 === 0) ? 0 : 299 + (i * 50);
 
       // Insert into events table
