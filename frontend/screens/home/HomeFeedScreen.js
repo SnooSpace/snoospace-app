@@ -2503,6 +2503,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         }}
         // estimatedItemSize is the fallback default (most common type: post_media).
         estimatedItemSize={700}
+        removeClippedSubviews={false}
         // Per-type size hints so FlashList's first-paint layout guess is
         // accurate for every card variant, not just the post_media default.
         // ⚠️  NOTE: poll/prompt/qna/challenge sizes below are ESTIMATED from
