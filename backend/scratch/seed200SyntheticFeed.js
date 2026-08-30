@@ -368,15 +368,18 @@ async function seedSyntheticFeed() {
       const title = oppTitles[i];
       const createdAt = getRandomTimestamp(0.2, 25);
       
-      // Closing dates: urgent (closing in 12h-24h), active (3-14 days), closed (2 days ago)
-      let closedAt;
-      if (i % 6 === 0) {
-        closedAt = new Date(Date.now() - (2 * 24 * 60 * 60 * 1000)); // Closed
-      } else if (i % 5 === 0) {
-        closedAt = new Date(Date.now() + (18 * 60 * 60 * 1000)); // Urgent closing in 18h
-      } else {
-        closedAt = new Date(Date.now() + ((i + 3) * 24 * 60 * 60 * 1000)); // Active
-      }
+      // Expiry / closing dates:
+      // Active: expires in 3-14 days (or urgent 18h), closed_at = NULL, status = 'active'
+      // Closed: closed 2 days ago, status = 'closed', closed_at = date
+      const isClosed = i % 6 === 0;
+      const isUrgent = i % 5 === 0;
+      const expiresAt = isClosed
+        ? new Date(Date.now() - (2 * 24 * 60 * 60 * 1000))
+        : isUrgent
+          ? new Date(Date.now() + (18 * 60 * 60 * 1000))
+          : new Date(Date.now() + ((i + 3) * 24 * 60 * 60 * 1000));
+      const closedAt = isClosed ? expiresAt : null;
+      const status = isClosed ? 'closed' : 'active';
 
       const oppType = (i % 3 === 0) ? 'internship' : (i % 3 === 1) ? 'full-time' : 'freelance';
       const stipend = 25000 + (i * 2000);
@@ -385,17 +388,17 @@ async function seedSyntheticFeed() {
         INSERT INTO opportunities (
           title, creator_id, creator_type, status, opportunity_types, work_type, work_mode,
           experience_level, availability, turnaround, payment_type, budget_range, payment_nature,
-          visibility, closed_at, created_at, about_role, responsibilities, who_can_apply, gains
+          visibility, expires_at, closed_at, created_at, about_role, responsibilities, who_can_apply, gains
         )
         VALUES (
-          $1, $2, 'community', 'active', ARRAY[$3], 'one_time', 'remote',
-          'any', 'Immediate', '2 weeks', 'fixed', $4, 'paid',
-          'public', $5, $6, $7, $8::text[], $9::text[], $10::text[]
+          $1, $2, 'community', $3, ARRAY[$4], 'one_time', 'remote',
+          'any', 'Immediate', '2 weeks', 'fixed', $5, 'paid',
+          'public', $6, $7, $8, $9, $10::text[], $11::text[], $12::text[]
         )
         RETURNING id
       `, [
-        title, String(commId), oppType, `₹${stipend.toLocaleString()}/mo`,
-        closedAt, createdAt, `${title} - Join our high-impact team to build cutting-edge products. Great culture and growth!`,
+        title, String(commId), status, oppType, `₹${stipend.toLocaleString()}/mo`,
+        expiresAt, closedAt, createdAt, `${title} - Join our high-impact team to build cutting-edge products. Great culture and growth!`,
         ['Design and ship production features', 'Collaborate with cross-functional teams', 'Review code and mentor peers'],
         ['Designers & Developers with strong portfolios', 'Experience with modern tech stacks', 'College students & early pros welcome'],
         ['Competitive stipend', 'Flexible work hours', 'Certificate & Recommendation letter']
