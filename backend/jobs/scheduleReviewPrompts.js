@@ -209,7 +209,9 @@ async function deliverReviewPrompts(pool) {
 
       // Fetch user's push token
       const tokenResult = await pool.query(`
-        SELECT push_token FROM members WHERE id = $1 AND push_token IS NOT NULL
+        SELECT expo_push_token AS push_token FROM push_tokens
+        WHERE user_id = $1 AND user_type = 'member' AND is_active = true AND expo_push_token IS NOT NULL
+        ORDER BY updated_at DESC LIMIT 1
       `, [prompt.user_id]);
 
       if (tokenResult.rows.length === 0) {

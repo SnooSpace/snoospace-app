@@ -142,7 +142,8 @@ const getItemRenderCost = (item) => {
 };
 
 // How many items starting at `startIndex` fit within the cost `budget`
-const computeBatchSize = (items, startIndex, budget) => {
+const computeBatchSize = (items, startIndex = 0, budget = 6) => {
+  if (!items || !Array.isArray(items) || items.length === 0) return 0;
   let remaining = budget;
   let count = 0;
   for (let i = startIndex; i < items.length && remaining > 0; i++) {
@@ -173,10 +174,14 @@ const computeBatchSize = (items, startIndex, budget) => {
 const EDITORIAL_IMG_WIDTH = SCREEN_WIDTH; // logical dp — PixelRatio applied inside getOptimizedImageUrl
 
 const prefetchBatchImages = (items) => {
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    return Promise.resolve([]);
+  }
   const rnUrls   = []; // → Image.prefetch() from 'react-native'
   const expoUrls = []; // → ExpoImage.prefetch() from 'expo-image'
 
   for (const item of items) {
+    if (!item) continue;
     const postType = item.post_type || item.type || "media"; // 'event' | 'opportunity' | post_type
 
     // ── author avatar ──────────────────────────────────────────────────────────
@@ -1418,15 +1423,17 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     const hydrateFromCache = async () => {
       try {
         const snapshot = await loadFeedSnapshot();
-        if (snapshot && snapshot.posts.length > 0) {
-          console.log(`[HomeFeed][1.4] Hydrating from cache: ${snapshot.posts.length} posts, ${snapshot.events.length} events, ${snapshot.opportunities.length} opps`);
+        if (snapshot && Array.isArray(snapshot.posts) && snapshot.posts.length > 0) {
+          const eventsCount = Array.isArray(snapshot.events) ? snapshot.events.length : 0;
+          const oppsCount = Array.isArray(snapshot.opportunities) ? snapshot.opportunities.length : 0;
+          console.log(`[HomeFeed][1.4] Hydrating from cache: ${snapshot.posts.length} posts, ${eventsCount} events, ${oppsCount} opps`);
           // Populate state but DO NOT set loading=false or showSkeleton=false.
           // The skeleton window must still complete (SKELETON_MIN_MS + prefetch)
           // before real cards are revealed, even for cached content.
           console.log('[PHANTOM-SCROLL] Cache hydration → setPosts/setEvents/setOpportunities (may trigger onContentSizeChange)');
           setPosts(snapshot.posts);
-          setEvents(snapshot.events);
-          setOpportunities(snapshot.opportunities);
+          setEvents(Array.isArray(snapshot.events) ? snapshot.events : []);
+          setOpportunities(Array.isArray(snapshot.opportunities) ? snapshot.opportunities : []);
         }
       } catch (e) {
         console.warn('[HomeFeed][1.4] Cache hydration failed:', e);
@@ -1454,19 +1461,18 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           loadMessageUnreadCount(),
         ]);
 
-        saveFeedSnapshot(postsRef.current, eventsRef.current, opportunitiesRef.current);
+        saveFeedSnapshot(postsRef.current || [], eventsRef.current || [], opportunitiesRef.current || []);
 
         // ── 4A Skeleton → first-batch reveal ──────────────────────────────
         // freshPostsRef was populated inside loadFeed for the reset path.
         // Compute how many posts fit in a 1-second render budget, prefetch
         // their images, enforce minimum skeleton display time, then reveal.
-        const rawPosts = freshPostsRef.current;
-        const batchSize = computeBatchSize(
-          rawPosts.map((p) => ({ ...p, itemType: 'post' })),
-          0,
-          6, // budget ≈ 1s
-        );
-        const firstBatch = rawPosts.slice(0, batchSize).map((p) => ({ ...p, itemType: 'post' }));
+        const rawPosts = freshPostsRef.current || [];
+        const candidateItems = rawPosts.length > 0
+          ? rawPosts.map((p) => ({ ...p, itemType: 'post' }))
+          : (feedItems || []);
+        const batchSize = Math.max(1, computeBatchSize(candidateItems, 0, 6));
+        const firstBatch = candidateItems.slice(0, batchSize);
 
         const prefetchPromise = prefetchBatchImages(firstBatch);
         const elapsed = Date.now() - skeletonStartTimeRef.current;
@@ -1599,11 +1605,12 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         saveFeedSnapshot(postsRef.current, eventsRef.current, opportunitiesRef.current);
 
         // Skeleton reveal for account switch (same logic as initial load)
-        const rawPosts = freshPostsRef.current;
-        const batchSize = computeBatchSize(
-          rawPosts.map((p) => ({ ...p, itemType: 'post' })), 0, 6,
-        );
-        const firstBatch = rawPosts.slice(0, batchSize).map((p) => ({ ...p, itemType: 'post' }));
+        const rawPosts = freshPostsRef.current || [];
+        const candidateItems = rawPosts.length > 0
+          ? rawPosts.map((p) => ({ ...p, itemType: 'post' }))
+          : (feedItems || []);
+        const batchSize = Math.max(1, computeBatchSize(candidateItems, 0, 6));
+        const firstBatch = candidateItems.slice(0, batchSize);
         const elapsed = Date.now() - skeletonStartTimeRef.current;
         await Promise.race([
           Promise.all([
@@ -2044,10 +2051,11 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       loadMessageUnreadCount(),
     ]);
     // Reveal first batch based on cost budget (no min-skeleton wait needed)
-    const rawPosts = freshPostsRef.current;
-    const batchSize = computeBatchSize(
-      rawPosts.map((p) => ({ ...p, itemType: 'post' })), 0, 6,
-    );
+    const rawPosts = freshPostsRef.current || [];
+    const candidateItems = rawPosts.length > 0
+      ? rawPosts.map((p) => ({ ...p, itemType: 'post' }))
+      : (feedItems || []);
+    const batchSize = Math.max(1, computeBatchSize(candidateItems, 0, 6));
     setRevealedCount(batchSize);
     setRefreshing(false);
     // Snap scroll position back to the very top after the shuffled data is laid out.
