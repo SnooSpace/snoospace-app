@@ -25,6 +25,7 @@ import Animated, {
   withSpring,
   FadeIn,
   FadeOut,
+  runOnJS,
 } from "react-native-reanimated";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
@@ -76,6 +77,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Image as ExpoImage } from "expo-image";
 import { getOptimizedImageUrl } from "../../utils/imageUtils";
 import { windowedShuffle } from "../../utils/feedShuffle";
+
+export const homeFeedKeyExtractor = (item) => `${item.itemType || "post"}-${item.id}`;
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -684,15 +687,15 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   // fire before the native layout, so RecyclerView can override them.
   // isInitialLoadRef gates it to a single fire per mount; subsequent calls
   // from image-load content expansions are ignored.
-  const onListContentSizeChange = useCallback(() => {
+  const onListContentSizeChange = useCallback((w, h) => {
+    if (__DEV__) {
+      console.log(`[DIAG-CONTENT-SIZE] w=${w} h=${h} items=${feedItems.length}`);
+    }
     if (isInitialLoadRef.current && flatListRef.current) {
       isInitialLoadRef.current = false;
-      console.log('[PHANTOM-SCROLL] onContentSizeChange → scrollToOffset(0) fired (initial load gate)');
       flatListRef.current.scrollToOffset({ offset: 0, animated: false });
-    } else {
-      console.log('[PHANTOM-SCROLL] onContentSizeChange fired (gate already closed — no scroll)');
     }
-  }, []);
+  }, [feedItems.length]);
 
   // Ref callback: store the ref for programmatic scroll operations (e.g. logo tap to top)
   const listRefCallback = useCallback((ref) => {
@@ -702,21 +705,53 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   // Reanimated shared value for premium scroll-reactive header
   const scrollY = useSharedValue(0);
 
+  // ── [DIAG-DRIFT] Scroll drift tracking ────────────────────────────────────
+  const isDraggingRef = useRef(false);
+  const isMomentumRef = useRef(false);
+
+  const logScrollDrift = useCallback((y) => {
+    if (!__DEV__) return;
+    const isDragging = isDraggingRef.current;
+    const isMomentum = isMomentumRef.current;
+    const isAutonomous = !isDragging && !isMomentum;
+    console.log(`[DIAG-DRIFT] offset=${y.toFixed(1)} isDragging=${isDragging} isMomentum=${isMomentum} AUTONOMOUS=${isAutonomous}`);
+  }, []);
+
   // Scroll handler using Reanimated for performant tracking
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
       // Clamp to 0 to prevent negative values during pull-to-refresh
       scrollY.value = Math.max(0, event.contentOffset.y);
+      if (__DEV__) {
+        runOnJS(logScrollDrift)(event.contentOffset.y);
+      }
     },
     onBeginDrag: () => {
       'worklet';
-      // Runs on UI thread — can't set JS refs here directly, but we use
-      // onScrollBeginDrag below (JS thread) for ref mutation.
     },
   });
 
   // ── Scroll state tracking — lets network callbacks know whether to defer setState
-  const { isScrollingRef, onScrollBeginDrag, onScrollEndDrag, onMomentumScrollEnd } = useScrollState();
+  const scrollState = useScrollState();
+  const { isScrollingRef } = scrollState;
+
+  const onScrollBeginDrag = useCallback((e) => {
+    isDraggingRef.current = true;
+    isMomentumRef.current = false;
+    scrollState.onScrollBeginDrag?.(e);
+  }, [scrollState]);
+
+  const onScrollEndDrag = useCallback((e) => {
+    isDraggingRef.current = false;
+    isMomentumRef.current = true;
+    scrollState.onScrollEndDrag?.(e);
+  }, [scrollState]);
+
+  const onMomentumScrollEnd = useCallback((e) => {
+    isDraggingRef.current = false;
+    isMomentumRef.current = false;
+    scrollState.onMomentumScrollEnd?.(e);
+  }, [scrollState]);
 
   // Debounce ref and handler for reloading unread message counts
   const messageDebounceTimeoutRef = useRef(null);
@@ -2301,12 +2336,51 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     }, 300);
   }, [onRefresh]);
 
-  const renderFeedItem = useCallback(({ item }) => {
-    // 4A: skeleton items in visibleFeedItems while showSkeleton=true
-    if (item.itemType === 'skeleton') return <SkeletonCard />;
+  // ── [DIAG-HEIGHT] & [CELL-HEIGHT] Diagnostic Measurement ────────────────
+  const measuredHeightsByTypeRef = useRef({});
+  const ESTIMATED_HEIGHTS = {
+    event: 579,
+    opportunity: 496,
+    skeleton: 700,
+    post_media: 682,
+    post_poll: 560,
+    post_prompt: 411,
+    post_qna: 411,
+    post_challenge: 445,
+  };
 
-    if (item.itemType === "event") {
-      return (
+  const handleCellLayout = useCallback((item, e) => {
+    if (!__DEV__) return;
+    const measuredHeight = e.nativeEvent.layout.height;
+    const itemType = item.itemType === "event"
+      ? "event"
+      : item.itemType === "opportunity"
+        ? "opportunity"
+        : item.itemType === "skeleton"
+          ? "skeleton"
+          : `post_${item.post_type || "media"}`;
+
+    // [DIAG-HEIGHT]: first real measured height per item type
+    if (!measuredHeightsByTypeRef.current[itemType]) {
+      measuredHeightsByTypeRef.current[itemType] = measuredHeight;
+      console.log(`[DIAG-HEIGHT] type=${itemType} firstMeasuredHeight=${measuredHeight.toFixed(1)} id=${item.id}`);
+    }
+
+    // [CELL-HEIGHT]: per-cell onLayout, logging whenever delta exceeds ~10-15px
+    const est = ESTIMATED_HEIGHTS[itemType] || 682;
+    const delta = Math.abs(measuredHeight - est);
+    if (delta > 15) {
+      console.log(`[CELL-HEIGHT] id=${item.id} type=${itemType} measured=${measuredHeight.toFixed(1)} est=${est} delta=${delta.toFixed(1)}`);
+    }
+  }, []);
+
+  const renderFeedItem = useCallback(({ item }) => {
+    let content;
+    // 4A: skeleton items in visibleFeedItems while showSkeleton=true
+    if (item.itemType === 'skeleton') {
+      content = <SkeletonCard />;
+    } else if (item.itemType === "event") {
+      content = (
         <EventCard
           event={item}
           onPress={handleEventPress}
@@ -2318,10 +2392,8 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           authToken={authTokenRef.current}
         />
       );
-    }
-
-    if (item.itemType === "opportunity") {
-      return (
+    } else if (item.itemType === "opportunity") {
+      content = (
         <OpportunityFeedCard
           opportunity={item}
           onPress={handleOpportunityPress}
@@ -2337,29 +2409,35 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           authToken={authTokenRef.current}
         />
       );
+    } else {
+      content = (
+        <EditorialPostCard
+          post={item}
+          onLike={handleLikeUpdate}
+          onComment={handleCommentPress}
+          onShare={handleSharePress}
+          onFollow={handleFollow}
+          onDelete={handleDelete}
+          onRequestDelete={handleRequestDelete}
+          onPostUpdate={handlePostUpdate}
+          showFollowButton={true}
+          currentUserId={currentUserId}
+          currentUserType={currentUserType}
+          authToken={authTokenRef.current}
+          isVideoPlaying={item.id === visiblePostId}
+          shouldPreload={shouldPreloadItem(feedItemIndexMapRef.current.get(item.id) ?? -1)}
+          isInViewport={isFocusedRef.current}
+          isScreenFocused={isFocusedRef.current}
+          navigation={navigation}
+          onUserPress={handleUserPress}
+        />
+      );
     }
 
     return (
-      <EditorialPostCard
-        post={item}
-        onLike={handleLikeUpdate}
-        onComment={handleCommentPress}
-        onShare={handleSharePress}
-        onFollow={handleFollow}
-        onDelete={handleDelete}
-        onRequestDelete={handleRequestDelete}
-        onPostUpdate={handlePostUpdate}
-        showFollowButton={true}
-        currentUserId={currentUserId}
-        currentUserType={currentUserType}
-        authToken={authTokenRef.current}
-        isVideoPlaying={item.id === visiblePostId}
-        shouldPreload={shouldPreloadItem(feedItemIndexMapRef.current.get(item.id) ?? -1)}
-        isInViewport={isFocusedRef.current}
-        isScreenFocused={isFocusedRef.current}
-        navigation={navigation}
-        onUserPress={handleUserPress}
-      />
+      <View onLayout={(e) => handleCellLayout(item, e)}>
+        {content}
+      </View>
     );
   }, [
     navigation,
@@ -2384,6 +2462,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     handleOpportunitySave,
     handleOpportunityDelete,
     handleUserPress,
+    handleCellLayout,
   ]);
 
   const viewabilityConfig = useRef({
@@ -2479,6 +2558,29 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     feedItems.forEach((item, i) => map.set(item.id, i));
     feedItemIndexMapRef.current = map;
   }, [feedItems]);
+
+  // ── Key Extractor & [DIAG-KEY-COLLISION] Verification Diagnostic ────────
+  const keyExtractor = useCallback((item) => homeFeedKeyExtractor(item), []);
+
+  useEffect(() => {
+    if (!__DEV__ || !feedItems || feedItems.length === 0) return;
+    const seenKeys = new Map();
+    for (let i = 0; i < feedItems.length; i++) {
+      const item = feedItems[i];
+      const key = keyExtractor(item);
+      if (seenKeys.has(key)) {
+        const firstIdx = seenKeys.get(key);
+        const firstItem = feedItems[firstIdx];
+        console.warn(
+          `[DIAG-KEY-COLLISION] Duplicate key detected: "${key}"! ` +
+          `First item at index ${firstIdx} (id=${firstItem?.id}, itemType=${firstItem?.itemType}), ` +
+          `Colliding item at index ${i} (id=${item?.id}, itemType=${item?.itemType})`
+        );
+      } else {
+        seenKeys.set(key, i);
+      }
+    }
+  }, [feedItems, keyExtractor]);
 
   // Compute preload status for a feed item based on its index distance from the visible video
   // ── PERF: reads from refs so this callback never needs to be in renderFeedItem's deps.
@@ -2577,7 +2679,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         // 4A: skeleton items while showSkeleton=true; prefix slice of feedItems otherwise.
         data={visibleFeedItems}
         renderItem={renderFeedItem}
-        keyExtractor={(item) => `${item.itemType || "post"}-${item.id}`}
+        keyExtractor={keyExtractor}
         style={styles.feed}
         contentContainerStyle={[
           styles.feedContent,
