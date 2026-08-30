@@ -96,7 +96,7 @@ export function ProfileCacheProvider({ children }) {
             follower_count: followerCount,
             post_count: countsResponse?.post_count || 0,
             events_attended_count:
-              eventsResponse?.total_events ?? eventsResponse?.events?.length ?? 0,
+              eventsResponse?.total_events ?? (Array.isArray(eventsResponse?.events) ? eventsResponse.events.length : 0),
             is_creator_mode_enabled: fullProfile.is_creator_mode_enabled === true,
             creator_mode_enabled_at: fullProfile.creator_mode_enabled_at || null,
             creator_follower_count: creatorFollowerCount,
@@ -193,7 +193,7 @@ export function ProfileCacheProvider({ children }) {
             follower_count: followerCount,
             following_count: followingCount,
             circle_count: circleCount,
-            post_count: userPosts.length,
+            post_count: Array.isArray(userPosts) ? userPosts.length : 0,
             events_scheduled_count: fullProfile?.events_scheduled_count || 0,
             events_hosted_count: fullProfile?.events_hosted_count || 0,
             college_info: fullProfile?.college_info || null,

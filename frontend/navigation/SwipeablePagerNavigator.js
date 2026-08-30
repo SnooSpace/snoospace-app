@@ -408,9 +408,9 @@ function SwipeablePagerNavigator({
   };
 
   const currentRoute = state.routes[state.index];
-  const currentDescriptor = descriptors[currentRoute.key];
+  const currentDescriptor = currentRoute ? descriptors[currentRoute.key] : null;
   const shouldHideTabBar =
-    forceHideTabBar || currentDescriptor.options.tabBarStyle?.display === "none";
+    forceHideTabBar || currentDescriptor?.options?.tabBarStyle?.display === "none";
 
   // Sync position only when navigation changed from OUTSIDE our gesture/tap
   useEffect(() => {
@@ -514,7 +514,7 @@ function SwipeablePagerNavigator({
               const isLoaded = loaded.includes(index);
               return (
                 <View key={route.key} style={styles.page} collapsable={false}>
-                  {isLoaded ? descriptors[route.key].render() : null}
+                  {isLoaded && descriptors[route.key] ? descriptors[route.key].render() : null}
                 </View>
               );
             })}

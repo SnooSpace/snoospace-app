@@ -78,7 +78,10 @@ import { Image as ExpoImage } from "expo-image";
 import { getOptimizedImageUrl } from "../../utils/imageUtils";
 import { windowedShuffle } from "../../utils/feedShuffle";
 
-export const homeFeedKeyExtractor = (item) => `${item.itemType || "post"}-${item.id}`;
+export const homeFeedKeyExtractor = (item) => {
+  if (!item) return "unknown";
+  return `${item.itemType || "post"}-${item.id ?? "none"}`;
+};
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -2563,7 +2566,13 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   const feedItemIndexMapRef = useRef(new Map());
   useMemo(() => {
     const map = new Map();
-    feedItems.forEach((item, i) => map.set(item.id, i));
+    if (Array.isArray(feedItems)) {
+      feedItems.forEach((item, i) => {
+        if (item && item.id != null) {
+          map.set(item.id, i);
+        }
+      });
+    }
     feedItemIndexMapRef.current = map;
   }, [feedItems]);
 
@@ -2571,10 +2580,11 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   const keyExtractor = useCallback((item) => homeFeedKeyExtractor(item), []);
 
   useEffect(() => {
-    if (!__DEV__ || !feedItems || feedItems.length === 0) return;
+    if (!__DEV__ || !Array.isArray(feedItems) || feedItems.length === 0) return;
     const seenKeys = new Map();
     for (let i = 0; i < feedItems.length; i++) {
       const item = feedItems[i];
+      if (!item) continue;
       const key = keyExtractor(item);
       if (seenKeys.has(key)) {
         const firstIdx = seenKeys.get(key);
