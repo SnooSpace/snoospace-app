@@ -460,6 +460,14 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   const zfProcessedDiscoveryCountRef = useRef(0);
   const zfAuthorCountRef = useRef({});
 
+  // Rollover feed items: tail content appended when followed content is exhausted
+  const [rolloverFeedItems, setRolloverFeedItems] = useState([]);
+  const rolloverInitializedRef = useRef(false);
+  const rolloverProcessedDiscoveryCountRef = useRef(0);
+  const rolloverAuthorCountRef = useRef({});
+  const followedInjectedIdsRef = useRef(new Set());
+  const rolloverBaseAuthorCountsRef = useRef({});
+
   const [discoveryHasMore, setDiscoveryHasMore] = useState(true);
   const isLoadingDiscoveryRef = useRef(false);
   const discoveryOffsetRef = useRef(0);
@@ -1206,14 +1214,33 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         });
         opportunityIndex++;
       }
+
+      // Collect IDs and author counts from followed phase
+      const followedIds = new Set();
+      const baseAuthorCounts = {};
+      merged.forEach((item) => {
+        if (item && item.id != null) {
+          followedIds.add(`${item.itemType}-${item.id}`);
+        }
+        if (item?.is_discovery_post && item.author_id != null) {
+          const aKey = `${item.author_type}-${item.author_id}`;
+          baseAuthorCounts[aKey] = (baseAuthorCounts[aKey] || 0) + 1;
+        }
+        if (item?.is_discovery_opportunity && item.creator_id != null) {
+          const aKey = `${item.creator_type}-${item.creator_id}`;
+          baseAuthorCounts[aKey] = (baseAuthorCounts[aKey] || 0) + 1;
+        }
+      });
+      followedInjectedIdsRef.current = followedIds;
+      rolloverBaseAuthorCountsRef.current = baseAuthorCounts;
+
+      return [...merged, ...rolloverFeedItems];
     } else {
       // ── Zero-follow feed path ──────────────────────────────────────────────
       // Handled and incrementally built by the Zero-follow Append Builder effect below.
       return zeroFollowFeedItems;
     }
-
-    return merged;
-  }, [posts, events, opportunities, discoveryPosts, discoveryOpportunities, targetedPromoPosts, zeroFollowFeedItems]);
+  }, [posts, events, opportunities, discoveryPosts, discoveryOpportunities, targetedPromoPosts, zeroFollowFeedItems, rolloverFeedItems]);
 
   useEffect(() => {
     feedItemsRef.current = feedItems;
@@ -1394,6 +1421,149 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       }
     }
   }, [posts.length, discoveryPosts, events, discoveryOpportunities, targetedPromoPosts]);
+
+  // ── Rollover Append Builder (Small / Exhausted Following Accounts) ────────
+  // When user follows >0 accounts (posts.length > 0):
+  // 1. Initial build: build tail from remaining discovery candidates not yet
+  //    injected during the followed-post merge loop.
+  //    Filters out IDs in followedInjectedIdsRef, applies diversity extending
+  //    rolloverBaseAuthorCountsRef (cap=1 per author), constraint-walk,
+  //    windowedShuffle on non-promo pool. (NO promo re-pinning).
+  // 2. Append path: when discoveryPosts grows (pagination), normalize and
+  //    constraint-filter only the new slice against session-wide rolloverAuthorCountRef,
+  //    then append via setRolloverFeedItems(prev => [...prev, ...newClean])
+  //    without touching or reordering existing items.
+  useEffect(() => {
+    if (posts.length === 0) {
+      if (rolloverInitializedRef.current) {
+        rolloverInitializedRef.current = false;
+        rolloverProcessedDiscoveryCountRef.current = 0;
+        rolloverAuthorCountRef.current = {};
+        setRolloverFeedItems([]);
+      }
+      return;
+    }
+
+    const minMaxNorm = (items, scoreField) => {
+      if (!items || items.length === 0) return [];
+      const scores = items.map((i) => parseFloat(i[scoreField]) || 0);
+      const min = Math.min(...scores);
+      const max = Math.max(...scores);
+      const range = max - min || 1;
+      return items.map((item, idx) => ({
+        ...item,
+        _normalizedScore: (scores[idx] - min) / range,
+      }));
+    };
+
+    const applyDiversity = (items, authorKeyFn) => {
+      const out = [];
+      for (const item of items) {
+        const key = authorKeyFn(item);
+        const count = rolloverAuthorCountRef.current[key] || 0;
+        if (count < 1) {
+          rolloverAuthorCountRef.current[key] = count + 1;
+          out.push(item);
+        }
+      }
+      return out;
+    };
+
+    if (!rolloverInitializedRef.current) {
+      // ── Full Build Path for Rollover Tail ─────────────────────────────────
+      rolloverAuthorCountRef.current = { ...(rolloverBaseAuthorCountsRef.current || {}) };
+
+      // Filter out items already injected during followed phase
+      const unusedPosts = discoveryPosts.filter(
+        (p) => !followedInjectedIdsRef.current.has(`post-${p.id}`)
+      );
+      const unusedOpps = discoveryOpportunities.filter(
+        (o) => !followedInjectedIdsRef.current.has(`opportunity-${o.id}`)
+      );
+
+      const normPosts = minMaxNorm(
+        unusedPosts.map((p) => ({ ...p, itemType: "post", is_discovery_post: true })),
+        "discovery_score"
+      );
+      const normOpps = minMaxNorm(
+        unusedOpps.map((o) => ({ ...o, itemType: "opportunity", is_discovery_opportunity: true })),
+        "discovery_score"
+      );
+
+      const filteredPosts = applyDiversity(
+        normPosts,
+        (p) => `${p.author_type}-${p.author_id}`
+      );
+      const filteredOpps = applyDiversity(
+        normOpps,
+        (o) => `${o.creator_type}-${o.creator_id}`
+      );
+
+      const pool = [
+        ...filteredPosts,
+        ...filteredOpps,
+      ].sort((a, b) => b._normalizedScore - a._normalizedScore);
+
+      const constrained = [];
+      const remaining = [...pool];
+      while (remaining.length > 0) {
+        const n = constrained.length;
+        const next = remaining[0];
+        const isSameType =
+          n >= 2 &&
+          constrained[n - 1].itemType === next.itemType &&
+          constrained[n - 2].itemType === next.itemType;
+
+        if (!isSameType) {
+          constrained.push(remaining.shift());
+        } else {
+          const swapIdx = remaining.findIndex((r) => r.itemType !== next.itemType);
+          if (swapIdx === -1) {
+            constrained.push(remaining.shift());
+          } else {
+            constrained.push(...remaining.splice(swapIdx, 1));
+          }
+        }
+      }
+
+      const shuffled = constrained.length > 1 ? windowedShuffle(constrained) : constrained;
+      const cleanItems = shuffled.map(({ _normalizedScore, ...clean }) => clean);
+
+      rolloverProcessedDiscoveryCountRef.current = discoveryPosts.length;
+      rolloverInitializedRef.current = true;
+      if (__DEV__) {
+        console.log(`[ROLLOVER-BUILD] Full build: ${cleanItems.length} tail items (discoveryPosts=${discoveryPosts.length}, opps=${discoveryOpportunities.length})`);
+      }
+      setRolloverFeedItems(cleanItems);
+    } else if (discoveryPosts.length > rolloverProcessedDiscoveryCountRef.current) {
+      // ── Append Path for Rollover Tail (Pagination) ───────────────────────
+      const newRawSlice = discoveryPosts.slice(rolloverProcessedDiscoveryCountRef.current);
+      rolloverProcessedDiscoveryCountRef.current = discoveryPosts.length;
+
+      const unusedSlice = newRawSlice.filter(
+        (p) => !followedInjectedIdsRef.current.has(`post-${p.id}`)
+      );
+
+      const normNewPosts = minMaxNorm(
+        unusedSlice.map((p) => ({ ...p, itemType: "post", is_discovery_post: true })),
+        "discovery_score"
+      );
+      const filteredNewPosts = applyDiversity(
+        normNewPosts,
+        (p) => `${p.author_type}-${p.author_id}`
+      );
+
+      const sortedNew = filteredNewPosts.sort((a, b) => b._normalizedScore - a._normalizedScore);
+      const newClean = sortedNew.map(({ _normalizedScore, ...clean }) => clean);
+
+      if (newClean.length > 0) {
+        if (__DEV__) {
+          console.log(`[ROLLOVER-APPEND] Appending ${newClean.length} tail items (new discoveryPosts=${discoveryPosts.length})`);
+        }
+        setRolloverFeedItems((prev) => [...prev, ...newClean]);
+      }
+    }
+  }, [posts.length, discoveryPosts, discoveryOpportunities]);
 
   // Trickle pacing stamp: when feedItems updates and includes discovery posts/opportunities,
   // record each one as 'served' so the backend can track first_discovered_at.
@@ -2048,6 +2218,10 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     zfProcessedDiscoveryCountRef.current = 0;
     zfAuthorCountRef.current = {};
     setZeroFollowFeedItems([]);
+    rolloverInitializedRef.current = false;
+    rolloverProcessedDiscoveryCountRef.current = 0;
+    rolloverAuthorCountRef.current = {};
+    setRolloverFeedItems([]);
     setDiscoveryHasMore(true);
     discoveryOffsetRef.current = 0;
     await Promise.all([
@@ -2815,8 +2989,8 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
             // When it arrives, feedItems grows and the inter-batch path above
             // kicks in first, so page 2+ is also revealed in gated batches.
             loadFeed(false);
-          } else if (posts.length === 0 && discoveryHasMore && !isLoadingDiscoveryRef.current) {
-            // ── Discovery network pagination path (zero-follow users) ────────
+          } else if (discoveryHasMore && !isLoadingDiscoveryRef.current) {
+            // ── Discovery network pagination path (zero-follow OR exhausted followed users) ──
             loadMoreDiscovery();
           }
         }}
@@ -2832,9 +3006,8 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
             </View>
           ) : (
             // ── End-state message ───────────────────────────────────────────
-            // Shown when user has scrolled through all available feed items
-            ((posts.length === 0 && feedItems.length > 0 && revealedCount >= feedItems.length) ||
-             (!hasMore && feedItems.length > 0 && revealedCount >= feedItems.length)) ? (
+            // Shown when user has scrolled through all available feed items and discovery is fully exhausted
+            ((!discoveryHasMore || (!hasMore && !discoveryHasMore)) && feedItems.length > 0 && revealedCount >= feedItems.length) ? (
               <CaughtUpFooter
                 subtitle={
                   posts.length === 0
