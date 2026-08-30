@@ -118,6 +118,11 @@ const HEADER_HEIGHT = 50;
 const SKELETON_MIN_MS = 1000; // minimum skeleton display on cold-start
 const BATCH_MIN_MS    = 1800; // inter-batch scroll-block window
 
+// ── Initial skeleton burst budget ─────────────────────────────────────────────
+// Raised from 6 → 15 so the first reveal fills well beyond one viewport.
+// This ensures onEndReachedThreshold=0.3 cannot fire without real user scrolling.
+const INITIAL_BATCH_BUDGET = 15;
+
 // Render-cost heuristics per item type (arbitrary units).
 // budget 6 ≈ 1s (skeleton window), budget 10 ≈ 1.8s (inter-batch window).
 // Higher = more JS + more images = needs more time before reveal is safe.
@@ -683,7 +688,10 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   const onListContentSizeChange = useCallback(() => {
     if (isInitialLoadRef.current && flatListRef.current) {
       isInitialLoadRef.current = false;
+      console.log('[PHANTOM-SCROLL] onContentSizeChange → scrollToOffset(0) fired (initial load gate)');
       flatListRef.current.scrollToOffset({ offset: 0, animated: false });
+    } else {
+      console.log('[PHANTOM-SCROLL] onContentSizeChange fired (gate already closed — no scroll)');
     }
   }, []);
 
@@ -695,16 +703,44 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   // Reanimated shared value for premium scroll-reactive header
   const scrollY = useSharedValue(0);
 
+  // ── [PHANTOM-SCROLL] Track whether a user touch is active ─────────────────
+  // We'll use this in the scroll handler to detect scrolls that fire when
+  // no finger is on screen — a strong signal of a programmatic scroll.
+  const userIsTouchingRef = useRef(false);
+
   // Scroll handler using Reanimated for performant tracking
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
       // Clamp to 0 to prevent negative values during pull-to-refresh
       scrollY.value = Math.max(0, event.contentOffset.y);
     },
+    onBeginDrag: () => {
+      'worklet';
+      // Runs on UI thread — can't set JS refs here directly, but we use
+      // onScrollBeginDrag below (JS thread) for ref mutation.
+    },
   });
 
   // ── Scroll state tracking — lets network callbacks know whether to defer setState
   const { isScrollingRef, onScrollBeginDrag, onScrollEndDrag, onMomentumScrollEnd } = useScrollState();
+
+  // ── [PHANTOM-SCROLL] Wrap scroll drag handlers to track user touch state ──
+  const wrappedOnScrollBeginDrag = useCallback((e) => {
+    userIsTouchingRef.current = true;
+    console.log('[PHANTOM-SCROLL] onScrollBeginDrag fired (user touch) — y=' + e?.nativeEvent?.contentOffset?.y?.toFixed(1));
+    onScrollBeginDrag(e);
+  }, [onScrollBeginDrag]);
+
+  const wrappedOnScrollEndDrag = useCallback((e) => {
+    userIsTouchingRef.current = false;
+    console.log('[PHANTOM-SCROLL] onScrollEndDrag fired — y=' + e?.nativeEvent?.contentOffset?.y?.toFixed(1));
+    onScrollEndDrag(e);
+  }, [onScrollEndDrag]);
+
+  const wrappedOnMomentumScrollEnd = useCallback((e) => {
+    console.log('[PHANTOM-SCROLL] onMomentumScrollEnd fired — y=' + e?.nativeEvent?.contentOffset?.y?.toFixed(1));
+    onMomentumScrollEnd(e);
+  }, [onMomentumScrollEnd]);
 
   // Debounce ref and handler for reloading unread message counts
   const messageDebounceTimeoutRef = useRef(null);
@@ -1294,6 +1330,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           // Populate state but DO NOT set loading=false or showSkeleton=false.
           // The skeleton window must still complete (SKELETON_MIN_MS + prefetch)
           // before real cards are revealed, even for cached content.
+          console.log('[PHANTOM-SCROLL] Cache hydration → setPosts/setEvents/setOpportunities (may trigger onContentSizeChange)');
           setPosts(snapshot.posts);
           setEvents(snapshot.events);
           setOpportunities(snapshot.opportunities);
@@ -1331,11 +1368,15 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         // Compute how many posts fit in a 1-second render budget, prefetch
         // their images, enforce minimum skeleton display time, then reveal.
         const rawPosts = freshPostsRef.current;
-        const batchSize = computeBatchSize(
-          rawPosts.map((p) => ({ ...p, itemType: 'post' })),
-          0,
-          6, // budget ≈ 1s
-        );
+        // Zero-follow path: rawPosts is empty, so computeBatchSize would return 1.
+        // In that case reveal a generous upfront count so the discovery feed is populated.
+        const batchSize = rawPosts.length > 0
+          ? computeBatchSize(
+              rawPosts.map((p) => ({ ...p, itemType: 'post' })),
+              0,
+              INITIAL_BATCH_BUDGET,
+            )
+          : 50; // zero-follow discovery feed — reveal all
         const firstBatch = rawPosts.slice(0, batchSize).map((p) => ({ ...p, itemType: 'post' }));
 
         const prefetchPromise = prefetchBatchImages(firstBatch);
@@ -1353,6 +1394,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         ]);
 
         revealDispatched = true;
+        console.log('[PHANTOM-SCROLL] Initial load: setRevealedCount(' + batchSize + ') + setShowSkeleton(false)');
         setRevealedCount(batchSize);
         setShowSkeleton(false);
         setLoading(false);
@@ -1463,9 +1505,11 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
 
         // Skeleton reveal for account switch (same logic as initial load)
         const rawPosts = freshPostsRef.current;
-        const batchSize = computeBatchSize(
-          rawPosts.map((p) => ({ ...p, itemType: 'post' })), 0, 6,
-        );
+        const batchSize = rawPosts.length > 0
+          ? computeBatchSize(
+              rawPosts.map((p) => ({ ...p, itemType: 'post' })), 0, INITIAL_BATCH_BUDGET,
+            )
+          : 50;
         const firstBatch = rawPosts.slice(0, batchSize).map((p) => ({ ...p, itemType: 'post' }));
         const elapsed = Date.now() - skeletonStartTimeRef.current;
         await Promise.race([
@@ -1902,17 +1946,21 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     ]);
     // Reveal first batch based on cost budget (no min-skeleton wait needed)
     const rawPosts = freshPostsRef.current;
-    const batchSize = computeBatchSize(
-      rawPosts.map((p) => ({ ...p, itemType: 'post' })), 0, 6,
-    );
+    const batchSize = rawPosts.length > 0
+      ? computeBatchSize(
+          rawPosts.map((p) => ({ ...p, itemType: 'post' })), 0, INITIAL_BATCH_BUDGET,
+        )
+      : 50;
     setRevealedCount(batchSize);
     setRefreshing(false);
     // Snap scroll position back to the very top after the shuffled data is laid out.
     // FlashList's native anchor logic tries to keep the previously-first item visible
     // when the array order changes — the double-rAF fires after that native pass
     // completes so our imperative scrollToOffset(0) is the final word on position.
+    console.log('[PHANTOM-SCROLL] onRefresh: scheduling double-rAF scrollToOffset(0)');
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
+        console.log('[PHANTOM-SCROLL] onRefresh: double-rAF firing scrollToOffset(0) now');
         flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
       });
     });
@@ -2525,9 +2573,9 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         scrollEventThrottle={16}
         // ── Scroll state handlers: update isScrollingRef so InteractionManager
         //    callbacks can defer expensive state updates until the user pauses.
-        onScrollBeginDrag={onScrollBeginDrag}
-        onScrollEndDrag={onScrollEndDrag}
-        onMomentumScrollEnd={onMomentumScrollEnd}
+        onScrollBeginDrag={wrappedOnScrollBeginDrag}
+        onScrollEndDrag={wrappedOnScrollEndDrag}
+        onMomentumScrollEnd={wrappedOnMomentumScrollEnd}
         onContentSizeChange={onListContentSizeChange}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
@@ -2542,6 +2590,21 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           if (showSkeleton || isScrollBlocked || isRevealingRef.current) return;
           if (loading || loadingMore) return;
 
+          console.log(
+            '[PHANTOM-SCROLL] onEndReached fired — userTouching=' + userIsTouchingRef.current +
+            ' scrollY=' + scrollY.value.toFixed(1) +
+            ' revealedCount=' + revealedCount + ' feedItems.length=' + feedItems.length +
+            ' hasMore=' + hasMore + ' isScrollBlocked=' + isScrollBlocked
+          );
+
+          // ── [PHANTOM-SCROLL FIX] Only suppress if the feed is already nearly fully revealed.
+          // This prevents a cascade when onEndReached fires on a very short initial list,
+          // without accidentally hiding content for zero-follow users.
+          if (!userIsTouchingRef.current && revealedCount >= feedItems.length * 0.8) {
+            console.log('[PHANTOM-SCROLL] Suppressed: feed already ' + Math.round(revealedCount/feedItems.length*100) + '% revealed, skipping redundant trigger');
+            return;
+          }
+
           if (revealedCount < feedItems.length) {
             // ── 4A inter-batch reveal path ──────────────────────────────────
             // Locally-fetched data exists beyond the slice window.
@@ -2553,6 +2616,8 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
             const nextSize = computeBatchSize(feedItems, revealedCount, budget);
             const nextBatch = feedItems.slice(revealedCount, revealedCount + nextSize);
 
+            console.log('[PHANTOM-SCROLL] Batch reveal: revealing next ' + nextSize + ' items (from ' + revealedCount + ')');
+
             Promise.race([
               Promise.all([
                 new Promise((r) => setTimeout(r, BATCH_MIN_MS)),
@@ -2560,6 +2625,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
               ]),
               new Promise((r) => setTimeout(r, BATCH_MIN_MS + 1500)),
             ]).then(() => {
+              console.log('[PHANTOM-SCROLL] Batch reveal complete: setRevealedCount(' + (revealedCount + nextSize) + ') → may trigger onEndReached again');
               setRevealedCount((prev) => prev + nextSize);
               setIsScrollBlocked(false);
               isRevealingRef.current = false;
@@ -2569,10 +2635,11 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
             // All local data revealed — fetch the next server page.
             // When it arrives, feedItems grows and the inter-batch path above
             // kicks in first, so page 2+ is also revealed in gated batches.
+            console.log('[PHANTOM-SCROLL] Network pagination: loadFeed(false)');
             loadFeed(false);
           }
         }}
-        onEndReachedThreshold={1.5}
+        onEndReachedThreshold={0.3}
         ListFooterComponent={
           // Show spinner during both real network pagination (loadingMore)
           // AND local inter-batch prefetch windows (isScrollBlocked) so the
