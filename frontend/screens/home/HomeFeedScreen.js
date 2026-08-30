@@ -2490,26 +2490,36 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     minimumViewTime: 100, // Small delay to prevent flickering during fast scrolls
   }).current;
 
-  // Tracks which feed item IDs are currently in the viewport. When an item
-  // leaves visibility before its dwell timer qualifies, we fire recordUnseenImpression.
-  const currentlyVisibleIdsRef = useRef(new Set());
+  // Tracks which feed items are currently in the viewport. When an item
+  // leaves visibility before its dwell timer qualifies, we route to the correct unseen impression handler.
+  const currentlyVisibleMapRef = useRef(new Map());
 
   const onViewableItemsChanged = useCallback(({ viewableItems }) => {
-    const incomingIds = new Set(
-      viewableItems
-        .filter((v) => v.isViewable && v.item?.id != null)
-        .map((v) => String(v.item.id))
-    );
+    if (!viewableItems || !Array.isArray(viewableItems)) return;
 
-    // Posts that were visible before but are no longer — they left the viewport.
-    currentlyVisibleIdsRef.current.forEach((id) => {
-      if (!incomingIds.has(id)) {
-        // Only fire if not already qualified / viewed this session.
-        viewQueueService.recordUnseenImpression(id);
+    const incomingMap = new Map();
+    viewableItems.forEach((v) => {
+      if (v && v.isViewable && v.item?.id != null) {
+        const idStr = String(v.item.id);
+        const itemType = v.item.itemType || (v.item.post_type ? "post" : "post");
+        incomingMap.set(idStr, { id: v.item.id, itemType });
       }
     });
 
-    currentlyVisibleIdsRef.current = incomingIds;
+    // Items that were visible before but are no longer — they left the viewport.
+    currentlyVisibleMapRef.current.forEach(({ id, itemType }, idStr) => {
+      if (!incomingMap.has(idStr)) {
+        if (itemType === "event") {
+          viewQueueService.recordEventUnseen(id);
+        } else if (itemType === "opportunity") {
+          viewQueueService.recordOpportunityUnseen(id);
+        } else {
+          viewQueueService.recordUnseenImpression(id);
+        }
+      }
+    });
+
+    currentlyVisibleMapRef.current = incomingMap;
 
     if (viewableItems && viewableItems.length > 0) {
       // Find all video posts that are viewable (passing the 60% coverage threshold)
