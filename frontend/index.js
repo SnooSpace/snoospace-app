@@ -1,3 +1,11 @@
+if (global.ErrorUtils) {
+  const defaultHandler = global.ErrorUtils.getGlobalHandler();
+  global.ErrorUtils.setGlobalHandler((error, isFatal) => {
+    console.log('[FULL-STACK]', error?.stack || error);
+    if (defaultHandler) defaultHandler(error, isFatal);
+  });
+}
+
 import { registerRootComponent } from 'expo';
 // ── 1.1 Screen Freeze — must run before ANY navigator mounts ─────────────────
 // enableFreeze(true) tells react-native-screens to freeze (suspend) background
