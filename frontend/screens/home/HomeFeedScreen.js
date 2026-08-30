@@ -977,31 +977,12 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     }
     await loadDiscoveryPosts(discoveryOffsetRef.current);
   };
-
-  // Load discovery opportunities: scored non-followed community opps for feed injection.
-  // Request limit=30 (backend ceiling raised from 20→30 to match zero-follow pool needs).
-  // Non-fatal — an error silently returns an empty pool (same pattern as loadDiscoveryPosts).
-  const loadDiscoveryOpportunities = async () => {
-    try {
-      const response = await getDiscoveryOpportunities(30);
-      if (response?.opportunities && Array.isArray(response.opportunities)) {
-        setDiscoveryOpportunities(response.opportunities);
-      }
-    } catch (error) {
-      console.warn('[HomeFeed] Error loading discovery opportunities:', error?.message);
-    }
-  };
-
-  // Load targeted promo posts: plan-linked promo posts where the viewer is explicitly
-  // in the audience of a targeted community (OPVC rows exist). Not scored/capped —
-  // guaranteed delivery only for deliberately scoped plans.
   const loadTargetedPromo = async () => {
     try {
       const token = await getAuthToken();
       const response = await apiGet('/posts/promo-targeted', 8000, token);
       if (response?.posts && Array.isArray(response.posts)) {
-        // Backend already returns DESC order; take the first (most recent) as the candidate.
-        setTargetedPromoPosts(response.posts.slice(0, 1));
+        setTargetedPromoPosts(response.posts);
       }
     } catch (error) {
       console.warn('[HomeFeed] Error loading targeted promo posts:', error?.message);
@@ -1014,7 +995,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   // Single skeleton card — fills exactly one viewport so the user can't
   // scroll further, and there's no content below to accidentally reveal.
   const SKELETON_ITEMS = useMemo(
-    () => [{ id: "sk-1", itemType: "skeleton" }],
+    () => [{ id: "skeleton-0", itemType: "skeleton" }],
     [],
   );
 
@@ -1036,6 +1017,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     let eventIndex = 0;
     let opportunityIndex = 0;
     let discoveryIndex = 0;
+    let promoIndex = 0;
     const FIRST_EVENT_AT = 2;
     const SUBSEQUENT_INTERVAL = 5;
     const OPPORTUNITY_INTERVAL = 3;
@@ -1053,14 +1035,14 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     const backlogAuthorCount = {};    // session-wide: author → total shown this session
     const backlogWindowCount = {};    // per-window: author → shown in current window
 
-    // ── Discovery posts: 3 per window, 1 per 5 posts, session-wide author diversity ──
+    // ── Discovery posts: 3 per window, 1 per 5 posts, per-type author diversity ──
     // DISCOVERY_CAP applies per window (re-arms at each WINDOW_SIZE boundary).
-    // discoveryAuthorCount is session-wide — prevents same author across all windows.
+    // discoveryAuthorCount is session-wide — prevents same author+type across all windows.
     const DISCOVERY_CAP = 3;
     const DISCOVERY_INTERVAL = 5;
     let discoveryShownThisWindow = 0;    // resets at each window boundary
     let lastDiscoveryWindow = 0;          // tracks which window we're currently in
-    const discoveryAuthorCount = {};      // session-wide author diversity
+    const discoveryAuthorCount = {};      // session-wide per-type author diversity
 
     // ── Discovery Opportunities: 3 per window, same windowing semantics as Discovery Posts ──
     const DISCOVERY_OPP_INTERVAL = 5;
@@ -1094,18 +1076,18 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
 
         merged.push({ ...post, itemType: 'post' });
 
-        // ── Targeted promo: pin at position 2, structural guarantee ────────────
-        // Injected whenever targetedPromoPosts[0] is present and postNumber === 2.
-        // No side-effecting ref — the "1 per session" guarantee is structural:
-        // loadTargetedPromo fetches exactly one post and is only triggered on
-        // cold-start / account-switch / pull-to-refresh, never on pagination.
-        // Re-including it on every useMemo recompute keeps it stable after page 2 loads.
-        if (postNumber === 2 && targetedPromoPosts.length > 0) {
+        // ── Targeted promo: position 2 for first, spaced ~8 posts apart for subsequent ────
+        const shouldInsertPromo =
+          (postNumber === 2 && promoIndex === 0) ||
+          (promoIndex > 0 && postNumber === 2 + promoIndex * 8);
+
+        if (shouldInsertPromo && promoIndex < targetedPromoPosts.length) {
           merged.push({
-            ...targetedPromoPosts[0],
+            ...targetedPromoPosts[promoIndex],
             itemType: 'post',
             is_targeted_promo: true,
           });
+          promoIndex++;
         }
 
         // Insert Event
@@ -1132,9 +1114,9 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           opportunityIndex++;
         }
 
-        // ── Discovery posts: per-window quota, session-wide author diversity ──────
+        // ── Discovery posts: per-window quota, per-type author diversity ──────────
         // Re-arms every WINDOW_SIZE posts so long sessions keep getting fresh content.
-        // discoveryAuthorCount is session-wide: prevents same author in any window.
+        // discoveryAuthorCount is session-wide: prevents same author+type in any window.
         if (postNumber % DISCOVERY_INTERVAL === 0) {
           // Re-arm: if we've entered a new window, reset the per-window shown counter.
           if (currentWindow > lastDiscoveryWindow) {
@@ -1142,19 +1124,19 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
             lastDiscoveryWindow = currentWindow;
           }
           if (discoveryShownThisWindow < DISCOVERY_CAP) {
-            // Scan past candidates from an already-shown author (session-wide diversity)
+            // Scan past candidates from an already-shown author+type (session-wide per-type diversity)
             while (
               discoveryIndex < discoveryPosts.length &&
               (discoveryAuthorCount[
-                `${discoveryPosts[discoveryIndex].author_type}-${discoveryPosts[discoveryIndex].author_id}`
+                `${discoveryPosts[discoveryIndex].author_type}-${discoveryPosts[discoveryIndex].author_id}-${discoveryPosts[discoveryIndex].post_type}`
               ] || 0) >= 1
             ) {
               discoveryIndex++;
             }
-            // Inject next valid candidate (first author not yet shown this session)
+            // Inject next valid candidate (first author+type not yet shown this session)
             if (discoveryIndex < discoveryPosts.length) {
               const dp = discoveryPosts[discoveryIndex];
-              const dpAuthorKey = `${dp.author_type}-${dp.author_id}`;
+              const dpAuthorKey = `${dp.author_type}-${dp.author_id}-${dp.post_type}`;
               merged.push({
                 ...dp,
                 itemType: 'post',
@@ -1179,14 +1161,14 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
             while (
               discoveryOppIndex < discoveryOpportunities.length &&
               (discoveryOppAuthorCount[
-                `${discoveryOpportunities[discoveryOppIndex].creator_type}-${discoveryOpportunities[discoveryOppIndex].creator_id}`
+                `${discoveryOpportunities[discoveryOppIndex].creator_type}-${discoveryOpportunities[discoveryOppIndex].creator_id}-opportunity`
               ] || 0) >= 1
             ) {
               discoveryOppIndex++;
             }
             if (discoveryOppIndex < discoveryOpportunities.length) {
               const dopp = discoveryOpportunities[discoveryOppIndex];
-              const doppAuthorKey = `${dopp.creator_type}-${dopp.creator_id}`;
+              const doppAuthorKey = `${dopp.creator_type}-${dopp.creator_id}-opportunity`;
               merged.push({
                 ...dopp,
                 itemType: 'opportunity',
@@ -1199,6 +1181,16 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           }
         }
       });
+
+      // Append remaining targeted promos before other trailing items
+      while (promoIndex < targetedPromoPosts.length) {
+        merged.push({
+          ...targetedPromoPosts[promoIndex],
+          itemType: 'post',
+          is_targeted_promo: true,
+        });
+        promoIndex++;
+      }
 
       // Append remaining events
       while (eventIndex < events.length) {
@@ -1215,7 +1207,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         opportunityIndex++;
       }
 
-      // Collect IDs and author counts from followed phase
+      // Collect IDs and author counts from followed phase (keyed per content-type)
       const followedIds = new Set();
       const baseAuthorCounts = {};
       merged.forEach((item) => {
@@ -1223,11 +1215,11 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           followedIds.add(`${item.itemType}-${item.id}`);
         }
         if (item?.is_discovery_post && item.author_id != null) {
-          const aKey = `${item.author_type}-${item.author_id}`;
+          const aKey = `${item.author_type}-${item.author_id}-${item.post_type}`;
           baseAuthorCounts[aKey] = (baseAuthorCounts[aKey] || 0) + 1;
         }
         if (item?.is_discovery_opportunity && item.creator_id != null) {
-          const aKey = `${item.creator_type}-${item.creator_id}`;
+          const aKey = `${item.creator_type}-${item.creator_id}-opportunity`;
           baseAuthorCounts[aKey] = (baseAuthorCounts[aKey] || 0) + 1;
         }
       });
@@ -1331,15 +1323,15 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
 
       const filteredPosts = applyDiversity(
         normPosts,
-        (p) => `${p.author_type}-${p.author_id}`
+        (p) => `${p.author_type}-${p.author_id}-${p.post_type}`
       );
       const filteredEvents = applyDiversity(
         normEvents,
-        (e) => `community-${e.community_id}`
+        (e) => `community-${e.community_id}-event`
       );
       const filteredDiscoveryOpps = applyDiversity(
         normDiscoveryOpps,
-        (o) => `${o.creator_type}-${o.creator_id}`
+        (o) => `${o.creator_type}-${o.creator_id}-opportunity`
       );
 
       const pool = [
@@ -1373,20 +1365,22 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       // windowedShuffle only on non-promo pool
       const shuffled = constrained.length > 1 ? windowedShuffle(constrained) : constrained;
 
-      // Pin targeted promo at position 2 (index 1) AFTER shuffle
-      const promoPost = targetedPromoPosts[0];
-      let finalZeroFollow = shuffled;
-      if (promoPost) {
-        const promoItem = {
-          ...promoPost,
-          itemType: "post",
-          is_targeted_promo: true,
-        };
-        finalZeroFollow = [
-          ...finalZeroFollow.slice(0, 1),
-          promoItem,
-          ...finalZeroFollow.slice(1),
-        ];
+      // Insert targeted promos: first at index 1, subsequent spaced ~8 items apart AFTER shuffle
+      let finalZeroFollow = [...shuffled];
+      if (targetedPromoPosts && targetedPromoPosts.length > 0) {
+        targetedPromoPosts.forEach((promoPost, pIdx) => {
+          const promoItem = {
+            ...promoPost,
+            itemType: "post",
+            is_targeted_promo: true,
+          };
+          const insertIdx = Math.min(finalZeroFollow.length, 1 + pIdx * 8);
+          finalZeroFollow = [
+            ...finalZeroFollow.slice(0, insertIdx),
+            promoItem,
+            ...finalZeroFollow.slice(insertIdx),
+          ];
+        });
       }
 
       const cleanItems = finalZeroFollow.map(({ _normalizedScore, ...clean }) => clean);
@@ -1407,7 +1401,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       );
       const filteredNewPosts = applyDiversity(
         normNewPosts,
-        (p) => `${p.author_type}-${p.author_id}`
+        (p) => `${p.author_type}-${p.author_id}-${p.post_type}`
       );
 
       const sortedNew = filteredNewPosts.sort((a, b) => b._normalizedScore - a._normalizedScore);
@@ -1427,7 +1421,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   // 1. Initial build: build tail from remaining discovery candidates not yet
   //    injected during the followed-post merge loop.
   //    Filters out IDs in followedInjectedIdsRef, applies diversity extending
-  //    rolloverBaseAuthorCountsRef (cap=1 per author), constraint-walk,
+  //    rolloverBaseAuthorCountsRef (cap=1 per author+type), constraint-walk,
   //    windowedShuffle on non-promo pool. (NO promo re-pinning).
   // 2. Append path: when discoveryPosts grows (pagination), normalize and
   //    constraint-filter only the new slice against session-wide rolloverAuthorCountRef,
@@ -1492,11 +1486,11 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
 
       const filteredPosts = applyDiversity(
         normPosts,
-        (p) => `${p.author_type}-${p.author_id}`
+        (p) => `${p.author_type}-${p.author_id}-${p.post_type}`
       );
       const filteredOpps = applyDiversity(
         normOpps,
-        (o) => `${o.creator_type}-${o.creator_id}`
+        (o) => `${o.creator_type}-${o.creator_id}-opportunity`
       );
 
       const pool = [
@@ -1550,7 +1544,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       );
       const filteredNewPosts = applyDiversity(
         normNewPosts,
-        (p) => `${p.author_type}-${p.author_id}`
+        (p) => `${p.author_type}-${p.author_id}-${p.post_type}`
       );
 
       const sortedNew = filteredNewPosts.sort((a, b) => b._normalizedScore - a._normalizedScore);
@@ -2538,18 +2532,23 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     post_qna: 470,
     post_challenge: 445,
     post_opportunity: 200,
+    post_community_voice: 682,
+    post_community_voice_text: 200,
   };
 
   const handleCellLayout = useCallback((item, e) => {
     if (!__DEV__) return;
     const measuredHeight = e.nativeEvent.layout.height;
+    const hasMedia = item.image_urls && (Array.isArray(item.image_urls) ? item.image_urls.length > 0 : Boolean(item.image_urls));
     const itemType = item.itemType === "event"
       ? "event"
       : item.itemType === "opportunity"
         ? "opportunity"
         : item.itemType === "skeleton"
           ? "skeleton"
-          : `post_${item.post_type || "media"}`;
+          : item.post_type === "community_voice"
+            ? (hasMedia ? "post_community_voice" : "post_community_voice_text")
+            : `post_${item.post_type || "media"}`;
 
     // [DIAG-HEIGHT]: first real measured height per item type
     if (!measuredHeightsByTypeRef.current[itemType]) {
@@ -2921,6 +2920,11 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           if (item.itemType === "skeleton") { layout.size = 700; return; }
           switch (item.post_type) {
             case "opportunity": layout.size = 200; break;
+            case "community_voice": {
+              const hasMedia = item.image_urls && (Array.isArray(item.image_urls) ? item.image_urls.length > 0 : Boolean(item.image_urls));
+              layout.size = hasMedia ? 682 : 200;
+              break;
+            }
             case "poll":        layout.size = 560; break;
             case "prompt":      layout.size = 470; break;
             case "qna":         layout.size = 470; break; // [DIAG-HEIGHT] UNMEASURED placeholder (matches prompt: 470)
