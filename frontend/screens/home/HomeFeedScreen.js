@@ -444,11 +444,14 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   // audience of at least one specifically-targeted community (OPVC rows exist).
   // Broad/everyone promo posts continue through normal getFeed/getDiscoveryPosts paths.
   const [targetedPromoPosts, setTargetedPromoPosts] = useState([]);
-  // NOTE: no session-cap ref needed here. The "1 per session" guarantee is structural:
-  // loadTargetedPromo fetches exactly one post and is only called on cold-start,
-  // account-switch, or pull-to-refresh — never on pagination. feedItems injects
-  // targetedPromoPosts[0] at position 2 on every recompute (including after page 2
-  // arrives) so the post remains stable across the full scroll session.
+  const [zeroFollowFeedItems, setZeroFollowFeedItems] = useState([]);
+  const zfInitializedRef = useRef(false);
+  const zfProcessedDiscoveryCountRef = useRef(0);
+  const zfAuthorCountRef = useRef({});
+
+  const [discoveryHasMore, setDiscoveryHasMore] = useState(true);
+  const isLoadingDiscoveryRef = useRef(false);
+  const discoveryOffsetRef = useRef(0);
 
   const postsRef = useRef(posts);
   const opportunitiesRef = useRef(opportunities);
@@ -880,16 +883,47 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   // Load discovery posts: scored non-followed editorial posts for feed injection.
   // Request limit=30 (backend default was 10, now parameterized up to 30).
   // Non-fatal — an error silently returns an empty pool (same pattern as loadEvents).
-  const loadDiscoveryPosts = async () => {
+  const loadDiscoveryPosts = async (offset = 0) => {
+    if (isLoadingDiscoveryRef.current) return;
+    isLoadingDiscoveryRef.current = true;
     try {
+      if (__DEV__) {
+        console.log(`[LDP-ENTRY] offset=${offset}`);
+      }
       const token = await getAuthToken();
-      const response = await apiGet('/posts/discovery?limit=30', 10000, token);
-      if (response?.posts && Array.isArray(response.posts)) {
-        setDiscoveryPosts(response.posts);
+      const response = await apiGet(`/posts/discovery?limit=30&offset=${offset}`, 10000, token);
+      const rawPosts = response?.posts || [];
+      const rawHasMore = response?.hasMore;
+      const computedHasMore = rawHasMore !== undefined ? Boolean(rawHasMore) : rawPosts.length === 30;
+
+      if (__DEV__) {
+        console.log(`[LDP-RESPONSE] postsCount=${rawPosts.length} rawHasMore=${rawHasMore} hasMore=${computedHasMore}`);
+      }
+
+      if (offset === 0) {
+        setDiscoveryPosts(rawPosts);
+        discoveryOffsetRef.current = rawPosts.length;
+      } else {
+        setDiscoveryPosts((prev) => [...prev, ...rawPosts]);
+        discoveryOffsetRef.current += rawPosts.length;
+      }
+      setDiscoveryHasMore(computedHasMore);
+      if (__DEV__) {
+        console.log(`[LDP-STATE] offset=${discoveryOffsetRef.current} hasMore=${computedHasMore}`);
       }
     } catch (error) {
       console.warn('[HomeFeed] Error loading discovery posts:', error?.message);
+    } finally {
+      isLoadingDiscoveryRef.current = false;
     }
+  };
+
+  const loadMoreDiscovery = async () => {
+    if (isLoadingDiscoveryRef.current || !discoveryHasMore) return;
+    if (__DEV__) {
+      console.log(`[LMD-ENTRY] offset=${discoveryOffsetRef.current} hasMore=${discoveryHasMore} isLoading=${isLoadingDiscoveryRef.current}`);
+    }
+    await loadDiscoveryPosts(discoveryOffsetRef.current);
   };
 
   // Load discovery opportunities: scored non-followed community opps for feed injection.
@@ -1129,82 +1163,116 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         opportunityIndex++;
       }
     } else {
-      // ── Zero-follow cold-start merge path ───────────────────────────────────
-      // posts.length === 0: user follows nobody. Build a mixed-type discovery feed
-      // by normalizing each type's native score to [0,1] per-type, then sorting
-      // together with a no-3-consecutive-same-type constraint, promo pinned at
-      // position 2, author diversity capped at 2 per author session-wide.
+      // ── Zero-follow feed path ──────────────────────────────────────────────
+      // Handled and incrementally built by the Zero-follow Append Builder effect below.
+      return zeroFollowFeedItems;
+    }
 
-      // ── Step 1: Min-max normalize scores within each type's own batch ────────
-      const minMaxNorm = (items, scoreField) => {
-        const scores = items.map(i => parseFloat(i[scoreField]) || 0);
-        const min = Math.min(...scores);
-        const max = Math.max(...scores);
-        const range = max - min || 1; // avoid /0 when all scores equal
-        return items.map((item, idx) => ({
-          ...item,
-          _normalizedScore: (scores[idx] - min) / range,
-        }));
-      };
+    return merged;
+  }, [posts, events, opportunities, discoveryPosts, discoveryOpportunities, targetedPromoPosts, zeroFollowFeedItems]);
 
-      // discovery_score: posts (0–10), opportunities (0–5)
-      // score: events (can include negative recency penalty; follow_bonus=0 here)
+  // ── Zero-follow Append Builder ───────────────────────────────────────────
+  // When user follows 0 accounts (posts.length === 0):
+  // 1. Initial build: normal full build + constraint walk + windowedShuffle on non-promo
+  //    pool + promo pinned at position 2 (index 1). Sets zfInitializedRef.current = true.
+  // 2. Append path: when discoveryPosts grows (pagination), normalize and constraint-
+  //    filter only the new slice against session-wide zfAuthorCountRef, then append
+  //    via setZeroFollowFeedItems(prev => [...prev, ...newClean]) without touching or
+  //    reordering existing items.
+  useEffect(() => {
+    if (posts.length > 0) {
+      if (zfInitializedRef.current) {
+        zfInitializedRef.current = false;
+        zfProcessedDiscoveryCountRef.current = 0;
+        zfAuthorCountRef.current = {};
+        setZeroFollowFeedItems([]);
+      }
+      return;
+    }
+
+    const hasAnyCandidates =
+      discoveryPosts.length > 0 ||
+      events.length > 0 ||
+      discoveryOpportunities.length > 0 ||
+      targetedPromoPosts.length > 0;
+
+    if (!hasAnyCandidates) {
+      if (zfInitializedRef.current) {
+        zfInitializedRef.current = false;
+        zfProcessedDiscoveryCountRef.current = 0;
+        zfAuthorCountRef.current = {};
+        setZeroFollowFeedItems([]);
+      }
+      return;
+    }
+
+    const ZF_AUTHOR_CAP = 1;
+
+    const minMaxNorm = (items, scoreField) => {
+      if (!items || items.length === 0) return [];
+      const scores = items.map((i) => parseFloat(i[scoreField]) || 0);
+      const min = Math.min(...scores);
+      const max = Math.max(...scores);
+      const range = max - min || 1;
+      return items.map((item, idx) => ({
+        ...item,
+        _normalizedScore: (scores[idx] - min) / range,
+      }));
+    };
+
+    const applyDiversity = (items, authorKeyFn) => {
+      const out = [];
+      for (const item of items) {
+        const key = authorKeyFn(item);
+        const count = zfAuthorCountRef.current[key] || 0;
+        if (count < ZF_AUTHOR_CAP) {
+          zfAuthorCountRef.current[key] = count + 1;
+          out.push(item);
+        }
+      }
+      return out;
+    };
+
+    if (!zfInitializedRef.current) {
+      // ── Full Build Path ──────────────────────────────────────────────────
+      zfAuthorCountRef.current = {};
+
       const normPosts = minMaxNorm(
-        discoveryPosts.map(p => ({ ...p, itemType: 'post', is_discovery_post: true })),
-        'discovery_score'
+        discoveryPosts.map((p) => ({ ...p, itemType: "post", is_discovery_post: true })),
+        "discovery_score"
       );
       const normEvents = minMaxNorm(
-        events.map(e => ({ ...e, itemType: 'event' })),
-        'score'
+        events.map((e) => ({ ...e, itemType: "event" })),
+        "score"
       );
       const normDiscoveryOpps = minMaxNorm(
-        discoveryOpportunities.map(o => ({ ...o, itemType: 'opportunity', is_discovery_opportunity: true })),
-        'discovery_score'
+        discoveryOpportunities.map((o) => ({
+          ...o,
+          itemType: "opportunity",
+          is_discovery_opportunity: true,
+        })),
+        "discovery_score"
       );
-
-      // ── Step 2: Author diversity cap (max 1 per author, session-wide) ────────
-      // Matches the strict 1-per-author discipline used by discoveryPosts and
-      // discoveryOpportunities in the followed feed (discoveryAuthorCount >= 1).
-      const ZF_AUTHOR_CAP = 1;
-      const zfAuthorCount = {};
-      const applyDiversity = (items, authorKeyFn) => {
-        const out = [];
-        for (const item of items) {
-          const key = authorKeyFn(item);
-          const count = zfAuthorCount[key] || 0;
-          if (count < ZF_AUTHOR_CAP) {
-            zfAuthorCount[key] = count + 1;
-            out.push(item);
-          }
-        }
-        return out;
-      };
 
       const filteredPosts = applyDiversity(
         normPosts,
-        p => `${p.author_type}-${p.author_id}`
+        (p) => `${p.author_type}-${p.author_id}`
       );
       const filteredEvents = applyDiversity(
         normEvents,
-        e => `community-${e.community_id}`
+        (e) => `community-${e.community_id}`
       );
       const filteredDiscoveryOpps = applyDiversity(
         normDiscoveryOpps,
-        o => `${o.creator_type}-${o.creator_id}`
+        (o) => `${o.creator_type}-${o.creator_id}`
       );
 
-      // ── Step 3: Pool & sort descending by normalized score ────────────────────
       const pool = [
         ...filteredPosts,
         ...filteredEvents,
         ...filteredDiscoveryOpps,
       ].sort((a, b) => b._normalizedScore - a._normalizedScore);
 
-      // ── Step 4: Apply no-more-than-2-consecutive-same-type constraint ─────────
-      // Walk sorted pool. If inserting the next item would create a 3rd consecutive
-      // run of the same type, look ahead for the next item of a different type and
-      // swap it forward. If no swap candidate exists (e.g. skewed pool near tail),
-      // accept the item as-is to avoid infinite loop or dropping items.
       const constrained = [];
       const remaining = [...pool];
       while (remaining.length > 0) {
@@ -1218,10 +1286,8 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         if (!isSameType) {
           constrained.push(remaining.shift());
         } else {
-          // Find first item of a different type to swap forward
-          const swapIdx = remaining.findIndex(r => r.itemType !== next.itemType);
+          const swapIdx = remaining.findIndex((r) => r.itemType !== next.itemType);
           if (swapIdx === -1) {
-            // No swap candidate — accept as-is to avoid infinite loop / dropped items
             constrained.push(remaining.shift());
           } else {
             constrained.push(...remaining.splice(swapIdx, 1));
@@ -1229,20 +1295,16 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         }
       }
 
-      // ── Step 5: Apply windowedShuffle to constrained non-promo pool ───────────
-      // Promo is deliberately EXCLUDED from this array so Fisher-Yates cannot
-      // displace it from position 2.
+      // windowedShuffle only on non-promo pool
       const shuffled = constrained.length > 1 ? windowedShuffle(constrained) : constrained;
 
-      // ── Step 6: Pin targeted promo at position 2 (index 1) AFTER shuffle ─────
-      // Spliced in at index 1 on the shuffled list so position 2 is 100% deterministic
-      // across all random seeds and permutations.
+      // Pin targeted promo at position 2 (index 1) AFTER shuffle
       const promoPost = targetedPromoPosts[0];
       let finalZeroFollow = shuffled;
       if (promoPost) {
         const promoItem = {
           ...promoPost,
-          itemType: 'post',
+          itemType: "post",
           is_targeted_promo: true,
         };
         finalZeroFollow = [
@@ -1252,15 +1314,38 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         ];
       }
 
-      // ── Step 7: Strip internal scoring field and push to merged ──────────────
-      for (const item of finalZeroFollow) {
-        const { _normalizedScore, ...cleanItem } = item;
-        merged.push(cleanItem);
+      const cleanItems = finalZeroFollow.map(({ _normalizedScore, ...clean }) => clean);
+      zfProcessedDiscoveryCountRef.current = discoveryPosts.length;
+      zfInitializedRef.current = true;
+      if (__DEV__) {
+        console.log(`[ZF-BUILD] Full build: ${cleanItems.length} items (discoveryPosts=${discoveryPosts.length}, events=${events.length}, opps=${discoveryOpportunities.length})`);
+      }
+      setZeroFollowFeedItems(cleanItems);
+    } else if (discoveryPosts.length > zfProcessedDiscoveryCountRef.current) {
+      // ── Append Path ──────────────────────────────────────────────────────
+      const newRawSlice = discoveryPosts.slice(zfProcessedDiscoveryCountRef.current);
+      zfProcessedDiscoveryCountRef.current = discoveryPosts.length;
+
+      const normNewPosts = minMaxNorm(
+        newRawSlice.map((p) => ({ ...p, itemType: "post", is_discovery_post: true })),
+        "discovery_score"
+      );
+      const filteredNewPosts = applyDiversity(
+        normNewPosts,
+        (p) => `${p.author_type}-${p.author_id}`
+      );
+
+      const sortedNew = filteredNewPosts.sort((a, b) => b._normalizedScore - a._normalizedScore);
+      const newClean = sortedNew.map(({ _normalizedScore, ...clean }) => clean);
+
+      if (newClean.length > 0) {
+        if (__DEV__) {
+          console.log(`[ZF-APPEND] Appending ${newClean.length} items (new discoveryPosts=${discoveryPosts.length})`);
+        }
+        setZeroFollowFeedItems((prev) => [...prev, ...newClean]);
       }
     }
-
-    return merged;
-  }, [posts, events, opportunities, discoveryPosts, discoveryOpportunities, targetedPromoPosts]);
+  }, [posts.length, discoveryPosts, events, discoveryOpportunities, targetedPromoPosts]);
 
   // Trickle pacing stamp: when feedItems updates and includes discovery posts/opportunities,
   // record each one as 'served' so the backend can track first_discovered_at.
@@ -1327,7 +1412,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           loadFeed(true, true), // reset=true, skipSetLoading=true
           loadEvents(),
           loadOpportunities(),
-          loadDiscoveryPosts(),
+          loadDiscoveryPosts(0),
           loadDiscoveryOpportunities(),
           loadTargetedPromo(),
           loadGreetingName(),
@@ -1457,6 +1542,12 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       // The cached feed belongs to the previous account. Clear it now so the
       // next cold start does not show another account's content at frame 0.
       clearFeedSnapshot();
+      zfInitializedRef.current = false;
+      zfProcessedDiscoveryCountRef.current = 0;
+      zfAuthorCountRef.current = {};
+      setZeroFollowFeedItems([]);
+      setDiscoveryHasMore(true);
+      discoveryOffsetRef.current = 0;
       // Reload all data for the new account
       setLoading(true);
       try {
@@ -1465,7 +1556,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           loadFeed(true, true),
           loadEvents(),
           loadOpportunities(),
-          loadDiscoveryPosts(),
+          loadDiscoveryPosts(0),
           loadTargetedPromo(),
           loadMessageUnreadCount(),
         ]);
@@ -1903,11 +1994,17 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     setRevealedCount(0);
     setShowSkeleton(false); // RefreshControl provides the loading UI
     setRefreshing(true);
+    zfInitializedRef.current = false;
+    zfProcessedDiscoveryCountRef.current = 0;
+    zfAuthorCountRef.current = {};
+    setZeroFollowFeedItems([]);
+    setDiscoveryHasMore(true);
+    discoveryOffsetRef.current = 0;
     await Promise.all([
       loadFeed(),
       loadEvents(),
       loadOpportunities(),
-      loadDiscoveryPosts(),
+      loadDiscoveryPosts(0),
       loadTargetedPromo(),
       loadMessageUnreadCount(),
     ]);
@@ -2575,12 +2672,15 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
               setIsScrollBlocked(false);
               isRevealingRef.current = false;
             });
-          } else if (hasMore) {
-            // ── Real network pagination path ───────────────────────────────
+          } else if (posts.length > 0 && hasMore) {
+            // ── Real network pagination path (followed users) ───────────────
             // All local data revealed — fetch the next server page.
             // When it arrives, feedItems grows and the inter-batch path above
             // kicks in first, so page 2+ is also revealed in gated batches.
             loadFeed(false);
+          } else if (posts.length === 0 && discoveryHasMore && !isLoadingDiscoveryRef.current) {
+            // ── Discovery network pagination path (zero-follow users) ────────
+            loadMoreDiscovery();
           }
         }}
         onEndReachedThreshold={1.0}

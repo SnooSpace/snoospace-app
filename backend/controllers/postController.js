@@ -3108,6 +3108,7 @@ const getDiscoveryPosts = async (req, res) => {
 
     // Default 10, frontend-requestable up to 30. Hardcoded cap prevents abuse.
     const parsedLimit = Math.min(parseInt(req.query.limit, 10) || 10, 30);
+    const parsedOffset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
 
     const query = `
       -- ── Signal 1: per-post_type engagement affinity for this viewer ─────────
@@ -3534,13 +3535,14 @@ const getDiscoveryPosts = async (req, res) => {
         )
 
       ORDER BY discovery_score DESC
-      LIMIT $5
+      LIMIT $5 OFFSET $6
     `;
 
     // $1/$2 = userId/userType for candidate filtering and affinity CTEs
     // $3/$4 = viewerId/viewerType for interaction state computed columns (same values)
     // $5    = parsedLimit (default 10, max 30)
-    const result = await pool.query(query, [userId, userType, userId, userType, parsedLimit]);
+    // $6    = parsedOffset (default 0)
+    const result = await pool.query(query, [userId, userType, userId, userType, parsedLimit, parsedOffset]);
 
     // Parse JSON fields — same approach as getFeed
     const posts = result.rows.map((post) => ({
@@ -3593,9 +3595,9 @@ const getDiscoveryPosts = async (req, res) => {
       })(),
     }));
 
-    console.log(`[getDiscoveryPosts] userId=${userId} → ${posts.length} candidates returned`);
+    console.log(`[getDiscoveryPosts] userId=${userId} offset=${parsedOffset} → ${posts.length} candidates returned`);
 
-    return res.json({ posts });
+    return res.json({ posts, hasMore: posts.length === parsedLimit });
   } catch (error) {
     console.error('[getDiscoveryPosts] Error:', error);
     return res.status(500).json({ error: 'Internal server error' });
