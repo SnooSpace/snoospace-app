@@ -264,7 +264,7 @@ function EventCard({
     });
   useEffect(() => { resetLike(Boolean(event?.is_liked), event?.like_count ?? 0); }, [event.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const [commentCount, setCommentCount] = useRecyclingState(event?.comment_count ?? 0, [event.id]);
-  const [viewCount, setViewCount] = useRecyclingState(event?.view_count ?? 0, [event.id]);
+  const viewCountRef = useRef(event?.view_count ?? 0);
   const [shareCount, setShareCount] = useRecyclingState(event?.share_count ?? 0, [event.id]);
   const [commentsVisible, setCommentsVisible] = useRecyclingState(false, [event.id]);
 
@@ -283,11 +283,13 @@ function EventCard({
       const data = await apiGet(`/events/${event.id}/view-stats`, 8000, authToken);
       setViewStats(data);
       if (data?.unique_views !== undefined) {
-        setViewCount(data.unique_views);
+        viewCountRef.current = data.unique_views;
+        isEmittingRef.current = true;
         EventBus.emit("event-view-updated", { eventId: event.id, viewCount: data.unique_views });
+        isEmittingRef.current = false;
       }
     } catch {
-      setViewStats({ unique_views: viewCount, total_views: viewCount });
+      setViewStats({ unique_views: viewCountRef.current, total_views: viewCountRef.current });
     } finally {
       setViewStatsLoading(false);
     }
@@ -403,19 +405,22 @@ function EventCard({
   // prop change — to avoid clobbering mid-session server-tracked view increments.
   useEffect(() => {
     viewTrackedRef.current = false;
-    if (event?.view_count !== undefined) setViewCount(event.view_count);
+    if (event?.view_count !== undefined) {
+      viewCountRef.current = event.view_count;
+    }
   }, [event?.id, event?.view_count]);
 
   // Real-time EventBus view updates
   useEffect(() => {
     if (!event?.id) return;
     const unsubscribe = EventBus.on("event-view-updated", (payload) => {
+      if (isEmittingRef.current) return;
       if (payload?.eventId === event.id) {
-        setViewCount((prev) =>
-          payload.viewCount !== undefined
-            ? Math.max(prev, payload.viewCount)
-            : prev + 1,
-        );
+        if (payload.viewCount !== undefined) {
+          viewCountRef.current = Math.max(viewCountRef.current, payload.viewCount);
+        } else {
+          viewCountRef.current += 1;
+        }
       }
     });
     return () => {
@@ -432,11 +437,15 @@ function EventCard({
       try {
         const res = await recordEventView(event.id);
         if (res?.view_count !== undefined) {
-          setViewCount(res.view_count);
+          viewCountRef.current = res.view_count;
+          isEmittingRef.current = true;
           EventBus.emit("event-view-updated", { eventId: event.id, viewCount: res.view_count });
+          isEmittingRef.current = false;
         } else if (res?.is_new) {
-          setViewCount((c) => c + 1);
+          viewCountRef.current += 1;
+          isEmittingRef.current = true;
           EventBus.emit("event-view-updated", { eventId: event.id });
+          isEmittingRef.current = false;
         }
       } catch (err) {
         console.error(
@@ -1431,7 +1440,7 @@ function EventCard({
                   color="#5e8d9b"
                   strokeWidth={2}
                 />
-                <Text style={styles.engagementCount}>{viewCount}</Text>
+                <Text style={styles.engagementCount}>{event?.view_count ?? 0}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.engagementBtn}
@@ -1484,7 +1493,7 @@ function EventCard({
       stats={viewStats}
       loading={viewStatsLoading}
       sheetAnim={viewSheetAnim}
-      liveUniqueViews={viewCount}
+      liveUniqueViews={viewCountRef.current}
     />
     </>
   );
