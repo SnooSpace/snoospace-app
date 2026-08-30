@@ -2502,25 +2502,22 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           return "post_media";
         }}
         // estimatedItemSize is the fallback default (most common type: post_media).
-        estimatedItemSize={700}
+        estimatedItemSize={682}
         removeClippedSubviews={false}
-        // Per-type size hints so FlashList's first-paint layout guess is
-        // accurate for every card variant, not just the post_media default.
-        // ⚠️  NOTE: poll/prompt/qna/challenge sizes below are ESTIMATED from
-        // audit complexity analysis — NOT measured from a real device.
-        // FlashList auto-corrects after the first actual layout measurement,
-        // so wrong estimates only affect the very first paint, not correctness.
-        // Replace with real measured heights if available.
+        // Per-type size hints based on real device [CELL-HEIGHT] measurements:
+        // event: 579, post_media: 682, post_poll: 560, post_prompt: 411,
+        // post_challenge: 445, opportunity: 496, skeleton: 700.
+        // ⚠️ post_qna is NOT YET MEASURED — using post_prompt's 411 as placeholder.
         overrideItemLayout={(layout, item) => {
-          if (item.itemType === "event") { layout.size = 500; return; }
-          if (item.itemType === "opportunity") { layout.size = 450; return; }
+          if (item.itemType === "event") { layout.size = 579; return; }
+          if (item.itemType === "opportunity") { layout.size = 496; return; }
           if (item.itemType === "skeleton") { layout.size = 700; return; }
           switch (item.post_type) {
-            case "poll":      layout.size = 480; break;
-            case "prompt":   layout.size = 420; break;
-            case "qna":      layout.size = 460; break;
-            case "challenge": layout.size = 780; break;
-            default:         layout.size = 700; // media / text
+            case "poll":      layout.size = 560; break;
+            case "prompt":    layout.size = 411; break;
+            case "qna":       layout.size = 411; break; // [DIAG-HEIGHT] UNMEASURED placeholder (matches prompt: 411)
+            case "challenge": layout.size = 445; break;
+            default:          layout.size = 682; // media / text
           }
         }}
         drawDistance={800}
