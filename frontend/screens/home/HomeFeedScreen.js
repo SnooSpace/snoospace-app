@@ -688,6 +688,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   // Refs for scroll handling
   const flatListRef = useRef(null);
   const isInitialLoadRef = useRef(true);
+  const feedItemsRef = useRef([]);
 
   // Scroll-to-top via onContentSizeChange — fires from the NATIVE layer after
   // RecyclerView finishes its layout pass. This is the correct moment to set
@@ -697,13 +698,13 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   // from image-load content expansions are ignored.
   const onListContentSizeChange = useCallback((w, h) => {
     if (__DEV__) {
-      console.log(`[DIAG-CONTENT-SIZE] w=${w} h=${h} items=${feedItems.length}`);
+      console.log(`[DIAG-CONTENT-SIZE] w=${w} h=${h} items=${feedItemsRef.current?.length ?? 0}`);
     }
     if (isInitialLoadRef.current && flatListRef.current) {
       isInitialLoadRef.current = false;
       flatListRef.current.scrollToOffset({ offset: 0, animated: false });
     }
-  }, [feedItems.length]);
+  }, []);
 
   // Ref callback: store the ref for programmatic scroll operations (e.g. logo tap to top)
   const listRefCallback = useCallback((ref) => {
@@ -1213,6 +1214,10 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
 
     return merged;
   }, [posts, events, opportunities, discoveryPosts, discoveryOpportunities, targetedPromoPosts, zeroFollowFeedItems]);
+
+  useEffect(() => {
+    feedItemsRef.current = feedItems;
+  }, [feedItems]);
 
   // ── Zero-follow Append Builder ───────────────────────────────────────────
   // When user follows 0 accounts (posts.length === 0):
