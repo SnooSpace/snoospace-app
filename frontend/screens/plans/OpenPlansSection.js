@@ -298,7 +298,7 @@ export default function OpenPlansSection({ navigation, currentUserId, refreshKey
             onPress={() => navigation.navigate('PlansDiscoverFeed')}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Text style={styles.browseAllText}>Browse all</Text>
+            <Text style={styles.browseAllText}>See all</Text>
             <ChevronRight size={18} color={COLORS.primary} strokeWidth={2.2} />
           </TouchableOpacity>
         </View>

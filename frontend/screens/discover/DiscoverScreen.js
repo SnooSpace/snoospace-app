@@ -10,7 +10,6 @@ import { getAuthToken } from "../../api/auth";
 import SnooLoader from "../../components/ui/SnooLoader";
 import GradientSafeArea from "../../components/ui/GradientSafeArea";
 import OpenPlansSection from "../plans/OpenPlansSection";
-import EventCard from "../../components/cards/EventCard";
 import CompactEventCard from "../../components/cards/CompactEventCard";
 import EventBus from "../../utils/EventBus";
 import {
@@ -62,7 +61,7 @@ export default function DiscoverScreen({ navigation }) {
             apiGet("/events/my-events", 15000, token).catch(() => ({
               events: [],
             })),
-            apiGet("/events/discover", 15000, token).catch(() => ({
+            apiGet("/events/discover?limit=10", 15000, token).catch(() => ({
               events: [],
             })),
             apiGet("/discover/suggestions", 15000, token).catch(() => ({
@@ -165,6 +164,13 @@ export default function DiscoverScreen({ navigation }) {
     });
   }, [navigation]);
 
+  const handleBrowseEventsPress = useCallback(() => {
+    navigation.navigate("Search", {
+      screen: "SearchMain",
+      params: { filter: "events", autoFocus: true },
+    });
+  }, [navigation]);
+
   const handleInsightsPress = useCallback(() => {
     navigation.navigate("ActivityInsights");
   }, [navigation]);
@@ -174,7 +180,7 @@ export default function DiscoverScreen({ navigation }) {
   }, [navigation]);
 
   const slicedEvents = useMemo(() => events.slice(0, 5), [events]);
-  const slicedExploreEvents = useMemo(() => exploreEvents.slice(0, 5), [exploreEvents]);
+  const slicedExploreEvents = useMemo(() => exploreEvents.slice(0, 10), [exploreEvents]);
 
   const renderReconnectSection = () => {
     if (slicedEvents.length === 0) return null;
@@ -194,6 +200,9 @@ export default function DiscoverScreen({ navigation }) {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
+          snapToInterval={175 + SPACING.m}
+          decelerationRate="fast"
+          snapToAlignment="start"
           contentContainerStyle={styles.horizontalList}
           onScrollBeginDrag={() => EventBus.emit("disable-tab-swipe")}
           onScrollEndDrag={() => EventBus.emit("enable-tab-swipe")}
@@ -229,7 +238,7 @@ export default function DiscoverScreen({ navigation }) {
             onPress={handleBrowseTribesPress}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Text style={styles.browseAllText}>Browse all</Text>
+            <Text style={styles.browseAllText}>See all</Text>
             <ChevronRight size={18} color={COLORS.primary} strokeWidth={2.2} />
           </TouchableOpacity>
         </View>
@@ -291,22 +300,38 @@ export default function DiscoverScreen({ navigation }) {
     if (slicedExploreEvents.length === 0) return null;
     return (
       <View style={styles.section}>
-        <Text style={styles.sectionTitleContainer}>Recommended Events</Text>
-        {slicedExploreEvents.map((event) => (
-          <EventCard
-            key={event.id}
-            event={event}
-            onPress={handleEventPress}
-            onAttendeesPress={() => handleEventPress(event)}
-            hideEngagement={true}
-            hideRsvp={true}
-            hideQr={true}
-            hidePriceDetails={true}
-            showStatusLabel={true}
-            compact={true}
-            style={{ marginHorizontal: 16, marginVertical: 8 }}
-          />
-        ))}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Recommended Events</Text>
+          <TouchableOpacity
+            style={styles.browseAllButton}
+            onPress={handleBrowseEventsPress}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={styles.browseAllText}>See all</Text>
+            <ChevronRight size={18} color={COLORS.primary} strokeWidth={2.2} />
+          </TouchableOpacity>
+        </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          snapToInterval={175 + SPACING.m}
+          decelerationRate="fast"
+          snapToAlignment="start"
+          contentContainerStyle={styles.horizontalList}
+          onScrollBeginDrag={() => EventBus.emit("disable-tab-swipe")}
+          onScrollEndDrag={() => EventBus.emit("enable-tab-swipe")}
+          onMomentumScrollEnd={() => EventBus.emit("enable-tab-swipe")}
+        >
+          {slicedExploreEvents.map((event) => (
+            <View key={event.id} style={{ width: 175 }}>
+              <CompactEventCard
+                event={event}
+                onPress={handleEventPress}
+                isPast={false}
+              />
+            </View>
+          ))}
+        </ScrollView>
       </View>
     );
   };

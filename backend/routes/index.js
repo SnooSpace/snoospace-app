@@ -26,6 +26,7 @@ const RecommendationsController = require("../controllers/recommendationsControl
 const ReviewController = require("../controllers/reviewController");
 const CategoryController = require("../controllers/categoryController");
 const ExploreController = require("../controllers/exploreController");
+const CuratedListController = require("../controllers/curatedListController");
 const PollController = require("../controllers/pollController");
 const PromptController = require("../controllers/promptController");
 const QnAController = require("../controllers/qnaController");
@@ -230,6 +231,20 @@ router.post(
   adminAuthMiddleware,
   CategoryController.reorderCategories,
 );
+
+// ============================================
+// ADMIN CURATED LIST MANAGEMENT (Protected)
+// ============================================
+router.get("/admin/curated-lists", adminAuthMiddleware, CuratedListController.getCuratedLists);
+router.post("/admin/curated-lists", adminAuthMiddleware, CuratedListController.createCuratedList);
+router.get("/admin/curated-lists/:id", adminAuthMiddleware, CuratedListController.getCuratedListById);
+router.patch("/admin/curated-lists/:id", adminAuthMiddleware, CuratedListController.updateCuratedList);
+router.delete("/admin/curated-lists/:id", adminAuthMiddleware, CuratedListController.deleteCuratedList);
+router.post("/admin/curated-lists/:id/events", adminAuthMiddleware, CuratedListController.addEventToCuratedList);
+router.delete("/admin/curated-lists/:id/events/:eventId", adminAuthMiddleware, CuratedListController.removeEventFromCuratedList);
+
+// Public curated list route
+router.get("/curated-lists/:id", CuratedListController.getPublicCuratedList);
 
 // ============================================
 // ADMIN INTEREST MANAGEMENT (Protected)

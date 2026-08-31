@@ -56,6 +56,7 @@ export const COLORS = {
 
 export const FONTS = {
   primary: "BasicCommercial-Bold",
+  bold: "BasicCommercial-Bold",
   basicCommercialBold: "BasicCommercial-Bold",
   basicCommercialBlack: "BasicCommercial-Black",
   black: "PlusJakartaSans-ExtraBold",

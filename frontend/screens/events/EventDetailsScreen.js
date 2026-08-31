@@ -19,6 +19,7 @@ import {
   Share as ShareIcon,
   Bookmark,
   MapPin,
+  Video,
   Clock,
   Calendar,
   Ticket,
@@ -166,6 +167,7 @@ import {
   getProgressBarColor,
   EVENT_STATES,
 } from "../../utils/eventStateUtils";
+import { detectMeetingPlatform } from "../../utils/meetingPlatformUtils";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const BANNER_HEIGHT = SCREEN_HEIGHT * 0.45;
@@ -272,6 +274,20 @@ const EventDetailsScreen = ({ route, navigation }) => {
       useNativeDriver: true,
       delay: 500,
     }).start();
+  }, [eventId, initialData?.id]);
+
+  // Synchronize interest changes with EventBus
+  useEffect(() => {
+    const id = eventId || initialData?.id;
+    if (!id) return;
+    const unsub = EventBus.on("event-interest-updated", (payload) => {
+      if (String(payload?.eventId) === String(id)) {
+        setIsInterested(Boolean(payload.isInterested));
+      }
+    });
+    return () => {
+      if (unsub) unsub();
+    };
   }, [eventId, initialData?.id]);
 
   const loadEventDetails = async (id) => {
@@ -549,7 +565,7 @@ const EventDetailsScreen = ({ route, navigation }) => {
     } catch (error) {
       console.error("Error toggling bookmark:", error);
       // Revert on error
-      setIsInterested(!isInterested);
+      setIsInterested(!newState);
     } finally {
       setBookmarkLoading(false);
     }
@@ -966,63 +982,174 @@ const EventDetailsScreen = ({ route, navigation }) => {
                 </TouchableOpacity>
               )}
 
+              {/* Location or Virtual Link Section */}
               <View style={{ marginBottom: 0 }}>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    marginBottom: 10, // Increased from 6
-                  }}
-                >
-                  <MapPin size={16} color={MUTED_TEXT} strokeWidth={2} />
-                  <Text
-                    style={{
-                      fontFamily: "Manrope-Medium",
-                      fontSize: 15,
-                      color: MUTED_TEXT,
-                      marginLeft: 8,
-                    }}
-                    numberOfLines={1}
-                  >
-                    {displayLocationName}
-                  </Text>
-                </View>
+                {event?.event_type === "virtual" ? (() => {
+                  const platformInfo = detectMeetingPlatform(
+                    event?.virtual_link || event?.meeting_link,
+                    event?.meeting_platform
+                  );
+                  const isBrandedPlatform = platformInfo.id !== "virtual";
+                  const joinLabel = isBrandedPlatform ? `Join on ${platformInfo.name}` : "Join Virtual Event";
 
-                {event?.location_url ? (
-                  <TouchableOpacity
-                    onPress={handleOpenLocation}
-                    onPressIn={() => setIsMapLinkPressed(true)}
-                    onPressOut={() => setIsMapLinkPressed(false)}
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      marginLeft: 24,
-                      marginBottom: 16,
-                    }}
-                    activeOpacity={1}
-                  >
-                    <Text
+                  return (
+                    <>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          marginBottom: 8,
+                          flexWrap: "wrap",
+                          gap: 6,
+                        }}
+                      >
+                        <Video size={16} color={platformInfo.color || MUTED_TEXT} strokeWidth={2} />
+                        <Text
+                          style={{
+                            fontFamily: "Manrope-Medium",
+                            fontSize: 15,
+                            color: MUTED_TEXT,
+                          }}
+                          numberOfLines={1}
+                        >
+                          {event?.location_name || (isBrandedPlatform ? `Hosted on ${platformInfo.name}` : "Online / Virtual Event")}
+                        </Text>
+                        {isBrandedPlatform && (
+                          <View
+                            style={{
+                              paddingHorizontal: 8,
+                              paddingVertical: 2,
+                              borderRadius: 6,
+                              backgroundColor: platformInfo.bg,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                fontFamily: "Manrope-SemiBold",
+                                fontSize: 11,
+                                color: platformInfo.color,
+                              }}
+                            >
+                              {platformInfo.name}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+
+                      {isRegistered && (event?.virtual_link || event?.meeting_link) ? (
+                        <TouchableOpacity
+                          onPress={() => {
+                            const link = event?.virtual_link || event?.meeting_link;
+                            if (link) Linking.openURL(link);
+                          }}
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            marginLeft: 24,
+                            marginBottom: 16,
+                          }}
+                          activeOpacity={0.8}
+                        >
+                          <Text
+                            style={{
+                              fontFamily: "Manrope-SemiBold",
+                              fontSize: 13,
+                              lineHeight: 18,
+                              color: platformInfo.color || PRIMARY_COLOR,
+                              marginRight: 6,
+                            }}
+                          >
+                            {joinLabel}
+                          </Text>
+                          <MoveRight
+                            size={15}
+                            color={platformInfo.color || PRIMARY_COLOR}
+                            strokeWidth={2.5}
+                          />
+                        </TouchableOpacity>
+                      ) : (
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            marginLeft: 24,
+                            marginBottom: 16,
+                          }}
+                        >
+                          <Lock size={12} color={MUTED_TEXT} strokeWidth={2} style={{ marginRight: 6 }} />
+                          <Text
+                            style={{
+                              fontFamily: "Manrope-Regular",
+                              fontSize: 12,
+                              color: MUTED_TEXT,
+                            }}
+                          >
+                            Meeting link unlocked upon registration
+                          </Text>
+                        </View>
+                      )}
+                    </>
+                  );
+                })() : (
+                  <>
+                    <View
                       style={{
-                        fontFamily: "Manrope-SemiBold",
-                        fontSize: 13,
-                        lineHeight: 18, // Added lineHeight
-                        color: isMapLinkPressed ? "#1A42CC" : PRIMARY_COLOR,
-                        marginRight: 6,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        marginBottom: 10,
                       }}
                     >
-                      View location on map
-                    </Text>
-                    <MoveRight
-                      size={15} // Increased slightly
-                      color={isMapLinkPressed ? "#1A42CC" : PRIMARY_COLOR}
-                      strokeWidth={2.5}
-                      style={{
-                        transform: [{ translateY: 0.5 }], // Optical center fix
-                      }}
-                    />
-                  </TouchableOpacity>
-                ) : (
-                  <View style={{ marginBottom: 16 }} />
+                      <MapPin size={16} color={MUTED_TEXT} strokeWidth={2} />
+                      <Text
+                        style={{
+                          fontFamily: "Manrope-Medium",
+                          fontSize: 15,
+                          color: MUTED_TEXT,
+                          marginLeft: 8,
+                        }}
+                        numberOfLines={1}
+                      >
+                        {displayLocationName}
+                      </Text>
+                    </View>
+
+                    {event?.location_url ? (
+                      <TouchableOpacity
+                        onPress={handleOpenLocation}
+                        onPressIn={() => setIsMapLinkPressed(true)}
+                        onPressOut={() => setIsMapLinkPressed(false)}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          marginLeft: 24,
+                          marginBottom: 16,
+                        }}
+                        activeOpacity={1}
+                      >
+                        <Text
+                          style={{
+                            fontFamily: "Manrope-SemiBold",
+                            fontSize: 13,
+                            lineHeight: 18,
+                            color: isMapLinkPressed ? "#1A42CC" : PRIMARY_COLOR,
+                            marginRight: 6,
+                          }}
+                        >
+                          View location on map
+                        </Text>
+                        <MoveRight
+                          size={15}
+                          color={isMapLinkPressed ? "#1A42CC" : PRIMARY_COLOR}
+                          strokeWidth={2.5}
+                          style={{
+                            transform: [{ translateY: 0.5 }],
+                          }}
+                        />
+                      </TouchableOpacity>
+                    ) : (
+                      <View style={{ marginBottom: 16 }} />
+                    )}
+                  </>
                 )}
               </View>
 

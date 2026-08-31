@@ -390,11 +390,17 @@ const getEventsByCategory = async (req, res) => {
     const parsedLimit = parseInt(limit);
     const parsedOffset = parseInt(offset);
 
-    // Get category info
-    const categoryQuery = await pool.query(
-      `SELECT id, name, slug, icon_name FROM discover_categories WHERE id = $1`,
-      [categoryId],
-    );
+    // Get category info (supports either numeric ID or category slug)
+    const isNumeric = /^\d+$/.test(String(categoryId).trim());
+    const categoryQuery = isNumeric
+      ? await pool.query(
+          `SELECT id, name, slug, icon_name FROM discover_categories WHERE id = $1`,
+          [parseInt(categoryId, 10)],
+        )
+      : await pool.query(
+          `SELECT id, name, slug, icon_name FROM discover_categories WHERE slug = $1`,
+          [String(categoryId).trim()],
+        );
 
     if (categoryQuery.rows.length === 0) {
       return res.status(404).json({ error: "Category not found" });
@@ -420,6 +426,7 @@ const getEventsByCategory = async (req, res) => {
         ) as ticket_price,
         (SELECT COUNT(*) > 0 FROM ticket_types WHERE event_id = e.id AND base_price = 0) as has_free_tickets,
         e.event_type,
+        e.virtual_link,
         COALESCE(e.community_id, e.creator_id) as community_id,
         c.name as community_name,
         c.logo_url as community_logo,
@@ -452,7 +459,7 @@ const getEventsByCategory = async (req, res) => {
     `;
 
     const eventsResult = await pool.query(eventsQuery, [
-      categoryId,
+      category.id,
       parsedLimit,
       parsedOffset,
     ]);

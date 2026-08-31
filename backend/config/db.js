@@ -333,6 +333,9 @@ async function ensureTables(pool) {
         ALTER TABLE events ADD COLUMN IF NOT EXISTS virtual_link TEXT;
       EXCEPTION WHEN duplicate_column THEN NULL; END $$;
       DO $$ BEGIN
+        ALTER TABLE events ADD COLUMN IF NOT EXISTS meeting_platform TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
         ALTER TABLE events ADD COLUMN IF NOT EXISTS created_by BIGINT REFERENCES communities(id);
       EXCEPTION WHEN duplicate_column THEN NULL; END $$;
       DO $$ BEGIN
@@ -1353,6 +1356,29 @@ async function ensureTables(pool) {
         UNIQUE (event_id, member_id, type)
       );
       CREATE INDEX IF NOT EXISTS idx_event_verifications_member ON event_verifications(member_id);
+
+      -- Curated / Editorial Lists
+      CREATE TABLE IF NOT EXISTS curated_lists (
+        id BIGSERIAL PRIMARY KEY,
+        title TEXT NOT NULL,
+        subtitle TEXT,
+        cover_url TEXT,
+        display_order INTEGER DEFAULT 0,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_curated_lists_active ON curated_lists(is_active, display_order);
+
+      CREATE TABLE IF NOT EXISTS curated_list_events (
+        id BIGSERIAL PRIMARY KEY,
+        curated_list_id BIGINT NOT NULL REFERENCES curated_lists(id) ON DELETE CASCADE,
+        event_id BIGINT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+        display_order INTEGER DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(curated_list_id, event_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_curated_list_events_list ON curated_list_events(curated_list_id, display_order);
+      CREATE INDEX IF NOT EXISTS idx_curated_list_events_event ON curated_list_events(event_id);
 
       -- Resynchronize table primary key sequences with MAX(id)
       DO $$

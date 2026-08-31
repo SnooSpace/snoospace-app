@@ -857,6 +857,27 @@ function EventCard({
             </Text>
           </View>
 
+          {/* Virtual Event Badge on Image */}
+          {(event_type === "virtual" || event_type === "hybrid") && (
+            <View
+              style={[
+                styles.virtualBadge,
+                compact && styles.virtualBadgeCompact,
+              ]}
+              pointerEvents="none"
+            >
+              <Video size={compact ? 10 : 12} color="#FFFFFF" strokeWidth={2.2} />
+              <Text
+                style={[
+                  styles.virtualBadgeText,
+                  compact && styles.virtualBadgeTextCompact,
+                ]}
+              >
+                {event_type === "hybrid" ? "Hybrid" : "Virtual"}
+              </Text>
+            </View>
+          )}
+
           {/* Report Button overlay — top-right */}
           {!isEventOwner && (
             <View style={[styles.reportBubble, compact && styles.reportBubbleCompact]}>
@@ -1144,24 +1165,31 @@ function EventCard({
                   </Text>
                 </View>
 
-                {locationName && (
+                {(event_type === "virtual" || locationName) && (
                   <View style={styles.metaItem}>
                     {event_type === "virtual" ? (
-                      <Video
-                        size={14}
-                        color={COLORS.textSecondary}
-                        strokeWidth={2}
-                      />
+                      <>
+                        <Video
+                          size={14}
+                          color={COLORS.textSecondary}
+                          strokeWidth={2}
+                        />
+                        <Text style={styles.metaText} numberOfLines={1}>
+                          {locationName || "Online / Virtual Event"}
+                        </Text>
+                      </>
                     ) : (
-                      <MapPin
-                        size={14}
-                        color={COLORS.textSecondary}
-                        strokeWidth={2}
-                      />
+                      <>
+                        <MapPin
+                          size={14}
+                          color={COLORS.textSecondary}
+                          strokeWidth={2}
+                        />
+                        <Text style={styles.metaText} numberOfLines={1}>
+                          {locationName}
+                        </Text>
+                      </>
                     )}
-                    <Text style={styles.metaText} numberOfLines={1}>
-                      {locationName}
-                    </Text>
                   </View>
                 )}
               </View>
@@ -1855,6 +1883,34 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: FONTS.medium,
     color: "#5e8d9b",
+  },
+  virtualBadge: {
+    position: "absolute",
+    top: 12,
+    left: 62,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(37, 99, 235, 0.9)",
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    zIndex: 5,
+  },
+  virtualBadgeCompact: {
+    top: 8,
+    left: 52,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  virtualBadgeText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 11,
+    color: "#FFFFFF",
+  },
+  virtualBadgeTextCompact: {
+    fontSize: 9,
   },
   containerCompact: {
     marginVertical: 6,

@@ -1572,3 +1572,109 @@ export async function getCreatorReachStats(creatorId: number, period: string = "
 export async function getCreatorFollowerTrend(creatorId: number): Promise<CreatorFollowerTrend> {
   return apiRequest<CreatorFollowerTrend>(`/admin/creators/${creatorId}/insights/follower-trend`);
 }
+
+// ============================================
+// CURATED LISTS API
+// ============================================
+
+export interface CuratedList {
+  id: number;
+  title: string;
+  subtitle: string | null;
+  cover_url: string | null;
+  display_order: number;
+  is_active: boolean;
+  created_at: string;
+  event_count?: number;
+  events?: CuratedListEvent[];
+}
+
+export interface CuratedListEvent {
+  link_id: number;
+  display_order: number;
+  event_id: number;
+  title: string;
+  banner_url: string | null;
+  start_datetime: string;
+  location_name: string | null;
+  ticket_price: number | null;
+  is_paid: boolean;
+  community_name: string | null;
+}
+
+export interface CuratedListsResponse {
+  success: boolean;
+  curatedLists: CuratedList[];
+}
+
+export interface SingleCuratedListResponse {
+  success: boolean;
+  curatedList: CuratedList;
+}
+
+export async function getCuratedLists(): Promise<CuratedList[]> {
+  const data = await apiRequest<CuratedListsResponse>("/admin/curated-lists");
+  return data.curatedLists;
+}
+
+export async function getCuratedListById(id: number): Promise<CuratedList> {
+  const data = await apiRequest<SingleCuratedListResponse>(`/admin/curated-lists/${id}`);
+  return data.curatedList;
+}
+
+export async function createCuratedList(payload: {
+  title: string;
+  subtitle?: string;
+  cover_url?: string;
+  display_order?: number;
+  is_active?: boolean;
+}): Promise<CuratedList> {
+  const data = await apiRequest<SingleCuratedListResponse>("/admin/curated-lists", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return data.curatedList;
+}
+
+export async function updateCuratedList(
+  id: number,
+  payload: {
+    title?: string;
+    subtitle?: string;
+    cover_url?: string;
+    display_order?: number;
+    is_active?: boolean;
+  }
+): Promise<CuratedList> {
+  const data = await apiRequest<SingleCuratedListResponse>(`/admin/curated-lists/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+  return data.curatedList;
+}
+
+export async function deleteCuratedList(id: number): Promise<void> {
+  await apiRequest<{ success: boolean }>(`/admin/curated-lists/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export async function addEventToCuratedList(
+  listId: number,
+  eventId: number,
+  displayOrder: number = 0
+): Promise<{ success: boolean }> {
+  return apiRequest<{ success: boolean }>(`/admin/curated-lists/${listId}/events`, {
+    method: "POST",
+    body: JSON.stringify({ event_id: eventId, display_order: displayOrder }),
+  });
+}
+
+export async function removeEventFromCuratedList(
+  listId: number,
+  eventId: number
+): Promise<{ success: boolean }> {
+  return apiRequest<{ success: boolean }>(`/admin/curated-lists/${listId}/events/${eventId}`, {
+    method: "DELETE",
+  });
+}

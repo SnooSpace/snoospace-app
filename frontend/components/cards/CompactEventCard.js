@@ -1,12 +1,23 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { Image } from 'expo-image';
-import { Clock, MapPin, Calendar, CheckCircle2, Sparkles } from 'lucide-react-native';
+import { Clock, MapPin, Calendar, CheckCircle2, Video, Bookmark } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, FONTS, SHADOWS } from '../../constants/theme';
 import { formatPrice } from '../../utils/pricingUtils';
+import { getOptimizedImageUrl } from '../../utils/imageUtils';
 
-function parseEventDate(dateString) {
+function parseEventDate(dateString, formattedDate) {
+  if (formattedDate) {
+    const parts = formattedDate.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      const monthPart = parts[parts.length - 2].toUpperCase().replace(/,/g, '');
+      const dayPart = parts[parts.length - 1].replace(/\D/g, '');
+      if (monthPart && dayPart) {
+        return { month: monthPart.slice(0, 3), day: dayPart };
+      }
+    }
+  }
   if (!dateString) return { day: '•', month: 'EVT' };
   const d = new Date(dateString);
   if (isNaN(d.getTime())) {
@@ -18,7 +29,8 @@ function parseEventDate(dateString) {
   return { day: String(day), month };
 }
 
-function formatEventTime(dateString) {
+function formatEventTime(dateString, formattedTime) {
+  if (formattedTime) return formattedTime;
   if (!dateString) return 'Time TBD';
   const d = new Date(dateString);
   if (isNaN(d.getTime())) return 'Time TBD';
@@ -26,7 +38,7 @@ function formatEventTime(dateString) {
 }
 
 function getEventPriceLabel(event) {
-  if (event.is_free || event.cost_type === 'free') return 'Free';
+  if (event.is_free || event.isFree || event.cost_type === 'free') return 'Free';
   if (event.ticket_types && event.ticket_types.length > 0) {
     const prices = event.ticket_types
       .map((t) => parseFloat(t.base_price) || 0)
@@ -41,6 +53,9 @@ function getEventPriceLabel(event) {
   if (event.base_price && parseFloat(event.base_price) > 0) {
     return formatPrice(parseFloat(event.base_price));
   }
+  if (event.ticket_price && parseFloat(event.ticket_price) > 0) {
+    return formatPrice(parseFloat(event.ticket_price));
+  }
   return 'Free';
 }
 
@@ -48,17 +63,27 @@ export default function CompactEventCard({
   event,
   onPress,
   isPast = false,
+  isInterested = false,
+  onToggleInterest = null,
+  showBookmark = false,
+  style,
+  width: customWidth,
 }) {
-  const [cardW, setCardW] = useState((Dimensions.get('window').width - 44) / 2);
-  const dateStr = event.start_datetime || event.event_date || event.date;
-  const { day, month } = parseEventDate(dateStr);
+  const defaultWidth = (Dimensions.get('window').width - 44) / 2;
+  const [cardW, setCardW] = useState(customWidth || defaultWidth);
+  const dateStr = event.start_datetime || event.startDatetime || event.event_date || event.date;
+  const formattedDateStr = event.formatted_date || event.formattedDate;
+  const formattedTimeStr = event.formatted_time || event.formattedTime;
+  const { day, month } = parseEventDate(dateStr, formattedDateStr);
   const priceLabel = getEventPriceLabel(event);
   const isFree = priceLabel === 'Free';
+  const isVirtual = event.event_type === 'virtual' || event.eventType === 'virtual' || event.event_type === 'hybrid' || event.eventType === 'hybrid';
 
   // Comprehensive image fallback checking all known SnooSpace event image fields
-  const imageUrl =
+  const rawImageUrl =
     event.banner_url ||
     event.banner_image_url ||
+    event.coverUrl ||
     (event.banner_carousel && event.banner_carousel[0]?.image_url) ||
     (event.banners && event.banners[0]?.image_url) ||
     event.image_url ||
@@ -69,50 +94,54 @@ export default function CompactEventCard({
     (Array.isArray(event.media) && (event.media[0]?.url || event.media[0])) ||
     null;
 
-  const locationText =
-    event.venue_name ||
-    event.location_name ||
-    event.location ||
-    event.address ||
-    'Venue TBD';
+  const imageUrl = rawImageUrl ? getOptimizedImageUrl(rawImageUrl, { width: Math.round(cardW * 2) }) : null;
+
+  const locationText = isVirtual
+    ? (event.location_name || event.venue_name || 'Online Event')
+    : (event.venue_name || event.location_name || event.location || event.address || 'Venue TBD');
 
   let statusBadge = null;
-  if (isPast || event.is_past) {
+  if (event.isLiveNow || event.is_live) {
+    statusBadge = 'LIVE';
+  } else if (isPast || event.is_past) {
     statusBadge = 'Past';
   } else if (event.attendance_status === 'attended' || event.registration_status === 'attended') {
     statusBadge = 'Attended';
   } else if (event.registration_status === 'registered' || event.attendance_status === 'registered' || event.registration_status === 'confirmed') {
     statusBadge = 'Going';
+  } else if (event.spotsLeft !== undefined && event.spotsLeft !== null && event.spotsLeft <= 5 && event.spotsLeft > 0) {
+    statusBadge = `${event.spotsLeft} left`;
   }
+
+  const effectiveCardWidth = customWidth || cardW;
 
   return (
     <TouchableOpacity
-      style={styles.card}
+      style={[styles.card, customWidth ? { width: customWidth } : null, style]}
       activeOpacity={0.88}
       onPress={() => onPress && onPress(event)}
       onLayout={(e) => {
-        if (e.nativeEvent.layout.width > 0) {
+        if (!customWidth && e.nativeEvent.layout.width > 0) {
           setCardW(e.nativeEvent.layout.width);
         }
       }}
     >
       {/* Poster Half */}
-      <View style={[styles.poster, { width: cardW }]}>
+      <View style={[styles.poster, { width: '100%' }]}>
         {imageUrl ? (
           <Image
             source={{ uri: imageUrl }}
-            style={{ width: cardW, height: 112 }}
+            style={{ width: '100%', height: 112 }}
             contentFit="cover"
           />
         ) : (
-          <View style={[styles.placeholderPoster, { width: cardW, height: 112 }]}>
+          <View style={[styles.placeholderPoster, { width: '100%', height: 112 }]}>
             <LinearGradient
               colors={['#0F172A', '#1E293B', '#334155']}
               style={StyleSheet.absoluteFill}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             />
-            {/* Subtle geometric overlay box inspired by TribeCard */}
             <View style={styles.geometricAccent} />
             <Calendar size={28} color="rgba(255, 255, 255, 0.7)" strokeWidth={1.5} />
           </View>
@@ -124,12 +153,35 @@ export default function CompactEventCard({
           <Text style={styles.dateDay}>{day}</Text>
         </View>
 
-        {/* Top-Right Status Badge */}
-        {statusBadge && (
+        {/* Top-Right Bookmark Button */}
+        {showBookmark && onToggleInterest && (
+          <TouchableOpacity
+            style={styles.bookmarkBtn}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            onPress={(e) => {
+              e?.stopPropagation?.();
+              const targetId = event.eventId || event.id;
+              onToggleInterest(targetId);
+            }}
+          >
+            <Bookmark
+              size={13}
+              color={isInterested ? '#2962FF' : '#2C2C2A'}
+              fill={isInterested ? '#2962FF' : 'transparent'}
+              strokeWidth={2}
+            />
+          </TouchableOpacity>
+        )}
+
+        {/* Top-Right Status Badge (rendered when not bookmarked or positioned nicely) */}
+        {statusBadge && (!showBookmark || statusBadge === 'LIVE') && (
           <View
             style={[
               styles.statusBadge,
-              statusBadge === 'Past'
+              statusBadge === 'LIVE'
+                ? styles.statusBadgeLive
+                : statusBadge === 'Past'
                 ? styles.statusBadgePast
                 : statusBadge === 'Attended'
                 ? styles.statusBadgeAttended
@@ -151,16 +203,20 @@ export default function CompactEventCard({
         </Text>
 
         <View style={styles.metaRow}>
-          <MapPin size={11} color="#64748B" strokeWidth={2} />
+          {isVirtual ? (
+            <Video size={11} color={COLORS.textSecondary} strokeWidth={2} />
+          ) : (
+            <MapPin size={11} color={COLORS.textSecondary} strokeWidth={2} />
+          )}
           <Text style={styles.metaText} numberOfLines={1}>
             {locationText}
           </Text>
         </View>
 
         <View style={styles.metaRow}>
-          <Clock size={11} color="#64748B" strokeWidth={2} />
+          <Clock size={11} color={COLORS.textSecondary} strokeWidth={2} />
           <Text style={styles.metaText} numberOfLines={1}>
-            {formatEventTime(dateStr)}
+            {formatEventTime(dateStr, formattedTimeStr)}
           </Text>
         </View>
 
@@ -171,9 +227,13 @@ export default function CompactEventCard({
             </Text>
           </View>
 
-          {event.category ? (
+          {event.category || event.categoryName ? (
             <Text style={styles.categoryText} numberOfLines={1}>
-              {event.category}
+              {event.category || event.categoryName}
+            </Text>
+          ) : (event.attendee_count > 0 || event.attendeeCount > 0) ? (
+            <Text style={styles.categoryText} numberOfLines={1}>
+              {`${event.attendee_count || event.attendeeCount} going`}
             </Text>
           ) : null}
         </View>
@@ -245,9 +305,22 @@ const styles = StyleSheet.create({
   },
   dateDay: {
     fontSize: 12,
-    fontFamily: FONTS.bold,
-    color: '#0F172A',
+    fontFamily: FONTS.primary,
+    color: COLORS.textPrimary,
     lineHeight: 14,
+  },
+  bookmarkBtn: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+    ...SHADOWS.sm,
   },
   statusBadge: {
     position: 'absolute',
@@ -258,6 +331,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3.5,
     borderRadius: 12,
+  },
+  statusBadgeLive: {
+    backgroundColor: 'rgba(216, 90, 48, 0.95)',
   },
   statusBadgeGoing: {
     backgroundColor: '#2962FF',
@@ -280,10 +356,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   title: {
-    fontFamily: FONTS.bold,
+    fontFamily: FONTS.primary,
     fontSize: 13.5,
     lineHeight: 17.5,
-    color: '#0F172A',
+    color: COLORS.textPrimary,
     marginBottom: 2,
   },
   metaRow: {
@@ -295,7 +371,7 @@ const styles = StyleSheet.create({
   metaText: {
     fontFamily: FONTS.medium,
     fontSize: 11,
-    color: '#64748B',
+    color: COLORS.textSecondary,
     flex: 1,
   },
   bottomRow: {
@@ -331,7 +407,7 @@ const styles = StyleSheet.create({
   categoryText: {
     fontFamily: FONTS.medium,
     fontSize: 9.5,
-    color: '#94A3B8',
+    color: COLORS.textMuted,
     maxWidth: '45%',
   },
 });

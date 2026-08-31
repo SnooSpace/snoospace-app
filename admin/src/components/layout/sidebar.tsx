@@ -68,6 +68,11 @@ const mainNavItems = [
     icon: CalendarDays,
   },
   {
+    title: "Curated Lists",
+    href: "/curated-lists",
+    icon: FolderKanban,
+  },
+  {
     title: "Analytics",
     href: "/analytics",
     icon: BarChart3,

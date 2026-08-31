@@ -58,6 +58,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SHADOWS } from "../../constants/theme";
 import CustomDatePicker from "../ui/CustomDatePicker";
+import { detectMeetingPlatform } from "../../utils/meetingPlatformUtils";
 import CustomTimePicker from "../ui/CustomTimePicker";
 import PropTypes from "prop-types";
 import { createEvent } from "../../api/events";
@@ -269,6 +270,7 @@ const CreateEventModal = ({
   const [locationUrl, setLocationUrl] = useState("");
   const [locationName, setLocationName] = useState("");
   const [virtualLink, setVirtualLink] = useState("");
+  const [meetingPlatform, setMeetingPlatform] = useState("");
   const [maxAttendees, setMaxAttendees] = useState("");
   const [ticketTypes, setTicketTypes] = useState([]);
   const [promos, setPromos] = useState([]);
@@ -380,6 +382,7 @@ const CreateEventModal = ({
     setInvitePublicVisibility(false);
     setSelectedVenue(null);
     setPendingPlace(null);
+    setMeetingPlatform("");
   };
 
   const getCurrentFormData = () => ({
@@ -406,6 +409,7 @@ const CreateEventModal = ({
     venue_provider_id: selectedVenue?.venueProviderId ?? null,
     venue_manually_adjusted: selectedVenue?.manuallyAdjusted ?? false,
     virtual_link: virtualLink,
+    meeting_platform: detectMeetingPlatform(virtualLink, meetingPlatform).name,
     max_attendees: maxAttendees,
     ticket_types: ticketTypes,
     promos: promos,
@@ -1487,6 +1491,35 @@ const CreateEventModal = ({
                     keyboardType="url"
                   />
                 </View>
+                {virtualLink.trim().length > 0 && (() => {
+                  const detected = detectMeetingPlatform(virtualLink, meetingPlatform);
+                  return (
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        marginTop: 8,
+                        paddingHorizontal: 10,
+                        paddingVertical: 5,
+                        backgroundColor: detected.bg,
+                        borderRadius: 8,
+                        alignSelf: "flex-start",
+                        gap: 6,
+                      }}
+                    >
+                      <Video size={13} color={detected.color} />
+                      <Text
+                        style={{
+                          fontFamily: "Manrope-SemiBold",
+                          fontSize: 12,
+                          color: detected.color,
+                        }}
+                      >
+                        Platform: {detected.name}
+                      </Text>
+                    </View>
+                  );
+                })()}
               </Animated.View>
             )}
 

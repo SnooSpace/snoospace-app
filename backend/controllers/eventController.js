@@ -14,6 +14,22 @@ const { checkForDummyAccountRsvps } = require("../utils/communityFraudDetector")
 
 const pool = createPool();
 
+function detectMeetingPlatformFromUrl(url, explicitPlatform) {
+  if (explicitPlatform && explicitPlatform.trim()) return explicitPlatform.trim();
+  if (!url || typeof url !== "string") return null;
+  const clean = url.toLowerCase();
+  if (clean.includes("meet.google.com")) return "Google Meet";
+  if (clean.includes("zoom.us") || clean.includes("zoomgov.com")) return "Zoom";
+  if (clean.includes("teams.microsoft.com") || clean.includes("teams.live.com")) return "Microsoft Teams";
+  if (clean.includes("youtube.com") || clean.includes("youtu.be")) return "YouTube Live";
+  if (clean.includes("discord.gg") || clean.includes("discord.com")) return "Discord";
+  if (clean.includes("twitch.tv")) return "Twitch";
+  if (clean.includes("x.com/i/spaces") || clean.includes("twitter.com/i/spaces")) return "X Spaces";
+  if (clean.includes("lu.ma")) return "Luma";
+  if (clean.includes("webex.com")) return "Cisco Webex";
+  return "Online Event";
+}
+
 // Create a new event
 const createEvent = async (req, res) => {
   try {
@@ -39,6 +55,7 @@ const createEvent = async (req, res) => {
       gallery, // Array of {url, cloudinary_public_id, order}
       event_type,
       virtual_link,
+      meeting_platform,
       venue_id,
       highlights, // Array of {icon_name, title, description}
       featured_accounts, // Array of {display_name, role, description, profile_photo_url, ...}
@@ -88,14 +105,17 @@ const createEvent = async (req, res) => {
         : null;
 
     const resolvedGatesOpenTime = has_gates ? gates_open_time || null : null;
+    const resolvedMeetingPlatform = (event_type === "virtual" || event_type === "hybrid")
+      ? detectMeetingPlatformFromUrl(virtual_link, meeting_platform)
+      : null;
 
     const query = `
       INSERT INTO events (
         community_id, title, description, start_datetime, end_datetime, gates_open_time, location_url,
-        location_name, max_attendees, banner_url, event_type, virtual_link, venue_id,
+        location_name, max_attendees, banner_url, event_type, virtual_link, meeting_platform, venue_id,
         creator_id, is_published, ticket_price, access_type, invite_public_visibility, created_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, NOW())
       RETURNING *
     `;
 
@@ -112,6 +132,7 @@ const createEvent = async (req, res) => {
       banner_url,
       event_type || "in-person",
       virtual_link || null,
+      resolvedMeetingPlatform,
       venue_id || null,
       userId, // creator_id
       true, // is_published
@@ -1866,6 +1887,14 @@ const updateEvent = async (req, res) => {
     if (virtual_link !== undefined) {
       updates.push(`virtual_link = $${paramIndex++}`);
       values.push(virtual_link);
+    }
+    if (virtual_link !== undefined || req.body.meeting_platform !== undefined) {
+      const resolvedPlatform = detectMeetingPlatformFromUrl(
+        virtual_link !== undefined ? virtual_link : existingEvent.virtual_link,
+        req.body.meeting_platform !== undefined ? req.body.meeting_platform : existingEvent.meeting_platform
+      );
+      updates.push(`meeting_platform = $${paramIndex++}`);
+      values.push(resolvedPlatform);
     }
     if (venue_id !== undefined) {
       updates.push(`venue_id = $${paramIndex++}`);

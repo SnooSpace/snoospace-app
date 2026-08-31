@@ -201,14 +201,14 @@ export default function CompactPlanCard({
         </Text>
 
         <View style={styles.metaRow}>
-          <MapPin size={11} color="#64748B" strokeWidth={2} />
+          <MapPin size={11} color={COLORS.textSecondary} strokeWidth={2} />
           <Text style={styles.metaText} numberOfLines={1}>
             {plan.location_public || 'Location TBD'}
           </Text>
         </View>
 
         <View style={styles.metaRow}>
-          <Clock size={11} color="#64748B" strokeWidth={2} />
+          <Clock size={11} color={COLORS.textSecondary} strokeWidth={2} />
           <Text style={styles.metaText} numberOfLines={1}>
             {formatScheduled(plan.scheduled_at)}
           </Text>
@@ -354,13 +354,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E293B',
   },
   title: {
-    fontFamily: FONTS.bold,
+    fontFamily: FONTS.primary,
     fontSize: 13.5,
     lineHeight: 17.5,
     marginBottom: 2,
   },
   titleLight: {
-    color: '#0F172A',
+    color: COLORS.textPrimary,
   },
   titleDark: {
     color: '#FFFFFF',
@@ -374,7 +374,7 @@ const styles = StyleSheet.create({
   metaText: {
     fontFamily: FONTS.medium,
     fontSize: 11,
-    color: '#64748B',
+    color: COLORS.textSecondary,
     flex: 1,
   },
   bottomRow: {
@@ -410,6 +410,6 @@ const styles = StyleSheet.create({
   timeAgoText: {
     fontFamily: FONTS.medium,
     fontSize: 9.5,
-    color: '#94A3B8',
+    color: COLORS.textMuted,
   },
 });

@@ -89,7 +89,16 @@ const getExploreFeed = async (req, res) => {
     // 1. Live Now
     const queryLiveNow = async () => {
       const q = `
-        SELECT e.id as "eventId", e.title, e.banner_url as "coverUrl"
+        SELECT 
+          e.id as "eventId", 
+          e.title, 
+          e.banner_url as "coverUrl",
+          e.start_datetime as "startDatetime",
+          e.event_type as "eventType",
+          EXISTS (SELECT 1 FROM event_interests ei WHERE ei.event_id = e.id AND ei.member_id = $1) as "isInterested",
+          CASE WHEN e.max_attendees IS NOT NULL THEN GREATEST(0, e.max_attendees - COALESCE((SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status = 'registered'), 0)::int) ELSE NULL END as "spotsLeft",
+          true as "isLiveNow",
+          CASE WHEN e.is_paid = false OR e.ticket_price = 0 OR e.ticket_price IS NULL THEN true ELSE false END as "isFree"
         FROM events e
         WHERE e.start_datetime <= NOW()
           AND e.end_datetime >= NOW()
@@ -97,7 +106,7 @@ const getExploreFeed = async (req, res) => {
           AND e.is_cancelled IS NOT TRUE
         ORDER BY e.start_datetime ASC
       `;
-      const result = await pool.query(q);
+      const result = await pool.query(q, [userId]);
       return result.rows.map(row => ({
         ...row,
         title: row.title ? (row.title.length > 10 ? row.title.substring(0, 10) + "..." : row.title) : ""
@@ -112,6 +121,8 @@ const getExploreFeed = async (req, res) => {
           e.title, 
           e.banner_url as "coverUrl",
           e.start_datetime as "startTime",
+          e.start_datetime as "startDatetime",
+          e.event_type as "eventType",
           COALESCE((
             SELECT dc.name FROM discover_categories dc 
             INNER JOIN event_discover_categories edc ON dc.id = edc.category_id 
@@ -125,6 +136,10 @@ const getExploreFeed = async (req, res) => {
           COALESCE((
             SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status = 'registered'
           ), 0)::int as "attendeeCount",
+          EXISTS (SELECT 1 FROM event_interests ei WHERE ei.event_id = e.id AND ei.member_id = $1) as "isInterested",
+          CASE WHEN e.max_attendees IS NOT NULL THEN GREATEST(0, e.max_attendees - COALESCE((SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status = 'registered'), 0)::int) ELSE NULL END as "spotsLeft",
+          CASE WHEN e.start_datetime <= NOW() AND (e.end_datetime >= NOW() OR e.end_datetime IS NULL) AND e.start_datetime >= NOW() - INTERVAL '4 hours' THEN true ELSE false END as "isLiveNow",
+          CASE WHEN e.is_paid = false OR e.ticket_price = 0 OR e.ticket_price IS NULL THEN true ELSE false END as "isFree",
           (
             SELECT COALESCE(json_agg(json_build_object('name', m2.name, 'profile_photo_url', m2.profile_photo_url)), '[]'::json)
             FROM (
@@ -163,6 +178,8 @@ const getExploreFeed = async (req, res) => {
           e.id as "eventId", 
           e.title, 
           e.banner_url as "coverUrl",
+          e.start_datetime as "startDatetime",
+          e.event_type as "eventType",
           COALESCE((
             SELECT dc.name FROM discover_categories dc 
             INNER JOIN event_discover_categories edc ON dc.id = edc.category_id 
@@ -173,6 +190,13 @@ const getExploreFeed = async (req, res) => {
             INNER JOIN event_discover_categories edc ON dc.id = edc.category_id 
             WHERE edc.event_id = e.id LIMIT 1
           ), 'general') as category_slug,
+          COALESCE((
+            SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status = 'registered'
+          ), 0)::int as "attendeeCount",
+          EXISTS (SELECT 1 FROM event_interests ei WHERE ei.event_id = e.id AND ei.member_id = $3) as "isInterested",
+          CASE WHEN e.max_attendees IS NOT NULL THEN GREATEST(0, e.max_attendees - COALESCE((SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status = 'registered'), 0)::int) ELSE NULL END as "spotsLeft",
+          CASE WHEN e.start_datetime <= NOW() AND (e.end_datetime >= NOW() OR e.end_datetime IS NULL) AND e.start_datetime >= NOW() - INTERVAL '4 hours' THEN true ELSE false END as "isLiveNow",
+          CASE WHEN e.is_paid = false OR e.ticket_price = 0 OR e.ticket_price IS NULL THEN true ELSE false END as "isFree",
           ${scoreSql} as score
         FROM events e
         WHERE e.start_datetime >= $1
@@ -182,7 +206,7 @@ const getExploreFeed = async (req, res) => {
         ORDER BY score DESC, e.start_datetime ASC
         LIMIT 3
       `;
-      const result = await pool.query(q, [start, end]);
+      const result = await pool.query(q, [start, end, userId]);
       return result.rows;
     };
 
@@ -224,49 +248,112 @@ const getExploreFeed = async (req, res) => {
         }
       }
 
-      // Fetch rails in parallel
-      const rails = await Promise.all(activeSlugs.map(async (slug) => {
-        const catDetailsQuery = `
-          SELECT id, name, slug FROM discover_categories 
-          WHERE slug = $1 AND is_active = true LIMIT 1
-        `;
-        const catDetails = await pool.query(catDetailsQuery, [slug]);
-        if (catDetails.rows.length === 0) return null;
+      if (activeSlugs.length === 0) return [];
 
-        const categoryObj = catDetails.rows[0];
-        const color = getCategoryColor(categoryObj.slug, categoryObj.id);
+      // Fetch category metadata and preserve priority order
+      const catDetailsQuery = `
+        SELECT id, name, slug FROM discover_categories 
+        WHERE slug = ANY($1::text[]) AND is_active = true
+      `;
+      const catDetailsRes = await pool.query(catDetailsQuery, [activeSlugs]);
+      if (catDetailsRes.rows.length === 0) return [];
 
-        const eventsQuery = `
-          SELECT 
-            e.id as "eventId", 
-            e.title, 
-            e.banner_url as "coverUrl",
-            COALESCE((
-              SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status = 'registered'
-            ), 0)::int as "attendeeCount",
-            ${scoreSql} as score
-          FROM events e
-          INNER JOIN event_discover_categories edc ON e.id = edc.event_id
-          WHERE edc.category_id = $1
-            AND e.start_datetime > NOW()
-            AND e.is_published = true
-            AND e.is_cancelled IS NOT TRUE
-          ORDER BY score DESC, e.start_datetime ASC
-          LIMIT 10
-        `;
-        const eventsRes = await pool.query(eventsQuery, [categoryObj.id]);
-        if (eventsRes.rows.length === 0) return null;
+      const catMap = new Map(catDetailsRes.rows.map(c => [c.slug, c]));
+      const orderedCategories = activeSlugs
+        .map(slug => catMap.get(slug))
+        .filter(Boolean);
 
-        return {
-          category: categoryObj.name,
-          categorySlug: categoryObj.slug,
-          categoryColor: color,
-          events: eventsRes.rows
-        };
-      }));
+      if (orderedCategories.length === 0) return [];
 
-      // Filter out null/empty rails
-      return rails.filter(Boolean);
+      // Build VALUES(category_id, priority) clause
+      const valuesClause = orderedCategories
+        .map((cat, idx) => `(${parseInt(cat.id, 10)}, ${idx + 1})`)
+        .join(", ");
+
+      const eventsQuery = `
+        SELECT DISTINCT ON (e.id)
+          e.id as "eventId", 
+          e.title, 
+          e.banner_url as "coverUrl",
+          e.start_datetime as "startDatetime",
+          e.event_type as "eventType",
+          cp.category_id as "categoryId",
+          COALESCE((
+            SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status = 'registered'
+          ), 0)::int as "attendeeCount",
+          EXISTS (SELECT 1 FROM event_interests ei WHERE ei.event_id = e.id AND ei.member_id = $1) as "isInterested",
+          CASE WHEN e.max_attendees IS NOT NULL THEN GREATEST(0, e.max_attendees - COALESCE((SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status = 'registered'), 0)::int) ELSE NULL END as "spotsLeft",
+          CASE WHEN e.start_datetime <= NOW() AND (e.end_datetime >= NOW() OR e.end_datetime IS NULL) AND e.start_datetime >= NOW() - INTERVAL '4 hours' THEN true ELSE false END as "isLiveNow",
+          CASE WHEN e.is_paid = false OR e.ticket_price = 0 OR e.ticket_price IS NULL THEN true ELSE false END as "isFree",
+          ${scoreSql} as score
+        FROM events e
+        INNER JOIN event_discover_categories edc ON e.id = edc.event_id
+        INNER JOIN (
+          VALUES ${valuesClause}
+        ) AS cp(category_id, priority) ON edc.category_id = cp.category_id
+        WHERE e.start_datetime > NOW()
+          AND e.is_published = true
+          AND e.is_cancelled IS NOT TRUE
+        ORDER BY e.id, cp.priority ASC, score DESC
+      `;
+      const eventsRes = await pool.query(eventsQuery, [userId]);
+
+      // Group results in JS by category
+      const categoryEventsMap = new Map();
+      for (const cat of orderedCategories) {
+        categoryEventsMap.set(String(cat.id), []);
+      }
+
+      for (const row of eventsRes.rows) {
+        const list = categoryEventsMap.get(String(row.categoryId));
+        if (list) {
+          list.push({
+            eventId: row.eventId,
+            title: row.title,
+            coverUrl: row.coverUrl,
+            attendeeCount: row.attendeeCount,
+            isInterested: Boolean(row.isInterested),
+            spotsLeft: row.spotsLeft !== null ? Number(row.spotsLeft) : null,
+            isLiveNow: Boolean(row.isLiveNow),
+            isFree: Boolean(row.isFree),
+            eventType: row.eventType || "in-person",
+            score: Number(row.score) || 0,
+            startDatetime: row.startDatetime
+          });
+        }
+      }
+
+      const rails = [];
+      for (const cat of orderedCategories) {
+        const events = categoryEventsMap.get(String(cat.id)) || [];
+        if (events.length > 0) {
+          // Sort by score DESC, then startDatetime ASC
+          events.sort((a, b) => {
+            if (b.score !== a.score) {
+              return b.score - a.score;
+            }
+            const timeA = a.startDatetime ? new Date(a.startDatetime).getTime() : 0;
+            const timeB = b.startDatetime ? new Date(b.startDatetime).getTime() : 0;
+            return timeA - timeB;
+          });
+
+          const cappedEvents = events.slice(0, 10).map(({ startDatetime, ...rest }) => ({
+            ...rest,
+            startDatetime,
+            category: cat.name,
+            category_slug: cat.slug
+          }));
+
+          rails.push({
+            category: cat.name,
+            categorySlug: cat.slug,
+            categoryColor: getCategoryColor(cat.slug, cat.id),
+            events: cappedEvents
+          });
+        }
+      }
+
+      return rails;
     };
 
     // 5. Something Different
@@ -296,13 +383,35 @@ const getExploreFeed = async (req, res) => {
           e.id as "eventId", 
           e.title, 
           e.banner_url as "coverUrl",
+          e.start_datetime as "startDatetime",
+          e.event_type as "eventType",
+          COALESCE((
+            SELECT dc.name FROM discover_categories dc 
+            INNER JOIN event_discover_categories edc ON dc.id = edc.category_id 
+            WHERE edc.event_id = e.id AND edc.category_id = ANY($1::int[])
+            ORDER BY edc.display_order ASC, dc.display_order ASC
+            LIMIT 1
+          ), 'General') as "categoryName",
+          COALESCE((
+            SELECT dc.slug FROM discover_categories dc 
+            INNER JOIN event_discover_categories edc ON dc.id = edc.category_id 
+            WHERE edc.event_id = e.id AND edc.category_id = ANY($1::int[])
+            ORDER BY edc.display_order ASC, dc.display_order ASC
+            LIMIT 1
+          ), 'general') as "categorySlug",
           COALESCE((
             SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status = 'registered'
-          ), 0)::int as "attendeeCount"
+          ), 0)::int as "attendeeCount",
+          EXISTS (SELECT 1 FROM event_interests ei WHERE ei.event_id = e.id AND ei.member_id = $3) as "isInterested",
+          CASE WHEN e.max_attendees IS NOT NULL THEN GREATEST(0, e.max_attendees - COALESCE((SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status = 'registered'), 0)::int) ELSE NULL END as "spotsLeft",
+          CASE WHEN e.start_datetime <= NOW() AND (e.end_datetime >= NOW() OR e.end_datetime IS NULL) AND e.start_datetime >= NOW() - INTERVAL '4 hours' THEN true ELSE false END as "isLiveNow",
+          CASE WHEN e.is_paid = false OR e.ticket_price = 0 OR e.ticket_price IS NULL THEN true ELSE false END as "isFree"
         FROM events e
-        INNER JOIN event_discover_categories edc ON e.id = edc.event_id
         LEFT JOIN communities c ON COALESCE(e.community_id, e.creator_id) = c.id
-        WHERE edc.category_id = ANY($1::int[])
+        WHERE EXISTS (
+          SELECT 1 FROM event_discover_categories edc2
+          WHERE edc2.event_id = e.id AND edc2.category_id = ANY($1::int[])
+        )
           AND e.start_datetime > NOW()
           AND e.is_published = true
           AND e.is_cancelled IS NOT TRUE
@@ -317,11 +426,50 @@ const getExploreFeed = async (req, res) => {
         ORDER BY e.start_datetime ASC
         LIMIT 10
       `;
-      const result = await pool.query(q, [catIds, userCity]);
+      const result = await pool.query(q, [catIds, userCity, userId]);
       return result.rows;
     };
 
-    // 6. Creator Opportunities
+    // 6. Curated Lists
+    const queryCuratedLists = async () => {
+      try {
+        const q = `
+          SELECT 
+            cl.id,
+            cl.title,
+            cl.subtitle,
+            cl.cover_url as "coverUrl",
+            cl.display_order as "displayOrder",
+            COALESCE(
+              json_agg(
+                json_build_object(
+                  'eventId', e.id,
+                  'title', e.title,
+                  'coverUrl', e.banner_url,
+                  'startDatetime', e.start_datetime,
+                  'eventType', e.event_type,
+                  'isInterested', EXISTS (SELECT 1 FROM event_interests ei WHERE ei.event_id = e.id AND ei.member_id = $1),
+                  'isFree', (e.is_paid = false OR e.ticket_price = 0 OR e.ticket_price IS NULL)
+                ) ORDER BY cle.display_order ASC
+              ) FILTER (WHERE e.id IS NOT NULL),
+              '[]'::json
+            ) as events
+          FROM curated_lists cl
+          LEFT JOIN curated_list_events cle ON cl.id = cle.curated_list_id
+          LEFT JOIN events e ON cle.event_id = e.id AND e.is_published = true AND (e.is_cancelled IS NOT TRUE)
+          WHERE cl.is_active = true
+          GROUP BY cl.id, cl.title, cl.subtitle, cl.cover_url, cl.display_order
+          ORDER BY cl.display_order ASC, cl.created_at DESC
+        `;
+        const result = await pool.query(q, [userId]);
+        return result.rows;
+      } catch (err) {
+        console.warn("[exploreController.queryCuratedLists] error:", err.message);
+        return [];
+      }
+    };
+
+    // 7. Creator Opportunities
     const queryCreatorOpportunities = async () => {
       if (!isCreator) return null;
 
@@ -352,14 +500,44 @@ const getExploreFeed = async (req, res) => {
       return count > 0 ? { count, hasUnviewed: true } : null;
     };
 
-    const [liveNow, hero, weekend, categoryRails, somethingDifferent, creatorOpportunities] = await Promise.all([
+    const [liveNow, hero, weekend, categoryRails, somethingDifferent, curatedLists, creatorOpportunities] = await Promise.all([
       queryLiveNow(),
       queryHero(),
       queryWeekend(),
       queryCategoryRails(),
       querySomethingDifferent(),
+      queryCuratedLists(),
       queryCreatorOpportunities()
     ]);
+
+    // Cross-section deduplication for "Something Different"
+    const existingEventIds = new Set();
+    if (hero?.eventId) {
+      existingEventIds.add(String(hero.eventId));
+    }
+    if (Array.isArray(liveNow)) {
+      for (const item of liveNow) {
+        if (item?.eventId) existingEventIds.add(String(item.eventId));
+      }
+    }
+    if (Array.isArray(weekend)) {
+      for (const item of weekend) {
+        if (item?.eventId) existingEventIds.add(String(item.eventId));
+      }
+    }
+    if (Array.isArray(categoryRails)) {
+      for (const rail of categoryRails) {
+        if (Array.isArray(rail?.events)) {
+          for (const event of rail.events) {
+            if (event?.eventId) existingEventIds.add(String(event.eventId));
+          }
+        }
+      }
+    }
+
+    const dedupedSomethingDifferent = (somethingDifferent || []).filter(
+      (item) => item?.eventId && !existingEventIds.has(String(item.eventId))
+    );
 
     res.json({
       success: true,
@@ -367,7 +545,8 @@ const getExploreFeed = async (req, res) => {
       hero,
       weekend,
       categoryRails,
-      somethingDifferent,
+      somethingDifferent: dedupedSomethingDifferent,
+      curatedLists: curatedLists || [],
       creatorOpportunities
     });
   } catch (error) {
