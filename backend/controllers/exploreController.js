@@ -199,12 +199,21 @@ const getExploreFeed = async (req, res) => {
       const topCatRes = await pool.query(topCatQuery, [userId]);
       let activeSlugs = topCatRes.rows.map(r => r.category);
 
-      // Pad up to 5 categories using display order
+      // Pad up to 5 categories prioritizing those with active upcoming events
       if (activeSlugs.length < 5) {
         const defaultCatQuery = `
-          SELECT slug FROM discover_categories 
-          WHERE is_active = true 
-          ORDER BY display_order ASC
+          SELECT dc.slug FROM discover_categories dc 
+          WHERE dc.is_active = true 
+          ORDER BY (
+            CASE WHEN EXISTS (
+              SELECT 1 FROM event_discover_categories edc
+              INNER JOIN events e ON e.id = edc.event_id
+              WHERE edc.category_id = dc.id
+                AND e.start_datetime > NOW()
+                AND e.is_published = true
+                AND e.is_cancelled IS NOT TRUE
+            ) THEN 1 ELSE 0 END
+          ) DESC, dc.display_order ASC
         `;
         const defaultCatRes = await pool.query(defaultCatQuery);
         for (const r of defaultCatRes.rows) {
