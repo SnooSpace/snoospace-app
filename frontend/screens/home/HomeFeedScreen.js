@@ -972,11 +972,23 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
 
   const loadMoreDiscovery = async () => {
     if (isLoadingDiscoveryRef.current || !discoveryHasMore) return;
-    if (__DEV__) {
-      console.log(`[LMD-ENTRY] offset=${discoveryOffsetRef.current} hasMore=${discoveryHasMore} isLoading=${isLoadingDiscoveryRef.current}`);
-    }
     await loadDiscoveryPosts(discoveryOffsetRef.current);
   };
+
+  // Load discovery opportunities: scored non-followed community opps for feed injection.
+  // Request limit=30 (backend ceiling raised from 20→30 to match zero-follow pool needs).
+  // Non-fatal — an error silently returns an empty pool (same pattern as loadDiscoveryPosts).
+  const loadDiscoveryOpportunities = async () => {
+    try {
+      const response = await getDiscoveryOpportunities(30);
+      if (response?.opportunities && Array.isArray(response.opportunities)) {
+        setDiscoveryOpportunities(response.opportunities);
+      }
+    } catch (error) {
+      console.warn('[HomeFeed] Error loading discovery opportunities:', error?.message);
+    }
+  };
+
   const loadTargetedPromo = async () => {
     try {
       const token = await getAuthToken();
@@ -1622,7 +1634,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         // Hydrate from cache (populates state without ending skeleton window)
         await hydrateFromCache();
 
-        await Promise.all([
+        const results = await Promise.allSettled([
           loadFeed(true, true), // reset=true, skipSetLoading=true
           loadEvents(),
           loadOpportunities(),
@@ -1632,6 +1644,21 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           loadGreetingName(),
           loadMessageUnreadCount(),
         ]);
+        const taskNames = [
+          'loadFeed',
+          'loadEvents',
+          'loadOpportunities',
+          'loadDiscoveryPosts',
+          'loadDiscoveryOpportunities',
+          'loadTargetedPromo',
+          'loadGreetingName',
+          'loadMessageUnreadCount',
+        ];
+        results.forEach((res, i) => {
+          if (res.status === 'rejected') {
+            console.warn(`[HomeFeed] Task ${taskNames[i]} failed in loadInitialData:`, res.reason);
+          }
+        });
 
         saveFeedSnapshot(postsRef.current || [], eventsRef.current || [], opportunitiesRef.current || []);
 
@@ -1764,15 +1791,31 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       // Reload all data for the new account
       setLoading(true);
       try {
-        await Promise.all([
+        const results = await Promise.allSettled([
           loadGreetingName(),
           loadFeed(true, true),
           loadEvents(),
           loadOpportunities(),
           loadDiscoveryPosts(0),
+          loadDiscoveryOpportunities(),
           loadTargetedPromo(),
           loadMessageUnreadCount(),
         ]);
+        const taskNames = [
+          'loadGreetingName',
+          'loadFeed',
+          'loadEvents',
+          'loadOpportunities',
+          'loadDiscoveryPosts',
+          'loadDiscoveryOpportunities',
+          'loadTargetedPromo',
+          'loadMessageUnreadCount',
+        ];
+        results.forEach((res, i) => {
+          if (res.status === 'rejected') {
+            console.warn(`[HomeFeed] Task ${taskNames[i]} failed in account-switch reload:`, res.reason);
+          }
+        });
         // Persist fresh snapshot for the newly active account
         saveFeedSnapshot(postsRef.current, eventsRef.current, opportunitiesRef.current);
 
@@ -2218,14 +2261,29 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     setRolloverFeedItems([]);
     setDiscoveryHasMore(true);
     discoveryOffsetRef.current = 0;
-    await Promise.all([
+    const results = await Promise.allSettled([
       loadFeed(),
       loadEvents(),
       loadOpportunities(),
       loadDiscoveryPosts(0),
+      loadDiscoveryOpportunities(),
       loadTargetedPromo(),
       loadMessageUnreadCount(),
     ]);
+    const taskNames = [
+      'loadFeed',
+      'loadEvents',
+      'loadOpportunities',
+      'loadDiscoveryPosts',
+      'loadDiscoveryOpportunities',
+      'loadTargetedPromo',
+      'loadMessageUnreadCount',
+    ];
+    results.forEach((res, i) => {
+      if (res.status === 'rejected') {
+        console.warn(`[HomeFeed] Task ${taskNames[i]} failed in onRefresh:`, res.reason);
+      }
+    });
     // Reveal first batch based on cost budget (no min-skeleton wait needed)
     const rawPosts = freshPostsRef.current || [];
     const candidateItems = rawPosts.length > 0
