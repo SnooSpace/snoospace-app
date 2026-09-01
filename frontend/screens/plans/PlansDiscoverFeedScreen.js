@@ -4,7 +4,7 @@ const onRenderProfiler = (id, phase, actualDuration) => {
   console.log(`[PERF-RENDER] ${id} - Phase: ${phase}, Duration: ${actualDuration.toFixed(2)}ms`);
 };
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator, Share, Dimensions,
+  View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator, Share, Dimensions, ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Plus, LayoutGrid, LayoutList, Clock, MapPin, Users, Pencil } from 'lucide-react-native';
@@ -20,30 +20,60 @@ import ShareModal from '../../components/modals/ShareModal';
 import { Image } from 'expo-image';
 import PlanCropImage from './PlanCropImage';
 import ContentActionsSheet from '../../components/modals/ContentActionsSheet';
+import HapticsService from '../../services/HapticsService';
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Filters & Helpers ────────────────────────────────────────────────────────
+const ACTIVITY_FILTERS = [
+  { id: 'all', label: 'All Plans', emoji: '✨', bg: '#EEF2FF', text: '#2962FF' },
+  { id: 'sports', label: 'Sports', emoji: '⚽', bg: '#FFF3E0', text: '#E65100' },
+  { id: 'food', label: 'Food', emoji: '🍔', bg: '#FFF8E1', text: '#F57F17' },
+  { id: 'hangout', label: 'Hangout', emoji: '🌿', bg: '#E8F5E9', text: '#1B5E20' },
+  { id: 'games', label: 'Games', emoji: '🎮', bg: '#E1F5FE', text: '#01579B' },
+  { id: 'live_music', label: 'Live Music', emoji: '🎵', bg: '#FCE4EC', text: '#C62828' },
+  { id: 'hiking', label: 'Hiking', emoji: '🥾', bg: '#E8F5E9', text: '#2E7D32' },
+  { id: 'bowling', label: 'Bowling', emoji: '🎳', bg: '#EDE7F6', text: '#512DA8' },
+  { id: 'gokarting', label: 'Go-karting', emoji: '🏎️', bg: '#FFF3E0', text: '#D84315' },
+  { id: 'indoorgames', label: 'Indoor Games', emoji: '🎲', bg: '#EDE7F6', text: '#673AB7' },
+  { id: 'pilates', label: 'Pilates', emoji: '🤸‍♀️', bg: '#FCE4EC', text: '#C2185B' },
+  { id: 'swimming', label: 'Swimming', emoji: '🏊', bg: '#E0F7FA', text: '#00838F' },
+  { id: 'cafe', label: 'Cafe', emoji: '☕', bg: '#EFEBE9', text: '#4E342E' },
+  { id: 'house_party', label: 'House Party', emoji: '🏠', bg: '#FBE9E7', text: '#D84315' },
+  { id: 'movies', label: 'Movies', emoji: '🍿', bg: '#F3E5F5', text: '#6A1B9A' },
+  { id: 'bar', label: 'Bar', emoji: '🍻', bg: '#E8EAF6', text: '#303F9F' },
+  { id: 'club', label: 'Club', emoji: '🪩', bg: '#EDE7F6', text: '#5E35B1' },
+];
+
 const ACTIVITY_COLORS = {
-  sports:       { bg: '#FFF3E0', text: '#E65100', label: 'Sports' },
-  movies:       { bg: '#F3E5F5', text: '#6A1B9A', label: 'Movies' },
-  bar:          { bg: '#E8EAF6', text: '#303F9F', label: 'Bar' },
-  food:         { bg: '#FFF8E1', text: '#F57F17', label: 'Food' },
-  cafe:         { bg: '#EFEBE9', text: '#4E342E', label: 'Cafe' },
-  yoga:         { bg: '#E8F5E9', text: '#2E7D32', label: 'Yoga' },
-  gym:          { bg: '#FCE4EC', text: '#880E4F', label: 'Gym' },
-  walk:         { bg: '#E0F2F1', text: '#00695C', label: 'Walk' },
-  rides:        { bg: '#E3F2FD', text: '#1565C0', label: 'Rides' },
-  live_music:   { bg: '#FCE4EC', text: '#C62828', label: 'Live Music' },
-  study:        { bg: '#EDE7F6', text: '#4527A0', label: 'Study / Co-work' },
-  creative:     { bg: '#FFF9C4', text: '#F57F17', label: 'Creative' },
-  games:        { bg: '#E1F5FE', text: '#01579B', label: 'Games' },
-  gaming:       { bg: '#E1F5FE', text: '#01579B', label: 'Games' },
-  pet_friendly: { bg: '#F1F8E9', text: '#33691E', label: 'Pet Friendly' },
-  hangout:      { bg: '#E8F5E9', text: '#1B5E20', label: 'Hangout' },
-  house_party:  { bg: '#FBE9E7', text: '#D84315', label: 'House Party' },
-  club:         { bg: '#EDE7F6', text: '#5E35B1', label: 'Club' },
-  hiking:       { bg: '#E8F5E9', text: '#2E7D32', label: 'Hiking' },
-  shopping:     { bg: '#FCE4EC', text: '#D81B60', label: 'Shopping' },
-  other:        { bg: '#F5F5F5', text: '#424242', label: 'Other' },
+  sports:         { bg: '#FFF3E0', text: '#E65100', label: 'Sports' },
+  movies:         { bg: '#F3E5F5', text: '#6A1B9A', label: 'Movies' },
+  bar:            { bg: '#E8EAF6', text: '#303F9F', label: 'Bar' },
+  food:           { bg: '#FFF8E1', text: '#F57F17', label: 'Food' },
+  cafe:           { bg: '#EFEBE9', text: '#4E342E', label: 'Cafe' },
+  yoga:           { bg: '#E8F5E9', text: '#2E7D32', label: 'Yoga' },
+  gym:            { bg: '#FCE4EC', text: '#880E4F', label: 'Gym' },
+  walk:           { bg: '#E0F2F1', text: '#00695C', label: 'Walk' },
+  rides:          { bg: '#E3F2FD', text: '#1565C0', label: 'Rides' },
+  live_music:     { bg: '#FCE4EC', text: '#C62828', label: 'Live Music' },
+  study:          { bg: '#EDE7F6', text: '#4527A0', label: 'Co-work' },
+  cowork:         { bg: '#EDE7F6', text: '#4527A0', label: 'Co-work' },
+  creative:       { bg: '#FFF9C4', text: '#F57F17', label: 'Creative' },
+  games:          { bg: '#E1F5FE', text: '#01579B', label: 'Games' },
+  gaming:         { bg: '#E1F5FE', text: '#01579B', label: 'Games' },
+  pet_friendly:   { bg: '#F1F8E9', text: '#33691E', label: 'Pet Meetup' },
+  pet_gathering:  { bg: '#F1F8E9', text: '#33691E', label: 'Pet Meetup' },
+  hangout:        { bg: '#E8F5E9', text: '#1B5E20', label: 'Hangout' },
+  house_party:    { bg: '#FBE9E7', text: '#D84315', label: 'House Party' },
+  club:           { bg: '#EDE7F6', text: '#5E35B1', label: 'Club' },
+  hiking:         { bg: '#E8F5E9', text: '#2E7D32', label: 'Hiking' },
+  shopping:       { bg: '#FCE4EC', text: '#D81B60', label: 'Shopping' },
+  bowling:        { bg: '#EDE7F6', text: '#512DA8', label: 'Bowling' },
+  gokarting:      { bg: '#FFF3E0', text: '#D84315', label: 'Go-karting' },
+  go_karting:     { bg: '#FFF3E0', text: '#D84315', label: 'Go-karting' },
+  indoorgames:    { bg: '#EDE7F6', text: '#673AB7', label: 'Indoor Games' },
+  indoor_games:   { bg: '#EDE7F6', text: '#673AB7', label: 'Indoor Games' },
+  pilates:        { bg: '#FCE4EC', text: '#C2185B', label: 'Pilates' },
+  swimming:       { bg: '#E0F7FA', text: '#00838F', label: 'Swimming' },
+  other:          { bg: '#F5F5F5', text: '#424242', label: 'Other' },
 };
 
 function formatScheduled(iso) {
@@ -235,6 +265,15 @@ export default function PlansDiscoverFeedScreen({ navigation, route }) {
   const [shareModalVisible, setShareModalVisible] = useState(false);
   const [sharingPlan, setSharingPlan] = useState(null);
   const [isGrid, setIsGrid] = useState(false);
+  const [activeActivityType, setActiveActivityType] = useState(
+    route.params?.activityType || 'all'
+  );
+
+  useEffect(() => {
+    if (route.params?.activityType) {
+      setActiveActivityType(route.params.activityType);
+    }
+  }, [route.params?.activityType]);
 
   // Screen-level comments modal state and callbacks
   const [commentsModalState, setCommentsModalState] = useState({
@@ -252,15 +291,15 @@ export default function PlansDiscoverFeedScreen({ navigation, route }) {
     setCommentsModalState({ visible: false, postId: null });
   }, []);
 
-  const loadPlans = useCallback(async (cursorVal = null, isRefresh = false) => {
+  const loadPlans = useCallback(async (cursorVal = null, isRefresh = false, overrideType = null) => {
     try {
       if (isRefresh) setRefreshing(true);
       else if (!cursorVal) setLoading(true);
       else setLoadingMore(true);
 
-
+      const targetType = overrideType !== null ? overrideType : activeActivityType;
       const token = await getAuthToken();
-      const data = await getPlans(cursorVal, token);
+      const data = await getPlans(cursorVal, token, targetType);
       const newPlans = data.plans || [];
       const nextCursor = data.next_cursor || null;
 
@@ -278,15 +317,15 @@ export default function PlansDiscoverFeedScreen({ navigation, route }) {
       setRefreshing(false);
       setLoadingMore(false);
     }
-  }, []);
+  }, [activeActivityType]);
 
   useEffect(() => {
     // Load userId and initial plans on mount
     getActiveAccount().then(account => {
       if (account?.id) setCurrentUserId(account.id);
     }).catch(() => {});
-    loadPlans();
-  }, []);
+    loadPlans(null, false, activeActivityType);
+  }, [activeActivityType]);
 
   const handleLike = useCallback(async (planId, liked) => {
     const token = await getAuthToken();
@@ -360,6 +399,50 @@ export default function PlansDiscoverFeedScreen({ navigation, route }) {
               </TouchableOpacity>
             )}
           </View>
+        </View>
+
+        {/* Activity Filter Tiles (Matching Explore style) */}
+        <View style={styles.filterPillsContainer}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterScrollPadding}
+          >
+            {ACTIVITY_FILTERS.map((filter) => {
+              const isActive = activeActivityType === filter.id;
+              return (
+                <TouchableOpacity
+                  key={filter.id}
+                  style={[
+                    styles.planActivityTile,
+                    {
+                      backgroundColor: filter.bg,
+                      borderColor: isActive ? filter.text : 'rgba(0, 0, 0, 0.05)',
+                      borderWidth: isActive ? 2 : 1,
+                    },
+                    isActive && styles.planActivityTileActive,
+                    !isActive && activeActivityType !== 'all' && styles.planActivityTileDimmed,
+                  ]}
+                  activeOpacity={0.75}
+                  onPress={() => {
+                    HapticsService.triggerImpactLight();
+                    setActiveActivityType(filter.id);
+                  }}
+                >
+                  <Text style={styles.planActivityEmoji}>{filter.emoji}</Text>
+                  <Text
+                    style={[
+                      styles.planActivityLabel,
+                      { color: filter.text },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {filter.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
         </View>
       </SafeAreaView>
 
@@ -643,5 +726,45 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium,
     fontSize: 10,
     color: '#94A3B8',
+  },
+
+  // Activity Filter Tiles (matching Explore Open Plans by Activity)
+  filterPillsContainer: {
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    backgroundColor: '#FFFFFF',
+  },
+  filterScrollPadding: {
+    paddingLeft: 16,
+    paddingRight: 8,
+    paddingTop: 2,
+    paddingBottom: 6,
+  },
+  planActivityTile: {
+    width: 82,
+    height: 68,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+    borderWidth: 1,
+    paddingHorizontal: 4,
+    ...SHADOWS.sm,
+  },
+  planActivityTileActive: {
+    ...SHADOWS.md,
+  },
+  planActivityTileDimmed: {
+    opacity: 0.65,
+  },
+  planActivityEmoji: {
+    fontSize: 20,
+    marginBottom: 3,
+  },
+  planActivityLabel: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 11,
+    textAlign: 'center',
   },
 });

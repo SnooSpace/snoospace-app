@@ -390,6 +390,78 @@ const getEventsByCategory = async (req, res) => {
     const parsedLimit = parseInt(limit);
     const parsedOffset = parseInt(offset);
 
+    const trimmedCat = String(categoryId || "").trim().toLowerCase();
+    if (trimmedCat === "weekend" || trimmedCat === "this-weekend") {
+      const now = new Date();
+      const currentDay = now.getDay();
+      const friday = new Date(now);
+      friday.setDate(now.getDate() - currentDay + 5);
+      friday.setHours(18, 0, 0, 0);
+
+      const sunday = new Date(now);
+      sunday.setDate(now.getDate() - currentDay + 7);
+      sunday.setHours(23, 59, 59, 999);
+
+      if (now > sunday) {
+        friday.setDate(friday.getDate() + 7);
+        sunday.setDate(sunday.getDate() + 7);
+      }
+
+      const weekendEventsQuery = `
+        SELECT 
+          e.id,
+          e.title,
+          e.description,
+          e.start_datetime as event_date,
+          e.location_url,
+          e.location_name,
+          e.banner_url,
+          e.access_type,
+          e.invite_public_visibility,
+          COALESCE(
+            (SELECT MIN(base_price) FROM ticket_types WHERE event_id = e.id AND base_price > 0),
+            e.ticket_price
+          ) as ticket_price,
+          (SELECT COUNT(*) > 0 FROM ticket_types WHERE event_id = e.id AND base_price = 0) as has_free_tickets,
+          e.event_type,
+          e.virtual_link,
+          COALESCE(e.community_id, e.creator_id) as community_id,
+          c.name as community_name,
+          c.logo_url as community_logo,
+          COALESCE(COUNT(DISTINCT er.member_id) FILTER (WHERE er.registration_status = 'registered'), 0) as attendee_count,
+          (
+            SELECT COALESCE(json_agg(json_build_object('name', m2.name, 'profile_photo_url', m2.profile_photo_url)), '[]'::json)
+            FROM (
+              SELECT m3.name, m3.profile_photo_url
+              FROM event_registrations er3
+              INNER JOIN members m3 ON er3.member_id = m3.id
+              WHERE er3.event_id = e.id AND er3.registration_status IN ('registered', 'attended', 'confirmed')
+              ORDER BY er3.created_at DESC
+              LIMIT 3
+            ) m2
+          ) as attendee_avatars,
+          TO_CHAR(e.start_datetime, 'Dy, DD Mon, HH:MI AM') as formatted_date,
+          TO_CHAR(e.start_datetime, 'HH:MI AM') as formatted_time
+        FROM events e
+        LEFT JOIN communities c ON COALESCE(e.community_id, e.creator_id) = c.id
+        LEFT JOIN event_registrations er ON e.id = er.event_id
+        WHERE e.start_datetime >= $1 AND e.start_datetime <= $2
+          AND (e.is_published = true OR e.is_published IS NULL)
+          AND e.is_cancelled IS NOT TRUE
+        GROUP BY e.id, c.id
+        ORDER BY e.start_datetime ASC
+        LIMIT $3 OFFSET $4
+      `;
+
+      const result = await pool.query(weekendEventsQuery, [friday, sunday, parsedLimit, parsedOffset]);
+      return res.json({
+        success: true,
+        category: { id: 0, name: "This Weekend", slug: "weekend" },
+        events: result.rows,
+        total: result.rows.length
+      });
+    }
+
     // Get category info (supports either numeric ID or category slug)
     const isNumeric = /^\d+$/.test(String(categoryId).trim());
     const categoryQuery = isNumeric
@@ -2536,6 +2608,45 @@ const cancelEventAdmin = async (req, res) => {
   }
 };
 
+/**
+ * Toggle featured status of an event (admin)
+ */
+const updateEventFeatureAdmin = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { is_featured, featured_until } = req.body;
+
+    const query = `
+      UPDATE events
+      SET 
+        is_featured = $1,
+        featured_until = $2,
+        updated_at = NOW()
+      WHERE id = $3
+      RETURNING *
+    `;
+
+    const result = await pool.query(query, [
+      Boolean(is_featured),
+      featured_until ? new Date(featured_until).toISOString() : null,
+      eventId
+    ]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    res.json({
+      success: true,
+      message: is_featured ? "Event featured successfully" : "Event unfeatured successfully",
+      event: result.rows[0]
+    });
+  } catch (error) {
+    console.error("Error updating event feature status:", error);
+    res.status(500).json({ error: "Failed to update event feature status" });
+  }
+};
+
 // ============================================
 // COMMUNITY CATEGORIES
 // ============================================
@@ -3059,6 +3170,7 @@ module.exports = {
   getPlanMembersAdmin,
   deleteEventAdmin,
   cancelEventAdmin,
+  updateEventFeatureAdmin,
 
   // Community category endpoints
   getCommunityCategories,

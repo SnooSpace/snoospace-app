@@ -4,8 +4,14 @@ import { BACKEND_BASE_URL } from './client';
 
 // ─── Plans ──────────────────────────────────────────────────────────────────
 
-export async function getPlans(cursor, token) {
-  const q = cursor ? `?cursor=${cursor}&limit=20` : '?limit=20';
+export async function getPlans(cursor, token, activityType = null) {
+  const params = [];
+  if (cursor) params.push(`cursor=${encodeURIComponent(cursor)}`);
+  params.push('limit=20');
+  if (activityType && activityType !== 'all') {
+    params.push(`activityType=${encodeURIComponent(activityType)}`);
+  }
+  const q = `?${params.join('&')}`;
   return apiGet(`/plans${q}`, 15000, token);
 }
 

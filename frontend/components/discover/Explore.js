@@ -10,6 +10,7 @@ import {
   ImageBackground,
   Dimensions
 } from "react-native";
+import * as LucideIcons from "lucide-react-native";
 import {
   ChevronRight,
   X,
@@ -17,7 +18,8 @@ import {
   Calendar,
   Sparkles,
   Bookmark,
-  Video
+  Video,
+  Flame
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { getCategoryColor } from "../../constants/categoryColors";
@@ -27,6 +29,29 @@ import { toggleEventInterest } from "../../api/events";
 import EventBus from "../../utils/EventBus";
 import HapticsService from "../../services/HapticsService";
 import CompactEventCard from "../cards/CompactEventCard";
+
+// Convert kebab-case backend icon name to PascalCase Lucide icon component
+const getLucideIcon = (iconName) => {
+  if (!iconName) return LucideIcons.Compass || LucideIcons.Tags;
+  const pascalName = iconName
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join("");
+  return LucideIcons[pascalName] || LucideIcons.Compass || LucideIcons.Tags;
+};
+
+// Curated Open Plans quick-nav activities
+const OPEN_PLAN_QUICK_ACTIVITIES = [
+  { key: "sports", label: "Sports", emoji: "⚽", bg: "#FFF3E0", text: "#E65100" },
+  { key: "food", label: "Food", emoji: "🍔", bg: "#FFF8E1", text: "#F57F17" },
+  { key: "hangout", label: "Hangout", emoji: "🌿", bg: "#E8F5E9", text: "#1B5E20" },
+  { key: "games", label: "Games", emoji: "🎮", bg: "#E1F5FE", text: "#01579B" },
+  { key: "live_music", label: "Live Music", emoji: "🎵", bg: "#FCE4EC", text: "#C62828" },
+  { key: "hiking", label: "Hiking", emoji: "🥾", bg: "#E8F5E9", text: "#2E7D32" },
+  { key: "cafe", label: "Cafe", emoji: "☕", bg: "#EFEBE9", text: "#4E342E" },
+  { key: "house_party", label: "House Party", emoji: "🏠", bg: "#FBE9E7", text: "#D84315" },
+  { key: "all", label: "All Plans", emoji: "✨", bg: "#EEF2FF", text: "#2962FF" },
+];
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const HERO_WIDTH = SCREEN_WIDTH - 32;
@@ -144,6 +169,8 @@ export default function Explore({
   navigation
 }) {
   const {
+    categories = [],
+    whatsHot = [],
     liveNow = [],
     hero = null,
     weekend = [],
@@ -153,6 +180,8 @@ export default function Explore({
     creatorOpportunities = null
   } = feedData;
 
+  const activeCategories = categories || [];
+  const activeWhatsHot = whatsHot || [];
   const activeLiveNow = liveNow || [];
   const activeHero = hero;
   const activeWeekend = weekend || [];
@@ -172,12 +201,13 @@ export default function Explore({
     if (activeHero?.eventId) map[activeHero.eventId] = Boolean(activeHero.isInterested);
     activeLiveNow.forEach((e) => { if (e?.eventId) map[e.eventId] = Boolean(e.isInterested); });
     activeWeekend.forEach((e) => { if (e?.eventId) map[e.eventId] = Boolean(e.isInterested); });
+    activeWhatsHot.forEach((e) => { if (e?.eventId) map[e.eventId] = Boolean(e.isInterested); });
     activeCategoryRails.forEach((r) => {
       (r.events || []).forEach((e) => { if (e?.eventId) map[e.eventId] = Boolean(e.isInterested); });
     });
     activeSomethingDifferent.forEach((e) => { if (e?.eventId) map[e.eventId] = Boolean(e.isInterested); });
     setInterestMap((prev) => ({ ...map, ...prev }));
-  }, [activeHero, activeLiveNow, activeWeekend, activeCategoryRails, activeSomethingDifferent]);
+  }, [activeHero, activeLiveNow, activeWeekend, activeWhatsHot, activeCategoryRails, activeSomethingDifferent]);
 
   // Synchronize interest changes with EventBus
   useEffect(() => {
@@ -292,6 +322,58 @@ export default function Explore({
       }
       return true;
     });
+  };
+
+  // 0. Category Quick-Nav (District reference style: horizontal scrolling icon tiles)
+  const renderCategoryQuickNav = () => {
+    const displayCategories = activeCategories.length > 0
+      ? activeCategories
+      : activeCategoryRails.map((r) => ({
+          id: r.categoryId,
+          name: r.category,
+          slug: r.categorySlug,
+          iconName: r.iconName || "tags"
+        }));
+
+    if (displayCategories.length === 0) return null;
+
+    return (
+      <View style={styles.quickNavSection}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.quickNavScrollPadding}
+        >
+          {displayCategories.map((cat) => {
+            const IconComp = getLucideIcon(cat.iconName || cat.icon_name);
+            return (
+              <TouchableOpacity
+                key={cat.id || cat.slug}
+                style={styles.categoryTile}
+                activeOpacity={0.75}
+                onPress={() => {
+                  HapticsService.triggerImpactLight();
+                  if (navigation) {
+                    navigation.navigate("CategoryEvents", {
+                      categoryId: cat.id,
+                      categorySlug: cat.slug,
+                      categoryName: cat.name
+                    });
+                  }
+                }}
+              >
+                <View style={styles.categoryTileIconContainer}>
+                  <IconComp size={20} color="#2C2C2A" strokeWidth={1.8} />
+                </View>
+                <Text style={styles.categoryTileText} numberOfLines={1}>
+                  {cat.name}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
+    );
   };
 
   // 1. Live now accent ring styling
@@ -512,7 +594,14 @@ export default function Explore({
 
     return (
       <View style={styles.sectionContainer}>
-        <Text style={styles.sectionTitle}>This weekend</Text>
+        <View style={styles.railHeader}>
+          <Text style={styles.sectionTitle}>This weekend</Text>
+          <TouchableOpacity
+            onPress={() => handleSeeAll("weekend", "This Weekend")}
+          >
+            <Text style={styles.seeAllText}>See all</Text>
+          </TouchableOpacity>
+        </View>
         <View style={styles.bentoRow}>
           {/* Large Left Card (~58%) */}
           <TouchableOpacity
@@ -687,6 +776,105 @@ export default function Explore({
     );
   };
 
+  // 3b. What's Hot on SnooSpace (Featured/Boosted + 48h Velocity Score)
+  const renderWhatsHot = () => {
+    if (!activeWhatsHot || activeWhatsHot.length === 0) return null;
+
+    const filteredEvents = filterEvents(activeWhatsHot, activeFilter);
+    if (filteredEvents.length === 0) return null;
+
+    return (
+      <View style={styles.sectionContainer}>
+        <View style={styles.railHeader}>
+          <View style={styles.titleWithIconRow}>
+            <Flame size={19} color="#D85A30" strokeWidth={2.2} />
+            <Text style={styles.sectionTitleWithoutMargin}>What&apos;s Hot on SnooSpace</Text>
+          </View>
+        </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.horizontalScrollPadding}
+        >
+          {filteredEvents.map((event) => {
+            const isInterested = Boolean(interestMap[event.eventId] ?? event.isInterested);
+            return (
+              <View key={event.eventId} style={styles.railCardWrapper}>
+                <CompactEventCard
+                  event={{
+                    ...event,
+                    id: event.eventId,
+                    is_featured: event.isFeatured
+                  }}
+                  width={RAIL_CARD_WIDTH}
+                  showBookmark={true}
+                  isInterested={isInterested}
+                  onToggleInterest={handleToggleInterest}
+                  onPress={() => handleEventPress(event.eventId, event)}
+                />
+              </View>
+            );
+          })}
+        </ScrollView>
+      </View>
+    );
+  };
+
+  // 4b. Open Plans Activity-Type Quick-Nav
+  const renderOpenPlansQuickNav = () => {
+    return (
+      <View style={styles.sectionContainer}>
+        <View style={styles.railHeader}>
+          <Text style={styles.sectionTitle}>Open Plans by Activity</Text>
+          <TouchableOpacity
+            onPress={() => {
+              HapticsService.triggerImpactLight();
+              if (navigation) {
+                navigation.navigate("PlansDiscoverFeed");
+              }
+            }}
+          >
+            <Text style={styles.seeAllText}>See all</Text>
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.horizontalScrollPadding}
+        >
+          {OPEN_PLAN_QUICK_ACTIVITIES.map((activity) => (
+            <TouchableOpacity
+              key={activity.key}
+              style={[
+                styles.planActivityTile,
+                { backgroundColor: activity.bg, borderColor: "rgba(0, 0, 0, 0.04)" }
+              ]}
+              activeOpacity={0.75}
+              onPress={() => {
+                HapticsService.triggerImpactLight();
+                if (navigation) {
+                  navigation.navigate("PlansDiscoverFeed", {
+                    activityType: activity.key === "all" ? undefined : activity.key
+                  });
+                }
+              }}
+            >
+              <Text style={styles.planActivityEmoji}>{activity.emoji}</Text>
+              <Text
+                style={[styles.planActivityLabel, { color: activity.text }]}
+                numberOfLines={1}
+              >
+                {activity.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+    );
+  };
+
   // 5. Category Rails Section (with Client-side Filter Pills)
   const renderCategoryRails = () => {
     return (
@@ -853,10 +1041,13 @@ export default function Explore({
         />
       }
     >
+      {renderCategoryQuickNav()}
       {renderLiveNow()}
       {renderHero()}
       {renderWeekend()}
+      {renderWhatsHot()}
       {renderCuratedLists()}
+      {renderOpenPlansQuickNav()}
       {renderCategoryRails()}
       {renderSomethingDifferent()}
       {renderOpportunitiesBanner()}
@@ -886,6 +1077,18 @@ const styles = StyleSheet.create({
     marginLeft: 16,
     marginBottom: 12
   },
+  titleWithIconRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginLeft: 16,
+    marginBottom: 12
+  },
+  sectionTitleWithoutMargin: {
+    fontFamily: FONTS.primary, // BasicCommercial-Bold
+    fontSize: 18,
+    color: "#2C2C2A"
+  },
   seeAllText: {
     fontFamily: "Manrope-SemiBold",
     fontSize: 14,
@@ -899,12 +1102,73 @@ const styles = StyleSheet.create({
   },
   horizontalScrollPadding: {
     paddingLeft: 16,
-    paddingRight: 8
+    paddingRight: 8,
+    paddingTop: 4,
+    paddingBottom: 14
+  },
+
+  // Quick Nav Categories
+  quickNavSection: {
+    marginBottom: 20,
+    marginTop: -4
+  },
+  quickNavScrollPadding: {
+    paddingLeft: 16,
+    paddingRight: 8,
+    paddingTop: 4,
+    paddingBottom: 8
+  },
+  categoryTile: {
+    width: 68,
+    alignItems: "center",
+    marginRight: 10
+  },
+  categoryTileIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(0, 0, 0, 0.06)",
+    ...SHADOWS.sm
+  },
+  categoryTileText: {
+    fontFamily: FONTS.medium,
+    fontSize: 11,
+    color: "#475569",
+    textAlign: "center",
+    marginTop: 6,
+    lineHeight: 14
+  },
+
+  // Open Plans Activity Tiles
+  planActivityTile: {
+    width: 82,
+    height: 68,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 8,
+    borderWidth: 1,
+    paddingHorizontal: 4,
+    ...SHADOWS.sm
+  },
+  planActivityEmoji: {
+    fontSize: 20,
+    marginBottom: 3
+  },
+  planActivityLabel: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 11,
+    textAlign: "center"
   },
 
   // Filter Pills
   filterPillsContainer: {
-    marginBottom: 16
+    marginBottom: 16,
+    paddingVertical: 6
   },
   filterPill: {
     paddingHorizontal: 14,

@@ -19,6 +19,7 @@ import {
   Info,
   User,
   Tag,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -58,6 +59,7 @@ import {
   getEventStats,
   deleteEvent,
   cancelEvent,
+  toggleFeatureEvent,
   getEventById,
   type Event,
   type EventStats,
@@ -72,6 +74,8 @@ export default function EventsPage() {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [featureLoading, setFeatureLoading] = useState(false);
+  const [featuredUntilInput, setFeaturedUntilInput] = useState<string>("");
 
   // Filters
   const [search, setSearch] = useState("");
@@ -138,10 +142,37 @@ export default function EventsPage() {
       // Fetch full event details
       const fullEvent = await getEventById(event.id);
       setSelectedEvent(fullEvent);
+      if (fullEvent.featured_until) {
+        setFeaturedUntilInput(new Date(fullEvent.featured_until).toISOString().slice(0, 16));
+      } else {
+        setFeaturedUntilInput("");
+      }
     } catch (err) {
       console.error("Error loading event details:", err);
     } finally {
       setDetailLoading(false);
+    }
+  };
+
+  const handleToggleFeature = async (isFeatured: boolean) => {
+    if (!selectedEvent) return;
+    setFeatureLoading(true);
+    try {
+      await toggleFeatureEvent(selectedEvent.id, {
+        is_featured: isFeatured,
+        featured_until: isFeatured && featuredUntilInput ? new Date(featuredUntilInput).toISOString() : null,
+      });
+      const updated = {
+        ...selectedEvent,
+        is_featured: isFeatured,
+        featured_until: isFeatured && featuredUntilInput ? new Date(featuredUntilInput).toISOString() : null,
+      };
+      setSelectedEvent(updated);
+      setEvents(events.map((e) => (e.id === selectedEvent.id ? { ...e, ...updated } : e)));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to update feature status");
+    } finally {
+      setFeatureLoading(false);
     }
   };
 
@@ -604,6 +635,55 @@ export default function EventsPage() {
                         @{selectedEvent.community_username}
                       </div>
                     </div>
+                  </div>
+
+                  {/* Featured / Boost Status */}
+                  <div className="p-3 rounded-lg border bg-amber-50/40 border-amber-200/60 dark:bg-amber-950/20 dark:border-amber-800/40 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                        <div>
+                          <div className="font-semibold text-sm">Boost / Featured Event</div>
+                          <div className="text-xs text-muted-foreground">
+                            Surfaces event at the top of Explore &quot;What&apos;s Hot&quot; rail
+                          </div>
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant={selectedEvent.is_featured ? "default" : "outline"}
+                        className={selectedEvent.is_featured ? "bg-amber-600 hover:bg-amber-700 text-white" : ""}
+                        disabled={featureLoading}
+                        onClick={() => handleToggleFeature(!selectedEvent.is_featured)}
+                      >
+                        {selectedEvent.is_featured ? "Featured ★" : "Feature Event"}
+                      </Button>
+                    </div>
+
+                    {selectedEvent.is_featured && (
+                      <div className="pt-2 border-t border-amber-200/50 space-y-1.5">
+                        <label className="text-xs font-medium text-muted-foreground">
+                          Featured Until (optional expiration):
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="datetime-local"
+                            className="text-xs px-2 py-1 border rounded bg-background flex-1"
+                            value={featuredUntilInput}
+                            onChange={(e) => setFeaturedUntilInput(e.target.value)}
+                          />
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="text-xs h-7"
+                            disabled={featureLoading}
+                            onClick={() => handleToggleFeature(true)}
+                          >
+                            Save Expiry
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Date & Time */}

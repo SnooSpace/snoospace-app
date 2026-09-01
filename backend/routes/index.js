@@ -466,6 +466,11 @@ router.patch(
   adminAuthMiddleware,
   CategoryController.cancelEventAdmin,
 );
+router.patch(
+  "/admin/events/:eventId/feature",
+  adminAuthMiddleware,
+  CategoryController.updateEventFeatureAdmin,
+);
 
 // Auth (Legacy - will be deprecated)
 router.post(

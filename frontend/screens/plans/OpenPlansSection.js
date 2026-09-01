@@ -16,27 +16,36 @@ import ContentActionsSheet from '../../components/modals/ContentActionsSheet';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const ACTIVITY_COLORS = {
-  sports:       { bg: '#FFF3E0', text: '#E65100', label: 'Sports' },
-  movies:       { bg: '#F3E5F5', text: '#6A1B9A', label: 'Movies' },
-  bar:          { bg: '#E8EAF6', text: '#303F9F', label: 'Bar' },
-  food:         { bg: '#FFF8E1', text: '#F57F17', label: 'Food' },
-  cafe:         { bg: '#EFEBE9', text: '#4E342E', label: 'Cafe' },
-  yoga:         { bg: '#E8F5E9', text: '#2E7D32', label: 'Yoga' },
-  gym:          { bg: '#FCE4EC', text: '#880E4F', label: 'Gym' },
-  walk:         { bg: '#E0F2F1', text: '#00695C', label: 'Walk' },
-  rides:        { bg: '#E3F2FD', text: '#1565C0', label: 'Rides' },
-  live_music:   { bg: '#FCE4EC', text: '#C62828', label: 'Live Music' },
-  study:        { bg: '#EDE7F6', text: '#4527A0', label: 'Study / Co-work' },
-  creative:     { bg: '#FFF9C4', text: '#F57F17', label: 'Creative' },
-  games:        { bg: '#E1F5FE', text: '#01579B', label: 'Games' },
-  gaming:       { bg: '#E1F5FE', text: '#01579B', label: 'Games' },
-  pet_friendly: { bg: '#F1F8E9', text: '#33691E', label: 'Pet Friendly' },
-  hangout:      { bg: '#E8F5E9', text: '#1B5E20', label: 'Hangout' },
-  house_party:  { bg: '#FBE9E7', text: '#D84315', label: 'House Party' },
-  club:         { bg: '#EDE7F6', text: '#5E35B1', label: 'Club' },
-  hiking:       { bg: '#E8F5E9', text: '#2E7D32', label: 'Hiking' },
-  shopping:     { bg: '#FCE4EC', text: '#D81B60', label: 'Shopping' },
-  other:        { bg: '#F5F5F5', text: '#424242', label: 'Other' },
+  sports:         { bg: '#FFF3E0', text: '#E65100', label: 'Sports' },
+  movies:         { bg: '#F3E5F5', text: '#6A1B9A', label: 'Movies' },
+  bar:            { bg: '#E8EAF6', text: '#303F9F', label: 'Bar' },
+  food:           { bg: '#FFF8E1', text: '#F57F17', label: 'Food' },
+  cafe:           { bg: '#EFEBE9', text: '#4E342E', label: 'Cafe' },
+  yoga:           { bg: '#E8F5E9', text: '#2E7D32', label: 'Yoga' },
+  gym:            { bg: '#FCE4EC', text: '#880E4F', label: 'Gym' },
+  walk:           { bg: '#E0F2F1', text: '#00695C', label: 'Walk' },
+  rides:          { bg: '#E3F2FD', text: '#1565C0', label: 'Rides' },
+  live_music:     { bg: '#FCE4EC', text: '#C62828', label: 'Live Music' },
+  study:          { bg: '#EDE7F6', text: '#4527A0', label: 'Co-work' },
+  cowork:         { bg: '#EDE7F6', text: '#4527A0', label: 'Co-work' },
+  creative:       { bg: '#FFF9C4', text: '#F57F17', label: 'Creative' },
+  games:          { bg: '#E1F5FE', text: '#01579B', label: 'Games' },
+  gaming:         { bg: '#E1F5FE', text: '#01579B', label: 'Games' },
+  pet_friendly:   { bg: '#F1F8E9', text: '#33691E', label: 'Pet Meetup' },
+  pet_gathering:  { bg: '#F1F8E9', text: '#33691E', label: 'Pet Meetup' },
+  hangout:        { bg: '#E8F5E9', text: '#1B5E20', label: 'Hangout' },
+  house_party:    { bg: '#FBE9E7', text: '#D84315', label: 'House Party' },
+  club:           { bg: '#EDE7F6', text: '#5E35B1', label: 'Club' },
+  hiking:         { bg: '#E8F5E9', text: '#2E7D32', label: 'Hiking' },
+  shopping:       { bg: '#FCE4EC', text: '#D81B60', label: 'Shopping' },
+  bowling:        { bg: '#EDE7F6', text: '#512DA8', label: 'Bowling' },
+  gokarting:      { bg: '#FFF3E0', text: '#D84315', label: 'Go-karting' },
+  go_karting:     { bg: '#FFF3E0', text: '#D84315', label: 'Go-karting' },
+  indoorgames:    { bg: '#EDE7F6', text: '#673AB7', label: 'Indoor Games' },
+  indoor_games:   { bg: '#EDE7F6', text: '#673AB7', label: 'Indoor Games' },
+  pilates:        { bg: '#FCE4EC', text: '#C2185B', label: 'Pilates' },
+  swimming:       { bg: '#E0F7FA', text: '#00838F', label: 'Swimming' },
+  other:          { bg: '#F5F5F5', text: '#424242', label: 'Other' },
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -151,15 +160,16 @@ export default function OpenPlansSection({ navigation, currentUserId, refreshKey
     return (
       <TouchableOpacity
         key={plan.id}
-        style={[
-          styles.planCard,
-          isOwner && styles.planCardHostingOutline
-        ]}
+        style={styles.planCardOuter}
         activeOpacity={0.9}
         onPress={() => navigation.navigate('PlanDetail', { planId: plan.id })}
       >
-        {/* Upper Poster Half */}
-        <View style={styles.cardPosterContainer}>
+        <View style={[
+          styles.planCardInner,
+          isOwner && styles.planCardHostingOutline
+        ]}>
+          {/* Upper Poster Half */}
+          <View style={styles.cardPosterContainer}>
           {plan.banner_image_url ? (
             <Image
               source={{ uri: plan.banner_image_url }}
@@ -223,38 +233,39 @@ export default function OpenPlansSection({ navigation, currentUserId, refreshKey
           )}
         </View>
 
-        {/* Lower Content Half */}
-        <View style={styles.cardContentContainer}>
-          <Text style={styles.cardTitle} numberOfLines={2}>
-            {plan.title}
-          </Text>
-
-          <View style={styles.cardMetaRow}>
-            <MapPin size={12} color="#94A3B8" />
-            <Text style={styles.cardMetaText} numberOfLines={1}>
-              {plan.location_public || 'Location TBD'}
+          {/* Lower Content Half */}
+          <View style={styles.cardContentContainer}>
+            <Text style={styles.cardTitle} numberOfLines={2}>
+              {plan.title}
             </Text>
-          </View>
 
-          <View style={styles.cardMetaRow}>
-            <Clock size={12} color="#94A3B8" />
-            <Text style={styles.cardMetaText} numberOfLines={1}>
-              {formatScheduled(plan.scheduled_at)}
-            </Text>
-          </View>
-
-          <View style={styles.cardBottomRow}>
-            {/* Price tag */}
-            <View style={[styles.costPill, costLabel === 'Free' ? styles.costPillFree : styles.costPillPaid]}>
-              <Text style={[styles.costPillText, costLabel === 'Free' ? styles.costPillTextFree : styles.costPillTextPaid]}>
-                {costLabel || 'Free'}
+            <View style={styles.cardMetaRow}>
+              <MapPin size={12} color="#94A3B8" />
+              <Text style={styles.cardMetaText} numberOfLines={1}>
+                {plan.location_public || 'Location TBD'}
               </Text>
             </View>
-            
-            {/* Posted time ago */}
-            <Text style={styles.timeAgoText}>
-              {formatTimeAgo(createdTime)}
-            </Text>
+
+            <View style={styles.cardMetaRow}>
+              <Clock size={12} color="#94A3B8" />
+              <Text style={styles.cardMetaText} numberOfLines={1}>
+                {formatScheduled(plan.scheduled_at)}
+              </Text>
+            </View>
+
+            <View style={styles.cardBottomRow}>
+              {/* Price tag */}
+              <View style={[styles.costPill, costLabel === 'Free' ? styles.costPillFree : styles.costPillPaid]}>
+                <Text style={[styles.costPillText, costLabel === 'Free' ? styles.costPillTextFree : styles.costPillTextPaid]}>
+                  {costLabel || 'Free'}
+                </Text>
+              </View>
+              
+              {/* Posted time ago */}
+              <Text style={styles.timeAgoText}>
+                {formatTimeAgo(createdTime)}
+              </Text>
+            </View>
           </View>
         </View>
       </TouchableOpacity>
@@ -426,22 +437,28 @@ const styles = StyleSheet.create({
   horizontalScrollContent: {
     paddingHorizontal: 24,
     gap: 12,
-    paddingBottom: 8, // space for shadows
+    paddingTop: 4,
+    paddingBottom: 14,
   },
   // New Open Plan Card styles
-  planCard: {
+  planCardOuter: {
     width: 170,
     height: 240,
+    borderRadius: 16,
     backgroundColor: '#1E293B',
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  planCardInner: {
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1.5,
     borderColor: 'transparent',
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 3,
+    backgroundColor: '#1E293B',
+    flex: 1,
   },
   planCardHostingOutline: {
     borderColor: '#2962FF',

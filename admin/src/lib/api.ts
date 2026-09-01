@@ -846,6 +846,8 @@ export interface Event {
   featured_accounts: FeaturedAccount[];
   ticket_types: TicketType[];
   banners: Banner[];
+  is_featured?: boolean;
+  featured_until?: string | null;
 }
 
 export interface EventStats {
@@ -922,6 +924,17 @@ export async function cancelEvent(
 ): Promise<{ success: boolean; message: string; event: Event }> {
   return apiRequest(`/admin/events/${id}/cancel`, {
     method: "PATCH",
+  });
+}
+
+// Toggle featured event status
+export async function toggleFeatureEvent(
+  id: number,
+  data: { is_featured: boolean; featured_until?: string | null },
+): Promise<{ success: boolean; message: string; event: Event }> {
+  return apiRequest(`/admin/events/${id}/feature`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
   });
 }
 

@@ -111,13 +111,13 @@ export default function CompactEventCard({
     statusBadge = 'Going';
   } else if (event.spotsLeft !== undefined && event.spotsLeft !== null && event.spotsLeft <= 5 && event.spotsLeft > 0) {
     statusBadge = `${event.spotsLeft} left`;
+  } else if (event.isFeatured || event.is_featured) {
+    statusBadge = 'Featured';
   }
-
-  const effectiveCardWidth = customWidth || cardW;
 
   return (
     <TouchableOpacity
-      style={[styles.card, customWidth ? { width: customWidth } : null, style]}
+      style={[styles.cardOuter, customWidth ? { width: customWidth } : null, style]}
       activeOpacity={0.88}
       onPress={() => onPress && onPress(event)}
       onLayout={(e) => {
@@ -126,116 +126,120 @@ export default function CompactEventCard({
         }
       }}
     >
-      {/* Poster Half */}
-      <View style={[styles.poster, { width: '100%' }]}>
-        {imageUrl ? (
-          <Image
-            source={{ uri: imageUrl }}
-            style={{ width: '100%', height: 112 }}
-            contentFit="cover"
-          />
-        ) : (
-          <View style={[styles.placeholderPoster, { width: '100%', height: 112 }]}>
-            <LinearGradient
-              colors={['#0F172A', '#1E293B', '#334155']}
-              style={StyleSheet.absoluteFill}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
+      <View style={styles.cardInner}>
+        {/* Poster Half */}
+        <View style={styles.poster}>
+          {imageUrl ? (
+            <Image
+              source={{ uri: imageUrl }}
+              style={styles.posterImage}
+              contentFit="cover"
             />
-            <View style={styles.geometricAccent} />
-            <Calendar size={28} color="rgba(255, 255, 255, 0.7)" strokeWidth={1.5} />
-          </View>
-        )}
-
-        {/* Top-Left Date Badge */}
-        <View style={styles.dateBadge}>
-          <Text style={styles.dateMonth}>{month}</Text>
-          <Text style={styles.dateDay}>{day}</Text>
-        </View>
-
-        {/* Top-Right Bookmark Button */}
-        {showBookmark && onToggleInterest && (
-          <TouchableOpacity
-            style={styles.bookmarkBtn}
-            activeOpacity={0.7}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            onPress={(e) => {
-              e?.stopPropagation?.();
-              const targetId = event.eventId || event.id;
-              onToggleInterest(targetId);
-            }}
-          >
-            <Bookmark
-              size={13}
-              color={isInterested ? '#2962FF' : '#2C2C2A'}
-              fill={isInterested ? '#2962FF' : 'transparent'}
-              strokeWidth={2}
-            />
-          </TouchableOpacity>
-        )}
-
-        {/* Top-Right Status Badge (rendered when not bookmarked or positioned nicely) */}
-        {statusBadge && (!showBookmark || statusBadge === 'LIVE') && (
-          <View
-            style={[
-              styles.statusBadge,
-              statusBadge === 'LIVE'
-                ? styles.statusBadgeLive
-                : statusBadge === 'Past'
-                ? styles.statusBadgePast
-                : statusBadge === 'Attended'
-                ? styles.statusBadgeAttended
-                : styles.statusBadgeGoing,
-            ]}
-          >
-            {statusBadge === 'Attended' && (
-              <CheckCircle2 size={9} color="#FFFFFF" strokeWidth={2.5} style={{ marginRight: 2 }} />
-            )}
-            <Text style={styles.statusBadgeText}>{statusBadge}</Text>
-          </View>
-        )}
-      </View>
-
-      {/* Info Half */}
-      <View style={styles.content}>
-        <Text style={styles.title} numberOfLines={2}>
-          {event.title || event.name || 'Event'}
-        </Text>
-
-        <View style={styles.metaRow}>
-          {isVirtual ? (
-            <Video size={11} color={COLORS.textSecondary} strokeWidth={2} />
           ) : (
-            <MapPin size={11} color={COLORS.textSecondary} strokeWidth={2} />
+            <View style={styles.placeholderPoster}>
+              <LinearGradient
+                colors={['#0F172A', '#1E293B', '#334155']}
+                style={StyleSheet.absoluteFill}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              />
+              <View style={styles.geometricAccent} />
+              <Calendar size={28} color="rgba(255, 255, 255, 0.7)" strokeWidth={1.5} />
+            </View>
           )}
-          <Text style={styles.metaText} numberOfLines={1}>
-            {locationText}
-          </Text>
+
+          {/* Top-Left Date Badge */}
+          <View style={styles.dateBadge}>
+            <Text style={styles.dateMonth}>{month}</Text>
+            <Text style={styles.dateDay}>{day}</Text>
+          </View>
+
+          {/* Top-Right Bookmark Button */}
+          {showBookmark && onToggleInterest && (
+            <TouchableOpacity
+              style={styles.bookmarkBtn}
+              activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              onPress={(e) => {
+                e?.stopPropagation?.();
+                const targetId = event.eventId || event.id;
+                onToggleInterest(targetId);
+              }}
+            >
+              <Bookmark
+                size={13}
+                color={isInterested ? '#2962FF' : '#2C2C2A'}
+                fill={isInterested ? '#2962FF' : 'transparent'}
+                strokeWidth={2}
+              />
+            </TouchableOpacity>
+          )}
+
+          {/* Top-Right Status Badge (rendered when not bookmarked or positioned nicely) */}
+          {statusBadge && (!showBookmark || statusBadge === 'LIVE') && (
+            <View
+              style={[
+                styles.statusBadge,
+                statusBadge === 'LIVE'
+                  ? styles.statusBadgeLive
+                  : statusBadge === 'Featured'
+                  ? styles.statusBadgeFeatured
+                  : statusBadge === 'Past'
+                  ? styles.statusBadgePast
+                  : statusBadge === 'Attended'
+                  ? styles.statusBadgeAttended
+                  : styles.statusBadgeGoing,
+              ]}
+            >
+              {statusBadge === 'Attended' && (
+                <CheckCircle2 size={9} color="#FFFFFF" strokeWidth={2.5} style={{ marginRight: 2 }} />
+              )}
+              <Text style={styles.statusBadgeText}>{statusBadge}</Text>
+            </View>
+          )}
         </View>
 
-        <View style={styles.metaRow}>
-          <Clock size={11} color={COLORS.textSecondary} strokeWidth={2} />
-          <Text style={styles.metaText} numberOfLines={1}>
-            {formatEventTime(dateStr, formattedTimeStr)}
+        {/* Info Half */}
+        <View style={styles.content}>
+          <Text style={styles.title} numberOfLines={2}>
+            {event.title || event.name || 'Event'}
           </Text>
-        </View>
 
-        <View style={styles.bottomRow}>
-          <View style={[styles.pricePill, isFree ? styles.pricePillFree : styles.pricePillPaid]}>
-            <Text style={[styles.pricePillText, isFree ? styles.pricePillTextFree : styles.pricePillTextPaid]}>
-              {priceLabel}
+          <View style={styles.metaRow}>
+            {isVirtual ? (
+              <Video size={11} color={COLORS.textSecondary} strokeWidth={2} />
+            ) : (
+              <MapPin size={11} color={COLORS.textSecondary} strokeWidth={2} />
+            )}
+            <Text style={styles.metaText} numberOfLines={1}>
+              {locationText}
             </Text>
           </View>
 
-          {event.category || event.categoryName ? (
-            <Text style={styles.categoryText} numberOfLines={1}>
-              {event.category || event.categoryName}
+          <View style={styles.metaRow}>
+            <Clock size={11} color={COLORS.textSecondary} strokeWidth={2} />
+            <Text style={styles.metaText} numberOfLines={1}>
+              {formatEventTime(dateStr, formattedTimeStr)}
             </Text>
-          ) : (event.attendee_count > 0 || event.attendeeCount > 0) ? (
-            <Text style={styles.categoryText} numberOfLines={1}>
-              {`${event.attendee_count || event.attendeeCount} going`}
-            </Text>
-          ) : null}
+          </View>
+
+          <View style={styles.bottomRow}>
+            <View style={[styles.pricePill, isFree ? styles.pricePillFree : styles.pricePillPaid]}>
+              <Text style={[styles.pricePillText, isFree ? styles.pricePillTextFree : styles.pricePillTextPaid]}>
+                {priceLabel}
+              </Text>
+            </View>
+
+            {event.category || event.categoryName ? (
+              <Text style={styles.categoryText} numberOfLines={1}>
+                {event.category || event.categoryName}
+              </Text>
+            ) : (event.attendee_count > 0 || event.attendeeCount > 0) ? (
+              <Text style={styles.categoryText} numberOfLines={1}>
+                {`${event.attendee_count || event.attendeeCount} going`}
+              </Text>
+            ) : null}
+          </View>
         </View>
       </View>
     </TouchableOpacity>
@@ -243,27 +247,38 @@ export default function CompactEventCard({
 }
 
 const styles = StyleSheet.create({
-  card: {
+  cardOuter: {
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    height: 236,
+    width: '100%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  cardInner: {
     borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: '#E2E8F0',
     backgroundColor: '#FFFFFF',
-    height: 236,
-    width: '100%',
-    ...SHADOWS.sm,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 2,
+    flex: 1,
   },
   poster: {
     height: 112,
+    width: '100%',
     position: 'relative',
     backgroundColor: '#0F172A',
   },
+  posterImage: {
+    width: '100%',
+    height: 112,
+  },
   placeholderPoster: {
+    width: '100%',
+    height: 112,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
@@ -320,7 +335,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 10,
-    ...SHADOWS.sm,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
   },
   statusBadge: {
     position: 'absolute',
@@ -334,6 +353,9 @@ const styles = StyleSheet.create({
   },
   statusBadgeLive: {
     backgroundColor: 'rgba(216, 90, 48, 0.95)',
+  },
+  statusBadgeFeatured: {
+    backgroundColor: '#D97706',
   },
   statusBadgeGoing: {
     backgroundColor: '#2962FF',

@@ -110,10 +110,12 @@ async function createPlan(req, res) {
       return res.status(400).json({ error: 'title must be 100 characters or less' });
     }
     const validActivityTypes = [
-      'sports', 'study', 'food', 'gaming', 'other',
-      'cafe', 'walk', 'pet_friendly', 'hangout', 'rides',
+      'sports', 'study', 'cowork', 'food', 'gaming', 'games', 'other',
+      'cafe', 'walk', 'pet_friendly', 'pet_gathering', 'hangout', 'rides',
       'creative', 'gym', 'yoga', 'live_music', 'movies', 'bar',
       'house_party', 'club', 'hiking', 'shopping',
+      'bowling', 'gokarting', 'go_karting', 'indoorgames', 'indoor_games',
+      'pilates', 'swimming',
     ];
     if (!validActivityTypes.includes(activity_type)) {
       return res.status(400).json({ error: `activity_type must be one of: ${validActivityTypes.join(', ')}` });
@@ -229,6 +231,7 @@ async function getPlans(req, res) {
 
     const limit = Math.min(parseInt(req.query.limit || '20', 10), 50);
     const cursor = req.query.cursor ? parseInt(req.query.cursor, 10) : null;
+    const activityType = req.query.activityType || req.query.activity_type || null;
 
     // Fetch viewer's gender for filter
     const memberR = await pool.query(`SELECT gender FROM members WHERE id = $1`, [userId]);
@@ -236,6 +239,9 @@ async function getPlans(req, res) {
 
     const params = [userId, userId, viewerGender, limit + 1];
     const cursorClause = cursor ? `AND op.id < $${params.push(cursor)}` : '';
+    const activityClause = (activityType && activityType !== 'all')
+      ? `AND op.activity_type = $${params.push(activityType)}`
+      : '';
 
     const query = `
       SELECT op.*
@@ -244,6 +250,7 @@ async function getPlans(req, res) {
         AND op.expires_at > NOW()
         AND op.scheduled_at > NOW()
         ${cursorClause}
+        ${activityClause}
         -- Block filter (both directions)
         AND op.created_by NOT IN (
           SELECT blocked_id FROM user_blocks WHERE blocker_id = $1

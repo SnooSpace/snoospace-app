@@ -7,27 +7,36 @@ import PlanCropImage from '../../screens/plans/PlanCropImage';
 import ContentActionsSheet from '../modals/ContentActionsSheet';
 
 const ACTIVITY_COLORS = {
-  sports:       { bg: '#FFF3E0', text: '#E65100', label: 'Sports' },
-  movies:       { bg: '#F3E5F5', text: '#6A1B9A', label: 'Movies' },
-  bar:          { bg: '#E8EAF6', text: '#303F9F', label: 'Bar' },
-  food:         { bg: '#FFF8E1', text: '#F57F17', label: 'Food' },
-  cafe:         { bg: '#EFEBE9', text: '#4E342E', label: 'Cafe' },
-  yoga:         { bg: '#E8F5E9', text: '#2E7D32', label: 'Yoga' },
-  gym:          { bg: '#FCE4EC', text: '#880E4F', label: 'Gym' },
-  walk:         { bg: '#E0F2F1', text: '#00695C', label: 'Walk' },
-  rides:        { bg: '#E3F2FD', text: '#1565C0', label: 'Rides' },
-  live_music:   { bg: '#FCE4EC', text: '#C62828', label: 'Live Music' },
-  study:        { bg: '#EDE7F6', text: '#4527A0', label: 'Study / Co-work' },
-  creative:     { bg: '#FFF9C4', text: '#F57F17', label: 'Creative' },
-  games:        { bg: '#E1F5FE', text: '#01579B', label: 'Games' },
-  gaming:       { bg: '#E1F5FE', text: '#01579B', label: 'Games' },
-  pet_friendly: { bg: '#F1F8E9', text: '#33691E', label: 'Pet Friendly' },
-  hangout:      { bg: '#E8F5E9', text: '#1B5E20', label: 'Hangout' },
-  house_party:  { bg: '#FBE9E7', text: '#D84315', label: 'House Party' },
-  club:         { bg: '#EDE7F6', text: '#5E35B1', label: 'Club' },
-  hiking:       { bg: '#E8F5E9', text: '#2E7D32', label: 'Hiking' },
-  shopping:     { bg: '#FCE4EC', text: '#D81B60', label: 'Shopping' },
-  other:        { bg: '#F5F5F5', text: '#424242', label: 'Other' },
+  sports:         { bg: '#FFF3E0', text: '#E65100', label: 'Sports' },
+  movies:         { bg: '#F3E5F5', text: '#6A1B9A', label: 'Movies' },
+  bar:            { bg: '#E8EAF6', text: '#303F9F', label: 'Bar' },
+  food:           { bg: '#FFF8E1', text: '#F57F17', label: 'Food' },
+  cafe:           { bg: '#EFEBE9', text: '#4E342E', label: 'Cafe' },
+  yoga:           { bg: '#E8F5E9', text: '#2E7D32', label: 'Yoga' },
+  gym:            { bg: '#FCE4EC', text: '#880E4F', label: 'Gym' },
+  walk:           { bg: '#E0F2F1', text: '#00695C', label: 'Walk' },
+  rides:          { bg: '#E3F2FD', text: '#1565C0', label: 'Rides' },
+  live_music:     { bg: '#FCE4EC', text: '#C62828', label: 'Live Music' },
+  study:          { bg: '#EDE7F6', text: '#4527A0', label: 'Co-work' },
+  cowork:         { bg: '#EDE7F6', text: '#4527A0', label: 'Co-work' },
+  creative:       { bg: '#FFF9C4', text: '#F57F17', label: 'Creative' },
+  games:          { bg: '#E1F5FE', text: '#01579B', label: 'Games' },
+  gaming:         { bg: '#E1F5FE', text: '#01579B', label: 'Games' },
+  pet_friendly:   { bg: '#F1F8E9', text: '#33691E', label: 'Pet Meetup' },
+  pet_gathering:  { bg: '#F1F8E9', text: '#33691E', label: 'Pet Meetup' },
+  hangout:        { bg: '#E8F5E9', text: '#1B5E20', label: 'Hangout' },
+  house_party:    { bg: '#FBE9E7', text: '#D84315', label: 'House Party' },
+  club:           { bg: '#EDE7F6', text: '#5E35B1', label: 'Club' },
+  hiking:         { bg: '#E8F5E9', text: '#2E7D32', label: 'Hiking' },
+  shopping:       { bg: '#FCE4EC', text: '#D81B60', label: 'Shopping' },
+  bowling:        { bg: '#EDE7F6', text: '#512DA8', label: 'Bowling' },
+  gokarting:      { bg: '#FFF3E0', text: '#D84315', label: 'Go-karting' },
+  go_karting:     { bg: '#FFF3E0', text: '#D84315', label: 'Go-karting' },
+  indoorgames:    { bg: '#EDE7F6', text: '#673AB7', label: 'Indoor Games' },
+  indoor_games:   { bg: '#EDE7F6', text: '#673AB7', label: 'Indoor Games' },
+  pilates:        { bg: '#FCE4EC', text: '#C2185B', label: 'Pilates' },
+  swimming:       { bg: '#E0F7FA', text: '#00838F', label: 'Swimming' },
+  other:          { bg: '#F5F5F5', text: '#424242', label: 'Other' },
 };
 
 function formatScheduled(iso) {
@@ -106,10 +115,7 @@ export default function CompactPlanCard({
 
   return (
     <TouchableOpacity
-      style={[
-        styles.card,
-        isDark ? styles.cardDark : styles.cardLight,
-      ]}
+      style={styles.cardOuter}
       activeOpacity={0.88}
       onPress={() => onPress ? onPress(plan.id) : navigation?.navigate('PlanDetail', { planId: plan.id })}
       onLayout={(e) => {
@@ -118,17 +124,18 @@ export default function CompactPlanCard({
         }
       }}
     >
-      {/* Poster Half */}
-      <View style={[styles.poster, { width: cardW }]}>
-        {plan.banner_image_url ? (
-          <Image
-            source={{ uri: plan.banner_image_url }}
-            style={{ width: cardW, height: 112 }}
-            contentFit="cover"
-          />
-        ) : (
-          <PlanCropImage activityType={activityKey} containerW={cardW} height={112} />
-        )}
+      <View style={[styles.cardInner, isDark ? styles.cardDark : styles.cardLight]}>
+        {/* Poster Half */}
+        <View style={[styles.poster, { width: cardW }]}>
+          {plan.banner_image_url ? (
+            <Image
+              source={{ uri: plan.banner_image_url }}
+              style={{ width: cardW, height: 112 }}
+              contentFit="cover"
+            />
+          ) : (
+            <PlanCropImage activityType={activityKey} containerW={cardW} height={112} />
+          )}
 
         {/* Top-Left Category Badge */}
         <View style={[styles.categoryPill, { backgroundColor: activityStyle.bg }]}>
@@ -191,49 +198,46 @@ export default function CompactPlanCard({
         )}
       </View>
 
-      {/* Info Half */}
-      <View style={[styles.content, isDark ? styles.contentDark : styles.contentLight]}>
-        <Text
-          style={[styles.title, isDark ? styles.titleDark : styles.titleLight]}
-          numberOfLines={2}
-        >
-          {plan.title}
-        </Text>
-
-        <View style={styles.metaRow}>
-          <MapPin size={11} color={COLORS.textSecondary} strokeWidth={2} />
-          <Text style={styles.metaText} numberOfLines={1}>
-            {plan.location_public || 'Location TBD'}
-          </Text>
-        </View>
-
-        <View style={styles.metaRow}>
-          <Clock size={11} color={COLORS.textSecondary} strokeWidth={2} />
-          <Text style={styles.metaText} numberOfLines={1}>
-            {formatScheduled(plan.scheduled_at)}
-          </Text>
-        </View>
-
-        <View style={styles.bottomRow}>
-          <View
-            style={[
-              styles.costPill,
-              costLabel === 'Free' ? styles.costPillFree : styles.costPillPaid,
-            ]}
+        {/* Info Half */}
+        <View style={[styles.content, isDark ? styles.contentDark : styles.contentLight]}>
+          <Text
+            style={[styles.title, isDark ? styles.titleDark : styles.titleLight]}
+            numberOfLines={2}
           >
+            {plan.title}
+          </Text>
+
+          <View style={styles.metaRow}>
+            <MapPin size={11} color={isDark ? '#94A3B8' : COLORS.textSecondary} strokeWidth={2} />
             <Text
-              style={[
-                styles.costPillText,
-                costLabel === 'Free' ? styles.costPillTextFree : styles.costPillTextPaid,
-              ]}
+              style={[styles.metaText, isDark ? styles.metaTextDark : styles.metaTextLight]}
+              numberOfLines={1}
             >
-              {costLabel}
+              {plan.location_public || 'Location TBD'}
             </Text>
           </View>
 
-          <Text style={styles.timeAgoText}>
-            {formatTimeAgo(plan.created_at || plan.createdAt || plan.scheduled_at)}
-          </Text>
+          <View style={styles.metaRow}>
+            <Clock size={11} color={isDark ? '#94A3B8' : COLORS.textSecondary} strokeWidth={2} />
+            <Text
+              style={[styles.metaText, isDark ? styles.metaTextDark : styles.metaTextLight]}
+              numberOfLines={1}
+            >
+              {formatScheduled(plan.scheduled_at)}
+            </Text>
+          </View>
+
+          <View style={[styles.bottomRow, isDark ? styles.bottomRowDark : styles.bottomRowLight]}>
+            <View style={[styles.costPill, costLabel === 'Free' ? styles.costPillFree : (isDark ? styles.costPillPaidDark : styles.costPillPaid)]}>
+              <Text style={[styles.costPillText, costLabel === 'Free' ? styles.costPillTextFree : (isDark ? styles.costPillTextPaidDark : styles.costPillTextPaid)]}>
+                {costLabel || 'Free'}
+              </Text>
+            </View>
+
+            <Text style={[styles.timeAgoText, isDark ? styles.timeAgoTextDark : styles.timeAgoTextLight]}>
+              {formatTimeAgo(plan.created_at || plan.createdAt || plan.scheduled_at)}
+            </Text>
+          </View>
         </View>
       </View>
     </TouchableOpacity>
@@ -241,18 +245,21 @@ export default function CompactPlanCard({
 }
 
 const styles = StyleSheet.create({
-  card: {
+  cardOuter: {
+    borderRadius: 20,
+    height: 236,
+    width: '100%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  cardInner: {
     borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 1,
-    height: 236,
-    width: '100%',
-    ...SHADOWS.sm,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 2,
+    flex: 1,
   },
   cardLight: {
     backgroundColor: '#FFFFFF',

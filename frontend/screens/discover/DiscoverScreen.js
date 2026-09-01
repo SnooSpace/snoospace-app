@@ -716,6 +716,8 @@ const styles = StyleSheet.create({
   },
   horizontalList: {
     paddingHorizontal: SPACING.l,
+    paddingTop: 4,
+    paddingBottom: 14,
     gap: SPACING.m,
   },
 
