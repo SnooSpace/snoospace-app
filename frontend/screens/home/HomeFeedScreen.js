@@ -1691,7 +1691,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           ? feedItemsRef.current
           : (freshPostsRef.current || []).map((p) => ({ ...p, itemType: 'post' }));
         const candidateItems = currentFeed.length > 0 ? currentFeed : (feedItems || []);
-        const batchSize = Math.max(2, computeBatchSize(candidateItems, 0, 12));
+        const batchSize = candidateItems.length > 0 ? Math.min(candidateItems.length, computeBatchSize(candidateItems, 0, 12)) : 0;
         const firstBatch = candidateItems.slice(0, batchSize);
 
         const prefetchPromise = prefetchBatchImages(firstBatch);
@@ -1855,7 +1855,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           ? feedItemsRef.current
           : (freshPostsRef.current || []).map((p) => ({ ...p, itemType: 'post' }));
         const candidateItems = currentFeed.length > 0 ? currentFeed : (feedItems || []);
-        const batchSize = Math.max(2, computeBatchSize(candidateItems, 0, 12));
+        const batchSize = candidateItems.length > 0 ? Math.min(candidateItems.length, computeBatchSize(candidateItems, 0, 12)) : 0;
         const firstBatch = candidateItems.slice(0, batchSize);
         const elapsed = Date.now() - skeletonStartTimeRef.current;
         await Promise.race([
@@ -2326,7 +2326,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       ? feedItemsRef.current
       : (freshPostsRef.current || []).map((p) => ({ ...p, itemType: 'post' }));
     const candidateItems = currentFeed.length > 0 ? currentFeed : (feedItems || []);
-    const batchSize = Math.max(2, computeBatchSize(candidateItems, 0, 12));
+    const batchSize = candidateItems.length > 0 ? Math.min(candidateItems.length, computeBatchSize(candidateItems, 0, 12)) : 0;
     setRevealedCount(batchSize);
     setRefreshing(false);
     // Snap scroll position back to the very top after the shuffled data is laid out.
