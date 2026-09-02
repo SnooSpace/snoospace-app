@@ -628,6 +628,55 @@ const getFeed = async (req, res) => {
            AND pis_rank.rank_penalty_until IS NOT NULL
            AND NOW() < pis_rank.rank_penalty_until
           THEN p.created_at - INTERVAL '3 days'
+          -- Community co-membership discount: applies ONLY when post qualifies via co-membership
+          -- and no stronger branch (branches 1–6) already covers it
+          WHEN NOT (
+            (p.author_id = $1 AND p.author_type = $2)
+            OR EXISTS (
+              SELECT 1 FROM follows f_d
+              WHERE f_d.follower_id = $1 AND f_d.follower_type = $2
+                AND f_d.following_id = p.author_id AND f_d.following_type = p.author_type
+                AND f_d.is_superseded_by_circle = false
+            )
+            OR (p.author_type = 'member' AND EXISTS (
+              SELECT 1 FROM creator_follows cf_d
+              WHERE cf_d.follower_id = $1 AND cf_d.follower_type = $2
+                AND cf_d.creator_id = p.author_id
+                AND cf_d.is_dormant = false
+                AND cf_d.is_superseded_by_circle = false
+            ))
+            OR ($2 = 'member' AND p.author_type = 'member' AND EXISTS (
+              SELECT 1 FROM circles ci_d
+              WHERE (ci_d.user_a_id = $1 AND ci_d.user_b_id = p.author_id)
+                 OR (ci_d.user_b_id = $1 AND ci_d.user_a_id = p.author_id)
+            ))
+            OR ($2 = 'community' AND p.author_type = 'member' AND EXISTS (
+              SELECT 1 FROM community_member_circles cc_d
+              WHERE cc_d.community_id = $1 AND cc_d.member_id = p.author_id
+            ))
+            OR ($2 = 'member' AND p.author_type = 'community' AND EXISTS (
+              SELECT 1 FROM community_member_circles cc_d
+              WHERE cc_d.community_id = p.author_id AND cc_d.member_id = $1
+            ))
+          ) THEN
+            CASE
+              -- Co-membership WITH accepted community_member_circles invite in the shared community
+              WHEN EXISTS (
+                SELECT 1 FROM follows f1_cmc
+                JOIN follows f2_cmc
+                  ON f1_cmc.following_id = f2_cmc.following_id
+                 AND f1_cmc.following_type = 'community'
+                 AND f2_cmc.following_type = 'community'
+                WHERE f1_cmc.follower_id = $1 AND f1_cmc.follower_type = $2
+                  AND f2_cmc.follower_id = p.author_id AND f2_cmc.follower_type = 'member'
+                  AND (
+                    EXISTS (SELECT 1 FROM community_member_circles cmc_v WHERE cmc_v.community_id = f1_cmc.following_id AND cmc_v.member_id = $1)
+                    OR EXISTS (SELECT 1 FROM community_member_circles cmc_a WHERE cmc_a.community_id = f1_cmc.following_id AND cmc_a.member_id = p.author_id)
+                  )
+              ) THEN p.created_at - INTERVAL '6 hours'
+              -- Co-membership via follows only
+              ELSE p.created_at - INTERVAL '1 day'
+            END
           ELSE p.created_at
         END,
         p.id
@@ -738,6 +787,55 @@ const getFeed = async (req, res) => {
            AND pis_rank.rank_penalty_until IS NOT NULL
            AND NOW() < pis_rank.rank_penalty_until
           THEN p.created_at - INTERVAL '3 days'
+          -- Community co-membership discount: applies ONLY when post qualifies via co-membership
+          -- and no stronger branch (branches 1–6) already covers it
+          WHEN NOT (
+            (p.author_id = $1 AND p.author_type = $2)
+            OR EXISTS (
+              SELECT 1 FROM follows f_d
+              WHERE f_d.follower_id = $1 AND f_d.follower_type = $2
+                AND f_d.following_id = p.author_id AND f_d.following_type = p.author_type
+                AND f_d.is_superseded_by_circle = false
+            )
+            OR (p.author_type = 'member' AND EXISTS (
+              SELECT 1 FROM creator_follows cf_d
+              WHERE cf_d.follower_id = $1 AND cf_d.follower_type = $2
+                AND cf_d.creator_id = p.author_id
+                AND cf_d.is_dormant = false
+                AND cf_d.is_superseded_by_circle = false
+            ))
+            OR ($2 = 'member' AND p.author_type = 'member' AND EXISTS (
+              SELECT 1 FROM circles ci_d
+              WHERE (ci_d.user_a_id = $1 AND ci_d.user_b_id = p.author_id)
+                 OR (ci_d.user_b_id = $1 AND ci_d.user_a_id = p.author_id)
+            ))
+            OR ($2 = 'community' AND p.author_type = 'member' AND EXISTS (
+              SELECT 1 FROM community_member_circles cc_d
+              WHERE cc_d.community_id = $1 AND cc_d.member_id = p.author_id
+            ))
+            OR ($2 = 'member' AND p.author_type = 'community' AND EXISTS (
+              SELECT 1 FROM community_member_circles cc_d
+              WHERE cc_d.community_id = p.author_id AND cc_d.member_id = $1
+            ))
+          ) THEN
+            CASE
+              -- Co-membership WITH accepted community_member_circles invite in the shared community
+              WHEN EXISTS (
+                SELECT 1 FROM follows f1_cmc
+                JOIN follows f2_cmc
+                  ON f1_cmc.following_id = f2_cmc.following_id
+                 AND f1_cmc.following_type = 'community'
+                 AND f2_cmc.following_type = 'community'
+                WHERE f1_cmc.follower_id = $1 AND f1_cmc.follower_type = $2
+                  AND f2_cmc.follower_id = p.author_id AND f2_cmc.follower_type = 'member'
+                  AND (
+                    EXISTS (SELECT 1 FROM community_member_circles cmc_v WHERE cmc_v.community_id = f1_cmc.following_id AND cmc_v.member_id = $1)
+                    OR EXISTS (SELECT 1 FROM community_member_circles cmc_a WHERE cmc_a.community_id = f1_cmc.following_id AND cmc_a.member_id = p.author_id)
+                  )
+              ) THEN p.created_at - INTERVAL '6 hours'
+              -- Co-membership via follows only
+              ELSE p.created_at - INTERVAL '1 day'
+            END
           ELSE p.created_at
         END AS effective_sort_time,
         -- Phase 2e: is_backlog_post — true when the post was created before any
@@ -856,6 +954,53 @@ const getFeed = async (req, res) => {
               END
             )
         ))
+
+        -- 7. Community Co-Members (shared community membership, non-directly followed/circled)
+        OR (
+          p.author_type = 'member'
+          AND (p.author_id != $1 OR $2 != 'member')
+          AND EXISTS (
+            SELECT 1 FROM follows f1_cm
+            JOIN follows f2_cm
+              ON f1_cm.following_id = f2_cm.following_id
+             AND f1_cm.following_type = 'community'
+             AND f2_cm.following_type = 'community'
+            WHERE f1_cm.follower_id = $1 AND f1_cm.follower_type = $2
+              AND f2_cm.follower_id = p.author_id AND f2_cm.follower_type = 'member'
+          )
+          AND p.created_at >= NOW() - (
+            CASE WHEN p.post_type IN ('media', 'community_voice')
+                 THEN INTERVAL '15 days'
+                 ELSE INTERVAL '7 days'
+            END
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM follows f_ex
+            WHERE f_ex.follower_id = $1 AND f_ex.follower_type = $2
+              AND f_ex.following_id = p.author_id AND f_ex.following_type = 'member'
+              AND f_ex.is_superseded_by_circle = false
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM creator_follows cf_ex
+            WHERE cf_ex.follower_id = $1 AND cf_ex.follower_type = $2
+              AND cf_ex.creator_id = p.author_id
+              AND cf_ex.is_dormant = false
+              AND cf_ex.is_superseded_by_circle = false
+          )
+          AND NOT (
+            $2 = 'member' AND EXISTS (
+              SELECT 1 FROM circles ci_ex
+              WHERE (ci_ex.user_a_id = $1 AND ci_ex.user_b_id = p.author_id)
+                 OR (ci_ex.user_b_id = $1 AND ci_ex.user_a_id = p.author_id)
+            )
+          )
+          AND NOT (
+            $2 = 'community' AND EXISTS (
+              SELECT 1 FROM community_member_circles cc_ex
+              WHERE cc_ex.community_id = $1 AND cc_ex.member_id = p.author_id
+            )
+          )
+        )
       )
       -- 1. Always exclude legacy plan_promo / event_promo post types (they never render correctly)
       AND p.post_type NOT IN ('plan_promo', 'event_promo')
@@ -3498,6 +3643,21 @@ const getDiscoveryPosts = async (req, res) => {
           SELECT 1 FROM community_member_circles cc
           WHERE cc.community_id = p.author_id AND cc.member_id = $1
         ))
+
+        -- ── Mirror Negation of 7th getFeed Branch: Exclude Community Co-Members ─
+        AND NOT (
+          p.author_type = 'member'
+          AND (p.author_id != $1 OR $2 != 'member')
+          AND EXISTS (
+            SELECT 1 FROM follows f1_cm_neg
+            JOIN follows f2_cm_neg
+              ON f1_cm_neg.following_id = f2_cm_neg.following_id
+             AND f1_cm_neg.following_type = 'community'
+             AND f2_cm_neg.following_type = 'community'
+            WHERE f1_cm_neg.follower_id = $1 AND f1_cm_neg.follower_type = $2
+              AND f2_cm_neg.follower_id = p.author_id AND f2_cm_neg.follower_type = 'member'
+          )
+        )
 
         -- ── Block filter: exclude blocked members (bidirectional) & blocked communities ─
         AND NOT (

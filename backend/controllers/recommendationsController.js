@@ -81,7 +81,11 @@ const getRecommendations = async (req, res) => {
        FROM recommended_matches rm
        JOIN members m ON m.id = rm.candidate_id
        WHERE rm.user_id = $1
-       ORDER BY rm.total_score DESC
+       ORDER BY
+         rm.match_tier ASC,
+         CASE WHEN rm.match_tier = 1 THEN rm.total_score END DESC,
+         CASE WHEN rm.match_tier = 2 THEN rm.distance_km END ASC,
+         rm.candidate_id DESC
        LIMIT $2 OFFSET $3`,
       [userId, limit + 1, offset]   // fetch limit+1 to determine has_more
     );

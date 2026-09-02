@@ -455,6 +455,8 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   // audience of at least one specifically-targeted community (OPVC rows exist).
   // Broad/everyone promo posts continue through normal getFeed/getDiscoveryPosts paths.
   const [targetedPromoPosts, setTargetedPromoPosts] = useState([]);
+  const [discoverySettled, setDiscoverySettled] = useState(false);
+  const discoverySettledRef = useRef(false);
   const [zeroFollowFeedItems, setZeroFollowFeedItems] = useState([]);
   const zfInitializedRef = useRef(false);
   const zfProcessedDiscoveryCountRef = useRef(0);
@@ -1204,21 +1206,6 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         promoIndex++;
       }
 
-      // Append remaining events
-      while (eventIndex < events.length) {
-        merged.push({ ...events[eventIndex], itemType: 'event' });
-        eventIndex++;
-      }
-
-      // Append remaining opportunities
-      while (opportunityIndex < opportunities.length) {
-        merged.push({
-          ...opportunities[opportunityIndex],
-          itemType: 'opportunity',
-        });
-        opportunityIndex++;
-      }
-
       // Collect IDs and author counts from followed phase (keyed per content-type)
       const followedIds = new Set();
       const baseAuthorCounts = {};
@@ -1268,6 +1255,9 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       }
       return;
     }
+
+    // Guard against premature build before initial discovery network load settles
+    if (!discoverySettled) return;
 
     const hasAnyCandidates =
       discoveryPosts.length > 0 ||
@@ -1426,7 +1416,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         setZeroFollowFeedItems((prev) => [...prev, ...newClean]);
       }
     }
-  }, [posts.length, discoveryPosts, events, discoveryOpportunities, targetedPromoPosts]);
+  }, [posts.length, discoveryPosts, events, discoveryOpportunities, targetedPromoPosts, discoverySettled]);
 
   // ── Rollover Append Builder (Small / Exhausted Following Accounts) ────────
   // When user follows >0 accounts (posts.length > 0):
@@ -1449,6 +1439,9 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       }
       return;
     }
+
+    // Guard against premature build before initial discovery network load settles
+    if (!discoverySettled) return;
 
     const minMaxNorm = (items, scoreField) => {
       if (!items || items.length === 0) return [];
@@ -1483,7 +1476,13 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       const unusedPosts = discoveryPosts.filter(
         (p) => !followedInjectedIdsRef.current.has(`post-${p.id}`)
       );
-      const unusedOpps = discoveryOpportunities.filter(
+      const unusedDiscoveryOpps = discoveryOpportunities.filter(
+        (o) => !followedInjectedIdsRef.current.has(`opportunity-${o.id}`)
+      );
+      const unusedFollowedEvents = events.filter(
+        (e) => !followedInjectedIdsRef.current.has(`event-${e.id}`)
+      );
+      const unusedFollowedOpps = opportunities.filter(
         (o) => !followedInjectedIdsRef.current.has(`opportunity-${o.id}`)
       );
 
@@ -1491,23 +1490,41 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         unusedPosts.map((p) => ({ ...p, itemType: "post", is_discovery_post: true })),
         "discovery_score"
       );
-      const normOpps = minMaxNorm(
-        unusedOpps.map((o) => ({ ...o, itemType: "opportunity", is_discovery_opportunity: true })),
+      const normDiscoveryOpps = minMaxNorm(
+        unusedDiscoveryOpps.map((o) => ({ ...o, itemType: "opportunity", is_discovery_opportunity: true })),
         "discovery_score"
+      );
+      const normFollowedEvents = minMaxNorm(
+        unusedFollowedEvents.map((e) => ({ ...e, itemType: "event" })),
+        "score"
+      );
+      const normFollowedOpps = minMaxNorm(
+        unusedFollowedOpps.map((o) => ({ ...o, itemType: "opportunity" })),
+        "score"
       );
 
       const filteredPosts = applyDiversity(
         normPosts,
         (p) => `${p.author_type}-${p.author_id}-${p.post_type}`
       );
-      const filteredOpps = applyDiversity(
-        normOpps,
+      const filteredDiscoveryOpps = applyDiversity(
+        normDiscoveryOpps,
         (o) => `${o.creator_type}-${o.creator_id}-opportunity`
+      );
+      const filteredFollowedEvents = applyDiversity(
+        normFollowedEvents,
+        (e) => `community-${e.community_id}-event`
+      );
+      const filteredFollowedOpps = applyDiversity(
+        normFollowedOpps,
+        (o) => `${o.creator_type || 'community'}-${o.creator_id}-opportunity`
       );
 
       const pool = [
+        ...filteredFollowedEvents,
+        ...filteredFollowedOpps,
         ...filteredPosts,
-        ...filteredOpps,
+        ...filteredDiscoveryOpps,
       ].sort((a, b) => b._normalizedScore - a._normalizedScore);
 
       const constrained = [];
@@ -1538,7 +1555,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       rolloverProcessedDiscoveryCountRef.current = discoveryPosts.length;
       rolloverInitializedRef.current = true;
       if (__DEV__) {
-        console.log(`[ROLLOVER-BUILD] Full build: ${cleanItems.length} tail items (discoveryPosts=${discoveryPosts.length}, opps=${discoveryOpportunities.length})`);
+        console.log(`[ROLLOVER-BUILD] Full build: ${cleanItems.length} tail items (discoveryPosts=${discoveryPosts.length}, opps=${discoveryOpportunities.length}, events=${unusedFollowedEvents.length}, followedOpps=${unusedFollowedOpps.length})`);
       }
       setRolloverFeedItems(cleanItems);
     } else if (discoveryPosts.length > rolloverProcessedDiscoveryCountRef.current) {
@@ -1569,7 +1586,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         setRolloverFeedItems((prev) => [...prev, ...newClean]);
       }
     }
-  }, [posts.length, discoveryPosts, discoveryOpportunities]);
+  }, [posts.length, discoveryPosts, discoveryOpportunities, events, opportunities, discoverySettled]);
 
   // Trickle pacing stamp: when feedItems updates and includes discovery posts/opportunities,
   // record each one as 'served' so the backend can track first_discovered_at.
@@ -1629,6 +1646,8 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       setShowSkeleton(true);
       setRevealedCount(0);
       setLoading(true);
+      discoverySettledRef.current = false;
+      setDiscoverySettled(false);
       let revealDispatched = false;
       try {
         // Hydrate from cache (populates state without ending skeleton window)
@@ -1660,17 +1679,19 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           }
         });
 
+        discoverySettledRef.current = true;
+        setDiscoverySettled(true);
+
         saveFeedSnapshot(postsRef.current || [], eventsRef.current || [], opportunitiesRef.current || []);
 
         // ── 4A Skeleton → first-batch reveal ──────────────────────────────
-        // freshPostsRef was populated inside loadFeed for the reset path.
-        // Compute how many posts fit in a 1-second render budget, prefetch
-        // their images, enforce minimum skeleton display time, then reveal.
-        const rawPosts = freshPostsRef.current || [];
-        const candidateItems = rawPosts.length > 0
-          ? rawPosts.map((p) => ({ ...p, itemType: 'post' }))
-          : (feedItems || []);
-        const batchSize = Math.max(1, computeBatchSize(candidateItems, 0, 12));
+        // Compute how many items fit in a 1-second render budget from actual feed items,
+        // prefetch their images, enforce minimum skeleton display time, then reveal.
+        const currentFeed = feedItemsRef.current?.length > 0
+          ? feedItemsRef.current
+          : (freshPostsRef.current || []).map((p) => ({ ...p, itemType: 'post' }));
+        const candidateItems = currentFeed.length > 0 ? currentFeed : (feedItems || []);
+        const batchSize = Math.max(2, computeBatchSize(candidateItems, 0, 12));
         const firstBatch = candidateItems.slice(0, batchSize);
 
         const prefetchPromise = prefetchBatchImages(firstBatch);
@@ -1786,6 +1807,12 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       zfProcessedDiscoveryCountRef.current = 0;
       zfAuthorCountRef.current = {};
       setZeroFollowFeedItems([]);
+      rolloverInitializedRef.current = false;
+      rolloverProcessedDiscoveryCountRef.current = 0;
+      rolloverAuthorCountRef.current = {};
+      setRolloverFeedItems([]);
+      discoverySettledRef.current = false;
+      setDiscoverySettled(false);
       setDiscoveryHasMore(true);
       discoveryOffsetRef.current = 0;
       // Reload all data for the new account
@@ -1816,15 +1843,19 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
             console.warn(`[HomeFeed] Task ${taskNames[i]} failed in account-switch reload:`, res.reason);
           }
         });
+
+        discoverySettledRef.current = true;
+        setDiscoverySettled(true);
+
         // Persist fresh snapshot for the newly active account
         saveFeedSnapshot(postsRef.current, eventsRef.current, opportunitiesRef.current);
 
         // Skeleton reveal for account switch (same logic as initial load)
-        const rawPosts = freshPostsRef.current || [];
-        const candidateItems = rawPosts.length > 0
-          ? rawPosts.map((p) => ({ ...p, itemType: 'post' }))
-          : (feedItems || []);
-        const batchSize = Math.max(1, computeBatchSize(candidateItems, 0, 12));
+        const currentFeed = feedItemsRef.current?.length > 0
+          ? feedItemsRef.current
+          : (freshPostsRef.current || []).map((p) => ({ ...p, itemType: 'post' }));
+        const candidateItems = currentFeed.length > 0 ? currentFeed : (feedItems || []);
+        const batchSize = Math.max(2, computeBatchSize(candidateItems, 0, 12));
         const firstBatch = candidateItems.slice(0, batchSize);
         const elapsed = Date.now() - skeletonStartTimeRef.current;
         await Promise.race([
@@ -2259,6 +2290,8 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     rolloverProcessedDiscoveryCountRef.current = 0;
     rolloverAuthorCountRef.current = {};
     setRolloverFeedItems([]);
+    discoverySettledRef.current = false;
+    setDiscoverySettled(false);
     setDiscoveryHasMore(true);
     discoveryOffsetRef.current = 0;
     const results = await Promise.allSettled([
@@ -2284,12 +2317,16 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         console.warn(`[HomeFeed] Task ${taskNames[i]} failed in onRefresh:`, res.reason);
       }
     });
+
+    discoverySettledRef.current = true;
+    setDiscoverySettled(true);
+
     // Reveal first batch based on cost budget (no min-skeleton wait needed)
-    const rawPosts = freshPostsRef.current || [];
-    const candidateItems = rawPosts.length > 0
-      ? rawPosts.map((p) => ({ ...p, itemType: 'post' }))
-      : (feedItems || []);
-    const batchSize = Math.max(1, computeBatchSize(candidateItems, 0, 12));
+    const currentFeed = feedItemsRef.current?.length > 0
+      ? feedItemsRef.current
+      : (freshPostsRef.current || []).map((p) => ({ ...p, itemType: 'post' }));
+    const candidateItems = currentFeed.length > 0 ? currentFeed : (feedItems || []);
+    const batchSize = Math.max(2, computeBatchSize(candidateItems, 0, 12));
     setRevealedCount(batchSize);
     setRefreshing(false);
     // Snap scroll position back to the very top after the shuffled data is laid out.
@@ -3069,7 +3106,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           ) : (
             // ── End-state message ───────────────────────────────────────────
             // Shown when user has scrolled through all available feed items and discovery is fully exhausted
-            ((!discoveryHasMore || (!hasMore && !discoveryHasMore)) && feedItems.length > 0 && revealedCount >= feedItems.length) ? (
+            (!loading && !showSkeleton && !refreshing && discoverySettled && (!discoveryHasMore || (!hasMore && !discoveryHasMore)) && feedItems.length > 0 && revealedCount >= feedItems.length) ? (
               <CaughtUpFooter
                 subtitle={
                   posts.length === 0

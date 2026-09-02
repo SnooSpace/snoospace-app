@@ -18,6 +18,8 @@ module.exports = {
   // Maximum candidates to score per user per run.
   // Controls compute cost — increase cautiously as user base grows.
   CANDIDATE_POOL_LIMIT: 300,
+  SAME_CITY_CANDIDATE_LIMIT: 250,
+  CROSS_CITY_CANDIDATE_LIMIT: 50,
 
   // How long (days) before a dismissed candidate can resurface.
   DISMISSAL_COOLDOWN_DAYS: 14,

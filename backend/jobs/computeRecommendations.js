@@ -53,9 +53,13 @@ function proximityDecay(distKm) {
  * Fetches the gated candidate pool for a given user via SQL.
  * All hard filters applied here — no scoring yet.
  *
- * Gates applied:
+ * Combines:
+ *   1. Same-city candidates (up to SAME_CITY_CANDIDATE_LIMIT, default 250)
+ *   2. Cross-city candidates who follow at least one shared community with the viewer
+ *      (up to CROSS_CITY_CANDIDATE_LIMIT, default 50)
+ *
+ * Gates applied to both branches:
  *   - Not the user themselves
- *   - Same city (case-insensitive, from location->>'city')
  *   - Active within ACTIVE_WITHIN_DAYS (session.last_used_at)
  *   - Not already in a circle (either direction)
  *   - No pending circle request (either direction)
@@ -65,74 +69,128 @@ function proximityDecay(distKm) {
  *   - Not a profile belonging to the same account-switcher group as the
  *     requesting user (identified by shared email across members/communities/
  *     sponsors/venues — the same email the client-side switcher uses)
- *
- * Returns up to CANDIDATE_POOL_LIMIT rows ordered by most-recently-active.
  */
-async function fetchCandidates(pool, userId, userCity, userEmail) {
+async function fetchCandidates(pool, userId, userCity, userEmail, userCommunityIds = []) {
+  const communityIdsArray = [...userCommunityIds];
+
   const { rows } = await pool.query(
     `
-    SELECT
-      m.id,
-      m.name,
-      m.nickname,
-      m.username,
-      m.profile_photo_url,
-      m.occupation,
-      m.campus_id,
-      m.verification_tier,
-      m.interests,
-      m.location,
-      (m.location->>'lat')::float  AS lat,
-      (m.location->>'lng')::float  AS lng
-    FROM members m
-    -- Activity gate: at least one session within N days
-    JOIN sessions s
-      ON s.user_id = m.id
-     AND s.last_used_at > NOW() - ($2 || ' days')::INTERVAL
-    WHERE m.id != $1
-      -- Same city gate (case-insensitive)
-      AND LOWER(TRIM(m.location->>'city')) = LOWER(TRIM($3))
-      -- Not a creator-mode account
-      AND (m.is_creator_mode_enabled IS NULL OR m.is_creator_mode_enabled = false)
-      -- Account-switcher group gate: exclude any member profile that shares
-      -- the requesting user's email (same real-world person, different profile type)
-      AND LOWER(TRIM(m.email)) != LOWER(TRIM($6))
-      -- Not already in circle (either direction)
-      AND NOT EXISTS (
-        SELECT 1 FROM circles c
-        WHERE (c.user_a_id = LEAST($1::bigint, m.id) AND c.user_b_id = GREATEST($1::bigint, m.id))
-      )
-      -- No pending circle request (either direction)
-      AND NOT EXISTS (
-        SELECT 1 FROM circle_requests cr
-        WHERE cr.status = 'pending'
-          AND ((cr.sender_id = $1 AND cr.receiver_id = m.id)
-            OR (cr.sender_id = m.id AND cr.receiver_id = $1))
-      )
-      -- Not blocked (either direction)
-      AND NOT EXISTS (
-        SELECT 1 FROM user_blocks ub
-        WHERE (ub.blocker_id = $1 AND ub.blocked_id = m.id)
-           OR (ub.blocker_id = m.id AND ub.blocked_id = $1)
-      )
-      -- Not recently dismissed
-      AND NOT EXISTS (
-        SELECT 1 FROM dismissed_recommendations dr
-        WHERE dr.user_id = $1
-          AND dr.candidate_id = m.id
-          AND dr.dismissed_at > NOW() - ($4 || ' days')::INTERVAL
-      )
-    GROUP BY m.id
-    ORDER BY MAX(s.last_used_at) DESC
-    LIMIT $5
+    WITH same_city_candidates AS (
+      SELECT
+        m.id,
+        m.name,
+        m.nickname,
+        m.username,
+        m.profile_photo_url,
+        m.occupation,
+        m.campus_id,
+        m.verification_tier,
+        m.interests,
+        m.location,
+        (m.location->>'lat')::float  AS lat,
+        (m.location->>'lng')::float  AS lng,
+        true AS is_same_city,
+        MAX(s.last_used_at) AS last_active
+      FROM members m
+      JOIN sessions s
+        ON s.user_id = m.id
+       AND s.last_used_at > NOW() - ($2 || ' days')::INTERVAL
+      WHERE m.id != $1
+        AND LOWER(TRIM(m.location->>'city')) = LOWER(TRIM($3))
+        AND (m.is_creator_mode_enabled IS NULL OR m.is_creator_mode_enabled = false)
+        AND LOWER(TRIM(m.email)) != LOWER(TRIM($6))
+        AND NOT EXISTS (
+          SELECT 1 FROM circles c
+          WHERE (c.user_a_id = LEAST($1::bigint, m.id) AND c.user_b_id = GREATEST($1::bigint, m.id))
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM circle_requests cr
+          WHERE cr.status = 'pending'
+            AND ((cr.sender_id = $1 AND cr.receiver_id = m.id)
+              OR (cr.sender_id = m.id AND cr.receiver_id = $1))
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM user_blocks ub
+          WHERE (ub.blocker_id = $1 AND ub.blocked_id = m.id)
+             OR (ub.blocker_id = m.id AND ub.blocked_id = $1)
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM dismissed_recommendations dr
+          WHERE dr.user_id = $1
+            AND dr.candidate_id = m.id
+            AND dr.dismissed_at > NOW() - ($4 || ' days')::INTERVAL
+        )
+      GROUP BY m.id
+      ORDER BY last_active DESC
+      LIMIT $5
+    ),
+    cross_city_candidates AS (
+      SELECT
+        m.id,
+        m.name,
+        m.nickname,
+        m.username,
+        m.profile_photo_url,
+        m.occupation,
+        m.campus_id,
+        m.verification_tier,
+        m.interests,
+        m.location,
+        (m.location->>'lat')::float  AS lat,
+        (m.location->>'lng')::float  AS lng,
+        false AS is_same_city,
+        MAX(s.last_used_at) AS last_active
+      FROM members m
+      JOIN sessions s
+        ON s.user_id = m.id
+       AND s.last_used_at > NOW() - ($2 || ' days')::INTERVAL
+      JOIN follows f_cand
+        ON f_cand.follower_id = m.id
+       AND f_cand.follower_type = 'member'
+       AND f_cand.following_type = 'community'
+       AND f_cand.following_id = ANY($7::bigint[])
+      WHERE m.id != $1
+        AND (m.location->>'city' IS NULL OR LOWER(TRIM(m.location->>'city')) != LOWER(TRIM($3)))
+        AND (m.is_creator_mode_enabled IS NULL OR m.is_creator_mode_enabled = false)
+        AND LOWER(TRIM(m.email)) != LOWER(TRIM($6))
+        AND NOT EXISTS (
+          SELECT 1 FROM circles c
+          WHERE (c.user_a_id = LEAST($1::bigint, m.id) AND c.user_b_id = GREATEST($1::bigint, m.id))
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM circle_requests cr
+          WHERE cr.status = 'pending'
+            AND ((cr.sender_id = $1 AND cr.receiver_id = m.id)
+              OR (cr.sender_id = m.id AND cr.receiver_id = $1))
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM user_blocks ub
+          WHERE (ub.blocker_id = $1 AND ub.blocked_id = m.id)
+             OR (ub.blocker_id = m.id AND ub.blocked_id = $1)
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM dismissed_recommendations dr
+          WHERE dr.user_id = $1
+            AND dr.candidate_id = m.id
+            AND dr.dismissed_at > NOW() - ($4 || ' days')::INTERVAL
+        )
+      GROUP BY m.id
+      ORDER BY last_active DESC
+      LIMIT $8
+    )
+    SELECT * FROM same_city_candidates
+    UNION ALL
+    SELECT * FROM cross_city_candidates
     `,
     [
       userId,
       cfg.ACTIVE_WITHIN_DAYS,
       userCity,
       cfg.DISMISSAL_COOLDOWN_DAYS,
-      cfg.CANDIDATE_POOL_LIMIT,
-      userEmail || '',   // $6 — switcher-group email exclusion
+      cfg.SAME_CITY_CANDIDATE_LIMIT || 250,
+      userEmail || '',
+      communityIdsArray,
+      cfg.CROSS_CITY_CANDIDATE_LIMIT || 50,
     ]
   );
 
@@ -165,24 +223,40 @@ async function loadEventAttendeeCounts(pool, eventIds) {
   return new Map(rows.map(r => [String(r.event_id), parseInt(r.cnt, 10)]));
 }
 
-/** Load all community circles (accepted memberships) for this user. */
+/** Load all community IDs followed by this user (follows with following_type = 'community'). */
 async function loadUserCommunities(pool, userId) {
   const { rows } = await pool.query(
-    `SELECT community_id FROM community_member_circles WHERE member_id = $1`,
+    `SELECT following_id AS community_id
+     FROM follows
+     WHERE follower_id = $1 AND follower_type = 'member'
+       AND following_type = 'community'`,
     [userId]
   );
   return new Set(rows.map(r => String(r.community_id)));
 }
 
-/** For each community in a set, get member count. Returns Map<communityId, count>. */
+/** Load all accepted circle community IDs for this user (community_member_circles). */
+async function loadUserCircleCommunities(pool, userId) {
+  const { rows } = await pool.query(
+    `SELECT community_id
+     FROM community_member_circles
+     WHERE member_id = $1`,
+    [userId]
+  );
+  return new Set(rows.map(r => String(r.community_id)));
+}
+
+/** For each community in a set, get member count from follows. Returns Map<communityId, count>. */
 async function loadCommunityMemberCounts(pool, communityIds) {
   if (communityIds.size === 0) return new Map();
   const ids = [...communityIds];
   const { rows } = await pool.query(
-    `SELECT community_id, COUNT(*) AS cnt
-     FROM community_member_circles
-     WHERE community_id = ANY($1)
-     GROUP BY community_id`,
+    `SELECT following_id AS community_id, COUNT(*) AS cnt
+     FROM follows
+     WHERE following_id = ANY($1)
+       AND following_type = 'community'
+       AND follower_type = 'member'
+     GROUP BY following_id`,
     [ids]
   );
   return new Map(rows.map(r => [String(r.community_id), parseInt(r.cnt, 10)]));
@@ -425,26 +499,38 @@ function buildTopReasons(contributions) {
  */
 async function scoreUserCandidates(pool, userId, userData, sharedData) {
   const {
-    attendedEvents,        // Set<eventId> user attended
-    communities,           // Set<communityId> user is in
-    sparks,               // [{spark_id, label, category, spark_type, usage_count}]
-    adopterCounts,        // Map<interest_label, count>
-    eventAttendeeCounts,  // Map<eventId, attendeeCount>
-    communityMemberCounts, // Map<communityId, memberCount>
+    attendedEvents,             // Set<string> eventId user attended
+    communities,                // Set<string> communityId user follows
+    userCircleCommunities,      // Set<string> communityId user is in circle with
+    sparks,                     // [{spark_id, label, category, spark_type, usage_count}]
+    adopterCounts,              // Map<interest_label, count>
+    eventAttendeeCounts,        // Map<eventId, attendeeCount>
+    communityMemberCounts,      // Map<communityId, memberCount>
     userCity,
-    userEmail,             // email — switcher-group gate
-    userSpotifyArtists,    // array|null — null if not connected
+    userEmail,                  // email — switcher-group gate
+    userSpotifyArtists,         // array|null — null if not connected
   } = sharedData;
 
-  const candidates = await fetchCandidates(pool, userId, userCity, sharedData.userEmail);
+  // Convert string community IDs to integers for PostgreSQL $7::bigint[] parameter
+  const userCommunityIdsArray = Array.from(communities).map(id => parseInt(id, 10));
+
+  const candidates = await fetchCandidates(
+    pool,
+    userId,
+    userCity,
+    userEmail,
+    userCommunityIdsArray
+  );
   if (candidates.length === 0) return 0;
+
+  const userLat = parseFloat(userData.lat);
+  const userLng = parseFloat(userData.lng);
 
   let scored = 0;
 
   for (const candidate of candidates) {
     try {
       // Short-circuit Spotify signal: only load candidate artists if user has Spotify connected.
-      // This avoids an extra DB query for the common case where neither user has connected.
       const candidateSpotifyArtistsPromise = userSpotifyArtists
         ? loadUserSpotifyArtists(pool, candidate.id)
         : Promise.resolve(null);
@@ -453,12 +539,14 @@ async function scoreUserCandidates(pool, userId, userData, sharedData) {
       const [
         candidateEvents,
         candidateCommunities,
+        candidateCircleCommunities,
         candidateSparks,
         mutualCirclesCount,
         candidateSpotifyArtists,
       ] = await Promise.all([
         loadUserAttendedEvents(pool, candidate.id),
         loadUserCommunities(pool, candidate.id),
+        loadUserCircleCommunities(pool, candidate.id),
         loadUserSparks(pool, candidate.id),
         loadMutualCirclesCount(pool, userId, candidate.id),
         candidateSpotifyArtistsPromise,
@@ -476,23 +564,30 @@ async function scoreUserCandidates(pool, userId, userData, sharedData) {
         sharedEventScore += w;
         if (w > bestEventScore) {
           bestEventScore = w;
-          // We'll resolve the event name after scoring if it's a top reason
           bestEventName = eid; // placeholder — resolved below
         }
       }
 
-      // ── Signal 2: Shared communities ─────────────────────────────────────
+      // ── Signal 2: Shared communities (Broadened follows + Circle bonus) ───
       let sharedCommunityScore = 0;
+      let sharedCommunityBaseScore = 0; // Pre-circle-bonus base score for Part B threshold check
       let bestCommunityId = null;
       let bestCommunityScore = 0;
 
       for (const cid of communities) {
         if (!candidateCommunities.has(cid)) continue;
         const memberCount = communityMemberCounts.get(cid) || 1;
-        const w = rarityWeight(memberCount);
-        sharedCommunityScore += w;
-        if (w > bestCommunityScore) {
-          bestCommunityScore = w;
+        const rarityW = rarityWeight(memberCount);
+        sharedCommunityBaseScore += rarityW;
+
+        // +0.2 bonus if either viewer or candidate has an accepted circle invite in this community
+        const hasCircleInvite =
+          userCircleCommunities.has(cid) || candidateCircleCommunities.has(cid);
+        const termScore = rarityW * (1 + (hasCircleInvite ? 0.2 : 0.0));
+
+        sharedCommunityScore += termScore;
+        if (termScore > bestCommunityScore) {
+          bestCommunityScore = termScore;
           bestCommunityId = cid;
         }
       }
@@ -533,14 +628,13 @@ async function scoreUserCandidates(pool, userId, userData, sharedData) {
 
       // ── Signal 8: Proximity ───────────────────────────────────────────────
       let proximity = 0;
-      const userLat  = parseFloat(userData.lat);
-      const userLng  = parseFloat(userData.lng);
-      const candLat  = parseFloat(candidate.lat);
-      const candLng  = parseFloat(candidate.lng);
+      let candDistKm = null;
+      const candLat = parseFloat(candidate.lat);
+      const candLng = parseFloat(candidate.lng);
 
       if (!isNaN(userLat) && !isNaN(userLng) && !isNaN(candLat) && !isNaN(candLng)) {
-        const distKm = haversineKm(userLat, userLng, candLat, candLng);
-        proximity = proximityDecay(distKm);
+        candDistKm = haversineKm(userLat, userLng, candLat, candLng);
+        proximity = proximityDecay(candDistKm);
       }
 
       // ── Signal 9: Verification tier ───────────────────────────────────────
@@ -548,9 +642,6 @@ async function scoreUserCandidates(pool, userId, userData, sharedData) {
       const verificationBoost = Math.min(tierValue, cfg.caps.verification);
 
       // ── Signal 10: Positive co-attendee rating (open plan) ──────────────
-      // Uses same 180-day window as Signal 1 (shared_events) for consistency.
-      // 1.0 if user rated this candidate 'absolutely'/'probably' in any plan.
-      // 0.0 otherwise (no negative signal — only positive co-attendee ratings count here).
       let coAttendeeSignal = 0;
       if (cfg.weights.co_attendee_rating > 0) {
         const coRatingResult = await pool.query(
@@ -566,8 +657,6 @@ async function scoreUserCandidates(pool, userId, userData, sharedData) {
       }
 
       // ── Signal 11: Spotify top-artist overlap ───────────────────────────
-      // Short-circuits to 0 if either user has no Spotify profile (null).
-      // computeSpotifyArtistOverlap handles null args internally.
       const spotifyResult = cfg.weights.spotify_artist_overlap > 0
         ? computeSpotifyArtistOverlap(userSpotifyArtists, candidateSpotifyArtists)
         : { score: 0, topArtistName: null };
@@ -587,9 +676,7 @@ async function scoreUserCandidates(pool, userId, userData, sharedData) {
       const s11 = W.spotify_artist_overlap  * spotifyResult.score;
       const totalScore = s1 + s2 + s3 + s4 + s5 + s6 + s7 + s8 + s9 + s10 + s11;
 
-      // Q4 per-signal logging: log Signal 10 contribution individually so
-      // it can be monitored before trusting it silently post-launch.
-      // Remove this log line once Signal 10 has been validated.
+      // Q4 per-signal logging: log Signal 10 contribution individually
       if (s10 > 0) {
         console.log(
           `[Recs:Signal10] user=${userId} candidate=${candidate.id} ` +
@@ -597,8 +684,6 @@ async function scoreUserCandidates(pool, userId, userData, sharedData) {
           `(s1=${s1.toFixed(3)} s2=${s2.toFixed(3)} s3=${s3.toFixed(3)})`
         );
       }
-      // Signal 11 logging: monitor Spotify overlap contribution during rollout.
-      // Remove once Spotify adoption is sufficient to trust silently.
       if (s11 > 0) {
         console.log(
           `[Recs:Signal11] user=${userId} candidate=${candidate.id} ` +
@@ -607,27 +692,35 @@ async function scoreUserCandidates(pool, userId, userData, sharedData) {
         );
       }
 
+      // ── Tier Qualification (Part B) ─────────────────────────────────────────
+      let matchTier = 1;
+      if (!candidate.is_same_city) {
+        // Cross-city candidate: kept ONLY if base community overlap score > 0.15
+        if (sharedCommunityBaseScore <= 0.15) {
+          continue; // Dropped entirely
+        }
+        matchTier = 2;
+      }
+
       if (totalScore <= 0) continue; // skip zero-score candidates
 
       // ── Top reasons ───────────────────────────────────────────────────────
-      // Build list of all contributions for reason selection
       const contributions = [
         {
           type: 'shared_event',
           weightedScore: W.shared_events * sharedEventScore,
-          label: bestEventName, // resolved to name below if selected
+          label: bestEventName,
           _rawId: bestEventName,
         },
         {
           type: 'shared_community',
           weightedScore: W.shared_communities * sharedCommunityScore,
-          label: bestCommunityId, // resolved to name below if selected
+          label: bestCommunityId,
           _rawId: bestCommunityId,
         },
         {
           type: 'mutual_circles',
           weightedScore: W.mutual_circles * mutualCapped,
-          // Privacy: only include count, not names
           label: mutualCirclesCount > 0 ? `${mutualCirclesCount} mutual connection${mutualCirclesCount > 1 ? 's' : ''}` : null,
         },
         {
@@ -638,7 +731,7 @@ async function scoreUserCandidates(pool, userId, userData, sharedData) {
         {
           type: 'same_college',
           weightedScore: W.same_college * sameCollege,
-          label: null, // resolved to college name below if selected
+          label: null,
           _needsCollegeName: sameCollege === 1,
           _campusId: userData.campus_id,
         },
@@ -660,8 +753,6 @@ async function scoreUserCandidates(pool, userId, userData, sharedData) {
         {
           type: 'shared_artist',
           weightedScore: s11,
-          // Single best-weighted shared artist — one specific human reason reads better
-          // than a data dump. The label is already human-readable (e.g. "You both like X").
           label: spotifyResult.topArtistName
             ? `You both like ${spotifyResult.topArtistName}`
             : null,
@@ -669,7 +760,6 @@ async function scoreUserCandidates(pool, userId, userData, sharedData) {
       ];
 
       // Resolve names for top contributions before building reasons
-      // We only fetch names for signals that might actually be top-2
       const sorted = [...contributions]
         .filter(c => c.weightedScore > 0)
         .sort((a, b) => b.weightedScore - a.weightedScore)
@@ -698,15 +788,17 @@ async function scoreUserCandidates(pool, userId, userData, sharedData) {
 
       const topReasons = buildTopReasons(sorted);
 
-      // ── Upsert into recommended_matches ───────────────────────────────────
+      // ── Upsert into recommended_matches with match_tier and distance_km ────
       await pool.query(
-        `INSERT INTO recommended_matches (user_id, candidate_id, total_score, top_reasons, computed_at)
-         VALUES ($1, $2, $3, $4, NOW())
+        `INSERT INTO recommended_matches (user_id, candidate_id, total_score, top_reasons, match_tier, distance_km, computed_at)
+         VALUES ($1, $2, $3, $4, $5, $6, NOW())
          ON CONFLICT (user_id, candidate_id) DO UPDATE SET
            total_score  = EXCLUDED.total_score,
            top_reasons  = EXCLUDED.top_reasons,
+           match_tier   = EXCLUDED.match_tier,
+           distance_km  = EXCLUDED.distance_km,
            computed_at  = NOW()`,
-        [userId, candidate.id, totalScore, JSON.stringify(topReasons)]
+        [userId, candidate.id, totalScore, JSON.stringify(topReasons), matchTier, candDistKm]
       );
 
       scored++;
@@ -774,9 +866,10 @@ async function runRecommendationsJob(pool) {
       }
 
       // Load user-level signal data
-      const [attendedEvents, communities, sparks, userSpotifyArtists] = await Promise.all([
+      const [attendedEvents, communities, userCircleCommunities, sparks, userSpotifyArtists] = await Promise.all([
         loadUserAttendedEvents(pool, user.id),
         loadUserCommunities(pool, user.id),
+        loadUserCircleCommunities(pool, user.id),
         loadUserSparks(pool, user.id),
         loadUserSpotifyArtists(pool, user.id),  // null if not connected
       ]);
@@ -795,6 +888,7 @@ async function runRecommendationsJob(pool) {
       const sharedData = {
         attendedEvents,
         communities,
+        userCircleCommunities,
         sparks,
         adopterCounts,
         eventAttendeeCounts,
@@ -808,12 +902,14 @@ async function runRecommendationsJob(pool) {
       const candidatesScored = await scoreUserCandidates(pool, user.id, user, sharedData);
       totalCandidatesScored += candidatesScored;
 
-      // Cache top REDIS_CACHE_SIZE results in Redis
+      // Cache top REDIS_CACHE_SIZE results in Redis with Tier 2 reservation (last 5 slots)
       if (candidatesScored > 0) {
-        const { rows: topMatches } = await pool.query(
+        const { rows: allMatches } = await pool.query(
           `SELECT
              rm.candidate_id,
              rm.total_score,
+             rm.match_tier,
+             rm.distance_km,
              rm.top_reasons,
              m.name,
              m.nickname,
@@ -823,12 +919,32 @@ async function runRecommendationsJob(pool) {
              m.verification_tier
            FROM recommended_matches rm
            JOIN members m ON m.id = rm.candidate_id
-           WHERE rm.user_id = $1
-           ORDER BY rm.total_score DESC
-           LIMIT $2`,
-          [user.id, cfg.REDIS_CACHE_SIZE]
+           WHERE rm.user_id = $1`,
+          [user.id]
         );
 
+        const tier1 = allMatches
+          .filter(r => r.match_tier === 1)
+          .sort((a, b) => b.total_score - a.total_score);
+
+        const tier2 = allMatches
+          .filter(r => r.match_tier === 2)
+          .sort((a, b) => (a.distance_km || 0) - (b.distance_km || 0));
+
+        const tier2Count = Math.min(tier2.length, 5);
+        const tier1Slots = cfg.REDIS_CACHE_SIZE - tier2Count;
+
+        let selectedTier1 = tier1.slice(0, tier1Slots);
+        let selectedTier2 = tier2.slice(0, tier2Count);
+
+        // If Tier 1 has fewer than 25, let Tier 2 fill remaining slots up to 30
+        if (selectedTier1.length + selectedTier2.length < cfg.REDIS_CACHE_SIZE && tier2.length > selectedTier2.length) {
+          const extraNeeded = cfg.REDIS_CACHE_SIZE - (selectedTier1.length + selectedTier2.length);
+          const extraTier2 = tier2.slice(tier2Count, tier2Count + extraNeeded);
+          selectedTier2 = [...selectedTier2, ...extraTier2];
+        }
+
+        const topMatches = [...selectedTier1, ...selectedTier2];
         await setUserRecs(user.id, topMatches);
       }
 
