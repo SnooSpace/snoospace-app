@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
 import { getActiveAccount, getAuthToken, getUserProfile } from "../api/auth";
 import { apiGet, apiPost } from "../api/client";
 import { getCommunityProfile } from "../api/communities";
@@ -223,29 +223,21 @@ export function ProfileCacheProvider({ children }) {
     preloadProfile();
   }, [preloadProfile, activeAccountEmail]);
 
-  // [DIAG-CTX] — remove after isolation sprint
-  // This plain object literal is recreated on every render of ProfileCacheProvider
-  // because it has no useMemo wrapper. Each new object reference triggers a re-render
-  // cascade in all consumers. The log below fires once per object construction.
-  console.log(`[DIAG-CTX] ProfileCacheContext value constructed at t=${Date.now()}, identity=${Math.random().toString(36).slice(2,8)}, hasMemberProfile=${!!memberProfile}, hasCommunityProfile=${!!communityProfile}, loading=${loading}`);
-  const value = {
-    memberProfile,
-    memberPosts,
-    setMemberProfile,
-    setMemberPosts,
-    communityProfile,
-    communityPosts,
-    setCommunityProfile,
-    setCommunityPosts,
-    loading,
-    refreshProfile: preloadProfile,
-  };
-
-  useEffect(() => {
-    // [DIAG-CTX] — kept as effect-level confirmation; compare with inline log above
-    // If both fire at the same timestamp → both are caused by the same render
-    console.log(`[DIAG-CTX] ProfileCacheContext useEffect(no-deps) at t=${Date.now()}, identity=${Math.random().toString(36).slice(2,8)}`);
-  });
+  const value = useMemo(
+    () => ({
+      memberProfile,
+      memberPosts,
+      setMemberProfile,
+      setMemberPosts,
+      communityProfile,
+      communityPosts,
+      setCommunityProfile,
+      setCommunityPosts,
+      loading,
+      refreshProfile: preloadProfile,
+    }),
+    [memberProfile, memberPosts, communityProfile, communityPosts, loading, preloadProfile]
+  );
 
   return (
     <ProfileCacheContext.Provider value={value}>
