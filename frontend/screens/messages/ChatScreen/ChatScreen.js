@@ -113,38 +113,32 @@ export default function ChatScreen({ route, navigation }) {
 
   const [currentConversationId, setCurrentConversationId] =
     useState(conversationId);
-  const [inputHeight, setInputHeight] = useState(70);
-  const [isChatInputFocused, setIsChatInputFocused] = useState(false);
+  const inputHeightShared = useSharedValue(70);
   const isChatInputFocusedShared = useSharedValue(false);
-
-  useEffect(() => {
-    isChatInputFocusedShared.value = isChatInputFocused;
-  }, [isChatInputFocused]);
+  const handleFocusChange = useCallback((focused) => {
+    isChatInputFocusedShared.value = focused;
+  }, []);
 
   const keyboardHeight = useSharedValue(0);
   useKeyboardHandler({
     onStart: (e) => {
       "worklet";
-      keyboardHeight.value = isChatInputFocusedShared.value ? e.height : 0;
+      keyboardHeight.value = e.height;
     },
     onMove: (e) => {
       "worklet";
-      keyboardHeight.value = isChatInputFocusedShared.value ? e.height : 0;
+      keyboardHeight.value = e.height;
     },
     onEnd: (e) => {
       "worklet";
-      keyboardHeight.value = isChatInputFocusedShared.value ? e.height : 0;
+      keyboardHeight.value = e.height;
     },
   });
 
   const containerAnimatedStyle = useAnimatedStyle(() => {
-    const style = {
-      marginBottom: inputHeight,
+    return {
+      marginBottom: inputHeightShared.value,
     };
-    if (Platform.OS === "android") {
-      style.transform = [{ translateY: -keyboardHeight.value }];
-    }
-    return style;
   });
   const { alertConfig, showAlert, hideAlert } = useChatAlerts();
 
@@ -787,7 +781,6 @@ export default function ChatScreen({ route, navigation }) {
           loadingOlder={messagesState.loadingOlder}
           messagesLoading={initState.messagesLoading}
           listRevealOpacity={listRevealOpacity}
-          isChatInputFocused={isChatInputFocused}
           containerAnimatedStyle={containerAnimatedStyle}
           insets={insets}
           hasMore={messagesState.hasMore}
@@ -806,8 +799,8 @@ export default function ChatScreen({ route, navigation }) {
         />
 
         <ChatInputArea
-          isChatInputFocused={isChatInputFocused}
-          setInputHeight={setInputHeight}
+          keyboardHeight={keyboardHeight}
+          inputHeightShared={inputHeightShared}
           typingUsers={typingState.typingUsers}
           isGroup={isGroup}
           groupStatus={groupState.groupStatus}
@@ -819,7 +812,7 @@ export default function ChatScreen({ route, navigation }) {
           replyBarHeightShared={replyBarHeightShared}
           onSend={uploadsState.handleSendPayload}
           onTyping={typingState.handleTypingToggle}
-          onFocusChange={setIsChatInputFocused}
+          onFocusChange={handleFocusChange}
           onShowAlert={showAlert}
           sending={uploadsState.sending}
           uploadingMedia={uploadsState.uploadingMedia}

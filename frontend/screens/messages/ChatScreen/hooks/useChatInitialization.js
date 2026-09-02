@@ -78,14 +78,6 @@ export default function useChatInitialization({
     });
   }, []);
 
-  useEffect(() => {
-    const unsubStart = navigation.addListener("transitionStart", () => {});
-    const unsubEnd = navigation.addListener("transitionEnd", () => {});
-    return () => {
-      unsubStart();
-      unsubEnd();
-    };
-  }, [navigation]);
 
   useEffect(() => {
     const unsubscribeBlur = navigation.addListener("blur", () => {

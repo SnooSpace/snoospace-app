@@ -22,9 +22,16 @@ import Animated, {
  * 3. Respects safe area via the offset prop when keyboard is closed
  */
 
-const KeyboardAwareToolbar = ({ children, style, onLayout, enabled = true }) => {
+const KeyboardAwareToolbar = ({
+  children,
+  style,
+  onLayout,
+  enabled = true,
+  keyboardHeight: externalKeyboardHeight,
+}) => {
   const insets = useSafeAreaInsets();
-  const keyboardHeight = useSharedValue(0);
+  const internalKeyboardHeight = useSharedValue(0);
+  const activeKeyboardHeight = externalKeyboardHeight || internalKeyboardHeight;
 
   const isEnabledShared = useSharedValue(enabled);
   React.useEffect(() => {
@@ -34,17 +41,20 @@ const KeyboardAwareToolbar = ({ children, style, onLayout, enabled = true }) => 
   useKeyboardHandler({
     onStart: (e) => {
       "worklet";
-      keyboardHeight.value = isEnabledShared.value ? e.height : 0;
+      if (externalKeyboardHeight) return;
+      internalKeyboardHeight.value = isEnabledShared.value ? e.height : 0;
     },
     onMove: (e) => {
       "worklet";
-      keyboardHeight.value = isEnabledShared.value ? e.height : 0;
+      if (externalKeyboardHeight) return;
+      internalKeyboardHeight.value = isEnabledShared.value ? e.height : 0;
     },
     onEnd: (e) => {
       "worklet";
-      keyboardHeight.value = isEnabledShared.value ? e.height : 0;
+      if (externalKeyboardHeight) return;
+      internalKeyboardHeight.value = isEnabledShared.value ? e.height : 0;
     },
-  }, [enabled]);
+  }, [enabled, !!externalKeyboardHeight]);
 
   const flattenedStyle = StyleSheet.flatten(style || {});
   const {
@@ -67,7 +77,7 @@ const KeyboardAwareToolbar = ({ children, style, onLayout, enabled = true }) => 
     // Translate the content down by insets.bottom as the keyboard opens,
     // to offset the static paddingBottom of insets.bottom.
     const translateY = interpolate(
-      keyboardHeight.value,
+      activeKeyboardHeight.value,
       [0, insets.bottom || 1],
       [0, insets.bottom],
       Extrapolate.CLAMP,

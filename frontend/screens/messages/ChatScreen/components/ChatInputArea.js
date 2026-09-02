@@ -9,8 +9,8 @@ import { CHAT_CANVAS_BG } from "../ChatScreen.styles";
 
 const ChatInputArea = React.memo(
   ({
-    isChatInputFocused,
-    setInputHeight,
+    keyboardHeight,
+    inputHeightShared,
     typingUsers,
     isGroup,
     groupStatus,
@@ -31,7 +31,7 @@ const ChatInputArea = React.memo(
   }) => {
     return (
       <KeyboardAwareToolbar
-        enabled={isChatInputFocused}
+        keyboardHeight={keyboardHeight}
         style={{ backgroundColor: CHAT_CANVAS_BG }}
       >
         <View
@@ -41,8 +41,8 @@ const ChatInputArea = React.memo(
           }}
           onLayout={(e) => {
             const { height } = e.nativeEvent.layout;
-            if (height > 0) {
-              setInputHeight(height);
+            if (height > 0 && inputHeightShared) {
+              inputHeightShared.value = height;
             }
           }}
         >

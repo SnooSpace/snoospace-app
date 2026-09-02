@@ -1,3 +1,5 @@
+import { useState, useEffect } from "react";
+import { InteractionManager } from "react-native";
 import useRealtimeSubscription from "../../../../hooks/useRealtimeSubscription";
 import { markMessageRead } from "../../../../api/messages";
 
@@ -7,10 +9,19 @@ export default function useChatRealtime({
   addNewMessage,
   updateMessageById,
 }) {
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    const task = InteractionManager.runAfterInteractions(() => {
+      setReady(true);
+    });
+    return () => task.cancel?.();
+  }, []);
+
   useRealtimeSubscription({
     table: "messages",
     event: "*",
-    filter: currentConversationId
+    filter: ready && currentConversationId
       ? `conversation_id=eq.${currentConversationId}`
       : null,
     onData: (payload) => {

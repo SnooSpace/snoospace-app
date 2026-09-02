@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { InteractionManager } from "react-native";
 import { getSocket } from "../../../../services/socketService";
 import { markMessageRead } from "../../../../api/messages";
 import { appendMessageToCache } from "../../../../services/conversationCache";
@@ -19,13 +20,19 @@ export default function useChatSocket({
   useEffect(() => {
     if (!currentConversationId) return;
 
-    const socket = getSocket();
-    if (socket) {
-      socket.emit("join_chat", currentConversationId);
-    }
+    let joined = false;
+    const task = InteractionManager.runAfterInteractions(() => {
+      const socket = getSocket();
+      if (socket) {
+        socket.emit("join_chat", currentConversationId);
+        joined = true;
+      }
+    });
 
     return () => {
-      if (socket) {
+      task.cancel?.();
+      const socket = getSocket();
+      if (socket && joined) {
         socket.emit("leave_chat", currentConversationId);
       }
     };

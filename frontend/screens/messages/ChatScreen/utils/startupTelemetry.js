@@ -116,7 +116,7 @@ export function computeBottomGap(contentHeight, viewportHeight, scrollOffset) {
 let overrideItemMetaMap = new Map(); // index → { size, msgId, messageType }
 
 export function logOverrideItemLayout(index, size, totalItems, item) {
-  if (index === undefined || index === null) return;
+  if (!TELEMETRY_LOGGING_ENABLED || index === undefined || index === null) return;
 
   // Safety guard: if we're starting a brand-new pass (index 0) but the maps
   // still hold entries from an interrupted previous pass, clear them first.
@@ -249,6 +249,7 @@ export function logInitialPosition(flatListData, viewportHeight, initialScrollIn
   if (viewportHeight && viewportHeight > 0) {
     storedViewportHeight = viewportHeight;
   }
+  if (!TELEMETRY_LOGGING_ENABLED) return;
   if (initialPositionLogged && (!viewportHeight || storedViewportHeight === viewportHeight)) return;
   initialPositionLogged = true;
 
@@ -577,7 +578,7 @@ export function logOpacityReveal() {
 }
 
 export function logViewableItems(viewableItems, flatListDataLength) {
-  if (!viewableItems || viewableItems.length === 0) return;
+  if (!TELEMETRY_LOGGING_ENABLED || !viewableItems || viewableItems.length === 0) return;
   const indices = viewableItems.map((v) => v.index).filter((idx) => idx !== undefined && idx !== null);
   if (indices.length === 0) return;
   const minIdx = Math.min(...indices);

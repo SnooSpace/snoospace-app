@@ -3,7 +3,6 @@ import {
   View,
   ActivityIndicator,
   Platform,
-  KeyboardAvoidingView,
   FlatList,
 } from "react-native";
 import { FlashList } from "@shopify/flash-list";
@@ -39,7 +38,6 @@ const ChatMessageList = React.memo((props) => {
     loadingOlder,
     messagesLoading,
     listRevealOpacity,
-    isChatInputFocused,
     containerAnimatedStyle,
     insets,
     hasMore,
@@ -169,13 +167,7 @@ const ChatMessageList = React.memo((props) => {
       : undefined;
 
   return (
-    <KeyboardAvoidingView
-      enabled={isChatInputFocused}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      style={mainStyles.keyboardView}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
-    >
-      <Animated.View style={[{ flex: 1 }, containerAnimatedStyle]}>
+    <Animated.View style={[{ flex: 1 }, containerAnimatedStyle]}>
         {messagesLoading ? (
           <View style={mainStyles.loadingOverlay}>
             <ActivityIndicator size="large" color={PRIMARY_COLOR} />
@@ -261,7 +253,6 @@ const ChatMessageList = React.memo((props) => {
           </Animated.View>
         )}
       </Animated.View>
-    </KeyboardAvoidingView>
   );
 });
 
