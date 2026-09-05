@@ -62,6 +62,8 @@ import EmailChangeModal from "../../../components/modals/EmailChangeModal";
 import UnsavedChangesModal from "../../../components/modals/UnsavedChangesModal";
 import CollegePickerModal from "../../../components/modals/CollegePickerModal";
 import DegreePickerModal from "../../../components/modals/DegreePickerModal";
+import { useProfileCache } from "../../../context/ProfileCacheContext";
+import EventBus from "../../../utils/EventBus";
 
 import {
   COLORS,
@@ -143,7 +145,8 @@ export default function EditProfileScreen({ route, navigation }) {
     };
   }, []);
 
-  const profile = route?.params?.profile;
+  const { memberProfile, setMemberProfile, refreshProfile } = useProfileCache();
+  const profile = route?.params?.profile || memberProfile;
   const scrollViewRef = useRef(null);
   const phoneInputRef = useRef(null);
 
@@ -596,11 +599,43 @@ export default function EditProfileScreen({ route, navigation }) {
         console.error("Failed to sync profile changes to account manager:", err);
       }
 
+      const collegeInfo = campusId
+        ? {
+            ...(profile?.college_info || {}),
+            campus_id: campusId,
+            college_name: collegeDisplayName || profile?.college_info?.college_name || "",
+            campus_name: collegeCampusName || profile?.college_info?.campus_name || "",
+          }
+        : null;
+
+      const updatedProfile = {
+        ...profile,
+        ...updates,
+        username: username.trim(),
+        college_info: collegeInfo,
+        ...(finalPhotoUrl ? { profile_photo_url: finalPhotoUrl } : {}),
+      };
+
+      // 1. Optimistically update global cache
+      setMemberProfile(updatedProfile);
+
+      // 2. Emit reactive event to all listening components
+      EventBus.emit("profile:updated", { profile: updatedProfile });
+
+      // 3. Trigger silent background profile refresh to ensure backend consistency
+      refreshProfile({ isBackground: true });
+
       HapticsService.triggerNotificationSuccess();
       allowLeaveRef.current = true;
       setHasChanges(false);
       Keyboard.dismiss();
-      navigation.navigate("Profile", { refreshProfile: true });
+
+      // 4. Return to the profile screen cleanly
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        navigation.navigate("ProfileHome");
+      }
     } catch (error) {
       console.error("Error saving profile:", error);
       setUploadingPhoto(false);

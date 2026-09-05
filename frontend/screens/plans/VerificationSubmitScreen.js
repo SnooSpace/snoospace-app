@@ -1,14 +1,18 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, Alert,
   ActivityIndicator, ScrollView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { ArrowLeft, ShieldCheck, Video } from 'lucide-react-native';
 import { COLORS, FONTS, SHADOWS } from '../../constants/theme';
 import { getAuthToken } from '../../api/auth';
 import { getMyVerification, submitVerification } from '../../api/plans';
+import { getSocket } from '../../services/socketService';
+import EventBus from '../../utils/EventBus';
 import VerificationStatusCard from '../../components/verification/VerificationStatusCard';
+import AnimatedVerificationButton from '../../components/verification/AnimatedVerificationButton';
 import SnooLoader from '../../components/ui/SnooLoader';
 
 export default function VerificationSubmitScreen({ navigation }) {
@@ -17,8 +21,10 @@ export default function VerificationSubmitScreen({ navigation }) {
   const [videoUri, setVideoUri] = useState(null);
   const [videoName, setVideoName] = useState(null);
   const [livenessMeta, setLivenessMeta] = useState(null);
-  const [uploading, setUploading] = useState(false);
+  const [buttonStatus, setButtonStatus] = useState('idle'); // 'idle' | 'submitting' | 'success' | 'review' | 'failed'
   const [resubmit, setResubmit] = useState(false);
+  const pendingVerificationRef = useRef(null);
+  const debounceRef = useRef(null);
 
   const loadVerification = useCallback(async () => {
     try {
@@ -33,7 +39,38 @@ export default function VerificationSubmitScreen({ navigation }) {
     }
   }, []);
 
-  useEffect(() => { loadVerification(); }, [loadVerification]);
+  useFocusEffect(
+    useCallback(() => {
+      loadVerification();
+    }, [loadVerification])
+  );
+
+  useEffect(() => {
+    const socket = getSocket();
+
+    const handleStatusUpdated = () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        loadVerification();
+      }, 300);
+    };
+
+    if (socket) {
+      socket.on('verification_status_updated', handleStatusUpdated);
+    }
+
+    const unsubReconnect = EventBus.on('socket:reconnected', () => {
+      loadVerification();
+    });
+
+    return () => {
+      if (socket) {
+        socket.off('verification_status_updated', handleStatusUpdated);
+      }
+      unsubReconnect?.();
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [loadVerification]);
 
   const handleRecordVideo = () => {
     navigation.navigate('VerificationRecorder', {
@@ -41,6 +78,7 @@ export default function VerificationSubmitScreen({ navigation }) {
       onVideoRecorded: (uri, scope, meta) => {
         setVideoUri(uri);
         setVideoName('verification-video.mp4');
+        setButtonStatus('idle');
         if (meta) {
           setLivenessMeta(meta);
         }
@@ -49,8 +87,8 @@ export default function VerificationSubmitScreen({ navigation }) {
   };
 
   const handleSubmit = async () => {
-    if (!videoUri) return;
-    setUploading(true);
+    if (!videoUri || buttonStatus === 'submitting') return;
+    setButtonStatus('submitting');
     try {
       const token = await getAuthToken();
       const data = await submitVerification(videoUri, token, {
@@ -58,16 +96,29 @@ export default function VerificationSubmitScreen({ navigation }) {
         livenessAction: livenessMeta?.action,
         livenessCode: livenessMeta?.code,
       });
-      setVerification(data.verification);
+      pendingVerificationRef.current = data?.verification;
+      const vStatus = data?.verification?.status;
+      if (vStatus === 'approved') {
+        setButtonStatus('success');
+      } else {
+        setButtonStatus('review');
+      }
+    } catch (err) {
+      setButtonStatus('failed');
+      Alert.alert('Upload failed', err.message || 'Please try again');
+    }
+  };
+
+  const handleAnimationComplete = () => {
+    if (pendingVerificationRef.current) {
+      setVerification(pendingVerificationRef.current);
       setVideoUri(null);
       setVideoName(null);
       setLivenessMeta(null);
       setResubmit(false);
-    } catch (err) {
-      Alert.alert('Upload failed', err.message || 'Please try again');
-    } finally {
-      setUploading(false);
+      pendingVerificationRef.current = null;
     }
+    setButtonStatus('idle');
   };
 
   const showUploadForm = !verification || resubmit;
@@ -140,15 +191,14 @@ export default function VerificationSubmitScreen({ navigation }) {
               </TouchableOpacity>
 
               {/* Submit */}
-              <TouchableOpacity
-                style={[styles.submitBtn, (!videoUri || uploading) && styles.submitBtnDisabled]}
+              <AnimatedVerificationButton
+                title="Submit for review"
+                status={buttonStatus}
+                disabled={!videoUri}
+                accentColor={COLORS.primary}
                 onPress={handleSubmit}
-                disabled={!videoUri || uploading}
-              >
-                {uploading
-                  ? <ActivityIndicator color="#FFF" />
-                  : <Text style={styles.submitBtnText}>Submit for review</Text>}
-              </TouchableOpacity>
+                onAnimationComplete={handleAnimationComplete}
+              />
 
               {/* Footer */}
               <Text style={styles.footer}>

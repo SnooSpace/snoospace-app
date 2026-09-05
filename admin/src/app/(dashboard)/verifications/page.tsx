@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -37,10 +37,13 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   ShieldCheck,
+  ShieldAlert,
   CheckCircle,
   XCircle,
   Clock,
   RefreshCw,
+  ChevronLeft,
+  ChevronRight,
   User as UserIcon,
 } from "lucide-react";
 import {
@@ -61,23 +64,35 @@ export default function VerificationsPage() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Filters and Pagination
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "approved" | "rejected">("pending");
   const [scopeFilter, setScopeFilter] = useState<"all" | "plans" | "discover">("all");
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(20);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   // Review modal state
   const [selectedVerification, setSelectedVerification] = useState<VerificationItem | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
   const [resolving, setResolving] = useState(false);
+  const [videoError, setVideoError] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
-  useEffect(() => {
-    loadVerifications();
-  }, []);
-
-  async function loadVerifications() {
+  const loadVerifications = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await getAdminVerifications();
+      const data = await getAdminVerifications({
+        status: statusFilter,
+        scope: scopeFilter,
+        page,
+        limit: pageSize,
+      });
       setVerifications(data.verifications || []);
+      setTotal(data.total);
+      setTotalPages(data.totalPages);
       if (data.thresholds) {
         setThresholds(data.thresholds);
       }
@@ -87,7 +102,11 @@ export default function VerificationsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [statusFilter, scopeFilter, page, pageSize]);
+
+  useEffect(() => {
+    loadVerifications();
+  }, [loadVerifications]);
 
   async function handleReview(status: "approved" | "rejected") {
     if (!selectedVerification) return;
@@ -107,7 +126,7 @@ export default function VerificationsPage() {
       setSelectedVerification(null);
       setRejectionReason("");
 
-      // Refetch queue
+      // Refetch current page
       await loadVerifications();
     } catch (err) {
       console.error("Failed to review verification:", err);
@@ -116,11 +135,6 @@ export default function VerificationsPage() {
       setResolving(false);
     }
   }
-
-  const filteredVerifications = verifications.filter((v) => {
-    if (scopeFilter === "all") return true;
-    return v.scope === scopeFilter;
-  });
 
   const getInitials = (name: string) => {
     if (!name) return "U";
@@ -152,7 +166,7 @@ export default function VerificationsPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Verifications</h1>
           <p className="text-muted-foreground">
-            Review pending identity verification submissions
+            Review identity submissions, track automated decisions, and audit verification history
           </p>
         </div>
         <Button variant="outline" onClick={loadVerifications} disabled={loading}>
@@ -166,14 +180,16 @@ export default function VerificationsPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Pending Submissions
+              {statusFilter === "pending" ? "Pending Submissions" : "Filtered Submissions"}
             </CardTitle>
             <Clock className="h-4 w-4 text-yellow-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{verifications.length}</div>
+            <div className="text-2xl font-bold">{total}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              Awaiting admin review
+              {statusFilter === "pending"
+                ? "Awaiting admin review"
+                : `Status: ${statusFilter} • Scope: ${scopeFilter}`}
             </p>
           </CardContent>
         </Card>
@@ -194,61 +210,91 @@ export default function VerificationsPage() {
         <CardHeader>
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
-              <CardTitle>Pending Queue</CardTitle>
+              <CardTitle>
+                {statusFilter === "pending" ? "Pending Queue" : "Verification Log"}
+              </CardTitle>
               <CardDescription>
-                Showing {filteredVerifications.length} of {verifications.length} submissions
+                Showing {verifications.length} of {total} record{total === 1 ? "" : "s"}
               </CardDescription>
             </div>
-            <Select
-              value={scopeFilter}
-              onValueChange={(v) => setScopeFilter(v as "all" | "plans" | "discover")}
-            >
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Scope" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Scopes</SelectItem>
-                <SelectItem value="plans">Plans Only</SelectItem>
-                <SelectItem value="discover">Discover Only</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* Status Filter */}
+              <Select
+                value={statusFilter}
+                onValueChange={(v) => {
+                  setStatusFilter(v as "all" | "pending" | "approved" | "rejected");
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Scope Filter */}
+              <Select
+                value={scopeFilter}
+                onValueChange={(v) => {
+                  setScopeFilter(v as "all" | "plans" | "discover");
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue placeholder="Scope" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Scopes</SelectItem>
+                  <SelectItem value="plans">Plans Only</SelectItem>
+                  <SelectItem value="discover">Discover Only</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Member</TableHead>
                 <TableHead>Scope</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Submitted Date</TableHead>
                 <TableHead>Match Score</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="text-right pr-6">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-12">
+                  <TableCell colSpan={6} className="text-center py-12">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                       <span className="text-xs text-muted-foreground">Loading queue...</span>
                     </div>
                   </TableCell>
                 </TableRow>
-              ) : filteredVerifications.length === 0 ? (
+              ) : verifications.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
-                    No pending verifications
+                  <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
+                    No verifications found for the selected filters.
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredVerifications.map((item) => (
+                verifications.map((item) => (
                   <TableRow
                     key={item.id}
                     className="cursor-pointer hover:bg-muted/50 transition-colors"
                     onClick={() => {
                       setSelectedVerification(item);
-                      setRejectionReason("");
+                      setRejectionReason(item.rejection_reason || "");
+                      setVideoError(false);
+                      setImageError(false);
                     }}
                   >
                     <TableCell>
@@ -280,6 +326,32 @@ export default function VerificationsPage() {
                         </Badge>
                       )}
                     </TableCell>
+                    <TableCell>
+                      {item.status === "approved" && (
+                        <Badge
+                          variant="outline"
+                          className="border-green-200 bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-300 font-medium"
+                        >
+                          Approved
+                        </Badge>
+                      )}
+                      {item.status === "rejected" && (
+                        <Badge
+                          variant="outline"
+                          className="border-red-200 bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 font-medium"
+                        >
+                          Rejected
+                        </Badge>
+                      )}
+                      {item.status === "pending" && (
+                        <Badge
+                          variant="outline"
+                          className="border-amber-200 bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 font-medium"
+                        >
+                          Pending
+                        </Badge>
+                      )}
+                    </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
                       {formatDate(item.submitted_at)}
                     </TableCell>
@@ -288,17 +360,19 @@ export default function VerificationsPage() {
                         ? Number(item.match_score).toFixed(3)
                         : "—"}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right pr-6">
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
                           setSelectedVerification(item);
-                          setRejectionReason("");
+                          setRejectionReason(item.rejection_reason || "");
+                          setVideoError(false);
+                          setImageError(false);
                         }}
                       >
-                        Review
+                        {item.status === "pending" ? "Review" : "View"}
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -306,6 +380,38 @@ export default function VerificationsPage() {
               )}
             </TableBody>
           </Table>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between border-t px-6 py-4">
+              <div className="text-sm text-muted-foreground">
+                Showing {(page - 1) * pageSize + 1} to {Math.min(page * pageSize, total)} of {total} submissions
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="text-sm text-muted-foreground mr-2">
+                  Page {page} of {totalPages}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1 || loading}
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages || loading}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -316,6 +422,8 @@ export default function VerificationsPage() {
           if (!open) {
             setSelectedVerification(null);
             setRejectionReason("");
+            setVideoError(false);
+            setImageError(false);
           }
         }}
       >
@@ -339,6 +447,16 @@ export default function VerificationsPage() {
                     Discover Tier
                   </Badge>
                 )}
+                {selectedVerification?.status === "approved" && (
+                  <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">
+                    Approved
+                  </Badge>
+                )}
+                {selectedVerification?.status === "rejected" && (
+                  <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">
+                    Rejected
+                  </Badge>
+                )}
               </DialogTitle>
             </div>
             <DialogDescription>
@@ -349,21 +467,58 @@ export default function VerificationsPage() {
 
           {selectedVerification && (
             <div className="space-y-6 py-2">
-              {/* Media Comparison: Video & Reference Image(s) side by side or stacked */}
+              {/* Resolved Row Info Banner */}
+              {selectedVerification.status !== "pending" && (
+                <div className="rounded-lg border bg-muted/40 p-3.5 space-y-1.5">
+                  <div className="flex items-center justify-between text-sm font-semibold">
+                    <span className="flex items-center gap-1.5">
+                      Status:{" "}
+                      <span className={selectedVerification.status === "approved" ? "text-green-600" : "text-destructive"}>
+                        {selectedVerification.status.toUpperCase()}
+                      </span>
+                    </span>
+                    {selectedVerification.reviewed_at && (
+                      <span className="text-xs font-normal text-muted-foreground">
+                        Reviewed on {formatDate(selectedVerification.reviewed_at)}
+                      </span>
+                    )}
+                  </div>
+                  {selectedVerification.rejection_reason && (
+                    <p className="text-sm text-destructive mt-1">
+                      <span className="font-semibold">Rejection reason:</span> {selectedVerification.rejection_reason}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Media Comparison: Video & Reference Image(s) */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
                 {/* 1. Liveness Video */}
                 <div className="space-y-2">
                   <div className="text-sm font-semibold flex items-center justify-between">
                     <span>Liveness Video</span>
-                    <span className="text-xs font-normal text-muted-foreground">8-sec selfie</span>
+                    <span className="text-xs font-normal text-muted-foreground">Selfie video</span>
                   </div>
                   <div className="rounded-lg overflow-hidden border bg-black aspect-[3/4] max-h-[360px] flex items-center justify-center">
-                    <video
-                      src={getVerificationVideoUrl(selectedVerification.video_storage_path)}
-                      controls
-                      preload="metadata"
-                      className="w-full h-full object-contain"
-                    />
+                    {selectedVerification.media_purged_at || videoError ? (
+                      <div className="p-6 text-center text-sm text-muted-foreground bg-muted/20 w-full h-full flex flex-col items-center justify-center gap-2">
+                        <ShieldAlert className="h-8 w-8 text-amber-500/80" />
+                        <span className="font-medium text-foreground">Media purged per retention policy</span>
+                        {selectedVerification.media_purged_at && (
+                          <span className="text-xs text-muted-foreground">
+                            Purged on {formatDate(selectedVerification.media_purged_at)}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <video
+                        src={getVerificationVideoUrl(selectedVerification.video_storage_path)}
+                        controls
+                        preload="metadata"
+                        className="w-full h-full object-contain"
+                        onError={() => setVideoError(true)}
+                      />
+                    )}
                   </div>
                 </div>
 
@@ -377,11 +532,24 @@ export default function VerificationsPage() {
                       </p>
                       {selectedVerification.manual_reference_photo_url ? (
                         <div className="rounded-lg overflow-hidden border aspect-[3/4] max-h-[360px] bg-muted flex items-center justify-center">
-                          <img
-                            src={getCloudinaryImageUrl(selectedVerification.manual_reference_photo_url)}
-                            alt="Reference photo"
-                            className="w-full h-full object-contain"
-                          />
+                          {selectedVerification.media_purged_at || imageError ? (
+                            <div className="p-6 text-center text-sm text-muted-foreground bg-muted/40 w-full h-full flex flex-col items-center justify-center gap-2">
+                              <ShieldAlert className="h-8 w-8 text-amber-500/80" />
+                              <span className="font-medium text-foreground">Media purged per retention policy</span>
+                              {selectedVerification.media_purged_at && (
+                                <span className="text-xs text-muted-foreground">
+                                  Purged on {formatDate(selectedVerification.media_purged_at)}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <img
+                              src={getCloudinaryImageUrl(selectedVerification.manual_reference_photo_url)}
+                              alt="Reference photo"
+                              className="w-full h-full object-contain"
+                              onError={() => setImageError(true)}
+                            />
+                          )}
                         </div>
                       ) : (
                         <div className="rounded-lg border p-6 text-center text-sm text-muted-foreground bg-muted/40">
@@ -467,49 +635,65 @@ export default function VerificationsPage() {
                 </span>
               </div>
 
-              {/* Rejection Reason (Required if Rejecting) */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium">
-                  Rejection Reason <span className="text-muted-foreground font-normal">(required only if rejecting)</span>
-                </label>
-                <Textarea
-                  placeholder="e.g. Face not clearly visible in video, sunglasses worn, or identity mismatch..."
-                  value={rejectionReason}
-                  onChange={(e) => setRejectionReason(e.target.value)}
-                  rows={3}
-                />
-              </div>
+              {/* Rejection Reason (Shown only when reviewing pending) */}
+              {selectedVerification.status === "pending" && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">
+                    Rejection Reason <span className="text-muted-foreground font-normal">(required only if rejecting)</span>
+                  </label>
+                  <Textarea
+                    placeholder="e.g. Face not clearly visible in video, sunglasses worn, or identity mismatch..."
+                    value={rejectionReason}
+                    onChange={(e) => setRejectionReason(e.target.value)}
+                    rows={3}
+                  />
+                </div>
+              )}
             </div>
           )}
 
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setSelectedVerification(null);
-                setRejectionReason("");
-              }}
-              disabled={resolving}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => handleReview("rejected")}
-              disabled={resolving || !rejectionReason.trim()}
-              title={!rejectionReason.trim() ? "Rejection reason is required to reject" : "Reject verification"}
-            >
-              <XCircle className="mr-2 h-4 w-4" />
-              Reject
-            </Button>
-            <Button
-              onClick={() => handleReview("approved")}
-              disabled={resolving}
-              className="bg-green-600 hover:bg-green-700 text-white"
-            >
-              <CheckCircle className="mr-2 h-4 w-4" />
-              Approve
-            </Button>
+            {selectedVerification?.status === "pending" ? (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSelectedVerification(null);
+                    setRejectionReason("");
+                  }}
+                  disabled={resolving}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => handleReview("rejected")}
+                  disabled={resolving || !rejectionReason.trim()}
+                  title={!rejectionReason.trim() ? "Rejection reason is required to reject" : "Reject verification"}
+                >
+                  <XCircle className="mr-2 h-4 w-4" />
+                  Reject
+                </Button>
+                <Button
+                  onClick={() => handleReview("approved")}
+                  disabled={resolving}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  Approve
+                </Button>
+              </>
+            ) : (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setSelectedVerification(null);
+                  setRejectionReason("");
+                }}
+              >
+                Close
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

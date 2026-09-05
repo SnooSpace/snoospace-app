@@ -100,6 +100,8 @@ export function ProfileCacheProvider({ children }) {
             is_creator_mode_enabled: fullProfile.is_creator_mode_enabled === true,
             creator_mode_enabled_at: fullProfile.creator_mode_enabled_at || null,
             creator_follower_count: creatorFollowerCount,
+            is_verified: !!fullProfile.is_verified,
+            verification_tier: fullProfile.verification_tier || (fullProfile.is_verified ? "plans_verified" : "none"),
           };
 
           setMemberProfile(mappedProfile);

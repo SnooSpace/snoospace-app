@@ -1712,23 +1712,44 @@ export interface VerificationItem {
   member_email: string;
   member_photo: string | null;
   submitted_at: string;
+  reviewed_at?: string | null;
+  rejection_reason?: string | null;
+  media_purged_at?: string | null;
 }
 
 export interface VerificationsResponse {
   verifications: VerificationItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
   thresholds?: {
     match: number;
     noMatch: number;
   };
 }
 
-export async function getAdminVerifications(): Promise<{
-  verifications: VerificationItem[];
-  thresholds: { match: number; noMatch: number };
-}> {
-  const data = await apiRequest<VerificationsResponse>("/verifications/admin");
+export async function getAdminVerifications(params?: {
+  status?: string;
+  scope?: string;
+  page?: number;
+  limit?: number;
+}): Promise<VerificationsResponse> {
+  const query = new URLSearchParams();
+  if (params?.status) query.append("status", params.status);
+  if (params?.scope && params.scope !== "all") query.append("scope", params.scope);
+  if (params?.page) query.append("page", params.page.toString());
+  if (params?.limit) query.append("limit", params.limit.toString());
+
+  const qs = query.toString();
+  const endpoint = `/verifications/admin${qs ? `?${qs}` : ""}`;
+  const data = await apiRequest<VerificationsResponse>(endpoint);
   return {
     verifications: data.verifications || [],
+    total: data.total ?? (data.verifications?.length || 0),
+    page: data.page || 1,
+    pageSize: data.pageSize || 20,
+    totalPages: data.totalPages || 1,
     thresholds: data.thresholds || { match: 0.55, noMatch: 0.85 },
   };
 }
@@ -1746,4 +1767,5 @@ export async function reviewVerification(
     }),
   });
 }
+
 

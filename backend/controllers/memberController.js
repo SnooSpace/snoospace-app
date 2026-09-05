@@ -602,6 +602,8 @@ async function getPublicMember(req, res) {
       community_is_following_creator: communityIsFollowingCreator,
       you_have_blocked: youHaveBlocked,
       is_creator_mode_enabled: !!profile.is_creator_mode_enabled,
+      is_verified: !!profile.is_verified,
+      verification_tier: profile.verification_tier || (profile.is_verified ? "plans_verified" : "none"),
       interests:
         typeof profile.interests === "string"
           ? JSON.parse(profile.interests)

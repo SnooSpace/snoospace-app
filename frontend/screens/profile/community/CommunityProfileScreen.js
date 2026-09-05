@@ -995,18 +995,19 @@ export default function CommunityProfileScreen({ navigation, route }) {
     };
   }, []);
 
-  // Keep profile in sync when user updates sponsorship preferences
+  // Keep profile in sync when user updates sponsorship preferences or profile is edited
   useEffect(() => {
     const unsub = EventBus.on(
       "profile:updated",
       ({ profile: updatedProfile }) => {
-        setProfile(updatedProfile);
+        if (!updatedProfile) return;
+        setProfile((prev) => (prev ? { ...prev, ...updatedProfile } : updatedProfile));
       },
     );
     return () => {
       if (unsub) unsub();
     };
-  }, []);
+  }, [setProfile]);
 
   const handleShowAccountSwitcher = useCallback(() => {
     HapticsService.triggerUsernameSwitcherPress();

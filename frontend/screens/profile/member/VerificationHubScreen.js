@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -21,6 +21,8 @@ import {
 import { COLORS, FONTS, SHADOWS, BORDER_RADIUS } from '../../../constants/theme';
 import { getAuthToken } from '../../../api/auth';
 import { getMyVerification } from '../../../api/plans';
+import { getSocket } from '../../../services/socketService';
+import EventBus from '../../../utils/EventBus';
 import SnooLoader from '../../../components/ui/SnooLoader';
 
 function SectionLabel({ title }) {
@@ -90,6 +92,36 @@ export default function VerificationHubScreen({ navigation }) {
       setRefreshing(false);
     }
   }, []);
+
+  const debounceRef = useRef(null);
+
+  // Real-time sync: listen for verification_status_updated socket event
+  useEffect(() => {
+    const socket = getSocket();
+
+    const handleStatusUpdated = () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        fetchVerifications();
+      }, 300);
+    };
+
+    if (socket) {
+      socket.on('verification_status_updated', handleStatusUpdated);
+    }
+
+    const unsubReconnect = EventBus.on('socket:reconnected', () => {
+      fetchVerifications();
+    });
+
+    return () => {
+      if (socket) {
+        socket.off('verification_status_updated', handleStatusUpdated);
+      }
+      unsubReconnect?.();
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [fetchVerifications]);
 
   useFocusEffect(
     useCallback(() => {

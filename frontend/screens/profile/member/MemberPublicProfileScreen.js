@@ -553,6 +553,8 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
         spotify_top_artists: Array.isArray(p?.spotify_top_artists)
           ? p.spotify_top_artists
           : [],
+        is_verified: !!p?.is_verified,
+        verification_tier: p?.verification_tier || (p?.is_verified ? "plans_verified" : "none"),
       };
       setProfile(normalized);
       setCircleCount(p?.circle_count || 0);
@@ -1495,7 +1497,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                     <Text style={styles.profileName}>
                       {profile?.full_name || "Member"}
                     </Text>
-                    <VerifiedBadge tier={profile?.verification_tier} size={20} />
+                    <VerifiedBadge tier={profile?.verification_tier} isVerified={profile?.is_verified} size={20} />
                   </View>
                   {profile?.is_creator_mode_enabled && (
                     <View style={styles.creatorBadge}>

@@ -45,16 +45,56 @@ async function uploadImage(filePath, options = {}) {
 /**
  * Delete image from Cloudinary
  * @param {string} publicId - Cloudinary public_id
+ * @param {object} [options] - Additional options passed to destroy
  * @returns {Promise<object>} Deletion result
  */
-async function deleteImage(publicId) {
+async function deleteImage(publicId, options = {}) {
   try {
-    const result = await cloudinary.uploader.destroy(publicId);
+    const result = await cloudinary.uploader.destroy(publicId, options);
     return result;
   } catch (error) {
     console.error('Cloudinary delete error:', error);
     throw new Error('Failed to delete image from Cloudinary');
   }
+}
+
+/**
+ * Delete video from Cloudinary
+ * @param {string} publicId - Cloudinary public_id
+ * @param {object} [options] - Additional options passed to destroy
+ * @returns {Promise<object>} Deletion result
+ */
+async function deleteVideo(publicId, options = {}) {
+  try {
+    const result = await cloudinary.uploader.destroy(publicId, {
+      resource_type: 'video',
+      ...options,
+    });
+    return result;
+  } catch (error) {
+    console.error('Cloudinary delete video error:', error);
+    throw new Error('Failed to delete video from Cloudinary');
+  }
+}
+
+/**
+ * Extract public_id from a Cloudinary URL or return string as-is if already a public_id
+ * @param {string} urlOrId
+ * @returns {string|null}
+ */
+function extractPublicId(urlOrId) {
+  if (!urlOrId || typeof urlOrId !== 'string') return null;
+  if (!urlOrId.includes('cloudinary.com')) {
+    return urlOrId.trim();
+  }
+  const parts = urlOrId.split(/\/upload\//);
+  if (parts.length < 2) return null;
+  const afterUpload = parts[1];
+  // Strip file extension
+  const withoutExt = afterUpload.replace(/\.[^/.]+$/, '');
+  // Strip transformations and version (e.g. v1234567890/ or c_fill,w_300/v1234567890/)
+  const cleanPath = withoutExt.replace(/^(?:[a-zA-Z0-9_,-]+:[a-zA-Z0-9_,-]+\/)?(?:v\d+\/)?/, '');
+  return cleanPath.trim() || null;
 }
 
 /**
@@ -90,6 +130,8 @@ module.exports = {
   cloudinary,
   uploadImage,
   deleteImage,
+  deleteVideo,
+  extractPublicId,
   uploadMultipleImages,
   getTransformedUrl
 };

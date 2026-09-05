@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Image as ExpoImage } from 'expo-image';
 import {
   ArrowLeft,
@@ -21,9 +22,12 @@ import {
 import { COLORS, FONTS, SHADOWS, BORDER_RADIUS } from '../../../constants/theme';
 import { getAuthToken } from '../../../api/auth';
 import { getMyVerification, submitVerification } from '../../../api/plans';
+import { getSocket } from '../../../services/socketService';
+import EventBus from '../../../utils/EventBus';
 import { useCrop } from '../../../components/media';
 import { uploadImage } from '../../../api/cloudinary';
 import VerificationStatusCard from '../../../components/verification/VerificationStatusCard';
+import AnimatedVerificationButton from '../../../components/verification/AnimatedVerificationButton';
 import SnooLoader from '../../../components/ui/SnooLoader';
 import HapticsService from '../../../services/HapticsService';
 
@@ -42,7 +46,9 @@ export default function PlansVerificationScreen({ navigation }) {
   const [livenessMeta, setLivenessMeta] = useState(null);
 
   // Step 3: Submitting
-  const [submitting, setSubmitting] = useState(false);
+  const [buttonStatus, setButtonStatus] = useState('idle'); // 'idle' | 'submitting' | 'success' | 'review' | 'failed'
+  const pendingVerificationRef = useRef(null);
+  const debounceRef = useRef(null);
 
   const { pickAndCrop } = useCrop();
 
@@ -59,8 +65,37 @@ export default function PlansVerificationScreen({ navigation }) {
     }
   }, []);
 
+  useFocusEffect(
+    useCallback(() => {
+      loadVerification();
+    }, [loadVerification])
+  );
+
   useEffect(() => {
-    loadVerification();
+    const socket = getSocket();
+
+    const handleStatusUpdated = () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        loadVerification();
+      }, 300);
+    };
+
+    if (socket) {
+      socket.on('verification_status_updated', handleStatusUpdated);
+    }
+
+    const unsubReconnect = EventBus.on('socket:reconnected', () => {
+      loadVerification();
+    });
+
+    return () => {
+      if (socket) {
+        socket.off('verification_status_updated', handleStatusUpdated);
+      }
+      unsubReconnect?.();
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, [loadVerification]);
 
   // Step 1: Pick & Upload Face Photo
@@ -71,6 +106,7 @@ export default function PlansVerificationScreen({ navigation }) {
 
       setPhotoUri(result.uri);
       setUploadingPhoto(true);
+      setButtonStatus('idle');
 
       const secureUrl = await uploadImage(result.uri);
       setReferencePhotoUrl(secureUrl);
@@ -89,6 +125,7 @@ export default function PlansVerificationScreen({ navigation }) {
       scope: 'plans',
       onVideoRecorded: (uri, scope, meta) => {
         setVideoUri(uri);
+        setButtonStatus('idle');
         if (meta) {
           setLivenessMeta(meta);
         }
@@ -103,8 +140,9 @@ export default function PlansVerificationScreen({ navigation }) {
       Alert.alert('Incomplete Submission', 'Please provide both your face photo and verification video.');
       return;
     }
+    if (buttonStatus === 'submitting') return;
 
-    setSubmitting(true);
+    setButtonStatus('submitting');
     try {
       const token = await getAuthToken();
       const data = await submitVerification(videoUri, token, {
@@ -114,19 +152,31 @@ export default function PlansVerificationScreen({ navigation }) {
         livenessCode: livenessMeta?.code,
       });
 
-      setVerification(data.verification);
+      pendingVerificationRef.current = data?.verification;
+      const vStatus = data?.verification?.status;
+      if (vStatus === 'approved') {
+        setButtonStatus('success');
+      } else {
+        setButtonStatus('review');
+      }
+    } catch (err) {
+      console.error('[PlansVerificationScreen] submit error:', err);
+      setButtonStatus('failed');
+      Alert.alert('Submission Failed', err.message || 'Please try again.');
+    }
+  };
+
+  const handleAnimationComplete = () => {
+    if (pendingVerificationRef.current) {
+      setVerification(pendingVerificationRef.current);
       setPhotoUri(null);
       setReferencePhotoUrl(null);
       setVideoUri(null);
       setLivenessMeta(null);
       setResubmit(false);
-      HapticsService.triggerImpactMedium?.();
-    } catch (err) {
-      console.error('[PlansVerificationScreen] submit error:', err);
-      Alert.alert('Submission Failed', err.message || 'Please try again.');
-    } finally {
-      setSubmitting(false);
+      pendingVerificationRef.current = null;
     }
+    setButtonStatus('idle');
   };
 
   const showForm = !verification || resubmit;
@@ -289,21 +339,14 @@ export default function PlansVerificationScreen({ navigation }) {
               </View>
 
               {/* Step 3: Submit Button */}
-              <TouchableOpacity
-                style={[
-                  styles.submitBtn,
-                  (!referencePhotoUrl || !videoUri || submitting) && styles.submitBtnDisabled,
-                ]}
+              <AnimatedVerificationButton
+                title="Submit for review"
+                status={buttonStatus}
+                disabled={!referencePhotoUrl || !videoUri}
+                accentColor={COLORS.secondary}
                 onPress={handleSubmit}
-                disabled={!referencePhotoUrl || !videoUri || submitting}
-                activeOpacity={0.85}
-              >
-                {submitting ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.submitBtnText}>Submit for review</Text>
-                )}
-              </TouchableOpacity>
+                onAnimationComplete={handleAnimationComplete}
+              />
 
               <Text style={styles.footerNote}>
                 Your reference photo and video are encrypted and used only to confirm your identity. They will never be posted publicly.

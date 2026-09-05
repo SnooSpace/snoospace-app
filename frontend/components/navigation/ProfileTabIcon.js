@@ -64,6 +64,22 @@ const ProfileTabIcon = ({ focused, color, userType = "member" }) => {
     };
   }, [fetchProfile]);
 
+  // Listen to profile updates (e.g. photo changes in EditProfile) to update tab icon instantly
+  useEffect(() => {
+    const unsubProfile = EventBus.on("profile:updated", ({ profile: updatedProfile }) => {
+      const newPhoto =
+        userType === "member"
+          ? updatedProfile?.profile_photo_url
+          : (updatedProfile?.logo_url || updatedProfile?.profile_photo_url);
+      if (newPhoto) {
+        setPhotoUrl(newPhoto);
+      }
+    });
+    return () => {
+      if (unsubProfile) unsubProfile();
+    };
+  }, [userType]);
+
   if (isSwitching) {
     return (
       <View style={styles.switchingContainer}>

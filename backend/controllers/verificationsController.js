@@ -247,15 +247,63 @@ async function adminGetAll(req, res) {
     const pool = req.app.locals.pool;
     const { MATCH_THRESHOLD, NO_MATCH_THRESHOLD } = require('../services/faceMatchService');
 
+    const statusParam = (req.query.status || 'pending').toLowerCase();
+    const scopeParam = (req.query.scope || 'all').toLowerCase();
+    const page = Math.max(1, parseInt(req.query.page || '1', 10));
+    const limit = Math.max(1, Math.min(100, parseInt(req.query.limit || '20', 10)));
+    const offset = (page - 1) * limit;
+
+    const conditions = [];
+    const params = [];
+
+    // Status filter
+    if (['pending', 'approved', 'rejected'].includes(statusParam)) {
+      params.push(statusParam);
+      conditions.push(`uv.status = $${params.length}`);
+    } else if (statusParam !== 'all') {
+      // Default to pending if invalid value passed
+      params.push('pending');
+      conditions.push(`uv.status = $${params.length}`);
+    }
+
+    // Scope filter
+    if (['plans', 'discover'].includes(scopeParam)) {
+      params.push(scopeParam);
+      conditions.push(`uv.scope = $${params.length}`);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    // Order: pending-only uses ASC (FIFO oldest first); historical/all views use DESC (most recent first)
+    const orderClause = statusParam === 'pending' ? 'ORDER BY uv.submitted_at ASC' : 'ORDER BY uv.submitted_at DESC';
+
+    // 1. Total count query (with same filters)
+    const countResult = await pool.query(
+      `SELECT COUNT(*)::int as total
+       FROM user_verifications uv
+       JOIN members m ON m.id = uv.user_id
+       ${whereClause}`,
+      params
+    );
+    const total = countResult.rows[0]?.total || 0;
+
+    // 2. Data rows query with pagination
+    const dataParams = [...params, limit, offset];
+    const limitParamIdx = params.length + 1;
+    const offsetParamIdx = params.length + 2;
+
     const result = await pool.query(
-      `SELECT uv.id, uv.user_id, uv.status, uv.scope, uv.manual_reference_photo_url, uv.submitted_at, uv.video_storage_path,
+      `SELECT uv.id, uv.user_id, uv.status, uv.scope, uv.manual_reference_photo_url, uv.submitted_at,
+              uv.reviewed_at, uv.rejection_reason, uv.media_purged_at, uv.video_storage_path,
               uv.match_score, uv.matched_photo_url, uv.liveness_action, uv.liveness_code,
               m.name as member_name, m.email as member_email, m.profile_photo_url as member_photo,
               m.discover_photos
        FROM user_verifications uv
        JOIN members m ON m.id = uv.user_id
-       WHERE uv.status = 'pending'
-       ORDER BY uv.submitted_at ASC`
+       ${whereClause}
+       ${orderClause}
+       LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}`,
+      dataParams
     );
 
     const verifications = result.rows.map((row) => {
@@ -273,8 +321,14 @@ async function adminGetAll(req, res) {
       };
     });
 
+    const totalPages = Math.ceil(total / limit) || 1;
+
     res.json({
       verifications,
+      total,
+      page,
+      pageSize: limit,
+      totalPages,
       thresholds: {
         match: MATCH_THRESHOLD,
         noMatch: NO_MATCH_THRESHOLD,
@@ -312,8 +366,27 @@ async function adminReview(req, res) {
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'Verification not found' });
 
+    const updatedVer = result.rows[0];
+    const userId = updatedVer.user_id;
+    const scope = updatedVer.scope;
+
     // trg_sync_verification_badge trigger automatically updates members.is_verified + members.verified_at
-    res.json({ verification: result.rows[0] });
+    // Fetch fresh members data to emit accurate tier and status
+    const freshMem = await pool.query(
+      `SELECT is_verified, verification_tier FROM members WHERE id = $1`,
+      [userId]
+    );
+
+    const io = req.app.locals.io;
+    if (io && freshMem.rows[0]) {
+      io.to(`user_${userId}`).emit('verification_status_updated', {
+        status: updatedVer.status,
+        tier: freshMem.rows[0].verification_tier,
+        scope,
+      });
+    }
+
+    res.json({ verification: updatedVer });
   } catch (err) {
     console.error('[verificationsController.adminReview]', err);
     res.status(500).json({ error: 'server_error' });

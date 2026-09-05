@@ -464,16 +464,8 @@ async function seedDiverseExploreEvents() {
         }
       }
 
-      // Seed mock attendee registrations
-      const memberIds = [51, 52, 155];
-      for (let i = 0; i < Math.min(ev.attendeeCount, memberIds.length); i++) {
-        await pool.query(`
-          INSERT INTO event_registrations (
-            event_id, member_id, registration_status, created_at
-          ) VALUES ($1, $2, 'registered', NOW())
-          ON CONFLICT DO NOTHING
-        `, [eventId, memberIds[i]]);
-      }
+      // Do not register real test members (51, 52, 155) so users can test booking freely
+      // Attendee count on Explore rail uses verified community status or attendee counts
     }
 
     console.log(`✓ Successfully Inserted ${eventsConfig.length} Unique Events across all categories!`);

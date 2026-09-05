@@ -15,6 +15,7 @@ const { runRecommendationsJob } = require("../jobs/computeRecommendations");
 const { runReputationJob } = require("../jobs/computeReputationScores");
 const { runTrustFlagsJob } = require("../jobs/computeTrustFlags");
 const { scheduleReviewPrompts, deliverReviewPrompts } = require("../jobs/scheduleReviewPrompts");
+const { runVerificationMediaPurgeJob } = require("../jobs/purgeVerificationMedia");
 const {
   resolvePostEventAttendance,
   analysePostEventEcho,
@@ -259,6 +260,16 @@ const init = (dbPool) => {
       }
     } catch (err) {
       console.error("[Scheduler] board_posts expiry error:", err.message);
+    }
+  });
+
+  // ── Daily at 4am: purge verification media older than 7 days ─────────────
+  cron.schedule("0 4 * * *", async () => {
+    if (!pool) return;
+    try {
+      await runVerificationMediaPurgeJob(pool);
+    } catch (err) {
+      console.error("[Scheduler] Verification media purge error:", err.message);
     }
   });
 

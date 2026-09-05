@@ -42,6 +42,8 @@ import { apiGet } from "../../../api/client";
 import EmailChangeModal from "../../../components/modals/EmailChangeModal";
 import LocationPicker from "../../../components/location/LocationPicker";
 import ActionSheet from "../../../components/modals/ActionSheet";
+import { useProfileCache } from "../../../context/ProfileCacheContext";
+import EventBus from "../../../utils/EventBus";
 import {
   COMMUNITY_CATEGORIES_HIERARCHY,
   getCategoryStyle,
@@ -197,7 +199,8 @@ const CATEGORIES = [
 ];
 
 export default function EditCommunityProfileScreen({ route, navigation }) {
-  const profile = route?.params?.profile;
+  const { communityProfile, setCommunityProfile, refreshProfile } = useProfileCache();
+  const profile = route?.params?.profile || communityProfile;
 
   // Hide parent tab bar on mount, restore on unmount
   useEffect(() => {
@@ -572,11 +575,34 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
         console.error("Failed to sync profile changes to account manager:", err);
       }
 
+      const updatedProfile = {
+        ...profile,
+        ...updates,
+        username: username.trim(),
+        logo_url: logoUrl || profile?.logo_url,
+        banner_url: bannerUrl || profile?.banner_url,
+      };
+
+      // 1. Optimistically update global cache
+      setCommunityProfile(updatedProfile);
+
+      // 2. Emit reactive event to all listening components
+      EventBus.emit("profile:updated", { profile: updatedProfile });
+
+      // 3. Trigger silent background profile refresh to ensure backend consistency
+      refreshProfile({ isBackground: true });
+
       HapticsService.triggerNotificationSuccess();
       allowLeaveRef.current = true;
       setHasChanges(false);
       Keyboard.dismiss();
-      navigation.navigate("Profile", { refreshProfile: true });
+
+      // 4. Return to community profile cleanly
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        navigation.navigate("Profile");
+      }
     } catch (error) {
       Alert.alert("Error", error?.message || "Failed to update profile.");
     } finally {

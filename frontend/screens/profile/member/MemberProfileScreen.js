@@ -132,6 +132,7 @@ import CommunityVoiceBox, {
   VoicePostCard,
 } from "../../../components/feed/CommunityVoiceBox";
 import EmptyCommunityState from "../../../components/skeletons/EmptyCommunityState";
+import VerifiedBadge from "../../../components/badges/VerifiedBadge";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
@@ -187,7 +188,14 @@ const ProfileBioHeader = React.memo(({ profile, setShowCollegeHub }) => {
           !hasBio && !hasPronouns && { marginBottom: 30 },
         ]}
       >
-        <Text style={styles.profileName}>{profile.name}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 }}>
+          <Text style={styles.profileName}>{profile.name}</Text>
+          <VerifiedBadge
+            tier={profile?.verification_tier}
+            isVerified={profile?.is_verified}
+            size={20}
+          />
+        </View>
         {profile?.is_creator_mode_enabled && (
           <View style={styles.creatorBadge}>
             <Sparkles size={12} color="#7B1FA2" strokeWidth={2.5} style={{ marginRight: 4 }} />
@@ -863,7 +871,7 @@ export default function MemberProfileScreen({ navigation }) {
     };
   }, []);
 
-  // Keep profile in sync when Creator Mode is toggled from SettingsScreen
+  // Keep profile in sync when Creator Mode is toggled from SettingsScreen or profile is updated from EditProfile
   useEffect(() => {
     const unsub = EventBus.on(
       "profile:updated",
@@ -877,7 +885,7 @@ export default function MemberProfileScreen({ navigation }) {
     return () => {
       if (unsub) unsub();
     };
-  }, []);
+  }, [setProfile]);
 
   // NOTE: Count updates for circle-request-responded, creator:followed/unfollowed,
   // circle:left, circle:member-removed, my:circle-member-removed, creator:follower-removed
@@ -1108,6 +1116,9 @@ export default function MemberProfileScreen({ navigation }) {
         is_creator_mode_enabled: fullProfile.is_creator_mode_enabled === true,
         creator_mode_enabled_at: fullProfile.creator_mode_enabled_at || null,
         creator_follower_count: creatorFollowerCount,
+        // Verification
+        is_verified: !!fullProfile.is_verified,
+        verification_tier: fullProfile.verification_tier || (fullProfile.is_verified ? "plans_verified" : "none"),
       };
       setProfile(mappedProfile);
 
