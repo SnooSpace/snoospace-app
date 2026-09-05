@@ -315,6 +315,16 @@ export async function getEventInsights(eventId) {
 }
 
 /**
+ * Get aggregated revenue summary for the authenticated community (Dashboard)
+ * @param {"7d"|"30d"|"90d"} period - Rolling window for revenue totals and sparkline
+ * @returns {Promise<Object>} { success, period, data: { totalRevenue, ticketsSold, avgPrice, activeEventsCount, sparkline } }
+ */
+export async function getCommunityRevenueSummary(period = "30d") {
+  const token = await (await import("./auth")).getAuthToken();
+  return apiGet(`/communities/revenue-summary?period=${period}`, 15000, token);
+}
+
+/**
  * Toggle event like (like if not liked, unlike if liked)
  * @param {string|number} eventId
  * @param {boolean} isCurrentlyLiked - current like state for routing POST vs DELETE

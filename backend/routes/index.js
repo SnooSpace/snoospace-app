@@ -689,11 +689,18 @@ router.get(
   authMiddleware,
   CommunityController.searchCommunities,
 );
+// Community revenue summary — must stay before any /:id/* wildcard routes
+router.get(
+  "/communities/revenue-summary",
+  authMiddleware,
+  EventController.getCommunityRevenueSummary,
+);
 router.get(
   "/communities/:id/events/public",
   authMiddleware,
   EventController.getCommunityPublicEvents,
 );
+
 router.get(
   "/communities/:id/public",
   authMiddleware,

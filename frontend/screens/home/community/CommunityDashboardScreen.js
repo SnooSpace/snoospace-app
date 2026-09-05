@@ -66,6 +66,7 @@ import {
 import { getActiveAccount } from "../../../api/auth";
 import SnooLoader from "../../../components/ui/SnooLoader";
 import { getCreatorStats } from "../../../api/audienceIntelligence";
+import { getCommunityRevenueSummary } from "../../../api/events";
 
 // --- Design Tokens (Founder Dashboard) ---
 const DASHBOARD_TOKENS = {
@@ -129,38 +130,65 @@ const ScalableCard = ({ children, onPress, onLongPress, style }) => {
   );
 };
 
-// Revenue Sparkline (Refined)
-const RevenueSparkline = () => {
+// ── Revenue Sparkline (data-driven) ─────────────────────────────────────────
+// Generates a smooth cardinal-spline bezier SVG path from real daily revenue data.
+// Falls back to a flat baseline if data is empty or all zeros.
+const buildSparklinePath = (points, svgW, svgH, tension = 0.4) => {
+  if (!points || points.length < 2) return { line: `M0,${svgH - 5} L${svgW},${svgH - 5}`, area: `M0,${svgH - 5} L${svgW},${svgH - 5} L${svgW},${svgH} L0,${svgH} Z` };
+  const maxVal = Math.max(...points.map((p) => p.revenue), 1);
+  // Map data → SVG coordinates (Y inverted: 0 = top, svgH = bottom)
+  const xs = points.map((_, i) => (i / (points.length - 1)) * svgW);
+  const ys = points.map((p) => svgH - 8 - ((p.revenue / maxVal) * (svgH - 14)));
+  // Cardinal spline → cubic bezier segments
+  let line = `M${xs[0].toFixed(1)},${ys[0].toFixed(1)}`;
+  for (let i = 0; i < points.length - 1; i++) {
+    const x0 = i > 0 ? xs[i - 1] : xs[i];
+    const y0 = i > 0 ? ys[i - 1] : ys[i];
+    const x3 = i < points.length - 2 ? xs[i + 2] : xs[i + 1];
+    const y3 = i < points.length - 2 ? ys[i + 2] : ys[i + 1];
+    const cp1x = xs[i] + tension * (xs[i + 1] - x0) / 2;
+    const cp1y = ys[i] + tension * (ys[i + 1] - y0) / 2;
+    const cp2x = xs[i + 1] - tension * (x3 - xs[i]) / 2;
+    const cp2y = ys[i + 1] - tension * (y3 - ys[i]) / 2;
+    line += ` C${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${xs[i + 1].toFixed(1)},${ys[i + 1].toFixed(1)}`;
+  }
+  const lastX = xs[xs.length - 1];
+  const lastY = ys[ys.length - 1];
+  const area = `${line} L${lastX.toFixed(1)},${svgH} L0,${svgH} Z`;
+  return { line, area };
+};
+
+const RevenueSparkline = ({ data = [] }) => {
+  const SVG_W = 300;
+  const SVG_H = 60;
+  const { line, area } = buildSparklinePath(data, SVG_W, SVG_H);
+  // Find peak point for the dot
+  const peakIdx = data.length > 0
+    ? data.reduce((best, p, i) => (p.revenue > data[best].revenue ? i : best), 0)
+    : -1;
+  const SVG_W_num = SVG_W;
+  const peakX = peakIdx >= 0 && data.length > 1
+    ? (peakIdx / (data.length - 1)) * SVG_W_num
+    : SVG_W_num;
+  const maxVal = data.length > 0 ? Math.max(...data.map((p) => p.revenue), 1) : 1;
+  const peakRevenue = peakIdx >= 0 ? data[peakIdx].revenue : 0;
+  const peakY = peakRevenue > 0
+    ? SVG_H - 8 - ((peakRevenue / maxVal) * (SVG_H - 14))
+    : SVG_H - 5;
   return (
-    <View
-      style={{ height: 60, width: "100%", marginTop: 24, overflow: "visible" }}
-    >
-      <Svg height="100%" width="100%" viewBox="0 0 300 60">
+    <View style={{ height: 60, width: "100%", marginTop: 24, overflow: "visible" }}>
+      <Svg height="100%" width="100%" viewBox={`0 0 ${SVG_W} ${SVG_H}`}>
         <Defs>
           <SvgLinearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor="#2563EB" stopOpacity="0.1" />
+            <Stop offset="0" stopColor="#2563EB" stopOpacity="0.12" />
             <Stop offset="1" stopColor="#2563EB" stopOpacity="0" />
           </SvgLinearGradient>
         </Defs>
-        <Path
-          d="M0 50 C 40 50, 60 20, 90 25 C 120 30, 150 40, 180 20 C 210 0, 240 10, 270 5 C 290 2, 300 0, 300 0 L 300 60 L 0 60 Z"
-          fill="url(#grad)"
-        />
-        <Path
-          d="M0 50 C 40 50, 60 20, 90 25 C 120 30, 150 40, 180 20 C 210 0, 240 10, 270 5 C 290 2, 300 0, 300 0"
-          fill="none"
-          stroke="#2563EB"
-          strokeWidth="3"
-        />
-        {/* Highlighted Dot */}
-        <Circle
-          cx="290"
-          cy="2"
-          r="4"
-          fill="white"
-          stroke="#2563EB"
-          strokeWidth="2"
-        />
+        <Path d={area} fill="url(#grad)" />
+        <Path d={line} fill="none" stroke="#2563EB" strokeWidth="2.5" />
+        {peakIdx >= 0 && (
+          <Circle cx={peakX.toFixed(1)} cy={peakY.toFixed(1)} r="4" fill="white" stroke="#2563EB" strokeWidth="2" />
+        )}
       </Svg>
     </View>
   );
@@ -205,12 +233,15 @@ export default function CommunityDashboardScreen({ navigation }) {
     engagementRate: "8.4%",
   });
   const [revenue, setRevenue] = useState({
-    total: "48,200",
-    thisMonth: "12,300",
-    avgPerEvent: "154",
-    ticketsSold: 312,
-    eventsCount: 4,
+    total: null,
+    avgPrice: null,
+    ticketsSold: null,
+    eventsCount: null,
+    sparkline: [],
   });
+  const [revenuePeriod, setRevenuePeriod] = useState("30d");
+  const [revenueLoading, setRevenueLoading] = useState(false);
+  const [showPeriodDropdown, setShowPeriodDropdown] = useState(false);
 
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [previousEvents, setPreviousEvents] = useState([]);
@@ -228,6 +259,7 @@ export default function CommunityDashboardScreen({ navigation }) {
   useEffect(() => {
     loadDashboard();
     loadAudienceStats();
+    loadRevenueSummary("30d");
   }, []);
 
   const loadDashboard = async () => {
@@ -264,6 +296,45 @@ export default function CommunityDashboardScreen({ navigation }) {
       console.error("Audience stats error:", error);
     }
   };
+
+  // ── Revenue helpers ──────────────────────────────────────────────────────────
+  const PERIOD_OPTIONS = [
+    { label: "Last 7 days",   value: "7d"  },
+    { label: "Last 15 days",  value: "15d" },
+    { label: "Last 30 days",  value: "30d" },
+    { label: "Last 3 months", value: "90d" },
+    { label: "All time",      value: "all" },
+  ];
+  const PERIOD_LABELS = { "7d": "Last 7 days", "15d": "Last 15 days", "30d": "Last 30 days", "90d": "Last 3 months", "all": "All time" };
+
+  const formatINR = (n) => {
+    if (n == null) return "—";
+    if (n >= 1e7) return `${(n / 1e7).toFixed(1)}Cr`;
+    if (n >= 1e5) return `${(n / 1e5).toFixed(1)}L`;
+    return Math.round(n).toLocaleString("en-IN");
+  };
+
+  const loadRevenueSummary = async (period = "30d") => {
+    try {
+      setRevenueLoading(true);
+      const res = await getCommunityRevenueSummary(period);
+      if (res?.success && res.data) {
+        setRevenue({
+          total: res.data.totalRevenue,
+          avgPrice: res.data.avgPrice,
+          ticketsSold: res.data.ticketsSold,
+          eventsCount: res.data.activeEventsCount,
+          sparkline: res.data.sparkline || [],
+        });
+      }
+    } catch (err) {
+      console.error("Revenue summary error:", err);
+    } finally {
+      setRevenueLoading(false);
+    }
+  };
+
+  const handlePeriodPicker = () => setShowPeriodDropdown((p) => !p);
 
   // --- Handlers ---
   const handleCreateEvent = async () => {
@@ -870,54 +941,112 @@ export default function CommunityDashboardScreen({ navigation }) {
 
         {/* 3️⃣ Revenue Focus Card (Dominant) */}
         <View style={styles.section}>
-          <View style={styles.revenueCard}>
+          <View style={[styles.revenueCard, revenueLoading && { opacity: 0.6 }]}>
             {/* Header */}
             <View style={styles.revenueHeader}>
               <Text style={styles.revenueLabelLarge}>Total Revenue</Text>
-              <TouchableOpacity style={styles.revenueTimePill}>
-                <Text style={styles.revenueTimePillText}>Last 30 days</Text>
-                <ChevronDown size={14} color={COLORS.textSecondary} />
+              <TouchableOpacity
+                style={[styles.revenueTimePill, showPeriodDropdown && styles.revenueTimePillOpen]}
+                onPress={handlePeriodPicker}
+              >
+                <Text style={styles.revenueTimePillText}>{PERIOD_LABELS[revenuePeriod]}</Text>
+                <ChevronDown
+                  size={14}
+                  color={COLORS.textSecondary}
+                  style={showPeriodDropdown ? { transform: [{ rotate: "180deg" }] } : undefined}
+                />
               </TouchableOpacity>
             </View>
 
+            {/* Inline Period Dropdown */}
+            {showPeriodDropdown && (
+              <View style={styles.periodDropdown}>
+                {PERIOD_OPTIONS.map((opt) => (
+                  <TouchableOpacity
+                    key={opt.value}
+                    style={[
+                      styles.periodDropdownItem,
+                      revenuePeriod === opt.value && styles.periodDropdownItemActive,
+                    ]}
+                    onPress={() => {
+                      setShowPeriodDropdown(false);
+                      if (opt.value !== revenuePeriod) {
+                        setRevenuePeriod(opt.value);
+                        loadRevenueSummary(opt.value);
+                      }
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.periodDropdownText,
+                        revenuePeriod === opt.value && styles.periodDropdownTextActive,
+                      ]}
+                    >
+                      {opt.label}
+                    </Text>
+                    {revenuePeriod === opt.value && (
+                      <CircleCheck size={13} color="#2563EB" />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
             {/* Main Value */}
-            <Text style={styles.revenueValueLarge}>₹{revenue.total}</Text>
+            <Text style={styles.revenueValueLarge}>₹{formatINR(revenue.total)}</Text>
 
             {/* 3-Column Stats Grid */}
             <View style={styles.revenueGrid}>
               <View style={styles.revenueGridItem}>
                 <Text style={styles.revenueGridValue}>
-                  {revenue.ticketsSold}
+                  {revenue.ticketsSold ?? "—"}
                 </Text>
                 <Text style={styles.revenueGridLabel}>TICKETS SOLD</Text>
               </View>
               <View style={styles.verticalDivider} />
               <View style={styles.revenueGridItem}>
                 <Text style={styles.revenueGridValue}>
-                  ₹{revenue.avgPerEvent}
+                  {revenue.avgPrice != null ? `₹${formatINR(revenue.avgPrice)}` : "—"}
                 </Text>
                 <Text style={styles.revenueGridLabel}>AVG PRICE</Text>
               </View>
               <View style={styles.verticalDivider} />
               <View style={styles.revenueGridItem}>
                 <Text style={styles.revenueGridValue}>
-                  {revenue.eventsCount}
+                  {revenue.eventsCount ?? "—"}
                 </Text>
                 <Text style={styles.revenueGridLabel}>ACTIVE EVENTS</Text>
               </View>
             </View>
 
             {/* Graph Area */}
-            <View style={styles.graphContainer}>
-              <RevenueSparkline />
-              {/* Tooltip Mock */}
-              <View style={styles.graphTooltip}>
-                <Text style={styles.graphTooltipText}>₹12k</Text>
-              </View>
-            </View>
+            {(() => {
+              const peakRevenue = revenue.sparkline?.length
+                ? Math.max(...revenue.sparkline.map((d) => d.revenue))
+                : 0;
+              return (
+                <View style={styles.graphContainer}>
+                  <RevenueSparkline data={revenue.sparkline} />
+                  {peakRevenue > 0 && (
+                    <View style={styles.graphTooltip}>
+                      <Text style={styles.graphTooltipText}>₹{formatINR(peakRevenue)}</Text>
+                    </View>
+                  )}
+                </View>
+              );
+            })()}
 
-            {/* Footer Link */}
-            <TouchableOpacity style={styles.reportFooter}>
+            {/* Footer Link — full report screen coming soon */}
+            <TouchableOpacity
+              style={[styles.reportFooter, { opacity: 0.5 }]}
+              onPress={() =>
+                Alert.alert(
+                  "Coming Soon",
+                  "The full revenue report screen is currently being built.",
+                  [{ text: "Got it" }],
+                )
+              }
+            >
               <Text style={styles.reportFooterText}>
                 View full revenue report →
               </Text>
@@ -1397,6 +1526,48 @@ const styles = StyleSheet.create({
   reportFooterText: {
     fontFamily: FONTS.semiBold,
     fontSize: 14,
+    color: "#2563EB",
+  },
+
+  // Period Dropdown (inline, inside revenue card)
+  revenueTimePillOpen: {
+    backgroundColor: "#E8EFFE",
+    borderColor: "#C7D9FB",
+  },
+  periodDropdown: {
+    position: "absolute",
+    top: 52,
+    right: 0,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    paddingVertical: 6,
+    minWidth: 158,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.10,
+    shadowRadius: 16,
+    elevation: 10,
+    zIndex: 999,
+    borderWidth: 1,
+    borderColor: "#EEEEEE",
+  },
+  periodDropdownItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 11,
+    paddingHorizontal: 16,
+  },
+  periodDropdownItemActive: {
+    backgroundColor: "rgba(37,99,235,0.05)",
+  },
+  periodDropdownText: {
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+    color: COLORS.textPrimary,
+  },
+  periodDropdownTextActive: {
+    fontFamily: FONTS.semiBold,
     color: "#2563EB",
   },
 

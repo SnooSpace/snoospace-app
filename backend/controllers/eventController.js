@@ -5930,6 +5930,133 @@ const getEventInsights = async (req, res) => {
   }
 };
 
+
+// ===================================================================
+// GET COMMUNITY REVENUE SUMMARY (Community Dashboard)
+// GET /communities/revenue-summary?period=7d|15d|30d|90d|all
+// ===================================================================
+const getCommunityRevenueSummary = async (req, res) => {
+  try {
+    const userId    = req.user?.id;
+    const userType  = req.user?.type;
+
+    if (!userId || userType !== "community") {
+      return res.status(403).json({ error: "Community access required" });
+    }
+
+    // Reuse exact period-param convention from creatorInsightsController
+    const rawPeriod    = req.query.period || "30d";
+    const validPeriods = ["7d", "15d", "30d", "90d", "all"];
+    const period       = validPeriods.includes(rawPeriod) ? rawPeriod : "30d";
+
+    // Map period → postgres interval string (null = no date filter for "all")
+    const intervalMap = { "7d": "6 days", "15d": "14 days", "30d": "29 days", "90d": "89 days", "all": null };
+    const interval    = intervalMap[period];
+    const dateFilter  = interval ? `AND er.created_at >= NOW() - INTERVAL '${interval}'` : "";
+
+    // 1. Revenue totals — "all" has no date restriction, others are period-filtered
+    const totalsResult = await pool.query(`
+      SELECT
+        COALESCE(SUM(er.total_amount), 0)  AS total_revenue,
+        COUNT(DISTINCT er.id)              AS tickets_sold
+      FROM event_registrations er
+      INNER JOIN events e ON er.event_id = e.id
+      WHERE (e.creator_id = $1 OR e.community_id = $1)
+        AND er.registration_status IN ('registered', 'attended', 'confirmed')
+        ${dateFilter}
+    `, [userId]);
+
+    // 2. Active (upcoming, non-cancelled) event count — never period-filtered
+    const activeResult = await pool.query(`
+      SELECT COUNT(*) AS active_events_count
+      FROM events e
+      WHERE (e.creator_id = $1 OR e.community_id = $1)
+        AND COALESCE(e.start_datetime, e.event_date) >= NOW()
+        AND (e.is_cancelled = false OR e.is_cancelled IS NULL)
+    `, [userId]);
+
+    // 3. Sparkline —
+    //   "all"  → last 12 months, monthly aggregation (12 readable data points)
+    //   others → daily aggregation matching period length
+    let sparklineResult;
+    if (period === "all") {
+      sparklineResult = await pool.query(`
+        WITH months AS (
+          SELECT date_trunc('month', NOW() - (n || ' months')::interval)::date AS day
+          FROM generate_series(0, 11) AS n
+        ),
+        monthly AS (
+          SELECT
+            date_trunc('month', er.created_at)::date AS day,
+            COUNT(er.id)                              AS tickets,
+            COALESCE(SUM(er.total_amount), 0)         AS revenue
+          FROM event_registrations er
+          INNER JOIN events e ON er.event_id = e.id
+          WHERE (e.creator_id = $1 OR e.community_id = $1)
+            AND er.registration_status IN ('registered', 'attended', 'confirmed')
+          GROUP BY date_trunc('month', er.created_at)::date
+        )
+        SELECT
+          m.day,
+          COALESCE(mo.tickets, 0) AS tickets,
+          COALESCE(mo.revenue, 0) AS revenue
+        FROM months m
+        LEFT JOIN monthly mo ON m.day = mo.day
+        ORDER BY m.day ASC
+      `, [userId]);
+    } else {
+      // Daily generate_series — same pattern as getEventInsights trend
+      sparklineResult = await pool.query(`
+        WITH dates AS (
+          SELECT generate_series(
+            CURRENT_DATE - INTERVAL '${interval}',
+            CURRENT_DATE,
+            '1 day'::interval
+          )::date AS day
+        ),
+        daily AS (
+          SELECT
+            DATE(er.created_at) AS day,
+            COUNT(er.id)                         AS tickets,
+            COALESCE(SUM(er.total_amount), 0)    AS revenue
+          FROM event_registrations er
+          INNER JOIN events e ON er.event_id = e.id
+          WHERE (e.creator_id = $1 OR e.community_id = $1)
+            AND er.registration_status IN ('registered', 'attended', 'confirmed')
+            AND er.created_at >= CURRENT_DATE - INTERVAL '${interval}'
+          GROUP BY DATE(er.created_at)
+        )
+        SELECT
+          d.day,
+          COALESCE(dl.tickets, 0) AS tickets,
+          COALESCE(dl.revenue, 0) AS revenue
+        FROM dates d
+        LEFT JOIN daily dl ON d.day = dl.day
+        ORDER BY d.day ASC
+      `, [userId]);
+    }
+
+    const totalRevenue      = parseFloat(totalsResult.rows[0].total_revenue) || 0;
+    const ticketsSold       = parseInt(totalsResult.rows[0].tickets_sold, 10) || 0;
+    const avgPrice          = ticketsSold > 0 ? Math.round(totalRevenue / ticketsSold) : 0;
+    const activeEventsCount = parseInt(activeResult.rows[0].active_events_count, 10) || 0;
+    const sparkline         = sparklineResult.rows.map((r) => ({
+      day:     r.day instanceof Date ? r.day.toISOString().slice(0, 10) : String(r.day),
+      tickets: parseInt(r.tickets, 10),
+      revenue: parseFloat(r.revenue),
+    }));
+
+    res.json({
+      success: true,
+      period,
+      data: { totalRevenue, ticketsSold, avgPrice, activeEventsCount, sparkline },
+    });
+  } catch (error) {
+    console.error("[getCommunityRevenueSummary] Error:", error.message, error.stack);
+    res.status(500).json({ success: false, error: "Failed to fetch revenue summary" });
+  }
+};
+
 module.exports = {
   createEvent,
   getCommunityEvents,
@@ -5974,6 +6101,9 @@ module.exports = {
   releaseReservation,
   // Event Insights
   getEventInsights,
+  // Community Revenue Summary (Dashboard)
+  getCommunityRevenueSummary,
+
   // Event Engagement
   likeEvent,
   unlikeEvent,
