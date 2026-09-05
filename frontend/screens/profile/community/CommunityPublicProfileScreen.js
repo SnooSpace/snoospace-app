@@ -2484,78 +2484,82 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
             </View>
           )}
 
-          {profile?.show_heads !== false && (
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>
-                {profile?.heads && profile.heads.length > 1
-                  ? "Meet the Hosts"
-                  : "Meet the Host"}
-              </Text>
-            </View>
-            {profile?.heads && profile.heads.length > 0 ? (
-              <View style={{ paddingVertical: 4 }}>
-                {profile.heads.map((head, idx) => {
-                  const isClickable = !!head.member_id || !!head.email || !!head.phone;
-                  return (
-                    <GHPressable
-                      key={head.id || idx}
-                      style={({ pressed }) => [
-                        styles.headRow,
-                        !isClickable && { opacity: 0.85 },
-                        pressed && isClickable && { opacity: 0.7 },
-                      ]}
-                      onPress={() => handleHeadPress(head)}
-                      disabled={!isClickable}
-                    >
-                      {head.profile_pic_url ? (
-                        <Image
-                          source={{
-                            uri: head.profile_pic_url,
-                          }}
-                          style={styles.headAvatar}
-                        />
-                      ) : (
-                        <LinearGradient
-                          colors={getGradientForName(head.name || "Head")}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 1 }}
-                          style={[
-                            styles.headAvatar,
-                            { justifyContent: "center", alignItems: "center" },
-                          ]}
-                        >
-                          <Text
-                            style={{
-                              fontSize: 18,
-                              fontWeight: "bold",
-                              color: "#fff",
+          {profile?.show_heads !== false &&
+            profile?.heads &&
+            profile.heads.length > 0 && (
+              <View style={styles.sectionCard}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>
+                    {profile.heads.length > 1
+                      ? "Meet the Hosts"
+                      : "Meet the Host"}
+                  </Text>
+                </View>
+                <View style={{ paddingVertical: 4 }}>
+                  {profile.heads.map((head, idx) => {
+                    const isClickable =
+                      !!head.member_id || !!head.email || !!head.phone;
+                    return (
+                      <GHPressable
+                        key={head.id || idx}
+                        style={({ pressed }) => [
+                          styles.headRow,
+                          !isClickable && { opacity: 0.85 },
+                          pressed && isClickable && { opacity: 0.7 },
+                        ]}
+                        onPress={() => handleHeadPress(head)}
+                        disabled={!isClickable}
+                      >
+                        {head.profile_pic_url ? (
+                          <Image
+                            source={{
+                              uri: head.profile_pic_url,
                             }}
+                            style={styles.headAvatar}
+                          />
+                        ) : (
+                          <LinearGradient
+                            colors={getGradientForName(head.name || "Head")}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={[
+                              styles.headAvatar,
+                              {
+                                justifyContent: "center",
+                                alignItems: "center",
+                              },
+                            ]}
                           >
-                            {getInitials(head.name || "H")}
-                          </Text>
-                        </LinearGradient>
-                      )}
-                      <View style={{ flex: 1, gap: 2 }}>
-                        <Text style={styles.headName}>{head.name}</Text>
-                        {(head.email || head.phone) ? (
-                          <Text style={styles.headSub} numberOfLines={1}>
-                            {[head.email, head.phone].filter(Boolean).join("  •  ")}
-                          </Text>
-                        ) : null}
-                      </View>
-                      {isClickable && (
-                        <ChevronRight size={20} color="#8E8E93" />
-                      )}
-                    </GHPressable>
-                  );
-                })}
+                            <Text
+                              style={{
+                                fontSize: 18,
+                                fontWeight: "bold",
+                                color: "#fff",
+                              }}
+                            >
+                              {getInitials(head.name || "H")}
+                            </Text>
+                          </LinearGradient>
+                        )}
+                        <View style={{ flex: 1, gap: 2 }}>
+                          <Text style={styles.headName}>{head.name}</Text>
+                          {head.email || head.phone ? (
+                            <Text style={styles.headSub} numberOfLines={1}>
+                              {[head.email, head.phone]
+                                .filter(Boolean)
+                                .join("  •  ")}
+                            </Text>
+                          ) : null}
+                        </View>
+                        {isClickable && (
+                          <ChevronRight size={20} color="#8E8E93" />
+                        )}
+                      </GHPressable>
+                    );
+                  })}
+                </View>
               </View>
-            ) : (
-              <Text style={styles.emptyText}>No hosts listed</Text>
             )}
-          </View>
-          )}
 
           {profile?.sponsor_types &&
             profile.sponsor_types.length > 0 &&

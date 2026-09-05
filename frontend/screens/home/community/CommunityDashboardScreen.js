@@ -929,29 +929,28 @@ export default function CommunityDashboardScreen({ navigation }) {
         <View style={styles.section}>
           <GHPressable
             style={({ pressed }) => [
-              { width: "100%", opacity: pressed ? 0.9 : 1 },
+              styles.audienceCTACard,
+              pressed && styles.audienceCTACardPressed,
             ]}
             onPress={() => navigation.navigate("AudienceIntelligence")}
           >
-            <View style={styles.audienceCTACard}>
-              <View style={styles.audienceCTAContent}>
-                <View style={styles.audienceCTALeft}>
-                  <View style={styles.audienceCTAIcon}>
-                    <BarChart3 size={22} color="#2563EB" />
-                  </View>
-                  <View>
-                    <Text style={styles.audienceCTATitle}>
-                      Audience Intelligence
-                    </Text>
-                    <Text style={styles.audienceCTASub}>
-                      {audienceStats
-                        ? `🏆 T1: ${Math.round(audienceStats.tier1_percentage || 0)}%  ⭐ T2: ${Math.round(audienceStats.tier2_percentage || 0)}%`
-                        : "See your audience quality breakdown"}
-                    </Text>
-                  </View>
+            <View style={styles.audienceCTAContent}>
+              <View style={styles.audienceCTALeft}>
+                <View style={styles.audienceCTAIcon}>
+                  <BarChart3 size={22} color="#2563EB" />
                 </View>
-                <ChevronRight size={22} color={COLORS.textMuted} />
+                <View>
+                  <Text style={styles.audienceCTATitle}>
+                    Audience Intelligence
+                  </Text>
+                  <Text style={styles.audienceCTASub}>
+                    {audienceStats
+                      ? `🏆 T1: ${Math.round(audienceStats.tier1_percentage || 0)}%  ⭐ T2: ${Math.round(audienceStats.tier2_percentage || 0)}%`
+                      : "See your audience quality breakdown"}
+                  </Text>
+                </View>
               </View>
+              <ChevronRight size={22} color={COLORS.textMuted} />
             </View>
           </GHPressable>
         </View>
@@ -1701,10 +1700,17 @@ const styles = StyleSheet.create({
   audienceCTACard: {
     backgroundColor: DASHBOARD_TOKENS.surface,
     borderRadius: DASHBOARD_TOKENS.cardRadius,
-    ...DASHBOARD_TOKENS.dominantShadow,
     borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.02)",
-    overflow: "hidden",
+    borderColor: "#F0F0F0",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  audienceCTACardPressed: {
+    backgroundColor: "#F9FAFB",
+    transform: [{ scale: 0.99 }],
   },
   audienceCTAContent: {
     flexDirection: "row",

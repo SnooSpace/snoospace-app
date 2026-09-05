@@ -56,13 +56,77 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import CustomDatePicker from "../../components/ui/CustomDatePicker";
 import CustomAlertModal from "../../components/ui/CustomAlertModal";
 import { COLORS, SHADOWS, FONTS } from "../../constants/theme";
-import {
-  KeyboardAwareScrollView,
-  KeyboardStickyView,
-} from "react-native-keyboard-controller";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
 const TEXT_COLOR = "#1C1C1E";
 const LIGHT_TEXT_COLOR = "#8E8E93";
+
+const QUICK_TICKET_PRESETS = [
+  {
+    name: "General",
+    gender: null,
+    // Green
+    bg: "#ECFDF5",
+    borderColor: "#A7F3D0",
+    textColor: "#047857",
+    activeBg: "#10B981",
+    activeBorderColor: "#059669",
+    activeTextColor: "#FFFFFF",
+  },
+  {
+    name: "VIP",
+    gender: null,
+    // Premium Purple / Violet
+    bg: "#F5F3FF",
+    borderColor: "#DDD6FE",
+    textColor: "#6D28D9",
+    activeBg: "#7C3AED",
+    activeBorderColor: "#6D28D9",
+    activeTextColor: "#FFFFFF",
+  },
+  {
+    name: "Early Access",
+    gender: null,
+    // Yellow / Amber
+    bg: "#FEFCE8",
+    borderColor: "#FDE68A",
+    textColor: "#B45309",
+    activeBg: "#F59E0B",
+    activeBorderColor: "#D97706",
+    activeTextColor: "#FFFFFF",
+  },
+  {
+    name: "Couple",
+    gender: null,
+    // Hot Pink
+    bg: "#FDF2F8",
+    borderColor: "#FBCFE8",
+    textColor: "#BE185D",
+    activeBg: "#EC4899",
+    activeBorderColor: "#DB2777",
+    activeTextColor: "#FFFFFF",
+  },
+  {
+    name: "Men's Pass",
+    // Blue
+    bg: "#EFF6FF",
+    borderColor: "#BFDBFE",
+    textColor: "#1D4ED8",
+    activeBg: "#2563EB",
+    activeBorderColor: "#1D4ED8",
+    activeTextColor: "#FFFFFF",
+  },
+  {
+    name: "Women's Pass",
+    // Salmon Pink
+    bg: "#FFF2EE",
+    borderColor: "#FFC5BB",
+    textColor: "#C2410C",
+    activeBg: "#FA7268",
+    activeBorderColor: "#E05349",
+    activeTextColor: "#FFFFFF",
+  },
+];
 
 const TicketTypesEditor = React.forwardRef(
   (
@@ -710,31 +774,50 @@ const TicketTypesEditor = React.forwardRef(
                   />
                   <Text style={styles.quickOptionsLabel}>Quick Options</Text>
                   <View style={styles.presetPillsContainer}>
-                    {["General", "VIP", "Early Access", "Couple"].map(
-                      (preset) => (
+                    {QUICK_TICKET_PRESETS.map((preset) => {
+                      const isSelected = currentTicket.name === preset.name;
+                      return (
                         <TouchableOpacity
-                          key={preset}
+                          key={preset.name}
                           style={[
                             styles.presetPill,
-                            currentTicket.name === preset &&
-                              styles.presetPillActive,
+                            {
+                              backgroundColor: isSelected
+                                ? preset.activeBg
+                                : preset.bg,
+                              borderColor: isSelected
+                                ? preset.activeBorderColor
+                                : preset.borderColor,
+                            },
+                            isSelected && styles.presetPillActiveShadow,
                           ]}
-                          onPress={() =>
-                            setCurrentTicket({ ...currentTicket, name: preset })
-                          }
+                          activeOpacity={0.75}
+                          onPress={() => {
+                            LayoutAnimation.configureNext(
+                              LayoutAnimation.Presets.easeInEaseOut,
+                            );
+                            setCurrentTicket({
+                              ...currentTicket,
+                              name: preset.name,
+                            });
+                          }}
                         >
                           <Text
                             style={[
                               styles.presetPillText,
-                              currentTicket.name === preset &&
-                                styles.presetPillTextActive,
+                              {
+                                color: isSelected
+                                  ? preset.activeTextColor
+                                  : preset.textColor,
+                              },
+                              isSelected && styles.presetPillTextActive,
                             ]}
                           >
-                            {preset}
+                            {preset.name}
                           </Text>
                         </TouchableOpacity>
-                      ),
-                    )}
+                      );
+                    })}
                   </View>
 
                   <View style={styles.fieldSpacing} />
@@ -1110,27 +1193,30 @@ const TicketTypesEditor = React.forwardRef(
                         title: "No Restriction",
                         subtitle: "Open to everyone",
                         Icon: Users,
-                        tileColor: "#E8F5FF",
-                        iconBgColor: "#D0E9FF",
-                        iconColor: "#3565F2",
+                        tileColor: "#F8FAFC",
+                        iconBgColor: "#E2E8F0",
+                        iconColor: "#475569",
+                        activeBorderColor: "#334155",
                       },
                       {
                         id: "Male",
-                        title: "Men Only",
+                        title: "Men Pass",
                         subtitle: "Visible only to male attendees",
                         Icon: User,
-                        tileColor: "#EDEDFF",
-                        iconBgColor: "#DEDEFF",
-                        iconColor: "#4F6EF7",
+                        tileColor: "#EFF6FF",
+                        iconBgColor: "#DBEAFE",
+                        iconColor: "#2563EB",
+                        activeBorderColor: "#2563EB",
                       },
                       {
                         id: "Female",
-                        title: "Women Only",
+                        title: "Women Pass",
                         subtitle: "Visible only to female attendees",
                         Icon: User,
-                        tileColor: "#F3EEFF",
-                        iconBgColor: "#E9E2FF",
-                        iconColor: "#7A5AF8",
+                        tileColor: "#FFF2EE",
+                        iconBgColor: "#FFE2DC",
+                        iconColor: "#FA7268",
+                        activeBorderColor: "#FA7268",
                       },
                     ].map((g) => {
                       const isActive =
@@ -1145,7 +1231,13 @@ const TicketTypesEditor = React.forwardRef(
                           style={[
                             styles.choiceTile,
                             { backgroundColor: g.tileColor },
-                            isActive && styles.choiceTileActive,
+                            isActive && [
+                              styles.choiceTileActive,
+                              {
+                                borderColor: g.activeBorderColor,
+                                shadowColor: g.activeBorderColor,
+                              },
+                            ],
                           ]}
                           activeOpacity={0.8}
                           onPress={() => {
@@ -1191,7 +1283,7 @@ const TicketTypesEditor = React.forwardRef(
                               <Check
                                 size={16}
                                 strokeWidth={2.5}
-                                color={COLORS.primary}
+                                color={g.activeBorderColor}
                               />
                             </View>
                           )}
@@ -1248,7 +1340,7 @@ const TicketTypesEditor = React.forwardRef(
                           {genderMode === "restricted" &&
                           currentTicket.gender_restriction &&
                           currentTicket.gender_restriction !== "all"
-                            ? `${currentTicket.gender_restriction === "Male" ? "Men Only" : currentTicket.gender_restriction === "Female" ? "Women Only" : currentTicket.gender_restriction}`
+                            ? `${currentTicket.gender_restriction === "Male" ? "Men Pass" : currentTicket.gender_restriction === "Female" ? "Women Pass" : currentTicket.gender_restriction}`
                             : "All genders"}
                         </Text>
                       </View>
@@ -1292,11 +1384,8 @@ const TicketTypesEditor = React.forwardRef(
                 }}
               />
 
-              {/* PREMIUM STICKY CTA WITH BLUR */}
-              <KeyboardStickyView
-                offset={{ closed: 0, opened: 0 }}
-                style={styles.stickyFooterContainer}
-              >
+              {/* FOOTER CTA WITH BLUR */}
+              <View style={styles.stickyFooterContainer}>
                 <View style={styles.stickyFooterBlur}>
                   <View
                     style={[
@@ -1329,7 +1418,7 @@ const TicketTypesEditor = React.forwardRef(
                     </TouchableOpacity>
                   </View>
                 </View>
-              </KeyboardStickyView>
+              </View>
         </SwipeableModal>
 
         {/* ── CUSTOM ALERT MODAL ── */}
@@ -1859,23 +1948,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 9,
     borderRadius: 14,
-    backgroundColor: "#F2F4F8",
-    borderWidth: 1,
-    borderColor: "#E6EBF2",
+    borderWidth: 1.5,
   },
-  presetPillActive: {
-    backgroundColor: "#E9EDF5",
-    borderColor: "#B0BAD0",
-    borderWidth: 1,
+  presetPillActiveShadow: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 3,
   },
   presetPillText: {
     fontFamily: FONTS.medium,
     fontSize: 13,
-    color: "#1C1F26",
   },
   presetPillTextActive: {
     fontFamily: FONTS.semiBold,
-    color: "#1C1F26",
   },
 
   // --- PRICING CARD ---
@@ -2037,8 +2124,6 @@ const styles = StyleSheet.create({
   },
   choiceTileActive: {
     borderWidth: 1.5,
-    borderColor: "#3565F2",
-    shadowColor: "#3565F2",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
     shadowRadius: 8,
@@ -2048,20 +2133,6 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "#E2E8F0", // Default soft grey
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-  },
-  choiceTileActiveIconBg: {
-    backgroundColor: "#DBEAFE", // Soft blue when active - handled via JS or inherited? Actually let's just use one soft blue if the user didn't specify active/inactive icon bg state. The prompt says "Icon background: Soft blue circle (32px)"
-  },
-  // Re-define icon bg to just be blue always
-  choiceTileIconBg: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#EBF1FF",
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,

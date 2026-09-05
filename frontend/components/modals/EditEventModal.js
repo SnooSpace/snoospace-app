@@ -156,10 +156,6 @@ export default function EditEventModal({
   const handleEventTypeChange = (type) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setEventType(type);
-    if (type === "virtual") {
-      setHasGates(false);
-      setGatesOpenTime(null);
-    }
   };
 
   const getActiveTabLeft = () => {
@@ -245,17 +241,11 @@ export default function EditEventModal({
         setHasEndTime(false);
       }
 
-      const loadedEventType = eventData.event_type || "in-person";
-      setEventType(loadedEventType);
-      if (loadedEventType === "virtual") {
-        setHasGates(false);
-        setGatesOpenTime(null);
-      } else {
-        setGatesOpenTime(
-          eventData.gates_open_time ? new Date(eventData.gates_open_time) : null,
-        );
-        setHasGates(!!eventData.gates_open_time);
-      }
+      setGatesOpenTime(
+        eventData.gates_open_time ? new Date(eventData.gates_open_time) : null,
+      );
+      setHasGates(!!eventData.gates_open_time);
+      setEventType(eventData.event_type || "in-person");
       setLocationUrl(eventData.location_url || "");
       setLocationName(eventData.location_name || "");
       setVirtualLink(eventData.virtual_link || "");

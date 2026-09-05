@@ -73,7 +73,7 @@ const getTicketTheme = (ticket) => {
   const restriction = (ticket?.gender_restriction || "all").toLowerCase().trim();
   const visibility = (ticket?.visibility || "public").toLowerCase().trim();
 
-  // 1. Men Only (matches event creation "Men Only" access option)
+  // 1. Men Pass (matches event creation "Men Pass" access option)
   if (restriction === "male") {
     return {
       type: "male",
@@ -82,11 +82,11 @@ const getTicketTheme = (ticket) => {
       borderColorEnd: "#0284C7", // Sky-600
       bgColorStart: "#FFFFFF",
       bgColorEnd: "#F0F9FF", // Sky-50
-      tag: "Men Only",
+      tag: "Men Pass",
     };
   }
 
-  // 2. Women Only (matches event creation "Women Only" access option)
+  // 2. Women Pass (matches event creation "Women Pass" access option)
   if (restriction === "female") {
     return {
       type: "female",
@@ -95,7 +95,7 @@ const getTicketTheme = (ticket) => {
       borderColorEnd: "#E11D48", // Rose-600
       bgColorStart: "#FFFFFF",
       bgColorEnd: "#FFF1F2", // Rose-50
-      tag: "Women Only",
+      tag: "Women Pass",
     };
   }
 

@@ -158,6 +158,7 @@ import { Alert, ToastAndroid, Platform } from "react-native";
 import AttendanceConfirmationModal from "../../components/modals/AttendanceConfirmationModal";
 import SnooLoader from "../../components/ui/SnooLoader";
 import DynamicStatusBar from "../../components/navigation/DynamicStatusBar";
+import { useToast } from "../../context/ToastContext";
 import {
   getEventState,
   shouldShowViewAttendees,
@@ -191,12 +192,12 @@ const EventDetailsScreen = ({ route, navigation }) => {
 
   // Use initialData for quick display, but always load full details from API
   const [event, setEvent] = useState(initialData || null);
+  const { showToast } = useToast();
   const [loading, setLoading] = useState(true); // Always show loading initially
   const [error, setError] = useState(null);
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
-  const [showCreatorToast, setShowCreatorToast] = useState(false);
   const [isInterested, setIsInterested] = useState(false);
   const [isRegistered, setIsRegistered] = useState(false);
   const [isInvited, setIsInvited] = useState(false);
@@ -250,9 +251,6 @@ const EventDetailsScreen = ({ route, navigation }) => {
     outputRange: [0, 1],
     extrapolate: "clamp",
   });
-
-  const toastOpacity = useRef(new Animated.Value(0)).current;
-  const toastTranslateY = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     // Always load full event details from API
@@ -445,31 +443,20 @@ const EventDetailsScreen = ({ route, navigation }) => {
 
   // Show toast message for restricted roles (communities)
   const showRoleRestrictionMessage = () => {
-    setShowCreatorToast(true);
-    toastOpacity.setValue(0);
-    toastTranslateY.setValue(0);
-
-    Animated.parallel([
-      Animated.timing(toastOpacity, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.timing(toastTranslateY, {
-        toValue: -20,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    // Fade out after 4 seconds
-    setTimeout(() => {
-      Animated.timing(toastOpacity, {
-        toValue: 0,
-        duration: 1000,
-        useNativeDriver: true,
-      }).start(() => setShowCreatorToast(false));
-    }, 4000);
+    HapticsService.triggerImpactMedium();
+    if (currentUser?.type === "community") {
+      showToast(
+        "Individual Account Required",
+        "Community accounts cannot attend events. Please sign in with an individual member account to register.",
+        "info"
+      );
+    } else {
+      showToast(
+        "Individual Account Required",
+        "Only individual member accounts can register to attend events.",
+        "info"
+      );
+    }
   };
 
   const handleRegister = () => {
@@ -502,6 +489,10 @@ const EventDetailsScreen = ({ route, navigation }) => {
   // Handle request invite for invite-only events
   const handleRequestInvite = async () => {
     if (requestingInvite || !event?.id) return;
+    if (isRestrictedRole) {
+      showRoleRestrictionMessage();
+      return;
+    }
 
     try {
       setRequestingInvite(true);
@@ -1311,6 +1302,9 @@ const EventDetailsScreen = ({ route, navigation }) => {
                       <Text
                         style={[
                           styles.stickyRegisterText,
+                          isRestrictedRole &&
+                            !isInviteOnlyNotInvited &&
+                            styles.stickyRegisterTextDisabled,
                           isRegistered && { color: "#FFFFFF" },
                         ]}
                       >
@@ -2282,6 +2276,9 @@ const styles = StyleSheet.create({
   },
   stickyRegisterButtonDisabled: {
     backgroundColor: "#E5E7EB",
+  },
+  stickyRegisterTextDisabled: {
+    color: "#9CA3AF",
   },
   stickyRegisterButtonRegistered: {
     backgroundColor: "#10B981",

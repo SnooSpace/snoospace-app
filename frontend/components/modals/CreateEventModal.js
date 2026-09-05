@@ -243,10 +243,6 @@ const CreateEventModal = ({
   const handleEventTypeChange = (type) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setEventType(type);
-    if (type === "virtual") {
-      setHasGates(false);
-      setGatesOpenTime(null);
-    }
   };
 
   const getActiveTabLeft = () => {
@@ -513,24 +509,19 @@ const CreateEventModal = ({
           setHasEndTime(false);
         }
 
-        const restoredEventType =
-          draft.data.event_type || draft.data.eventType || "in-person";
-        setEventType(restoredEventType);
-        if (restoredEventType === "virtual") {
-          setHasGates(false);
-          setGatesOpenTime(null);
-        } else {
-          setHasGates(
-            draft.data.has_gates !== undefined
-              ? draft.data.has_gates
-              : draft.data.hasGates || false,
-          );
-          // Restore gates open time
-          const gatesTimeStr = draft.data.gates_open_time;
-          if (gatesTimeStr) {
-            setGatesOpenTime(new Date(gatesTimeStr));
-          }
+        setHasGates(
+          draft.data.has_gates !== undefined
+            ? draft.data.has_gates
+            : draft.data.hasGates || false,
+        );
+        // Restore gates open time
+        const gatesTimeStr = draft.data.gates_open_time;
+        if (gatesTimeStr) {
+          setGatesOpenTime(new Date(gatesTimeStr));
         }
+        setEventType(
+          draft.data.event_type || draft.data.eventType || "in-person",
+        );
         setLocationUrl(draft.data.location_url || draft.data.locationUrl || "");
         setLocationName(draft.data.location_name || "");
         setVirtualLink(draft.data.virtual_link || draft.data.virtualLink || "");
