@@ -25,7 +25,11 @@ import {
   Keyboard,
   LayoutAnimation,
   UIManager,
+  Dimensions,
 } from "react-native";
+import SwipeableModal from "../modals/SwipeableModal";
+
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 // Enable LayoutAnimation for Android
 if (
@@ -137,6 +141,11 @@ const TicketTypesEditor = React.forwardRef(
       setCapacityMode("unlimited");
       setSalesMode("duration");
       setGenderMode("none");
+    };
+
+    const handleCloseModal = () => {
+      setShowModal(false);
+      resetForm();
     };
 
     const openAddModal = () => {
@@ -656,15 +665,13 @@ const TicketTypesEditor = React.forwardRef(
         })}
 
         {/* Add/Edit Modal */}
-        <Modal
+        <SwipeableModal
           visible={showModal}
-          animationType="slide"
-          transparent
-          statusBarTranslucent={true}
-          onRequestClose={() => setShowModal(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
+          onClose={handleCloseModal}
+          sheetStyle={styles.modalSheet}
+          avoidKeyboard={false}
+          header={
+            <View collapsable={false} style={styles.modalHeaderContainer}>
               <View style={styles.sheetHandle} />
 
               <View style={styles.modalHeader}>
@@ -679,13 +686,16 @@ const TicketTypesEditor = React.forwardRef(
                   </Text>
                 </View>
               </View>
-
-              <KeyboardAwareScrollView
-                style={styles.modalBody}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: 280 }}
-                bottomOffset={80}
-              >
+            </View>
+          }
+        >
+          <SwipeableModal.KeyboardAwareScrollView
+            style={styles.modalBody}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 110 }}
+            bottomOffset={80}
+            keyboardShouldPersistTaps="handled"
+          >
                 {/* SECTION 1: TICKET DETAILS */}
                 <View style={styles.elevatedCard}>
                   <Text style={styles.fieldLabel}>Ticket Name</Text>
@@ -698,6 +708,7 @@ const TicketTypesEditor = React.forwardRef(
                     placeholder="e.g., General"
                     placeholderTextColor="#94A3B8"
                   />
+                  <Text style={styles.quickOptionsLabel}>Quick Options</Text>
                   <View style={styles.presetPillsContainer}>
                     {["General", "VIP", "Early Access", "Couple"].map(
                       (preset) => (
@@ -1189,28 +1200,9 @@ const TicketTypesEditor = React.forwardRef(
                     })}
                   </View>
                 </View>
-              </KeyboardAwareScrollView>
-
-              {/* SALES DATE PICKER MODAL */}
-              <CustomDatePicker
-                visible={showSalesDatePicker}
-                onClose={() => setShowSalesDatePicker(false)}
-                startDate={currentTicket.sales_start_date}
-                endDate={currentTicket.sales_end_date}
-                maxDate={eventStartDate ? new Date(eventStartDate) : undefined}
-                onConfirm={({ startDate, endDate }) => {
-                  setCurrentTicket({
-                    ...currentTicket,
-                    sales_start_date: startDate,
-                    sales_end_date: endDate,
-                  });
-                  setShowSalesDatePicker(false);
-                }}
-              />
-
-              {/* LIVE TICKET PREVIEW CARD */}
-              {!isKeyboardVisible && (
-                <View style={styles.livePreviewContainer}>
+                {/* LIVE TICKET PREVIEW CARD — AT BOTTOM OF MODAL */}
+                <View style={styles.previewSectionWrapper}>
+                  <Text style={styles.previewSectionLabel}>Ticket Preview</Text>
                   <View style={styles.realTicketPreview}>
                     <View style={styles.ticketStubLeft} />
                     <View style={styles.ticketStubRight} />
@@ -1281,7 +1273,24 @@ const TicketTypesEditor = React.forwardRef(
                     </View>
                   </View>
                 </View>
-              )}
+              </SwipeableModal.KeyboardAwareScrollView>
+
+              {/* SALES DATE PICKER MODAL */}
+              <CustomDatePicker
+                visible={showSalesDatePicker}
+                onClose={() => setShowSalesDatePicker(false)}
+                startDate={currentTicket.sales_start_date}
+                endDate={currentTicket.sales_end_date}
+                maxDate={eventStartDate ? new Date(eventStartDate) : undefined}
+                onConfirm={({ startDate, endDate }) => {
+                  setCurrentTicket({
+                    ...currentTicket,
+                    sales_start_date: startDate,
+                    sales_end_date: endDate,
+                  });
+                  setShowSalesDatePicker(false);
+                }}
+              />
 
               {/* PREMIUM STICKY CTA WITH BLUR */}
               <KeyboardStickyView
@@ -1297,7 +1306,7 @@ const TicketTypesEditor = React.forwardRef(
                   >
                     <TouchableOpacity
                       style={styles.ghostCancelButton}
-                      onPress={() => setShowModal(false)}
+                      onPress={handleCloseModal}
                     >
                       <Text style={styles.ghostCancelButtonText}>Cancel</Text>
                     </TouchableOpacity>
@@ -1321,9 +1330,7 @@ const TicketTypesEditor = React.forwardRef(
                   </View>
                 </View>
               </KeyboardStickyView>
-            </View>
-          </View>
-        </Modal>
+        </SwipeableModal>
 
         {/* ── CUSTOM ALERT MODAL ── */}
         {alertConfig && (
@@ -1534,17 +1541,16 @@ const styles = StyleSheet.create({
     color: "#4B5563",
   },
 
-  // --- MODAL ---
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
+  modalSheet: {
     backgroundColor: "#F7F9FC",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    height: "90%",
+    height: SCREEN_HEIGHT * 0.9,
+  },
+  modalHeaderContainer: {
+    backgroundColor: "#F7F9FC",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
   },
   sheetHandle: {
     width: 40,
@@ -1836,11 +1842,18 @@ const styles = StyleSheet.create({
   },
 
   // --- IDENTITY CARD (Name & Presets) ---
+  quickOptionsLabel: {
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+    color: "#64748B",
+    marginTop: 14,
+    marginBottom: 8,
+  },
   presetPillsContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
-    marginTop: 16,
+    marginTop: 0,
   },
   presetPill: {
     paddingHorizontal: 14,
@@ -2095,12 +2108,17 @@ const styles = StyleSheet.create({
   },
 
   // --- LIVE TICKET PREVIEW CARD ---
-  livePreviewContainer: {
-    position: "absolute",
-    bottom: 96,
-    left: 20,
-    right: 20,
-    zIndex: 10,
+  previewSectionWrapper: {
+    marginTop: 8,
+    marginBottom: 24,
+  },
+  previewSectionLabel: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 13,
+    color: "#64748B",
+    marginBottom: 10,
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
   },
   realTicketPreview: {
     backgroundColor: "#FFFFFF",
@@ -2109,10 +2127,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E5E7EB",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowRadius: 8,
+    elevation: 2,
     overflow: "hidden",
   },
   ticketStubLeft: {

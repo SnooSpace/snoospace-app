@@ -156,6 +156,10 @@ export default function EditEventModal({
   const handleEventTypeChange = (type) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setEventType(type);
+    if (type === "virtual") {
+      setHasGates(false);
+      setGatesOpenTime(null);
+    }
   };
 
   const getActiveTabLeft = () => {
@@ -241,11 +245,17 @@ export default function EditEventModal({
         setHasEndTime(false);
       }
 
-      setGatesOpenTime(
-        eventData.gates_open_time ? new Date(eventData.gates_open_time) : null,
-      );
-      setHasGates(!!eventData.gates_open_time);
-      setEventType(eventData.event_type || "in-person");
+      const loadedEventType = eventData.event_type || "in-person";
+      setEventType(loadedEventType);
+      if (loadedEventType === "virtual") {
+        setHasGates(false);
+        setGatesOpenTime(null);
+      } else {
+        setGatesOpenTime(
+          eventData.gates_open_time ? new Date(eventData.gates_open_time) : null,
+        );
+        setHasGates(!!eventData.gates_open_time);
+      }
       setLocationUrl(eventData.location_url || "");
       setLocationName(eventData.location_name || "");
       setVirtualLink(eventData.virtual_link || "");
@@ -280,9 +290,13 @@ export default function EditEventModal({
         eventData.pricing_rules.forEach((pr) => {
           loadedPromos.push({
             ...pr,
-            offer_type: "early_bird",
+            offer_type:
+              pr.rule_type === "group_discount"
+                ? "group_discount"
+                : "early_bird",
             trigger:
               pr.rule_type === "early_bird_quantity" ? "by_sales" : "by_date",
+            min_quantity: pr.min_quantity,
             applies_to: pr.applies_to || "all",
             selected_tickets: pr.selected_tickets || [],
           });
@@ -335,7 +349,10 @@ export default function EditEventModal({
           })),
           ...(eventData.pricing_rules || []).map((pr) => ({
             ...pr,
-            offer_type: "early_bird",
+            offer_type:
+              pr.rule_type === "group_discount"
+                ? "group_discount"
+                : "early_bird",
             trigger:
               pr.rule_type === "early_bird_quantity" ? "by_sales" : "by_date",
           })),
@@ -469,7 +486,9 @@ export default function EditEventModal({
         end_datetime: hasEndTime ? endDate.toISOString() : null,
         has_end_time: hasEndTime,
         gates_open_time:
-          hasGates && gatesOpenTime ? gatesOpenTime.toISOString() : null,
+          eventType !== "virtual" && hasGates && gatesOpenTime
+            ? gatesOpenTime.toISOString()
+            : null,
         location_url: locationUrl.trim() || null,
         location_name: locationName.trim() || null,
         max_attendees: maxAttendees ? parseInt(maxAttendees) : null,
@@ -515,12 +534,20 @@ export default function EditEventModal({
             : null;
         })(),
         pricing_rules: (() => {
-          const rules = promos.filter((p) => p.offer_type === "early_bird");
+          const rules = promos.filter(
+            (p) => p.offer_type === "early_bird" || p.offer_type === "group_discount",
+          );
           return rules.length > 0
             ? rules.map((p) => ({
-                name: p.name,
+                name:
+                  p.name ||
+                  (p.offer_type === "group_discount"
+                    ? `Group (${p.min_quantity || 2}+ Tickets)`
+                    : "Early Bird"),
                 rule_type:
-                  p.trigger === "by_sales"
+                  p.offer_type === "group_discount"
+                    ? "group_discount"
+                    : p.trigger === "by_sales"
                     ? "early_bird_quantity"
                     : "early_bird_time",
                 discount_type: p.discount_type,
@@ -528,6 +555,7 @@ export default function EditEventModal({
                   p.discount_value !== undefined ? p.discount_value : p.value,
                 valid_until: p.valid_until,
                 quantity_threshold: p.quantity_threshold,
+                min_quantity: p.min_quantity ? parseInt(p.min_quantity, 10) : null,
                 is_active: p.is_active,
                 applies_to: p.applies_to,
                 selected_tickets: p.selected_tickets,
@@ -772,72 +800,6 @@ export default function EditEventModal({
               />
             </View>
 
-            {/* Gates */}
-            <View style={styles.sectionBlock}>
-              <View
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: hasGates ? 16 : 0,
-                }}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.label}>
-                    Gates / Early Entry{" "}
-                    <Text style={styles.sectionHeaderOptional}>
-                      • (Optional)
-                    </Text>
-                  </Text>
-                  <Text style={styles.sectionHeaderHelper}>
-                    Allow early access before the event starts.
-                  </Text>
-                </View>
-                <Switch
-                  value={hasGates}
-                  onValueChange={(val) => {
-                    LayoutAnimation.configureNext(
-                      LayoutAnimation.Presets.easeInEaseOut,
-                    );
-                    setHasGates(val);
-                    if (!val) setGatesOpenTime(null);
-                  }}
-                  thumbColor={hasGates ? "#FFFFFF" : "#FFFFFF"}
-                  trackColor={{ false: "#D1D5DB", true: MODAL_TOKENS.primary }}
-                  ios_backgroundColor="#D1D5DB"
-                />
-              </View>
-              {hasGates && (
-                <TouchableOpacity
-                  style={styles.dateCard}
-                  onPress={() => setShowGatesTimePicker(true)}
-                >
-                  <View style={styles.dateCardIconInfo}>
-                    <Clock size={16} color={MODAL_TOKENS.primary} />
-                  </View>
-                  <View>
-                    <Text style={styles.dateCardLabel}>Gates Open</Text>
-                    <Text style={styles.dateCardValue}>
-                      {gatesOpenTime
-                        ? gatesOpenTime.toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })
-                        : "Set time"}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              )}
-              <CustomTimePicker
-                visible={showGatesTimePicker}
-                onClose={() => setShowGatesTimePicker(false)}
-                time={gatesOpenTime || eventDate || new Date()}
-                onChange={(newTime) => {
-                  setGatesOpenTime(newTime);
-                }}
-              />
-            </View>
-
             {/* Event Type — Sliding Gradient Segment */}
             <View style={styles.sectionBlock}>
               <Text style={styles.label}>Event Type</Text>
@@ -907,6 +869,74 @@ export default function EditEventModal({
                 })}
               </View>
             </View>
+
+            {/* Gates */}
+            {eventType !== "virtual" && (
+              <View style={styles.sectionBlock}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: hasGates ? 16 : 0,
+                  }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.label}>
+                      Gates / Early Entry{" "}
+                      <Text style={styles.sectionHeaderOptional}>
+                        • (Optional)
+                      </Text>
+                    </Text>
+                    <Text style={styles.sectionHeaderHelper}>
+                      Allow early access before the event starts.
+                    </Text>
+                  </View>
+                  <Switch
+                    value={hasGates}
+                    onValueChange={(val) => {
+                      LayoutAnimation.configureNext(
+                        LayoutAnimation.Presets.easeInEaseOut,
+                      );
+                      setHasGates(val);
+                      if (!val) setGatesOpenTime(null);
+                    }}
+                    thumbColor={hasGates ? "#FFFFFF" : "#FFFFFF"}
+                    trackColor={{ false: "#D1D5DB", true: MODAL_TOKENS.primary }}
+                    ios_backgroundColor="#D1D5DB"
+                  />
+                </View>
+                {hasGates && (
+                  <TouchableOpacity
+                    style={styles.dateCard}
+                    onPress={() => setShowGatesTimePicker(true)}
+                  >
+                    <View style={styles.dateCardIconInfo}>
+                      <Clock size={16} color={MODAL_TOKENS.primary} />
+                    </View>
+                    <View>
+                      <Text style={styles.dateCardLabel}>Gates Open</Text>
+                      <Text style={styles.dateCardValue}>
+                        {gatesOpenTime
+                          ? gatesOpenTime.toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : "Set time"}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
+                <CustomTimePicker
+                  visible={showGatesTimePicker}
+                  onClose={() => setShowGatesTimePicker(false)}
+                  time={gatesOpenTime || eventDate || new Date()}
+                  onChange={(newTime) => {
+                    setGatesOpenTime(newTime);
+                  }}
+                />
+              </View>
+            )}
 
             {/* Event Visibility */}
             <View style={styles.sectionBlock}>
@@ -1311,9 +1341,16 @@ export default function EditEventModal({
                 )}
               </View>
 
+              <View style={styles.reviewRow}>
+                <Text style={styles.reviewLabel}>Event Type</Text>
+                <Text style={styles.reviewValue}>
+                  {eventType.charAt(0).toUpperCase() + eventType.slice(1)}
+                </Text>
+              </View>
+
               <View style={styles.reviewDivider} />
 
-              {hasGates && gatesOpenTime && (
+              {eventType !== "virtual" && hasGates && gatesOpenTime && (
                 <>
                   <View style={styles.reviewRow}>
                     <Text style={styles.reviewLabel}>Gates Open</Text>
@@ -1327,13 +1364,6 @@ export default function EditEventModal({
                   <View style={styles.reviewDivider} />
                 </>
               )}
-
-              <View style={styles.reviewRow}>
-                <Text style={styles.reviewLabel}>Event Type</Text>
-                <Text style={styles.reviewValue}>
-                  {eventType.charAt(0).toUpperCase() + eventType.slice(1)}
-                </Text>
-              </View>
 
               <View style={styles.reviewDivider} />
 

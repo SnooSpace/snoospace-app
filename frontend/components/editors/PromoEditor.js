@@ -22,7 +22,7 @@ import {
 } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { BadgePercent, Zap } from "lucide-react-native";
+import { BadgePercent, Zap, Users } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import CustomDatePicker from "../../components/ui/CustomDatePicker";
 import CustomAlertModal from "../../components/ui/CustomAlertModal";
@@ -53,6 +53,13 @@ const OFFER_TYPES = [
     color: "#F97316", // Vibrant Orange
     description: "Auto-applied by date or sales volume",
   },
+  {
+    value: "group_discount",
+    label: "Group / Bulk",
+    icon: "Users",
+    color: "#8B5CF6", // Purple / Violet
+    description: "Auto-applied when buying X+ tickets",
+  },
 ];
 
 const TRIGGER_TYPES = [
@@ -82,6 +89,7 @@ const DEFAULT_PROMO = {
   selected_tickets: [],
   max_uses: "",
   min_purchase: "",
+  min_quantity: "2",
   stackable: false,
   valid_from: null,
   valid_until: null,
@@ -132,6 +140,7 @@ const PromoEditor = React.forwardRef(
         valid_from: p.valid_from ? new Date(p.valid_from) : null,
         valid_until: p.valid_until ? new Date(p.valid_until) : null,
         quantity_threshold: p.quantity_threshold?.toString() || "",
+        min_quantity: p.min_quantity?.toString() || "2",
         is_active: p.is_active !== false,
       });
       // Show advanced section if any advanced field has data
@@ -266,6 +275,11 @@ const PromoEditor = React.forwardRef(
         }
       }
 
+      if (current.offer_type === "group_discount") {
+        if (!current.min_quantity || parseInt(current.min_quantity, 10) < 2)
+          return false;
+      }
+
       // Specific tickets: at least one must be selected
       if (
         current.applies_to === "specific" &&
@@ -305,6 +319,14 @@ const PromoEditor = React.forwardRef(
         }
         if (current.trigger === "by_sales" && !current.quantity_threshold) {
           Alert.alert("Required", "Please set the ticket quantity threshold");
+          return;
+        }
+      }
+
+      if (current.offer_type === "group_discount") {
+        const minQ = parseInt(current.min_quantity, 10);
+        if (!minQ || minQ < 2) {
+          Alert.alert("Required", "Please enter a minimum ticket quantity of at least 2.");
           return;
         }
       }
@@ -352,6 +374,8 @@ const PromoEditor = React.forwardRef(
       const autoName =
         current.offer_type === "promo_code"
           ? current.code.trim().toUpperCase()
+          : current.offer_type === "group_discount"
+          ? `Group (${current.min_quantity || 2}+ Tickets)`
           : "Early Bird";
 
       const promoData = {
@@ -371,6 +395,10 @@ const PromoEditor = React.forwardRef(
         min_purchase: current.min_purchase
           ? parseFloat(current.min_purchase)
           : null,
+        min_quantity:
+          current.offer_type === "group_discount" && current.min_quantity
+            ? parseInt(current.min_quantity, 10)
+            : null,
         stackable: current.stackable,
         valid_from:
           current.offer_type === "promo_code" && current.valid_from
@@ -431,6 +459,9 @@ const PromoEditor = React.forwardRef(
         if (p.max_uses) return `${p.current_uses || 0} of ${p.max_uses} uses`;
         return "Unlimited uses";
       }
+      if (p.offer_type === "group_discount") {
+        return `Min ${p.min_quantity || 2} tickets`;
+      }
       if (p.trigger === "by_date" && p.valid_until) {
         return `Until ${new Date(p.valid_until).toLocaleDateString()}`;
       }
@@ -458,6 +489,23 @@ const PromoEditor = React.forwardRef(
             ? "#166534"
             : isActive
               ? "#EA580C"
+              : "#64748B",
+          hasBorder: isActiveAndUsed,
+        };
+      }
+      if (p.offer_type === "group_discount") {
+        return {
+          name: "Users",
+          isLucide: true,
+          colors: isActiveAndUsed
+            ? ["#DCFCE7", "#DCFCE7"]
+            : isActive
+              ? ["#F5F3FF", "#F5F3FF"]
+              : ["#F3F6FB", "#F3F6FB"],
+          iconColor: isActiveAndUsed
+            ? "#166534"
+            : isActive
+              ? "#8B5CF6"
               : "#64748B",
           hasBorder: isActiveAndUsed,
         };
@@ -535,6 +583,8 @@ const PromoEditor = React.forwardRef(
                         color={tile.iconColor}
                         fill={tile.iconColor}
                       />
+                    ) : tile.name === "Users" ? (
+                      <Users size={20} color={tile.iconColor} />
                     ) : (
                       <BadgePercent size={20} color={tile.iconColor} />
                     )
@@ -552,6 +602,8 @@ const PromoEditor = React.forwardRef(
                   <Text style={styles.tileName} numberOfLines={1}>
                     {p.offer_type === "promo_code"
                       ? p.name || "Promo Code"
+                      : p.offer_type === "group_discount"
+                      ? p.name || "Group Discount"
                       : p.name || "Early Bird"}
                   </Text>
                 </View>
@@ -638,11 +690,18 @@ const PromoEditor = React.forwardRef(
                             if (type.value === "promo_code") {
                               updates.trigger = "by_date";
                               updates.quantity_threshold = "";
-                              // Keep valid_until only if it was set for promo validity
+                              updates.min_quantity = "";
+                            } else if (type.value === "group_discount") {
+                              updates.code = "";
+                              updates.valid_from = null;
+                              updates.valid_until = null;
+                              updates.quantity_threshold = "";
+                              updates.min_quantity = prev.min_quantity || "2";
                             } else {
                               // Early bird — clear promo-specific fields
                               updates.code = "";
                               updates.valid_from = null;
+                              updates.min_quantity = "";
                             }
                             return updates;
                           });
@@ -671,6 +730,15 @@ const PromoEditor = React.forwardRef(
                                   current.offer_type === type.value
                                     ? type.color
                                     : "transparent"
+                                }
+                              />
+                            ) : type.icon === "Users" ? (
+                              <Users
+                                size={20}
+                                color={
+                                  current.offer_type === type.value
+                                    ? type.color
+                                    : LIGHT_TEXT_COLOR
                                 }
                               />
                             ) : (
@@ -880,6 +948,32 @@ const PromoEditor = React.forwardRef(
                         />
                       </>
                     )}
+                  </View>
+                )}
+
+                {/* ── CARD 3B: Group / Bulk Minimum Quantity (conditional) ── */}
+                {current.offer_type === "group_discount" && (
+                  <View style={styles.card}>
+                    <Text style={styles.cardTitle}>Group Discount Trigger</Text>
+                    <Text style={styles.fieldLabel}>
+                      Minimum Tickets Required *
+                    </Text>
+                    <TextInput
+                      style={styles.input}
+                      value={current.min_quantity}
+                      onChangeText={(text) =>
+                        setCurrent({
+                          ...current,
+                          min_quantity: text.replace(/[^0-9]/g, ""),
+                        })
+                      }
+                      placeholder="e.g., 2, 3, 5"
+                      placeholderTextColor="#94A3B8"
+                      keyboardType="numeric"
+                    />
+                    <Text style={styles.helperText}>
+                      Discount applies automatically when attendees select this many tickets (or more) in their cart.
+                    </Text>
                   </View>
                 )}
 

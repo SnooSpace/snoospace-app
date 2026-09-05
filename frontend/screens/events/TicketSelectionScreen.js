@@ -22,6 +22,7 @@ import {
   Plus,
   ChevronRight,
   AlertCircle,
+  Users,
 } from "lucide-react-native";
 import Svg, {
   Path,
@@ -69,54 +70,58 @@ const formatTime = (dateStr) => {
 };
 
 const getTicketTheme = (ticket) => {
-  const name = (ticket.name || "").toLowerCase();
-  const restriction = (ticket.gender_restriction || "all").toLowerCase();
+  const restriction = (ticket?.gender_restriction || "all").toLowerCase().trim();
+  const visibility = (ticket?.visibility || "public").toLowerCase().trim();
 
-  if (name.includes("couple") || restriction === "couple") {
-    return {
-      type: "general",
-      color: "#b45309", // Amber-700
-      borderColorStart: "#fbbf24", // Yellow-400
-      borderColorEnd: "#f59e0b", // Amber-500
-      bgColorStart: "#ffffff",
-      bgColorEnd: "#f8fafc", // slate-50
-      watermark: "ADMIT ONE",
-      label: "VIP Admission • General",
-    };
-  }
-  if (restriction === "female" || name.includes("vixen") || name.includes("girls") || name.includes("female") || name.includes("ladies")) {
-    return {
-      type: "female",
-      color: "#be123c", // Rose-700
-      borderColorStart: "#fb7185", // Rose-400
-      borderColorEnd: "#f43f5e", // Rose-505
-      bgColorStart: "#ffffff",
-      bgColorEnd: "#fff1f2", // Rose-50
-      watermark: "ENTRY PASS",
-      label: "Ladies Special Event",
-    };
-  }
-  if (restriction === "male" || name.includes("stag") || name.includes("men") || name.includes("male") || name.includes("gentlemen")) {
+  // 1. Men Only (matches event creation "Men Only" access option)
+  if (restriction === "male") {
     return {
       type: "male",
-      color: "#0369a1", // Sky-700
-      borderColorStart: "#38bdf8", // Sky-400
-      borderColorEnd: "#0ea5e9", // Sky-505
-      bgColorStart: "#ffffff",
-      bgColorEnd: "#f0f9ff", // Sky-50
-      watermark: "VIP PASS",
-      label: "Gentlemen's Evening",
+      color: "#0284C7", // Electric Sky/Azure-600
+      borderColorStart: "#38BDF8", // Sky-400
+      borderColorEnd: "#0284C7", // Sky-600
+      bgColorStart: "#FFFFFF",
+      bgColorEnd: "#F0F9FF", // Sky-50
+      tag: "Men Only",
     };
   }
+
+  // 2. Women Only (matches event creation "Women Only" access option)
+  if (restriction === "female") {
+    return {
+      type: "female",
+      color: "#E11D48", // Vivid Rose-600
+      borderColorStart: "#FB7185", // Rose-400
+      borderColorEnd: "#E11D48", // Rose-600
+      bgColorStart: "#FFFFFF",
+      bgColorEnd: "#FFF1F2", // Rose-50
+      tag: "Women Only",
+    };
+  }
+
+  // 3. Invite Only (matches event creation "Invite Only" visibility option)
+  if (visibility === "invite_only") {
+    return {
+      type: "invite_only",
+      color: "#7C3AED", // Vibrant Royal Violet
+      borderColorStart: "#A78BFA", // Violet-400
+      borderColorEnd: "#7C3AED", // Violet-600
+      bgColorStart: "#FFFFFF",
+      bgColorEnd: "#F5F3FF", // Violet-50
+      tag: "Invite Only",
+    };
+  }
+
+  // 4. Standard / Open to All (no restriction chosen)
+  // No fake "General Admission" tag! No hardcoded watermarks!
   return {
-    type: "general",
-    color: "#b45309",
-    borderColorStart: "#fbbf24",
-    borderColorEnd: "#f59e0b",
-    bgColorStart: "#ffffff",
-    bgColorEnd: "#f8fafc",
-    watermark: "ADMIT ONE",
-    label: "General Admission",
+    type: "standard",
+    color: "#059669", // Vibrant Emerald Green-600
+    borderColorStart: "#10B981", // Emerald-500
+    borderColorEnd: "#059669", // Emerald-600
+    bgColorStart: "#FFFFFF",
+    bgColorEnd: "#F0FDF4", // Emerald-50
+    tag: null,
   };
 };
 
@@ -166,55 +171,29 @@ const TicketCard = React.memo(({
           </SvgLinearGradient>
           <SvgLinearGradient id={borderId} x1="0" y1="0" x2="600" y2="240" gradientUnits="userSpaceOnUse">
             <Stop offset="0%" stopColor={theme.borderColorStart} stopOpacity={1} />
-            <Stop offset="50%" stopColor={theme.borderColorEnd} stopOpacity={0.6} />
+            <Stop offset="50%" stopColor={theme.borderColorEnd} stopOpacity={0.85} />
             <Stop offset="100%" stopColor={theme.borderColorStart} stopOpacity={1} />
           </SvgLinearGradient>
         </Defs>
 
-        {theme.type === "male" ? (
-          // Sharper corners path for Gentlemen/Tech theme
-          <Path
-            d="M 10,0 L 440,0 L 450,15 L 470,15 L 480,0 L 590,0 q 10,0 10,10 L 600,105 L 585,120 L 600,135 L 600,230 q 0,10 -10,10 L 480,240 L 470,225 L 450,225 L 440,240 L 10,240 q -10,0 -10,-10 L 0,135 L 15,120 L 0,105 L 0,10 q 0,-10 10,-10 Z"
-            fill={`url(#${gradId})`}
-            stroke={`url(#${borderId})`}
-            strokeWidth={2}
-          />
-        ) : (
-          // Round paths for General/Female themes
-          <Path
-            d="M 20,0 L 440,0 a 20,20 0 0,1 40,0 L 580,0 q 20,0 20,20 L 600,100 a 20,20 0 0,0 0,40 L 600,220 q 0,20 -20,20 L 480,240 a 20,20 0 0,1 -40,0 L 20,240 q -20,0 -20,-20 L 0,140 a 20,20 0 0,0 0,-40 L 0,20 q 0,-20 20,-20 Z"
-            fill={`url(#${gradId})`}
-            stroke={`url(#${borderId})`}
-            strokeWidth={2}
-          />
-        )}
-
-        {/* Curves detail inside card (Female only) */}
-        {theme.type === "female" && (
-          <>
-            <Path d="M 0,240 Q 150,150 300,240" fill="none" stroke="#fb7185" strokeWidth={1} opacity={0.4} />
-            <Path d="M 300,0 Q 450,90 600,0" fill="none" stroke="#fb7185" strokeWidth={1} opacity={0.4} />
-          </>
-        )}
-
-        {/* Technical rectangular tabs inside card (Male only) */}
-        {theme.type === "male" && (
-          <>
-            <Rect x="20" y="20" width="30" height="4" fill="#0ea5e9" opacity={0.3} />
-            <Rect x="20" y="28" width="15" height="2" fill="#0ea5e9" opacity="0.2" />
-          </>
-        )}
+        {/* Unified clean ticket shape with smooth corner notches */}
+        <Path
+          d="M 20,0 L 440,0 a 20,20 0 0,0 40,0 L 580,0 q 20,0 20,20 L 600,100 a 20,20 0 0,0 0,40 L 600,220 q 0,20 -20,20 L 480,240 a 20,20 0 0,0 -40,0 L 20,240 q -20,0 -20,-20 L 0,140 a 20,20 0 0,0 0,-40 L 0,20 q 0,-20 20,-20 Z"
+          fill={`url(#${gradId})`}
+          stroke={`url(#${borderId})`}
+          strokeWidth={2.5}
+        />
 
         {/* Perforation vertical dashed line */}
         <Line
           x1="460"
-          y1="20"
+          y1={20}
           x2="460"
-          y2="220"
-          stroke={`url(#${borderId})`}
-          strokeWidth={theme.type === "male" ? 1.5 : 2}
-          strokeDasharray={theme.type === "male" ? "2 4" : "6 6"}
-          opacity={theme.type === "male" ? 0.6 : 0.4}
+          y2={220}
+          stroke={theme.borderColorEnd}
+          strokeWidth={2}
+          strokeDasharray="5 5"
+          opacity={0.55}
         />
       </Svg>
 
@@ -222,9 +201,11 @@ const TicketCard = React.memo(({
       <View style={styles.cardContent}>
         {/* Left Section (Main Info) */}
         <View style={styles.leftStub}>
-          <Text style={[styles.headerTag, { color: theme.color }]}>
-            {theme.label.toUpperCase()}
-          </Text>
+          {theme.tag ? (
+            <Text style={[styles.headerTag, { color: theme.color }]}>
+              {theme.tag.toUpperCase()}
+            </Text>
+          ) : null}
           
           <Text style={styles.ticketTitle} numberOfLines={1}>
             {ticket.name}
@@ -241,12 +222,28 @@ const TicketCard = React.memo(({
           {/* Stock counter warning */}
           {ticket.total_quantity && available > 0 && available <= 10 && (
             <View style={styles.stockRow}>
-              <Clock size={11} color="#D97706" strokeWidth={2.5} />
+              <Clock size={12} color="#EA580C" strokeWidth={2.5} />
               <Text style={styles.remainingBadge}>
                 Only {available} passes left
               </Text>
             </View>
           )}
+
+          {/* Group / Bulk discount hint row */}
+          {(() => {
+            const pricing = calculateEffectivePrice(ticket, pricingRules, qty);
+            if (pricing.groupDiscountHint && !pricing.hasDiscount) {
+              return (
+                <View style={styles.bulkOfferRow}>
+                  <Users size={12} color="#7C3AED" strokeWidth={2.2} />
+                  <Text style={styles.bulkOfferText}>
+                    {pricing.groupDiscountHint.text}
+                  </Text>
+                </View>
+              );
+            }
+            return null;
+          })()}
 
           {/* Custom Description text */}
           {ticket.description && (
@@ -260,90 +257,104 @@ const TicketCard = React.memo(({
 
         {/* Right Section (Stub) */}
         <View style={styles.rightStub}>
-          {/* Vertical background watermark */}
-          <View style={styles.watermarkContainer}>
-            <Text style={[styles.watermarkText, { color: theme.color }]} numberOfLines={1}>
-              {theme.watermark}
-            </Text>
-          </View>
-
           {/* Pricing and Action controls */}
           <View style={styles.foregroundStub}>
-            {(() => {
-              const pricing = calculateEffectivePrice(
-                ticket,
-                pricingRules
-              );
-              if (pricing.hasDiscount) {
+            {/* Dedicated Price Container - Fixed vertical bounds so position is frozen */}
+            <View style={styles.priceContainer}>
+              {(() => {
+                const pricing = calculateEffectivePrice(
+                  ticket,
+                  pricingRules,
+                  qty
+                );
+                if (pricing.hasDiscount) {
+                  return (
+                    <View style={styles.priceCol}>
+                      <Text
+                        style={[
+                          styles.ticketPriceDiscounted,
+                          pricing.ruleType === "group_discount" && styles.ticketPriceGroup,
+                        ]}
+                      >
+                        ₹{pricing.effectivePrice}
+                      </Text>
+                      <Text style={styles.ticketPriceOriginal}>
+                        ₹{pricing.originalPrice}
+                      </Text>
+                      <View
+                        style={[
+                          styles.discountBadge,
+                          pricing.ruleType === "group_discount" && styles.groupDiscountBadge,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.discountBadgeText,
+                            pricing.ruleType === "group_discount" && styles.groupDiscountBadgeText,
+                          ]}
+                        >
+                          {pricing.discountLabel}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                }
                 return (
                   <View style={styles.priceCol}>
-                    <Text style={styles.ticketPriceDiscounted}>
-                      ₹{pricing.effectivePrice}
+                    <Text style={styles.ticketPrice}>
+                      {price === 0
+                        ? "Free"
+                        : `₹${price.toLocaleString("en-IN")}`}
                     </Text>
-                    <Text style={styles.ticketPriceOriginal}>
-                      ₹{pricing.originalPrice}
-                    </Text>
-                    <View style={styles.discountBadge}>
-                      <Text style={styles.discountBadgeText}>
-                        {pricing.discountLabel}
-                      </Text>
-                    </View>
                   </View>
                 );
-              }
-              return (
-                <Text style={styles.ticketPrice}>
-                  {price === 0
-                    ? "Free"
-                    : `₹${price.toLocaleString("en-IN")}`}
-                </Text>
-              );
-            })()}
+              })()}
+            </View>
 
-            <View style={{ height: 10 }} />
-
-            {/* Quantity selectors */}
-            {!isSoldOut ? (
-              qty === 0 ? (
-                <TouchableOpacity
-                  style={[styles.addButton, { backgroundColor: theme.color }]}
-                  onPress={handleAddPress}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.addButtonText}>Add</Text>
-                </TouchableOpacity>
-              ) : (
-                <View style={[styles.quantityControl, { backgroundColor: theme.color, borderColor: theme.color }]}>
+            {/* Dedicated Action Container - Exactly 34px height to lock vertical center */}
+            <View style={styles.actionContainer}>
+              {!isSoldOut ? (
+                qty === 0 ? (
                   <TouchableOpacity
-                    onPress={handleRemovePress}
-                    style={styles.qtyButton}
-                    activeOpacity={0.7}
-                  >
-                    <Minus size={12} color="#FFFFFF" strokeWidth={3} />
-                  </TouchableOpacity>
-                  <Text style={styles.qtyValue}>{qty}</Text>
-                  <TouchableOpacity
+                    style={[styles.addButton, { backgroundColor: theme.color }]}
                     onPress={handleAddPress}
-                    style={[
-                      styles.qtyButton,
-                      addDisabled && styles.qtyButtonDisabled,
-                    ]}
-                    disabled={addDisabled}
-                    activeOpacity={0.7}
+                    activeOpacity={0.85}
                   >
-                    <Plus
-                      size={12}
-                      color="#FFFFFF"
-                      strokeWidth={3}
-                    />
+                    <Text style={styles.addButtonText}>Add</Text>
                   </TouchableOpacity>
+                ) : (
+                  <View style={[styles.quantityControl, { backgroundColor: theme.color, borderColor: theme.color }]}>
+                    <TouchableOpacity
+                      onPress={handleRemovePress}
+                      style={styles.qtyButton}
+                      activeOpacity={0.7}
+                    >
+                      <Minus size={13} color="#FFFFFF" strokeWidth={3} />
+                    </TouchableOpacity>
+                    <Text style={styles.qtyValue}>{qty}</Text>
+                    <TouchableOpacity
+                      onPress={handleAddPress}
+                      style={[
+                        styles.qtyButton,
+                        addDisabled && styles.qtyButtonDisabled,
+                      ]}
+                      disabled={addDisabled}
+                      activeOpacity={0.7}
+                    >
+                      <Plus
+                        size={13}
+                        color="#FFFFFF"
+                        strokeWidth={3}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                )
+              ) : (
+                <View style={styles.soldOutBadge}>
+                  <Text style={styles.soldOutText}>Sold Out</Text>
                 </View>
-              )
-            ) : (
-              <View style={styles.soldOutBadge}>
-                <Text style={styles.soldOutText}>Sold Out</Text>
-              </View>
-            )}
+              )}
+            </View>
           </View>
         </View>
       </View>
@@ -418,7 +429,7 @@ export default function TicketSelectionScreen({ route, navigation }) {
         );
         if (ticket) {
           items += qty;
-          const pricing = calculateEffectivePrice(ticket, event.pricing_rules);
+          const pricing = calculateEffectivePrice(ticket, event.pricing_rules, qty);
           amount += qty * pricing.effectivePrice;
         }
       }
@@ -664,7 +675,8 @@ const styles = StyleSheet.create({
         shadowRadius: 12,
       },
       android: {
-        elevation: 3,
+        // No elevation on Android: elevation forces an opaque rectangular background,
+        // which produces a solid white background behind the SVG cutouts/notches.
       },
     }),
   },
@@ -688,14 +700,14 @@ const styles = StyleSheet.create({
   },
   headerTag: {
     fontSize: 10,
-    fontFamily: "Manrope-SemiBold",
+    fontFamily: "Manrope-Bold",
     letterSpacing: 1.5,
     marginBottom: 6,
   },
   ticketTitle: {
-    fontSize: 20,
-    fontFamily: "BasicCommercial-Bold", // Slate Blue Large Title
-    color: "#1A2D4A",
+    fontSize: 18,
+    fontFamily: "BasicCommercial-Bold",
+    color: "#0F172A",
     marginBottom: 6,
   },
   metaRow: {
@@ -718,106 +730,151 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     position: "relative",
-    paddingVertical: 16,
-    paddingHorizontal: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 6,
   },
-  watermarkContainer: {
-    position: "absolute",
-    top: 0,
-    bottom: 0,
-    left: 0,
-    right: 0,
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 1,
-    opacity: 0.05,
-  },
-  watermarkText: {
-    fontSize: 22,
-    fontFamily: "BasicCommercial-Bold",
-    transform: [{ rotate: "-90deg" }],
-    textAlign: "center",
-    width: 140,
-  },
+
   foregroundStub: {
     zIndex: 2,
     alignItems: "center",
     justifyContent: "center",
+    width: "100%",
+  },
+  priceContainer: {
+    height: 56,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 8,
   },
   priceCol: {
     alignItems: "center",
+    justifyContent: "center",
   },
   ticketPrice: {
     fontSize: 20,
     fontFamily: "BasicCommercial-Bold",
-    color: "#1A2D4A",
+    color: "#0F172A",
+    lineHeight: 24,
   },
   ticketPriceDiscounted: {
     fontSize: 20,
     fontFamily: "BasicCommercial-Bold",
-    color: "#059669",
+    color: "#EA580C", // Vibrant warm amber-orange
+    lineHeight: 22,
+  },
+  ticketPriceGroup: {
+    color: "#7C3AED", // Vibrant violet for Group discount
   },
   ticketPriceOriginal: {
-    fontSize: 12,
-    fontFamily: "Manrope-SemiBold",
-    color: MUTED_TEXT,
+    fontSize: 11.5,
+    fontFamily: "Manrope-Medium",
+    color: "#94A3B8",
     textDecorationLine: "line-through",
+    lineHeight: 14,
     marginTop: 1,
   },
   discountBadge: {
-    backgroundColor: "#E6F4EA",
+    backgroundColor: "#FEF08A", // Sunshine Yellow-200
+    borderWidth: 1,
+    borderColor: "#FACC15", // Warm Golden Border (Yellow-400)
     paddingHorizontal: 6,
     paddingVertical: 1.5,
-    borderRadius: 4,
-    marginTop: 2,
+    borderRadius: 5,
+    marginTop: 3,
   },
   discountBadgeText: {
-    fontSize: 9,
-    fontFamily: "Manrope-SemiBold",
-    color: "#059669",
+    fontSize: 9.5,
+    fontFamily: "Manrope-Bold",
+    color: "#854D0E", // High-contrast Deep Amber (Yellow-800)
+    letterSpacing: 0.2,
+  },
+  groupDiscountBadge: {
+    backgroundColor: "#EDE9FE", // Crisp Violet-100
+    borderColor: "#C4B5FD", // Violet-300
+    borderWidth: 1,
+  },
+  groupDiscountBadgeText: {
+    color: "#6D28D9", // Deep Violet-700
+  },
+  bulkOfferRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+    gap: 4,
+    backgroundColor: "rgba(124, 58, 237, 0.1)",
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 5,
+    alignSelf: "flex-start",
+  },
+  bulkOfferText: {
+    fontSize: 10.5,
+    color: "#7C3AED",
+    fontFamily: "Manrope-Bold",
+  },
+  actionContainer: {
+    height: 34,
+    width: 78,
+    justifyContent: "center",
+    alignItems: "center",
   },
   addButton: {
-    paddingHorizontal: 22,
-    paddingVertical: 7,
-    borderRadius: 20,
+    height: 34,
+    width: 78,
+    borderRadius: 17,
+    justifyContent: "center",
+    alignItems: "center",
     shadowColor: "#000000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.15,
     shadowRadius: 3,
     elevation: 2,
   },
   addButtonText: {
     fontFamily: "Manrope-SemiBold",
-    fontSize: 13,
+    fontSize: 13.5,
     color: "#FFFFFF",
+    includeFontPadding: false,
   },
   quantityControl: {
+    height: 34,
+    width: 78,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     borderWidth: 1,
-    borderRadius: 20,
-    padding: 2,
+    borderRadius: 17,
+    paddingHorizontal: 2,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 2,
   },
   qtyButton: {
-    paddingHorizontal: 8,
-    paddingVertical: 5,
+    width: 26,
+    height: 32,
+    alignItems: "center",
+    justifyContent: "center",
   },
   qtyButtonDisabled: {
-    opacity: 0.3,
+    opacity: 0.35,
   },
   qtyValue: {
     color: "#FFFFFF",
-    fontSize: 13,
-    fontFamily: "Manrope-SemiBold",
-    paddingHorizontal: 4,
-    minWidth: 16,
+    fontSize: 13.5,
+    fontFamily: "Manrope-Bold",
     textAlign: "center",
+    minWidth: 18,
+    includeFontPadding: false,
   },
   soldOutBadge: {
+    height: 34,
+    width: 78,
     backgroundColor: "rgba(225,29,72,0.08)",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
+    borderRadius: 17,
+    justifyContent: "center",
+    alignItems: "center",
   },
   soldOutText: {
     color: "#E11D48",
@@ -832,7 +889,7 @@ const styles = StyleSheet.create({
   },
   remainingBadge: {
     fontSize: 11,
-    color: "#D97706",
+    color: "#EA580C",
     fontFamily: "Manrope-SemiBold",
   },
   descBlock: {

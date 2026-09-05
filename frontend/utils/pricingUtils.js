@@ -1,12 +1,13 @@
 /**
- * Calculate effective ticket price after applying early bird discounts
+ * Calculate effective ticket price after applying discounts (early bird, group/bulk discounts)
  *
  * @param {Object} ticket - Ticket type object with base_price
  * @param {Array} pricingRules - Array of pricing rules for the event
- * @returns {Object} { effectivePrice, originalPrice, discount, discountLabel }
+ * @param {number} quantity - Quantity of this ticket currently selected (default: 1)
+ * @returns {Object} { effectivePrice, originalPrice, discount, discountLabel, hasDiscount, ruleName, ruleType, groupDiscountHint }
  */
-export function calculateEffectivePrice(ticket, pricingRules = []) {
-  const basePrice = parseFloat(ticket.base_price) || 0;
+export function calculateEffectivePrice(ticket, pricingRules = [], quantity = 1) {
+  const basePrice = parseFloat(ticket?.base_price) || 0;
 
   if (basePrice === 0) {
     return {
@@ -15,23 +16,65 @@ export function calculateEffectivePrice(ticket, pricingRules = []) {
       discount: 0,
       discountLabel: null,
       hasDiscount: false,
+      ruleType: null,
+      groupDiscountHint: null,
     };
   }
 
   // Filter active rules for this ticket (or all tickets if ticket_type_id is null)
-  const applicableRules = pricingRules.filter((rule) => {
+  const applicableRules = (pricingRules || []).filter((rule) => {
     if (!rule.is_active) return false;
+    // Check applies_to and selected_tickets if present
+    if (
+      rule.applies_to === "specific" &&
+      Array.isArray(rule.selected_tickets) &&
+      rule.selected_tickets.length > 0
+    ) {
+      const match = rule.selected_tickets.some(
+        (tid) =>
+          String(tid) === String(ticket.id) || String(tid) === String(ticket.name)
+      );
+      if (!match) return false;
+    }
     // Rule applies to all tickets (null) or specifically this ticket
     return rule.ticket_type_id === null || String(rule.ticket_type_id) === String(ticket.id);
   });
 
   if (applicableRules.length === 0) {
     return {
-      effectivePrice: basePrice,
-      originalPrice: basePrice,
+      effectivePrice: Math.round(basePrice),
+      originalPrice: Math.round(basePrice),
       discount: 0,
       discountLabel: null,
       hasDiscount: false,
+      ruleType: null,
+      groupDiscountHint: null,
+    };
+  }
+
+  // Find any potential group discount hint if quantity threshold is not yet reached
+  let groupDiscountHint = null;
+  const groupRules = applicableRules
+    .filter((r) => r.rule_type === "group_discount")
+    .sort((a, b) => (parseInt(a.min_quantity, 10) || 2) - (parseInt(b.min_quantity, 10) || 2));
+
+  // Find next tier of group discount that hasn't been met yet
+  const nextGroupRule = groupRules.find(
+    (r) => (parseInt(r.min_quantity, 10) || 2) > quantity
+  );
+  if (nextGroupRule) {
+    const minQty = parseInt(nextGroupRule.min_quantity, 10) || 2;
+    const numVal = parseFloat(nextGroupRule.discount_value);
+    const formattedVal = numVal % 1 === 0 ? numVal.toFixed(0) : numVal.toFixed(1);
+    const label =
+      nextGroupRule.discount_type === "percentage"
+        ? `${formattedVal}% off`
+        : `₹${formattedVal} off`;
+    groupDiscountHint = {
+      minQuantity: minQty,
+      discountLabel: label,
+      ruleName: nextGroupRule.name,
+      text: `Buy ${minQty}+ to get ${label}`,
     };
   }
 
@@ -65,6 +108,10 @@ export function calculateEffectivePrice(ticket, pricingRules = []) {
       const soldCount = ticket.sold_count || 0;
       const threshold = rule.quantity_threshold || 0;
       ruleApplies = soldCount < threshold;
+    } else if (rule.rule_type === "group_discount") {
+      // Group/Bulk discount: valid if purchased quantity >= min_quantity
+      const minQty = parseInt(rule.min_quantity, 10) || 2;
+      ruleApplies = quantity >= minQty;
     }
 
     if (ruleApplies) {
@@ -73,7 +120,7 @@ export function calculateEffectivePrice(ticket, pricingRules = []) {
       if (rule.discount_type === "percentage") {
         discountAmount = (basePrice * parseFloat(rule.discount_value)) / 100;
       } else {
-        // Flat discount
+        // Flat discount per ticket
         discountAmount = Math.min(parseFloat(rule.discount_value), basePrice);
       }
 
@@ -86,28 +133,34 @@ export function calculateEffectivePrice(ticket, pricingRules = []) {
   }
 
   if (bestDiscount > 0 && bestRule) {
-    const effectivePrice = Math.max(0, basePrice - bestDiscount);
+    const effectivePrice = Math.max(0, Math.round(basePrice - bestDiscount));
+    const numVal = parseFloat(bestRule.discount_value);
+    const formattedVal = numVal % 1 === 0 ? numVal.toFixed(0) : numVal.toFixed(1);
     const discountLabel =
       bestRule.discount_type === "percentage"
-        ? `${bestRule.discount_value}% off`
-        : `₹${bestRule.discount_value} off`;
+        ? `${formattedVal}% off`
+        : `₹${formattedVal} off`;
 
     return {
       effectivePrice,
-      originalPrice: basePrice,
+      originalPrice: Math.round(basePrice),
       discount: bestDiscount,
       discountLabel,
       hasDiscount: true,
       ruleName: bestRule.name,
+      ruleType: bestRule.rule_type,
+      groupDiscountHint,
     };
   }
 
   return {
-    effectivePrice: basePrice,
-    originalPrice: basePrice,
+    effectivePrice: Math.round(basePrice),
+    originalPrice: Math.round(basePrice),
     discount: 0,
     discountLabel: null,
     hasDiscount: false,
+    ruleType: null,
+    groupDiscountHint,
   };
 }
 

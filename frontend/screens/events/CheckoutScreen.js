@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CheckoutScreen - Review booking and confirm
  * Shows order summary, timer, promo codes, and confirmation
  *
@@ -271,7 +271,7 @@ export default function CheckoutScreen({ route, navigation }) {
             ticketNameOrId?.toString() === item.ticket.name
         );
         if (isEligible) {
-          const pricing = calculateEffectivePrice(item.ticket, event.pricing_rules);
+          const pricing = calculateEffectivePrice(item.ticket, event.pricing_rules, item.quantity);
           discountableAmount += item.quantity * pricing.effectivePrice;
         }
       });
@@ -391,8 +391,11 @@ export default function CheckoutScreen({ route, navigation }) {
           tickets: cartItems.map((item) => ({
             ticketTypeId: item.ticket.id,
             quantity: item.quantity,
-            unitPrice: calculateEffectivePrice(item.ticket, event.pricing_rules)
-              .effectivePrice,
+            unitPrice: calculateEffectivePrice(
+              item.ticket,
+              event.pricing_rules,
+              item.quantity
+            ).effectivePrice,
             ticketName: item.ticket.name,
           })),
           promoCode: appliedDiscount?.code || null,
@@ -524,7 +527,8 @@ export default function CheckoutScreen({ route, navigation }) {
             {cartItems.map((item, index) => {
               const pricing = calculateEffectivePrice(
                 item.ticket,
-                event.pricing_rules
+                event.pricing_rules,
+                item.quantity
               );
               const itemTotal = item.quantity * pricing.effectivePrice;
 
@@ -536,9 +540,16 @@ export default function CheckoutScreen({ route, navigation }) {
                     </Text>
                     {pricing.hasDiscount && (
                       <View style={styles.earlyBirdRow}>
-                        <Tag size={10} color="#059669" strokeWidth={2.5} />
-                        <Text style={styles.lineItemDiscount}>
-                          {pricing.discountLabel} (Early Bird)
+                        <Tag
+                          size={10}
+                          color={pricing.ruleType === "group_discount" ? "#7C3AED" : "#D97706"}
+                          strokeWidth={2.5}
+                        />
+                        <Text style={[
+                          styles.lineItemDiscount,
+                          pricing.ruleType === "group_discount" && { color: "#7C3AED" },
+                        ]}>
+                          {pricing.discountLabel} ({pricing.ruleType === "group_discount" ? "Group" : "Early Bird"})
                         </Text>
                       </View>
                     )}
@@ -851,7 +862,7 @@ const styles = StyleSheet.create({
   lineItemDiscount: {
     fontSize: 11,
     fontFamily: "Manrope-SemiBold",
-    color: "#059669",
+    color: "#D97706",
   },
   removeText: {
     fontSize: 12,
