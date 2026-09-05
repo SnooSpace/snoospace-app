@@ -73,6 +73,9 @@ import HostRequestsScreen from "../screens/plans/HostRequestsScreen";
 import MyPlansScreen from "../screens/plans/MyPlansScreen";
 import BlockedUsersScreen from "../screens/plans/BlockedUsersScreen";
 import VerificationSubmitScreen from "../screens/plans/VerificationSubmitScreen";
+import VerificationRecorderScreen from "../screens/plans/VerificationRecorderScreen";
+import VerificationHubScreen from "../screens/profile/member/VerificationHubScreen";
+import PlansVerificationScreen from "../screens/profile/member/PlansVerificationScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -333,6 +336,9 @@ export default function AppNavigator({ initialRouteName }) {
       <Stack.Screen name="MyPlans" component={MyPlansScreen} />
       <Stack.Screen name="BlockedUsers" component={BlockedUsersScreen} />
       <Stack.Screen name="VerificationSubmit" component={VerificationSubmitScreen} />
+      <Stack.Screen name="VerificationRecorder" component={VerificationRecorderScreen} />
+      <Stack.Screen name="VerificationHub" component={VerificationHubScreen} />
+      <Stack.Screen name="PlansVerification" component={PlansVerificationScreen} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
       <Stack.Screen name="NotificationPreferences" component={NotificationPreferencesScreen} />
       <Stack.Screen name="LinkedAccounts" component={LinkedAccountsScreen} />

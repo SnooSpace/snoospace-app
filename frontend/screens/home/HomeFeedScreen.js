@@ -32,7 +32,7 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import { MessageCircle, Bell, BadgeCheck } from "lucide-react-native";
+import { MessageCircle, Bell, CircleCheck } from "lucide-react-native";
 import { useNotifications } from "../../context/NotificationsContext";
 import { useVideoContext, VideoProvider } from "../../context/VideoContext";
 import { apiGet, apiPost, apiDelete } from "../../api/client";
@@ -390,7 +390,7 @@ const CaughtUpFooter = ({ subtitle }) => {
           },
         ]}
       >
-        <BadgeCheck size={26} color={COLORS.primary} strokeWidth={2.2} />
+        <CircleCheck size={26} color={COLORS.primary} strokeWidth={2.2} />
       </RNAnimated.View>
 
       <RNAnimated.View

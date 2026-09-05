@@ -3,7 +3,8 @@ import {
   View, Text, TouchableOpacity, StyleSheet, ActivityIndicator,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { BadgeCheck, Instagram, Calendar, FileText, Info, MessageCircle, MoveRight } from 'lucide-react-native';
+import { Instagram, Calendar, FileText, Info, MessageCircle, MoveRight } from 'lucide-react-native';
+import VerifiedBadge from '../badges/VerifiedBadge';
 import { COLORS, FONTS, SHADOWS, BORDER_RADIUS } from '../../constants/theme';
 
 function monthsAgo(dateStr) {
@@ -54,9 +55,7 @@ const HostRequestReviewCard = ({ request, onApprove, onDecline, onOpenDm, onView
         <View style={styles.headerInfo}>
           <View style={styles.nameRow}>
             <Text style={styles.name}>{requester.name}</Text>
-            {requester.is_verified && (
-              <BadgeCheck size={15} color="#2962FF" strokeWidth={2} style={{ marginLeft: 4 }} />
-            )}
+            <VerifiedBadge tier={requester.verification_tier} size={15} style={{ marginLeft: 4 }} />
           </View>
           <Text style={styles.meta}>
             {requester.role ? `${requester.role} · ` : ''}Member {monthsAgo(requester.created_at)}

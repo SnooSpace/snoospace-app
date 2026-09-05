@@ -14,6 +14,7 @@ async function getHostedPlans(req, res) {
            'id', m.id,
            'name', m.name,
            'is_verified', m.is_verified,
+           'verification_tier', m.verification_tier,
            'profile_photo_url', m.profile_photo_url
          ) as host_profile
        FROM open_plans op
@@ -46,6 +47,7 @@ async function getAttendingPlans(req, res) {
            'id', m.id,
            'name', m.name,
            'is_verified', m.is_verified,
+           'verification_tier', m.verification_tier,
            'profile_photo_url', m.profile_photo_url
          ) as host_profile
        FROM open_plan_requests opr

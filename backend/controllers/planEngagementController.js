@@ -360,6 +360,7 @@ async function getInterestedPlans(req, res) {
            'id', m.id,
            'name', m.name,
            'is_verified', m.is_verified,
+           'verification_tier', m.verification_tier,
            'profile_photo_url', m.profile_photo_url
          ) as host_profile,
          opi.created_at as saved_at

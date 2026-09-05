@@ -171,7 +171,8 @@ async function getProfile(req, res) {
               occupation_details, occupation_category, portfolio_link, education,
               follower_count, following_count, instagram_username,
               is_creator_mode_enabled, creator_mode_enabled_at,
-              spotify_connected, spotify_top_artists, spotify_top_tracks
+              spotify_connected, spotify_top_artists, spotify_top_tracks,
+              is_verified, verification_tier
        FROM members WHERE id = $1`,
       [userId]
     );
@@ -483,6 +484,7 @@ async function getPublicMember(req, res) {
               occupation_details, occupation_category, portfolio_link, education, campus_id, show_college,
               instagram_username, is_creator_mode_enabled, spotify_connected, spotify_top_artists, spotify_top_tracks,
               follower_count AS followers_count, following_count, circle_count,
+              is_verified, verification_tier,
               (SELECT COUNT(*) FROM creator_follows
                WHERE creator_id = $1 AND is_dormant = false AND is_superseded_by_circle = false)::int AS creator_follower_count,
               (SELECT COUNT(*) FROM creator_follows
@@ -727,6 +729,20 @@ async function patchProfile(req, res) {
     const values = [];
     let paramIndex = 1;
 
+    let prevDiscoverPhotos = [];
+    if (discover_photos !== undefined && Array.isArray(discover_photos)) {
+      const prevPhotosRes = await pool.query(
+        `SELECT discover_photos FROM members WHERE id = $1`,
+        [userId]
+      );
+      if (prevPhotosRes.rows.length > 0 && prevPhotosRes.rows[0].discover_photos) {
+        const raw = prevPhotosRes.rows[0].discover_photos;
+        prevDiscoverPhotos = Array.isArray(raw)
+          ? raw
+          : (typeof raw === "string" ? JSON.parse(raw) : []);
+      }
+    }
+
     if (name !== undefined) {
       const nameTrimmed = typeof name === "string" ? name.trim() : null;
       if (!nameTrimmed || nameTrimmed.length === 0) {
@@ -880,7 +896,7 @@ async function patchProfile(req, res) {
       if (Array.isArray(discover_photos)) {
         // Store as JSONB array of photo URLs/objects
         updates.push(`discover_photos = $${paramIndex++}::jsonb`);
-        values.push(JSON.stringify(discover_photos.slice(0, 4))); // Max 4 photos
+        values.push(JSON.stringify(discover_photos.slice(0, 6))); // Max 6 photos
       }
     }
 
@@ -1078,6 +1094,101 @@ async function patchProfile(req, res) {
         console.error('[patchProfile] AQI change detection error (non-fatal):', err.message);
       }
     })();
+
+    // ── Photo Face Detection & Anti-Cheat Re-Verification ──────────────────
+    if (discover_photos !== undefined && Array.isArray(discover_photos)) {
+      const savedPhotos = discover_photos.slice(0, 6);
+      const removedUrls = prevDiscoverPhotos.filter(
+        (url) => typeof url === "string" && !savedPhotos.includes(url)
+      );
+
+      // ── Anti-cheat Synchronous Re-verification Hook ───────────────────────
+      // If a verified member removes or replaces any verified reference photo,
+      // revoke verification immediately before returning response.
+      const memberAuthRes = await pool.query(
+        `SELECT is_verified, verified_reference_photos, verification_tier FROM members WHERE id = $1`,
+        [userId]
+      );
+      if (memberAuthRes.rows.length > 0) {
+        const { is_verified, verified_reference_photos } = memberAuthRes.rows[0];
+        const verifiedRefs = Array.isArray(verified_reference_photos) ? verified_reference_photos : [];
+
+        const hasRemovedRefPhoto = is_verified && verifiedRefs.length > 0 && (
+          removedUrls.some((url) => verifiedRefs.includes(url)) ||
+          verifiedRefs.some((ref) => !savedPhotos.includes(ref))
+        );
+
+        if (hasRemovedRefPhoto) {
+          const resetRes = await pool.query(
+            `UPDATE members
+             SET is_verified = FALSE,
+                 verified_at = NULL,
+                 verified_reference_photos = NULL,
+                 verification_tier = CASE WHEN verification_tier = 'id_verified' THEN 'id_verified' ELSE 'none' END
+             WHERE id = $1
+             RETURNING verification_tier`,
+            [userId]
+          );
+          const freshTier = resetRes.rows[0]?.verification_tier || 'none';
+
+          const io = req.app.locals.io;
+          if (io) {
+            io.to(`user_${userId}`).emit('verification_status_updated', {
+              status: 'unverified',
+              tier: freshTier,
+              reason: 'reference_photo_changed',
+            });
+          }
+        }
+      }
+
+      // ── Photo Face Detection & Eligibility Tagging (fire-and-forget) ──────
+      const newPhotoUrls = savedPhotos.filter(
+        (url) => typeof url === "string" && url.trim().length > 0 && !prevDiscoverPhotos.includes(url)
+      );
+
+      if (newPhotoUrls.length > 0) {
+        ;(async () => {
+          try {
+            const { detectFace } = require("../services/faceDetectionService");
+
+            for (const photoUrl of newPhotoUrls) {
+              // Check if already processed in photo_face_verifications for this member
+              const existing = await pool.query(
+                `SELECT id FROM photo_face_verifications WHERE member_id = $1 AND photo_url = $2 LIMIT 1`,
+                [userId, photoUrl]
+              );
+              if (existing.rows.length > 0) {
+                continue;
+              }
+
+              const result = await detectFace(photoUrl);
+              const embeddingStr = result.embedding ? JSON.stringify(result.embedding) : null;
+
+              await pool.query(
+                `INSERT INTO photo_face_verifications (
+                  member_id, photo_url, face_eligible, face_confidence, face_embedding, checked_at
+                ) VALUES ($1, $2, $3, $4, $5, NOW())
+                ON CONFLICT (member_id, photo_url) DO UPDATE SET
+                  face_eligible   = EXCLUDED.face_eligible,
+                  face_confidence = EXCLUDED.face_confidence,
+                  face_embedding  = EXCLUDED.face_embedding,
+                  checked_at      = EXCLUDED.checked_at`,
+                [
+                  userId,
+                  photoUrl,
+                  result.faceEligible,
+                  result.confidence,
+                  embeddingStr,
+                ]
+              );
+            }
+          } catch (faceErr) {
+            console.error("[patchProfile] Face detection background error (non-fatal):", faceErr.message);
+          }
+        })();
+      }
+    }
 
     const member = result.rows[0];
     res.json({
@@ -1820,6 +1931,7 @@ async function getMemberPublicPlans(req, res) {
            'id', m.id,
            'name', m.name,
            'is_verified', m.is_verified,
+           'verification_tier', m.verification_tier,
            'profile_photo_url', m.profile_photo_url
          ) as host_profile,
          CASE WHEN EXISTS (
@@ -1861,6 +1973,7 @@ async function getMemberPublicPlans(req, res) {
            'id', m.id,
            'name', m.name,
            'is_verified', m.is_verified,
+           'verification_tier', m.verification_tier,
            'profile_photo_url', m.profile_photo_url
          ) as host_profile,
          CASE WHEN EXISTS (
@@ -1972,6 +2085,77 @@ async function toggleCreatorMode(req, res) {
   }
 }
 
+/**
+ * GET /members/profile/face-eligibility
+ * Returns face eligibility stats for member's current discover_photos:
+ * { eligiblePhotoCount: number, eligiblePhotoUrls: string[], minimumRequired: 2 }
+ */
+async function getFaceEligibility(req, res) {
+  try {
+    const pool = req.app.locals.pool;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || userType !== "member") {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    const memberResult = await pool.query(
+      `SELECT discover_photos FROM members WHERE id = $1`,
+      [userId]
+    );
+
+    if (memberResult.rows.length === 0) {
+      return res.status(404).json({ error: "Member not found" });
+    }
+
+    const rawPhotos = memberResult.rows[0].discover_photos;
+    let currentPhotos = [];
+    if (Array.isArray(rawPhotos)) {
+      currentPhotos = rawPhotos;
+    } else if (typeof rawPhotos === "string") {
+      try {
+        currentPhotos = JSON.parse(rawPhotos);
+      } catch (e) {
+        currentPhotos = [];
+      }
+    }
+
+    const validPhotoUrls = currentPhotos.filter(
+      (url) => typeof url === "string" && url.trim().length > 0
+    );
+
+    if (validPhotoUrls.length === 0) {
+      return res.json({
+        eligiblePhotoCount: 0,
+        eligiblePhotoUrls: [],
+        minimumRequired: 2,
+      });
+    }
+
+    const verifResult = await pool.query(
+      `SELECT photo_url
+       FROM photo_face_verifications
+       WHERE member_id = $1
+         AND photo_url = ANY($2::text[])
+         AND face_eligible = TRUE`,
+      [userId, validPhotoUrls]
+    );
+
+    const eligibleSet = new Set(verifResult.rows.map((r) => r.photo_url));
+    const eligiblePhotoUrls = validPhotoUrls.filter((url) => eligibleSet.has(url));
+
+    return res.json({
+      eligiblePhotoCount: eligiblePhotoUrls.length,
+      eligiblePhotoUrls,
+      minimumRequired: 2,
+    });
+  } catch (err) {
+    console.error("[getFaceEligibility] Error:", err && err.stack ? err.stack : err);
+    res.status(500).json({ error: "Failed to check face eligibility" });
+  }
+}
+
 module.exports = {
   signup,
   getProfile,
@@ -1993,4 +2177,6 @@ module.exports = {
   getMemberPublicPlans,
   // Creator Mode
   toggleCreatorMode,
+  // Face Verification
+  getFaceEligibility,
 };

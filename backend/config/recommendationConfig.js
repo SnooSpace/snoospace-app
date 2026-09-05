@@ -73,6 +73,7 @@ module.exports = {
   // and a nonzero default would create phantom scoring differences.
   verification_tier_values: {
     none:            0,
+    plans_verified:  0.02,
     selfie_verified: 0.05,
     id_verified:     0.1,
   },

@@ -28,8 +28,18 @@ export default function RequestBottomSheet({
     } catch (err) {
       if (err.status === 403 && err.data?.error === 'proof_gate_required') {
         Alert.alert(
-          'Profile incomplete',
-          'To request to join a plan, add a post, connect Instagram, or get verified.',
+          'Verification required',
+          'Identity verification is required to join an Open Plan. Please get verified to proceed.',
+          [
+            { text: 'Not now', style: 'cancel' },
+            {
+              text: 'Get verified',
+              onPress: () => {
+                onClose();
+                navigation?.navigate('PlansVerification');
+              },
+            },
+          ]
         );
       } else if (err.status === 409) {
         Alert.alert('Already requested', "You've already sent a request for this plan.");

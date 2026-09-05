@@ -1691,3 +1691,47 @@ export async function removeEventFromCuratedList(
     method: "DELETE",
   });
 }
+
+// ============================================
+// VERIFICATION API
+// ============================================
+
+export interface VerificationItem {
+  id: number;
+  user_id: number;
+  status: "pending" | "approved" | "rejected";
+  scope: "plans" | "discover";
+  manual_reference_photo_url: string | null;
+  discover_photos: string[] | null;
+  video_storage_path: string;
+  match_score: number | null;
+  matched_photo_url: string | null;
+  member_name: string;
+  member_email: string;
+  member_photo: string | null;
+  submitted_at: string;
+}
+
+export interface VerificationsResponse {
+  verifications: VerificationItem[];
+}
+
+export async function getAdminVerifications(): Promise<VerificationItem[]> {
+  const data = await apiRequest<VerificationsResponse>("/verifications/admin");
+  return data.verifications;
+}
+
+export async function reviewVerification(
+  verId: number,
+  status: "approved" | "rejected",
+  rejectionReason?: string
+): Promise<{ verification: VerificationItem }> {
+  return apiRequest<{ verification: VerificationItem }>(`/verifications/admin/${verId}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      status,
+      rejection_reason: status === "rejected" ? rejectionReason : undefined,
+    }),
+  });
+}
+

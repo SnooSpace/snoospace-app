@@ -366,6 +366,7 @@ const BottomTabNavigator = ({ navigation, route }) => {
             "MyPlans",
             "BlockedUsers",
             "VerificationSubmit",
+            "VerificationRecorder",
             "ActivityInsights",
           ]),
         })}

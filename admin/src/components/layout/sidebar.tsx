@@ -20,6 +20,7 @@ import {
   Handshake,
   MessageSquare,
   ShieldAlert,
+  ShieldCheck,
   Building2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,11 @@ const mainNavItems = [
     title: "Users",
     href: "/users",
     icon: Users,
+  },
+  {
+    title: "Verifications",
+    href: "/verifications",
+    icon: ShieldCheck,
   },
   {
     title: "Posts",

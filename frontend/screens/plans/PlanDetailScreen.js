@@ -10,9 +10,10 @@ import {
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-  ArrowLeft, BadgeCheck, MapPin, Clock, Users, Lock,
+  ArrowLeft, MapPin, Clock, Users, Lock,
   Heart, MessageCircle, ChartNoAxesCombined, Send, Pencil, MoreHorizontal, MoveRight, Trash2,
 } from 'lucide-react-native';
+import VerifiedBadge from '../../components/badges/VerifiedBadge';
 import { COLORS, FONTS, SHADOWS } from '../../constants/theme';
 import { getAuthToken, getActiveAccount } from '../../api/auth';
 import {
@@ -488,9 +489,7 @@ export default function PlanDetailScreen({ navigation, route }) {
                     Hosted by{' '}
                     <Text style={styles.hostNameBold}>{plan.host_profile?.name || 'Someone'}</Text>
                   </Text>
-                  {plan.host_profile?.is_verified && (
-                    <BadgeCheck size={14} color="#2962FF" strokeWidth={2} style={{ marginLeft: 4 }} />
-                  )}
+                  <VerifiedBadge tier={plan.host_profile?.verification_tier} size={14} style={{ marginLeft: 4 }} />
                 </TouchableOpacity>
               </View>
 

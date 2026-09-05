@@ -1,19 +1,15 @@
-﻿import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, Alert,
   ActivityIndicator, ScrollView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, ShieldCheck, Video, CircleCheck, CircleX, Clock } from 'lucide-react-native';
-import * as ImagePicker from 'expo-image-picker';
+import { ArrowLeft, ShieldCheck, Video } from 'lucide-react-native';
 import { COLORS, FONTS, SHADOWS } from '../../constants/theme';
 import { getAuthToken } from '../../api/auth';
 import { getMyVerification, submitVerification } from '../../api/plans';
+import VerificationStatusCard from '../../components/verification/VerificationStatusCard';
 import SnooLoader from '../../components/ui/SnooLoader';
-
-function formatDate(iso) {
-  return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
-}
 
 export default function VerificationSubmitScreen({ navigation }) {
   const [verification, setVerification] = useState(null);
@@ -27,7 +23,7 @@ export default function VerificationSubmitScreen({ navigation }) {
     try {
       setLoading(true);
       const token = await getAuthToken();
-      const data = await getMyVerification(token);
+      const data = await getMyVerification(token, 'discover');
       setVerification(data.verification);
     } catch (err) {
       console.error('[VerificationSubmitScreen]', err.message);
@@ -38,22 +34,14 @@ export default function VerificationSubmitScreen({ navigation }) {
 
   useEffect(() => { loadVerification(); }, [loadVerification]);
 
-  const handlePickVideo = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert('Permission required', 'Please allow access to your media library.');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['videos'],
-      allowsEditing: false,
-      quality: 1,
+  const handleRecordVideo = () => {
+    navigation.navigate('VerificationRecorder', {
+      scope: 'discover',
+      onVideoRecorded: (uri) => {
+        setVideoUri(uri);
+        setVideoName('verification-video.mp4');
+      },
     });
-    if (!result.canceled && result.assets?.[0]) {
-      const asset = result.assets[0];
-      setVideoUri(asset.uri);
-      setVideoName(asset.fileName || asset.uri.split('/').pop());
-    }
   };
 
   const handleSubmit = async () => {
@@ -61,7 +49,7 @@ export default function VerificationSubmitScreen({ navigation }) {
     setUploading(true);
     try {
       const token = await getAuthToken();
-      const data = await submitVerification(videoUri, token);
+      const data = await submitVerification(videoUri, token, { scope: 'discover' });
       setVerification(data.verification);
       setVideoUri(null);
       setVideoName(null);
@@ -82,7 +70,7 @@ export default function VerificationSubmitScreen({ navigation }) {
           <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={12}>
             <ArrowLeft size={24} color={COLORS.textPrimary} strokeWidth={2} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Get verified</Text>
+          <Text style={styles.headerTitle}>Discover Verification</Text>
           <View style={{ width: 24 }} />
         </View>
       </SafeAreaView>
@@ -94,38 +82,14 @@ export default function VerificationSubmitScreen({ navigation }) {
       ) : (
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {/* Status cards */}
-          {!showUploadForm && verification?.status === 'pending' && (
-            <View style={[styles.statusCard, styles.statusPending]}>
-              <Clock size={28} color="#B45309" strokeWidth={1.8} />
-              <Text style={[styles.statusTitle, { color: '#B45309' }]}>Under review</Text>
-              <Text style={styles.statusBody}>
-                Your verification video was submitted on {formatDate(verification.submitted_at)}.
-                Our team will review it within 48 hours.
-              </Text>
-            </View>
-          )}
-
-          {!showUploadForm && verification?.status === 'approved' && (
-            <View style={[styles.statusCard, styles.statusApproved]}>
-              <CircleCheck size={28} color="#2E7D32" strokeWidth={1.8} />
-              <Text style={[styles.statusTitle, { color: '#2E7D32' }]}>You're verified!</Text>
-              <Text style={styles.statusBody}>
-                Your verified badge is now visible on your profile. You can host and join Open Plans.
-              </Text>
-            </View>
-          )}
-
-          {!showUploadForm && verification?.status === 'rejected' && (
-            <View style={[styles.statusCard, styles.statusRejected]}>
-              <CircleX size={28} color="#C62828" strokeWidth={1.8} />
-              <Text style={[styles.statusTitle, { color: '#C62828' }]}>Verification not approved</Text>
-              {verification.rejection_reason && (
-                <Text style={styles.statusBody}>{verification.rejection_reason}</Text>
-              )}
-              <TouchableOpacity style={styles.resubmitBtn} onPress={() => setResubmit(true)}>
-                <Text style={styles.resubmitBtnText}>Resubmit</Text>
-              </TouchableOpacity>
-            </View>
+          {!showUploadForm && (
+            <VerificationStatusCard
+              status={verification?.status}
+              submittedAt={verification?.submitted_at}
+              rejectionReason={verification?.rejection_reason}
+              tierLabel="Discover"
+              onResubmit={() => setResubmit(true)}
+            />
           )}
 
           {/* Upload form */}
@@ -138,21 +102,30 @@ export default function VerificationSubmitScreen({ navigation }) {
                 </View>
                 <Text style={styles.explanationTitle}>Verified badge</Text>
                 <Text style={styles.explanationBody}>
-                  Record a short video of yourself (5–15 seconds) saying your name and showing your face.
-                  Our team reviews it within 48 hours. Verified users get a blue badge on their profile
-                  and can host and join Open Plans.
+                  Record a quick 12-second selfie video showing your face. We match your video against your Discover photos to confirm your identity. Verified users get a blue badge on their profile and can host and join Open Plans.
                 </Text>
+                <View style={styles.guidanceBox}>
+                  <Text style={styles.guidanceItem}>• Good lighting, face clearly visible</Text>
+                  <Text style={styles.guidanceItem}>• No sunglasses or hats</Text>
+                  <Text style={styles.guidanceItem}>• Just you in the frame — look directly at camera</Text>
+                </View>
               </View>
 
-              {/* Video picker */}
-              <TouchableOpacity style={styles.videoPicker} onPress={handlePickVideo}>
+              {/* Video recorder button */}
+              <TouchableOpacity
+                style={styles.videoPicker}
+                onPress={handleRecordVideo}
+                activeOpacity={0.7}
+              >
                 <Video size={22} color={COLORS.primary} strokeWidth={1.8} />
                 <View style={styles.videoPickerText}>
                   <Text style={styles.videoPickerLabel}>
-                    {videoUri ? videoName || 'Video selected' : 'Tap to pick a video'}
+                    {videoUri ? 'Video recorded successfully' : 'Record verification video'}
                   </Text>
-                  {videoUri && (
-                    <Text style={styles.videoPickerChange}>Change video</Text>
+                  {videoUri ? (
+                    <Text style={styles.videoPickerChange}>Tap to re-record</Text>
+                  ) : (
+                    <Text style={styles.videoPickerChange}>Tap to open camera</Text>
                   )}
                 </View>
               </TouchableOpacity>
@@ -219,6 +192,20 @@ const styles = StyleSheet.create({
   explanationBody: {
     fontFamily: FONTS.regular, fontSize: 14, color: COLORS.textSecondary,
     textAlign: 'center', lineHeight: 21,
+  },
+  guidanceBox: {
+    width: '100%',
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: COLORS.border,
+    gap: 4,
+    alignItems: 'flex-start',
+  },
+  guidanceItem: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    lineHeight: 18,
   },
 
   videoPicker: {

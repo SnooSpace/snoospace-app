@@ -38,7 +38,15 @@
     "pg": "^8.16.3",
     "razorpay": "^2.9.6",
     "resend": "^6.6.0",
-    "socket.io": "^4.8.3"
+    "socket.io": "^4.8.3",
+    "@vladmandic/face-api": "^1.7.15",
+    "@tensorflow/tfjs": "^4.22.0",
+    "@tensorflow/tfjs-backend-wasm": "^4.22.0",
+    "jpeg-js": "^0.4.4",
+    "axios": "^1.7.9"
+  },
+  "optionalDependencies": {
+    "@tensorflow/tfjs-node": "^4.22.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"

@@ -442,15 +442,15 @@ export default function HostPlanBottomSheet({
       setBannerUploading(false);
       if (err.status === 403 && err.data?.error === "proof_gate_required") {
         Alert.alert(
-          "Profile incomplete",
-          "To host a plan, add a post, connect Instagram, or get verified.",
+          "Verification required",
+          "Identity verification is required to host an Open Plan. Please get verified to proceed.",
           [
             { text: "Not now", style: "cancel" },
             {
               text: "Get verified",
               onPress: () => {
                 onClose();
-                navigation?.navigate("VerificationSubmit");
+                navigation?.navigate("PlansVerification");
               },
             },
           ],

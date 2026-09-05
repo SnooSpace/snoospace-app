@@ -42,6 +42,7 @@ import {
   Trophy,
   MessageCircle,
   Sparkles,
+  ShieldCheck,
 } from "lucide-react-native";
 import {
   COLORS,
@@ -524,6 +525,17 @@ export default function SettingsScreen({ route, navigation }) {
                   accountType: isCommunity ? "community" : "member",
                 })
               }
+            />
+            <SettingsRow
+              icon={ShieldCheck}
+              iconColor="#10B981"
+              label="Get Verified"
+              sublabel={
+                profile?.is_verified
+                  ? "Identity verified"
+                  : "Verify your identity with face match"
+              }
+              onPress={() => navigation.navigate("VerificationHub")}
               isLast
             />
           </Card>

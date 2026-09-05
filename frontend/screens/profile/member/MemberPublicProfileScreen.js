@@ -14,7 +14,8 @@ import SwipeableModal from "../../../components/modals/SwipeableModal";
 import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
 import { Pressable as GHPressable, GestureHandlerRootView } from "react-native-gesture-handler";
 import { Image as ExpoImage } from "expo-image";
-import { ArrowLeft, Play, Pin, BadgeCheck, Ticket, Users, MoreVertical, UserX, TriangleAlert, CircleCheck, ShieldOff, CalendarDays, UserPlus, UserCheck, UserMinus, Clock, Music, ChevronRight, Handshake, Sparkles } from "lucide-react-native";
+import { ArrowLeft, Play, Pin, Ticket, Users, MoreVertical, UserX, TriangleAlert, CircleCheck, ShieldOff, CalendarDays, UserPlus, UserCheck, UserMinus, Clock, Music, ChevronRight, Handshake, Sparkles } from "lucide-react-native";
+import VerifiedBadge from "../../../components/badges/VerifiedBadge";
 import CustomAlertModal from "../../../components/ui/CustomAlertModal";
 import {
   getPublicMemberProfile,
@@ -1494,9 +1495,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                     <Text style={styles.profileName}>
                       {profile?.full_name || "Member"}
                     </Text>
-                    {profile?.is_verified && (
-                      <BadgeCheck size={20} color="#2962FF" strokeWidth={2} />
-                    )}
+                    <VerifiedBadge tier={profile?.verification_tier} size={20} />
                   </View>
                   {profile?.is_creator_mode_enabled && (
                     <View style={styles.creatorBadge}>

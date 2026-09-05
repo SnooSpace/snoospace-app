@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { apiGet, apiPost, apiPatch, apiDelete } from './client';
 import { getAuthToken } from './auth';
 import { BACKEND_BASE_URL } from './client';
@@ -125,16 +126,26 @@ export async function getBlockedUsers(token) {
 
 // ─── Verification ────────────────────────────────────────────────────────────
 
-export async function getMyVerification(token) {
-  return apiGet('/verifications/me', 15000, token);
+export async function getMyVerification(token, scope) {
+  const query = scope ? `?scope=${encodeURIComponent(scope)}` : '';
+  return apiGet(`/verifications/me${query}`, 15000, token);
 }
 
-export async function submitVerification(videoUri, token) {
+export async function submitVerification(videoUri, token, options = {}) {
+  const { scope, referencePhotoUrl } = options;
   const formData = new FormData();
-  const filename = videoUri.split('/').pop();
+  const filename = videoUri.split('/').pop() || 'verification-video.mp4';
   const ext = filename.split('.').pop().toLowerCase();
-  const mimeType = ext === 'mp4' ? 'video/mp4' : ext === 'mov' ? 'video/quicktime' : 'video/webm';
+  const defaultMime = Platform.OS === 'ios' ? 'video/quicktime' : 'video/mp4';
+  const mimeType = ext === 'mp4' ? 'video/mp4' : ext === 'mov' ? 'video/quicktime' : defaultMime;
   formData.append('video', { uri: videoUri, name: filename, type: mimeType });
+
+  if (scope) {
+    formData.append('scope', scope);
+  }
+  if (scope === 'plans' && referencePhotoUrl) {
+    formData.append('reference_photo_url', referencePhotoUrl);
+  }
 
   const res = await fetch(`${BACKEND_BASE_URL}/verifications`, {
     method: 'POST',
@@ -142,6 +153,6 @@ export async function submitVerification(videoUri, token) {
     body: formData,
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.error || 'Upload failed');
+  if (!res.ok) throw new Error(data?.message || data?.error || 'Upload failed');
   return data;
 }

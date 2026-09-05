@@ -708,6 +708,14 @@ const getFeed = async (req, res) => {
           ELSE false
         END as author_is_creator,
         CASE 
+          WHEN p.author_type = 'member' THEN COALESCE(m.is_verified, false)
+          ELSE false
+        END as is_verified,
+        CASE 
+          WHEN p.author_type = 'member' THEN COALESCE(m.verification_tier, 'none')
+          ELSE 'none'
+        END as verification_tier,
+        CASE 
           WHEN $4::int IS NOT NULL AND $5::text IS NOT NULL THEN EXISTS (
             SELECT 1 FROM post_likes l
             WHERE l.post_id = p.id AND l.liker_id = $4 AND l.liker_type = $5
@@ -1338,6 +1346,14 @@ const getExplore = async (req, res) => {
           ELSE false
         END as author_is_creator,
         CASE 
+          WHEN p.author_type = 'member' THEN COALESCE(m.is_verified, false)
+          ELSE false
+        END as is_verified,
+        CASE 
+          WHEN p.author_type = 'member' THEN COALESCE(m.verification_tier, 'none')
+          ELSE 'none'
+        END as verification_tier,
+        CASE 
           WHEN $1::int IS NOT NULL AND $2::text IS NOT NULL THEN (
             EXISTS (
               SELECT 1 FROM follows f2
@@ -1828,6 +1844,14 @@ const getPost = async (req, res) => {
           WHEN p.author_type = 'member' THEN COALESCE(m.is_creator_mode_enabled, false)
           ELSE false
         END as author_is_creator,
+        CASE 
+          WHEN p.author_type = 'member' THEN COALESCE(m.is_verified, false)
+          ELSE false
+        END as is_verified,
+        CASE 
+          WHEN p.author_type = 'member' THEN COALESCE(m.verification_tier, 'none')
+          ELSE 'none'
+        END as verification_tier,
         CASE WHEN $2::int IS NOT NULL AND $3::text IS NOT NULL THEN EXISTS (
           SELECT 1 FROM post_likes l
           WHERE l.post_id = p.id AND l.liker_id = $2 AND l.liker_type = $3
@@ -2098,6 +2122,14 @@ const getUserPosts = async (req, res) => {
           WHEN p.author_type = 'member' THEN COALESCE(m.is_creator_mode_enabled, false)
           ELSE false
         END as author_is_creator,
+        CASE 
+          WHEN p.author_type = 'member' THEN COALESCE(m.is_verified, false)
+          ELSE false
+        END as is_verified,
+        CASE 
+          WHEN p.author_type = 'member' THEN COALESCE(m.verification_tier, 'none')
+          ELSE 'none'
+        END as verification_tier,
         CASE 
           WHEN $3::int IS NOT NULL AND $4::text IS NOT NULL THEN EXISTS (
             SELECT 1 FROM post_likes l
@@ -3395,6 +3427,14 @@ const getDiscoveryPosts = async (req, res) => {
           WHEN p.author_type = 'member' THEN COALESCE(m.is_creator_mode_enabled, false)
           ELSE false
         END AS author_is_creator,
+        CASE 
+          WHEN p.author_type = 'member' THEN COALESCE(m.is_verified, false)
+          ELSE false
+        END as is_verified,
+        CASE 
+          WHEN p.author_type = 'member' THEN COALESCE(m.verification_tier, 'none')
+          ELSE 'none'
+        END as verification_tier,
         -- Viewer interaction states
         CASE
           WHEN $3::int IS NOT NULL AND $4::text IS NOT NULL THEN EXISTS (
@@ -3826,6 +3866,14 @@ const getPromoTargeted = async (req, res) => {
           WHEN p.author_type = 'sponsor' THEN s.logo_url
           WHEN p.author_type = 'venue' THEN v.logo_url
         END AS author_photo_url,
+        CASE 
+          WHEN p.author_type = 'member' THEN COALESCE(m.is_verified, false)
+          ELSE false
+        END as is_verified,
+        CASE 
+          WHEN p.author_type = 'member' THEN COALESCE(m.verification_tier, 'none')
+          ELSE 'none'
+        END as verification_tier,
         false AS is_backlog_post,
         true  AS is_targeted_promo
       FROM posts p

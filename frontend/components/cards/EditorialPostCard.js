@@ -20,6 +20,7 @@ import React, {
 import { useRecyclingState } from "@shopify/flash-list";
 import { useDebouncedLikeToggle } from "../../hooks/useDebouncedLikeToggle";
 import { Image as ExpoImage } from "expo-image";
+import VerifiedBadge from "../badges/VerifiedBadge";
 import {
   View,
   Text,
@@ -1141,10 +1142,8 @@ const DefaultEditorialPostCard = ({
                 <Text style={styles.displayName} numberOfLines={1}>
                   {post.author_name || "Unknown"}
                 </Text>
-                {post.is_verified && !isAnon && (
-                  <View style={styles.verifiedBadge}>
-                    <Text style={styles.verifiedIcon}>✓</Text>
-                  </View>
+                {!isAnon && (
+                  <VerifiedBadge tier={post.verification_tier} size={15} style={{ marginLeft: 4 }} />
                 )}
               </View>
               <View style={styles.usernameRow}>

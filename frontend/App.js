@@ -61,6 +61,7 @@ import { ToastProvider } from "./context/ToastContext";
 import AccountSwitchOverlay from "./components/ui/AccountSwitchOverlay";
 import { EventVerificationProvider } from "./context/EventVerificationContext";
 import EventVerificationOverlay from "./components/modals/EventVerificationOverlay";
+import EventBus from "./utils/EventBus";
 
 // NOTE: Notifications.setNotificationHandler is configured at module level
 // in services/pushNotificationService.js. No duplicate call needed here.
@@ -78,6 +79,7 @@ function AppContent() {
   const navigationRef = React.useRef(null);
   const removeAppStateListenerRef = React.useRef(null);
   const { activeAccountEmail, refreshAuthState } = useAuthState();
+  const [currentRouteName, setCurrentRouteName] = useState(null);
 
   // ── Central Foreground Resume Handler ────────────────────────────────────
   // Runs a single ordered sequence on every background → foreground transition:
@@ -246,8 +248,11 @@ function AppContent() {
    * @returns {{ name: string, depth: number }}
    */
   const getActiveRoute = (navState, depth = 1) => {
-    if (!navState || navState.index === undefined) return { name: 'Unknown', depth };
-    const route = navState.routes[navState.index];
+    if (!navState || !navState.routes || navState.routes.length === 0) {
+      return { name: 'Unknown', depth };
+    }
+    const index = typeof navState.index === 'number' ? navState.index : 0;
+    const route = navState.routes[index];
     if (!route) return { name: 'Unknown', depth };
     if (route.state) {
       return getActiveRoute(route.state, depth + 1);
@@ -261,8 +266,19 @@ function AppContent() {
    */
   const onNavigationStateChange = (state) => {
     if (!state) return;
-    const { name, depth } = getActiveRoute(state);
-    trackScreenVisit(name, depth);
+    const { depth } = getActiveRoute(state);
+    const activeRoute = navigationRef.current?.getCurrentRoute()?.name || getActiveRoute(state).name;
+    trackScreenVisit(activeRoute, depth);
+    setCurrentRouteName(activeRoute);
+    EventBus.emit("active-screen-changed", activeRoute);
+  };
+
+  const onNavigationReady = () => {
+    const activeRoute = navigationRef.current?.getCurrentRoute()?.name;
+    if (activeRoute) {
+      setCurrentRouteName(activeRoute);
+      EventBus.emit("active-screen-changed", activeRoute);
+    }
   };
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -288,6 +304,7 @@ function AppContent() {
     <>
       <NavigationContainer
         ref={navigationRef}
+        onReady={onNavigationReady}
         onStateChange={onNavigationStateChange}
         theme={SnooTheme}
       >
@@ -299,7 +316,7 @@ function AppContent() {
         onDismiss={() => setCurrentBanner(null)}
       />
       <AccountSwitchOverlay />
-      <EventVerificationOverlay />
+      <EventVerificationOverlay currentRouteName={currentRouteName} navigationRef={navigationRef} />
     </>
   );
 }

@@ -93,7 +93,7 @@ async function getRequests(req, res) {
     const statusClause = statusFilter !== 'all' ? `AND r.status = $${params.push(statusFilter)}` : '';
 
     const requestsR = await pool.query(
-      `SELECT r.*, m.name, m.profile_photo_url, m.is_verified, m.created_at as member_created_at
+      `SELECT r.*, m.name, m.profile_photo_url, m.is_verified, m.verification_tier, m.created_at as member_created_at
        FROM open_plan_requests r
        JOIN members m ON m.id = r.requester_id
        WHERE r.plan_id = $1 ${statusClause}
@@ -151,6 +151,7 @@ async function getRequests(req, res) {
             name: row.name,
             profile_photo_url: row.profile_photo_url,
             is_verified: row.is_verified,
+            verification_tier: row.verification_tier || 'none',
             created_at: row.member_created_at,
             post_count: postCountR.rows[0].count,
             events_attended_count: eventsR.rows[0].count,

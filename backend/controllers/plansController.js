@@ -323,7 +323,7 @@ async function getPlans(req, res) {
           getMyRequestStatus(pool, plan.id, userId),
           getSharedCommunityName(pool, userId, plan.created_by),
           pool.query(
-            `SELECT id, name, is_verified, profile_photo_url FROM members WHERE id = $1`,
+            `SELECT id, name, is_verified, verification_tier, profile_photo_url FROM members WHERE id = $1`,
             [plan.created_by]
           ),
           getPendingCount(pool, plan.id),
@@ -415,7 +415,7 @@ async function getPlanById(req, res) {
     const [acceptedCount, myStatus, hostR, sharedCommunities, commentsR, approvedR, pendingCount] = await Promise.all([
       getAcceptedCount(pool, planId),
       getMyRequestStatus(pool, planId, userId),
-      pool.query(`SELECT id, name, is_verified, profile_photo_url, created_at FROM members WHERE id = $1`, [plan.created_by]),
+      pool.query(`SELECT id, name, is_verified, verification_tier, profile_photo_url, created_at FROM members WHERE id = $1`, [plan.created_by]),
       getSharedCommunities(pool, userId, plan.created_by),
       pool.query(
         `SELECT c.id, c.content, c.created_at, m.id as commenter_id, m.name as commenter_name, m.profile_photo_url as commenter_photo

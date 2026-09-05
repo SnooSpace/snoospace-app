@@ -31,9 +31,10 @@ import {
   Text,
   Animated,
   StatusBar,
-  Image,
   PanResponder,
 } from "react-native";
+import { Image } from "expo-image";
+import VerifiedBadge from "../badges/VerifiedBadge";
 import { VideoView, useVideoPlayer } from "expo-video";
 import {
   Heart,
@@ -546,11 +547,7 @@ const FullscreenVideoModal = ({
                         <Text style={styles.displayName} numberOfLines={1}>
                           {post?.author_name || "Unknown"}
                         </Text>
-                        {post?.is_verified && (
-                          <View style={styles.verifiedBadge}>
-                            <Text style={styles.verifiedIcon}>✓</Text>
-                          </View>
-                        )}
+                        <VerifiedBadge tier={post?.verification_tier} size={15} style={{ marginLeft: 4 }} />
                       </View>
                       <Text style={styles.username} numberOfLines={1}>
                         @{post?.author_username || "user"}
