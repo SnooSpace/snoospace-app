@@ -25,6 +25,8 @@ async function submitVerification(req, res) {
     }
 
     const referencePhotoUrl = req.body.reference_photo_url ? req.body.reference_photo_url.trim() : null;
+    const livenessAction = req.body.liveness_action ? req.body.liveness_action.trim() : null;
+    const livenessCode = req.body.liveness_code ? req.body.liveness_code.trim() : null;
 
     // Pre-checks based on scope
     if (scope === 'plans') {
@@ -104,12 +106,12 @@ async function submitVerification(req, res) {
       resource_type: 'video',
     });
 
-    // Insert verification record with scope and manual_reference_photo_url
+    // Insert verification record with scope, manual_reference_photo_url, liveness_action, and liveness_code
     const insertR = await pool.query(
-      `INSERT INTO user_verifications (user_id, video_storage_path, type, status, scope, manual_reference_photo_url)
-       VALUES ($1, $2, 'video', 'pending', $3, $4)
-       RETURNING id, status, scope, submitted_at`,
-      [userId, uploadResult.public_id, scope, scope === 'plans' ? referencePhotoUrl : null]
+      `INSERT INTO user_verifications (user_id, video_storage_path, type, status, scope, manual_reference_photo_url, liveness_action, liveness_code)
+       VALUES ($1, $2, 'video', 'pending', $3, $4, $5, $6)
+       RETURNING id, status, scope, liveness_action, liveness_code, submitted_at`,
+      [userId, uploadResult.public_id, scope, scope === 'plans' ? referencePhotoUrl : null, livenessAction, livenessCode]
     );
 
     res.status(201).json({ verification: insertR.rows[0] });
@@ -243,10 +245,11 @@ async function getMyVerification(req, res) {
 async function adminGetAll(req, res) {
   try {
     const pool = req.app.locals.pool;
+    const { MATCH_THRESHOLD, NO_MATCH_THRESHOLD } = require('../services/faceMatchService');
 
     const result = await pool.query(
       `SELECT uv.id, uv.user_id, uv.status, uv.scope, uv.manual_reference_photo_url, uv.submitted_at, uv.video_storage_path,
-              uv.match_score, uv.matched_photo_url,
+              uv.match_score, uv.matched_photo_url, uv.liveness_action, uv.liveness_code,
               m.name as member_name, m.email as member_email, m.profile_photo_url as member_photo,
               m.discover_photos
        FROM user_verifications uv
@@ -270,7 +273,13 @@ async function adminGetAll(req, res) {
       };
     });
 
-    res.json({ verifications });
+    res.json({
+      verifications,
+      thresholds: {
+        match: MATCH_THRESHOLD,
+        noMatch: NO_MATCH_THRESHOLD,
+      },
+    });
   } catch (err) {
     console.error('[verificationsController.adminGetAll]', err);
     res.status(500).json({ error: 'server_error' });

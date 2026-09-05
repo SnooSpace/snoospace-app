@@ -132,7 +132,7 @@ export async function getMyVerification(token, scope) {
 }
 
 export async function submitVerification(videoUri, token, options = {}) {
-  const { scope, referencePhotoUrl } = options;
+  const { scope, referencePhotoUrl, livenessAction, livenessCode } = options;
   const formData = new FormData();
   const filename = videoUri.split('/').pop() || 'verification-video.mp4';
   const ext = filename.split('.').pop().toLowerCase();
@@ -145,6 +145,12 @@ export async function submitVerification(videoUri, token, options = {}) {
   }
   if (scope === 'plans' && referencePhotoUrl) {
     formData.append('reference_photo_url', referencePhotoUrl);
+  }
+  if (livenessAction) {
+    formData.append('liveness_action', livenessAction);
+  }
+  if (livenessCode) {
+    formData.append('liveness_code', livenessCode);
   }
 
   const res = await fetch(`${BACKEND_BASE_URL}/verifications`, {

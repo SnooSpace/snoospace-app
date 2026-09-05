@@ -194,13 +194,13 @@ async function matchVideoToReferences(videoPublicId, memberId, pool, options = {
   const roundedDistance = Number(minDistance.toFixed(4));
 
   // 7. Classify outcome based on distance thresholds
-  // distance <= 0.55 -> match
-  // distance >= 0.85 -> no_match
+  // distance <= MATCH_THRESHOLD (0.55) -> match
+  // distance >= NO_MATCH_THRESHOLD (0.85) -> no_match
   // otherwise -> uncertain (manual review queue)
   let classification = 'uncertain';
-  if (roundedDistance <= 0.55) {
+  if (roundedDistance <= MATCH_THRESHOLD) {
     classification = 'match';
-  } else if (roundedDistance >= 0.85) {
+  } else if (roundedDistance >= NO_MATCH_THRESHOLD) {
     classification = 'no_match';
   }
 
@@ -213,7 +213,12 @@ async function matchVideoToReferences(videoPublicId, memberId, pool, options = {
   };
 }
 
+const MATCH_THRESHOLD = 0.55;
+const NO_MATCH_THRESHOLD = 0.85;
+
 module.exports = {
   matchVideoToReferences,
   computeEuclideanDistance,
+  MATCH_THRESHOLD,
+  NO_MATCH_THRESHOLD,
 };

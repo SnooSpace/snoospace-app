@@ -39,6 +39,7 @@ export default function PlansVerificationScreen({ navigation }) {
 
   // Step 2: Video Recording
   const [videoUri, setVideoUri] = useState(null);
+  const [livenessMeta, setLivenessMeta] = useState(null);
 
   // Step 3: Submitting
   const [submitting, setSubmitting] = useState(false);
@@ -86,8 +87,11 @@ export default function PlansVerificationScreen({ navigation }) {
   const handleRecordVideo = () => {
     navigation.navigate('VerificationRecorder', {
       scope: 'plans',
-      onVideoRecorded: (uri) => {
+      onVideoRecorded: (uri, scope, meta) => {
         setVideoUri(uri);
+        if (meta) {
+          setLivenessMeta(meta);
+        }
         HapticsService.triggerSelection?.();
       },
     });
@@ -106,12 +110,15 @@ export default function PlansVerificationScreen({ navigation }) {
       const data = await submitVerification(videoUri, token, {
         scope: 'plans',
         referencePhotoUrl,
+        livenessAction: livenessMeta?.action,
+        livenessCode: livenessMeta?.code,
       });
 
       setVerification(data.verification);
       setPhotoUri(null);
       setReferencePhotoUrl(null);
       setVideoUri(null);
+      setLivenessMeta(null);
       setResubmit(false);
       HapticsService.triggerImpactMedium?.();
     } catch (err) {

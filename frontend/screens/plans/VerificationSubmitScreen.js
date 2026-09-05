@@ -16,6 +16,7 @@ export default function VerificationSubmitScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [videoUri, setVideoUri] = useState(null);
   const [videoName, setVideoName] = useState(null);
+  const [livenessMeta, setLivenessMeta] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [resubmit, setResubmit] = useState(false);
 
@@ -37,9 +38,12 @@ export default function VerificationSubmitScreen({ navigation }) {
   const handleRecordVideo = () => {
     navigation.navigate('VerificationRecorder', {
       scope: 'discover',
-      onVideoRecorded: (uri) => {
+      onVideoRecorded: (uri, scope, meta) => {
         setVideoUri(uri);
         setVideoName('verification-video.mp4');
+        if (meta) {
+          setLivenessMeta(meta);
+        }
       },
     });
   };
@@ -49,10 +53,15 @@ export default function VerificationSubmitScreen({ navigation }) {
     setUploading(true);
     try {
       const token = await getAuthToken();
-      const data = await submitVerification(videoUri, token, { scope: 'discover' });
+      const data = await submitVerification(videoUri, token, {
+        scope: 'discover',
+        livenessAction: livenessMeta?.action,
+        livenessCode: livenessMeta?.code,
+      });
       setVerification(data.verification);
       setVideoUri(null);
       setVideoName(null);
+      setLivenessMeta(null);
       setResubmit(false);
     } catch (err) {
       Alert.alert('Upload failed', err.message || 'Please try again');

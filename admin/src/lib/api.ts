@@ -1706,6 +1706,8 @@ export interface VerificationItem {
   video_storage_path: string;
   match_score: number | null;
   matched_photo_url: string | null;
+  liveness_action: string | null;
+  liveness_code: string | null;
   member_name: string;
   member_email: string;
   member_photo: string | null;
@@ -1714,11 +1716,21 @@ export interface VerificationItem {
 
 export interface VerificationsResponse {
   verifications: VerificationItem[];
+  thresholds?: {
+    match: number;
+    noMatch: number;
+  };
 }
 
-export async function getAdminVerifications(): Promise<VerificationItem[]> {
+export async function getAdminVerifications(): Promise<{
+  verifications: VerificationItem[];
+  thresholds: { match: number; noMatch: number };
+}> {
   const data = await apiRequest<VerificationsResponse>("/verifications/admin");
-  return data.verifications;
+  return {
+    verifications: data.verifications || [],
+    thresholds: data.thresholds || { match: 0.55, noMatch: 0.85 },
+  };
 }
 
 export async function reviewVerification(

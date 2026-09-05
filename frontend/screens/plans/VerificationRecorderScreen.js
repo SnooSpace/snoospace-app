@@ -2,15 +2,15 @@
  * VerificationRecorderScreen
  *
  * In-app camera recorder for face verification with liveness prompts.
- * Uses expo-camera's CameraView with recordAsync({ maxDuration: 12, quality: '1080p' }).
+ * Uses expo-camera's CameraView with recordAsync({ maxDuration: 8, quality: '1080p' }).
  * 
  * Features:
  *  - Front-camera default with mirror={false} (preserves natural face orientation for face matching)
  *  - Randomized liveness action and 4-digit code generated once on mount
  *  - Persistent prompt overlay above camera feed
  *  - Circular SVG countdown ring with color shift (green → amber → red)
- *  - Hard 12-second native cutoff
- *  - Calls route.params.onVideoRecorded(uri) on completion and navigates back
+ *  - Hard 8-second native cutoff
+ *  - Calls route.params.onVideoRecorded(uri, scope, meta) on completion and navigates back
  */
 
 import React, { useRef, useState, useEffect, useCallback } from "react";
@@ -29,7 +29,7 @@ import Svg, { Circle } from "react-native-svg";
 import { Square, X } from "lucide-react-native";
 import HapticsService from "../../services/HapticsService";
 
-const MAX_DURATION = 12; // seconds — hard limit for liveness verification
+const MAX_DURATION = 8; // seconds — hard limit for liveness verification
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 // SVG ring geometry
@@ -129,11 +129,14 @@ export default function VerificationRecorderScreen({ navigation, route }) {
   const handleVideoReady = useCallback(
     (uri) => {
       if (onVideoRecorded) {
-        onVideoRecorded(uri, scope);
+        onVideoRecorded(uri, scope, {
+          action: livenessAction,
+          code: livenessCode,
+        });
       }
       navigation.goBack();
     },
-    [onVideoRecorded, scope, navigation]
+    [onVideoRecorded, scope, livenessAction, livenessCode, navigation]
   );
 
   // ── Start recording ─────────────────────────────────────────────────────────
@@ -316,7 +319,7 @@ export default function VerificationRecorderScreen({ navigation, route }) {
 
         {/* Hint label when idle */}
         {!isRecording && (
-          <Text style={styles.hint}>Tap to start · 12-second verification</Text>
+          <Text style={styles.hint}>Tap to start · 8-second verification</Text>
         )}
       </SafeAreaView>
     </View>

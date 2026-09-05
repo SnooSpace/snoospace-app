@@ -55,6 +55,10 @@ import {
 
 export default function VerificationsPage() {
   const [verifications, setVerifications] = useState<VerificationItem[]>([]);
+  const [thresholds, setThresholds] = useState<{ match: number; noMatch: number }>({
+    match: 0.55,
+    noMatch: 0.85,
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [scopeFilter, setScopeFilter] = useState<"all" | "plans" | "discover">("all");
@@ -73,7 +77,10 @@ export default function VerificationsPage() {
       setLoading(true);
       setError(null);
       const data = await getAdminVerifications();
-      setVerifications(data || []);
+      setVerifications(data.verifications || []);
+      if (data.thresholds) {
+        setThresholds(data.thresholds);
+      }
     } catch (err) {
       console.error("Failed to load verifications:", err);
       setError(err instanceof Error ? err.message : "Failed to load verifications");
@@ -348,7 +355,7 @@ export default function VerificationsPage() {
                 <div className="space-y-2">
                   <div className="text-sm font-semibold flex items-center justify-between">
                     <span>Liveness Video</span>
-                    <span className="text-xs font-normal text-muted-foreground">12-sec selfie</span>
+                    <span className="text-xs font-normal text-muted-foreground">8-sec selfie</span>
                   </div>
                   <div className="rounded-lg overflow-hidden border bg-black aspect-[3/4] max-h-[360px] flex items-center justify-center">
                     <video
@@ -428,13 +435,34 @@ export default function VerificationsPage() {
                 </div>
               </div>
 
+              {/* Liveness Prompt Verification (Action + Code) */}
+              {(selectedVerification.liveness_action || selectedVerification.liveness_code) && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50/60 dark:border-amber-900/40 dark:bg-amber-950/20 p-3 text-sm space-y-1.5">
+                  <div className="text-xs font-semibold text-amber-800 dark:text-amber-300 uppercase tracking-wide">
+                    Prompted Liveness Verification
+                  </div>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-foreground">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-muted-foreground">Prompted Action:</span>
+                      <span className="font-semibold">{selectedVerification.liveness_action || "—"}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-muted-foreground">Code:</span>
+                      <span className="font-mono font-bold tracking-widest text-base px-2 py-0.5 rounded bg-background border">
+                        {selectedVerification.liveness_code || "—"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Match Diagnostics */}
               <div className="rounded-lg border bg-muted/30 p-3 flex items-center justify-between text-sm">
                 <span className="text-muted-foreground font-medium">Automated Match Distance:</span>
                 <span className="font-mono font-semibold">
                   {selectedVerification.match_score !== null &&
                   selectedVerification.match_score !== undefined
-                    ? `${Number(selectedVerification.match_score).toFixed(3)} (threshold: ≤ 0.60)`
+                    ? `${Number(selectedVerification.match_score).toFixed(3)} (auto-approve ≤ ${thresholds.match}, auto-reject ≥ ${thresholds.noMatch})`
                     : "Not attempted / manual"}
                 </span>
               </div>
