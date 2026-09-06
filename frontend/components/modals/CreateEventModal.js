@@ -336,7 +336,8 @@ const CreateEventModal = ({
   const decodedLocationName = useLocationName(locationUrl, {
     fallback: locationName.trim() || "View Location",
   });
-  const displayLocationName = locationName.trim() || decodedLocationName;
+  const displayLocationName =
+    selectedVenue?.venueName || locationName.trim() || decodedLocationName;
 
   // Category name lookup map (id → name) for review display
   const categoryMapRef = useRef({});
@@ -386,8 +387,8 @@ const CreateEventModal = ({
 
   const getCurrentFormData = () => ({
     title: title.trim(),
-    event_date: eventDate.toISOString(),
-    start_datetime: eventDate.toISOString(),
+    event_date: eventDate ? eventDate.toISOString() : null,
+    start_datetime: eventDate ? eventDate.toISOString() : null,
     has_time: hasTime,
     end_datetime: endDate ? endDate.toISOString() : null,
     gates_open_time:
@@ -399,6 +400,7 @@ const CreateEventModal = ({
     event_type: eventType,
     location_url: locationUrl,
     location_name: selectedVenue?.venueName ?? locationName.trim(),
+    selected_venue: selectedVenue,
     // Unified venue fields (from new search+map flow)
     venue_name: selectedVenue?.venueName ?? locationName.trim(),
     venue_address: selectedVenue?.venueAddress ?? "",
@@ -514,7 +516,22 @@ const CreateEventModal = ({
           draft.data.event_type || draft.data.eventType || "in-person",
         );
         setLocationUrl(draft.data.location_url || draft.data.locationUrl || "");
-        setLocationName(draft.data.location_name || "");
+        setLocationName(draft.data.location_name || draft.data.venue_name || "");
+        if (draft.data.selected_venue) {
+          setSelectedVenue(draft.data.selected_venue);
+        } else if (draft.data.venue_lat && draft.data.venue_lng) {
+          setSelectedVenue({
+            venueName: draft.data.venue_name || draft.data.location_name || "",
+            venueAddress: draft.data.venue_address || "",
+            venueShortAddress: draft.data.venue_short_address || "",
+            venueLat: draft.data.venue_lat,
+            venueLng: draft.data.venue_lng,
+            venueCategory: draft.data.venue_category || null,
+            venueProvider: draft.data.venue_provider || null,
+            venueProviderId: draft.data.venue_provider_id || null,
+            manuallyAdjusted: draft.data.venue_manually_adjusted || false,
+          });
+        }
         setVirtualLink(draft.data.virtual_link || draft.data.virtualLink || "");
         setBannerCarousel(
           draft.data.banner_carousel || draft.data.bannerCarousel || [],
@@ -620,6 +637,7 @@ const CreateEventModal = ({
     eventType,
     locationUrl,
     locationName,
+    selectedVenue,
     virtualLink,
     ticketTypes,
     promos,
@@ -634,10 +652,27 @@ const CreateEventModal = ({
   ]);
 
   const handleClose = () => {
+    const hasAnyInput =
+      title.trim() !== "" ||
+      bannerCarousel.length > 0 ||
+      selectedVenue !== null ||
+      locationName.trim() !== "" ||
+      locationUrl.trim() !== "" ||
+      virtualLink.trim() !== "" ||
+      eventDate !== null ||
+      endDate !== null ||
+      ticketTypes.length > 0 ||
+      promos.length > 0 ||
+      categories.length > 0 ||
+      gallery.length > 0 ||
+      description.trim() !== "" ||
+      highlights.length > 0 ||
+      featuredAccounts.length > 0 ||
+      thingsToKnow.length > 0;
+
     // Nothing entered at all — just close
     if (
-      title.trim() === "" &&
-      bannerCarousel.length === 0 &&
+      !hasAnyInput &&
       !draftWasResumed.current &&
       !hasUnsavedChanges.current
     ) {
@@ -965,9 +1000,7 @@ const CreateEventModal = ({
                       />
                     </View>
                     <View>
-                      <Text style={styles.dateCardLabel}>
-                        End Time <Text style={{ color: "#EF4444" }}>*</Text>
-                      </Text>
+                      <Text style={styles.dateCardLabel}>End Time</Text>
                       <Text
                         style={[
                           styles.dateCardValue,
@@ -980,7 +1013,7 @@ const CreateEventModal = ({
                               hour: "2-digit",
                               minute: "2-digit",
                             })
-                          : "Required — pick time"}
+                          : "Pick time"}
                       </Text>
                     </View>
                   </TouchableOpacity>
@@ -1477,6 +1510,12 @@ const CreateEventModal = ({
                   onConfirm={(venue) => {
                     setSelectedVenue(venue);
                     setLocationName(venue.venueName ?? "");
+                    if (venue.venueLat && venue.venueLng && !locationUrl) {
+                      setLocationUrl(
+                        `https://www.google.com/maps/search/?api=1&query=${venue.venueLat},${venue.venueLng}`
+                      );
+                    }
+                    hasUnsavedChanges.current = true;
                     setMapPickerVisible(false);
                   }}
                 />
@@ -2302,9 +2341,7 @@ const CreateEventModal = ({
               <TouchableOpacity
                 style={styles.draftMainButton}
                 onPress={async () => {
-                  if (hasUnsavedChanges.current) {
-                    await saveDraft(true);
-                  }
+                  await saveDraft(true);
                   setShowSaveDraftModal(false);
                   hasUnsavedChanges.current = false;
                   draftWasResumed.current = false;

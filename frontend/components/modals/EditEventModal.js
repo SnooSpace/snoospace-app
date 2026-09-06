@@ -682,9 +682,7 @@ export default function EditEventModal({
                       />
                     </View>
                     <View>
-                      <Text style={styles.dateCardLabel}>
-                        End Time <Text style={{ color: "#EF4444" }}>*</Text>
-                      </Text>
+                      <Text style={styles.dateCardLabel}>End Time</Text>
                       <Text
                         style={[
                           styles.dateCardValue,
@@ -696,7 +694,7 @@ export default function EditEventModal({
                               hour: "2-digit",
                               minute: "2-digit",
                             })
-                          : "Required — pick time"}
+                          : "Pick time"}
                       </Text>
                     </View>
                   </TouchableOpacity>
