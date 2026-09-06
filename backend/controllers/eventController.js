@@ -11,6 +11,14 @@ const {
 } = require("../services/emailService");
 const { sendTicketMessage } = require("./messageController");
 const { checkForDummyAccountRsvps } = require("../utils/communityFraudDetector");
+const { cancelEventWithRefunds } = require("../services/eventCancellationService");
+const {
+  declarePostponement,
+  setPostponementNewDate,
+  processOptOut,
+  processKeep,
+} = require("../services/eventPostponementService");
+
 
 const pool = createPool();
 
@@ -2494,6 +2502,34 @@ const updateEvent = async (req, res) => {
       console.log(
         `[Event Update] Notified ${attendeesResult.rows.length} attendees about ${notificationType} for event ${eventId}`,
       );
+
+      // ── Postponement hook: if this event is postponed and the organiser just set a new date,
+      //    update all pending decision rows with the opt-out deadline and send the explicit
+      //    "72 hours to opt out" push to buyers who have pending decisions.
+      //    This fires IN ADDITION TO the standard event_rescheduled push above.
+      //    Re-postponement (organiser sets date twice): window resets — intentional design.
+      if (isRescheduled) {
+        try {
+          const postponedCheck = await pool.query(
+            `SELECT is_postponed FROM events WHERE id = $1`, [eventId],
+          );
+          if (postponedCheck.rows[0]?.is_postponed) {
+            await setPostponementNewDate(
+              pool,
+              eventId,
+              newStartDateTime,
+              communityName,
+              eventTitle,
+            );
+          }
+        } catch (postponeHookErr) {
+          // Non-critical: existing reschedule notification already sent above
+          console.warn(
+            `[updateEvent] Postponement hook failed (non-critical):`,
+            postponeHookErr.message,
+          );
+        }
+      }
     }
 
     res.json({
@@ -3144,163 +3180,200 @@ const deleteEvent = async (req, res) => {
 };
 
 /**
- * Cancel an event (soft delete)
- * Sets is_cancelled = true and notifies all registered attendees
- * Only the community that created the event can cancel it
+ * Cancel an event and automatically refund all paid registrations.
+ * Delegates entirely to cancelEventWithRefunds (eventCancellationService.js).
+ * Only the community that created the event can cancel it.
  */
 const cancelEvent = async (req, res) => {
+  const userId   = req.user?.id;
+  const userType = req.user?.type;
+  const { eventId } = req.params;
+
+  // Auth guard: only community accounts
+  if (!userId || userType !== "community") {
+    return res.status(403).json({ error: "Only communities can cancel events" });
+  }
+
+  // Ownership guard: verify this community owns the event
+  const ownerCheck = await pool.query(
+    `SELECT id, creator_id FROM events WHERE id = $1`,
+    [eventId],
+  );
+  if (ownerCheck.rows.length === 0) {
+    return res.status(404).json({ error: "Event not found" });
+  }
+  if (parseInt(ownerCheck.rows[0].creator_id) !== parseInt(userId)) {
+    return res.status(403).json({ error: "You don't have permission to cancel this event" });
+  }
+
   try {
-    const userId = req.user?.id;
-    const userType = req.user?.type;
-    const { eventId } = req.params;
-
-    // Only communities can cancel events
-    if (!userId || userType !== "community") {
-      return res
-        .status(403)
-        .json({ error: "Only communities can cancel events" });
+    const summary = await cancelEventWithRefunds(pool, eventId, userId, "community");
+    return res.json(summary);
+  } catch (err) {
+    if (err.statusCode === 400 && err.code === "ALREADY_CANCELLED") {
+      return res.status(400).json({ error: err.message });
     }
-
-    // Verify event exists, belongs to this community, and is not already cancelled
-    const eventResult = await pool.query(
-      `SELECT e.id, e.title, e.start_datetime, e.end_datetime, e.is_cancelled, e.creator_id,
-              c.name as community_name, c.logo_url as community_logo
-       FROM events e
-       LEFT JOIN communities c ON e.creator_id = c.id
-       WHERE e.id = $1`,
-      [eventId],
-    );
-
-    if (eventResult.rows.length === 0) {
-      return res.status(404).json({ error: "Event not found" });
+    if (err.statusCode === 404) {
+      return res.status(404).json({ error: err.message });
     }
+    console.error("[cancelEvent] Unexpected error:", err.message);
+    return res.status(500).json({ error: "Failed to cancel event" });
+  }
+};
 
-    const event = eventResult.rows[0];
 
-    // Check ownership - ensure both are compared as integers
-    const creatorId = parseInt(event.creator_id);
-    const requestUserId = parseInt(userId);
+// ─── POSTPONEMENT HANDLERS ─────────────────────────────────────────────────────
 
-    if (creatorId !== requestUserId) {
-      return res.status(403).json({
-        error: "You don't have permission to cancel this event",
-      });
-    }
+/**
+ * POST /events/:eventId/postpone
+ * Organizer-only. Marks the event postponed (no new date yet), sets payout_hold,
+ * creates per-registration decision rows, and sends a "postponed TBD" push.
+ */
+const postponeEvent = async (req, res) => {
+  const userId   = req.user?.id;
+  const userType = req.user?.type;
+  const { eventId } = req.params;
 
-    // Check if already cancelled
-    if (event.is_cancelled) {
-      return res.status(400).json({ error: "Event is already cancelled" });
-    }
+  if (!userId || userType !== "community") {
+    return res.status(403).json({ error: "Only communities can postpone events" });
+  }
 
-    // Check if event is in the past
-    const now = new Date();
-    const eventEndDate = new Date(event.end_datetime || event.start_datetime);
-    if (eventEndDate < now) {
-      return res.status(400).json({ error: "Cannot cancel a past event" });
-    }
+  // Ownership guard
+  const ownerCheck = await pool.query(
+    `SELECT id, creator_id FROM events WHERE id = $1`, [eventId],
+  );
+  if (ownerCheck.rows.length === 0)
+    return res.status(404).json({ error: "Event not found" });
+  if (parseInt(ownerCheck.rows[0].creator_id) !== parseInt(userId))
+    return res.status(403).json({ error: "You don't have permission to postpone this event" });
 
-    // Update event to cancelled
-    await pool.query(
-      `UPDATE events SET is_cancelled = true, updated_at = NOW() WHERE id = $1`,
-      [eventId],
-    );
-
-    // Get all registered attendees
-    const attendeesResult = await pool.query(
-      `SELECT er.member_id, m.name as member_name
-       FROM event_registrations er
-       JOIN members m ON er.member_id = m.id
-       WHERE er.event_id = $1 AND er.registration_status = 'registered'`,
-      [eventId],
-    );
-
-    const attendees = attendeesResult.rows;
-    console.log(
-      `[cancelEvent] Notifying ${attendees.length} attendees about cancellation of event ${eventId}`,
-    );
-
-    // Create in-app notifications for all attendees
-    const notificationPayload = JSON.stringify({
-      event_id: parseInt(eventId),
-      event_title: event.title,
-      community_name: event.community_name,
-      community_logo: event.community_logo,
-      event_date: event.start_datetime,
-    });
-
-    const notificationPromises = attendees.map((attendee) =>
-      pool.query(
-        `INSERT INTO notifications (
-          recipient_id, recipient_type, actor_id, actor_type, 
-          type, payload, is_read, created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, false, NOW())`,
-        [
-          attendee.member_id,
-          "member",
-          userId,
-          "community",
-          "event_cancelled",
-          notificationPayload,
-        ],
-      ),
-    );
-
-    await Promise.all(notificationPromises);
-
-    // Emit real-time socket event to each notified attendee
-    attendees.forEach((attendee) => {
-      notificationService.emitNotification(attendee.member_id);
-    });
-
-    // Send push notifications to attendees (if push tokens exist)
-    try {
-      const pushTokensResult = await pool.query(
-        `SELECT pt.expo_push_token, er.member_id
-         FROM push_tokens pt
-         JOIN event_registrations er ON pt.user_id = er.member_id AND pt.user_type = 'member'
-         WHERE er.event_id = $1 AND er.registration_status = 'registered' AND pt.is_active = true`,
-        [eventId],
-      );
-
-      if (pushTokensResult.rows.length > 0) {
-        // Log for now - actual push implementation would use Expo Push API
-        console.log(
-          `[cancelEvent] Would send ${pushTokensResult.rows.length} push notifications`,
-        );
-        // TODO: Implement actual Expo push notification sending
-        // const messages = pushTokensResult.rows.map(row => ({
-        //   to: row.expo_push_token,
-        //   sound: 'default',
-        //   title: 'Event Cancelled',
-        //   body: `${event.community_name} has cancelled "${event.title}"`,
-        //   data: { eventId, type: 'event_cancelled' },
-        // }));
-      }
-    } catch (pushError) {
-      console.warn(
-        "[cancelEvent] Push notification query failed (non-critical):",
-        pushError.message,
-      );
-    }
-
-    console.log(
-      `[cancelEvent] Event "${event.title}" (ID: ${eventId}) cancelled by community ${userId}`,
-    );
-
-    res.json({
-      success: true,
-      message: `Event "${event.title}" has been cancelled`,
-      eventId: parseInt(eventId),
-      notified_attendees: attendees.length,
-    });
-  } catch (error) {
-    console.error("Error cancelling event:", error);
-    res.status(500).json({ error: "Failed to cancel event" });
+  try {
+    const summary = await declarePostponement(pool, eventId, userId, "community");
+    return res.json(summary);
+  } catch (err) {
+    if (err.code === "ALREADY_POSTPONED") return res.status(400).json({ error: err.message });
+    if (err.statusCode === 400) return res.status(400).json({ error: err.message });
+    if (err.statusCode === 404) return res.status(404).json({ error: err.message });
+    console.error("[postponeEvent] Unexpected error:", err.message);
+    return res.status(500).json({ error: "Failed to postpone event" });
   }
 };
 
 /**
+ * POST /event-postponement-decisions/:decisionId/opt-out
+ * Member-only. Opts out of a postponed event → triggers a full refund.
+ */
+const postponementOptOut = async (req, res) => {
+  const userId   = req.user?.id;
+  const userType = req.user?.type;
+  const { decisionId } = req.params;
+
+  if (!userId || userType !== "member") {
+    return res.status(403).json({ error: "Only members can opt out" });
+  }
+
+  try {
+    const result = await processOptOut(pool, decisionId, userId);
+    return res.json(result);
+  } catch (err) {
+    if (err.statusCode === 403) return res.status(403).json({ error: err.message });
+    if (err.statusCode === 404) return res.status(404).json({ error: err.message });
+    if (err.statusCode === 400) return res.status(400).json({ error: err.message, code: err.code });
+    console.error("[postponementOptOut] Unexpected error:", err.message);
+    return res.status(500).json({ error: "Failed to process opt-out" });
+  }
+};
+
+/**
+ * POST /event-postponement-decisions/:decisionId/keep
+ * Member-only. Explicitly keeps the ticket (no refund). Default is also keep (via cron auto-resolve).
+ */
+const postponementKeep = async (req, res) => {
+  const userId   = req.user?.id;
+  const userType = req.user?.type;
+  const { decisionId } = req.params;
+
+  if (!userId || userType !== "member") {
+    return res.status(403).json({ error: "Only members can confirm a keep" });
+  }
+
+  try {
+    const result = await processKeep(pool, decisionId, userId);
+    return res.json(result);
+  } catch (err) {
+    if (err.statusCode === 403) return res.status(403).json({ error: err.message });
+    if (err.statusCode === 404) return res.status(404).json({ error: err.message });
+    if (err.statusCode === 400) return res.status(400).json({ error: err.message, code: err.code });
+    console.error("[postponementKeep] Unexpected error:", err.message);
+    return res.status(500).json({ error: "Failed to confirm keep" });
+  }
+};
+
+/**
+ * GET /events/:eventId/postponement-decision
+ * Member-only. Returns the current postponement decision for this member's registration.
+ */
+const getMyPostponementDecision = async (req, res) => {
+  const userId   = req.user?.id;
+  const userType = req.user?.type;
+  const { eventId } = req.params;
+
+  if (!userId || userType !== "member") {
+    return res.status(403).json({ error: "Members only" });
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT d.id, d.event_id, d.registration_id, d.postponement_declared_at,
+              d.new_date_set_at, d.opt_out_deadline, d.decision, d.decided_at,
+              e.title AS event_title, e.start_datetime AS new_start_datetime,
+              e.is_postponed, e.postponed_at
+       FROM event_postponement_decisions d
+       JOIN events e ON e.id = d.event_id
+       WHERE d.event_id  = $1
+         AND d.member_id = $2
+       ORDER BY d.postponement_declared_at DESC
+       LIMIT 1`,
+      [eventId, userId],
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({ has_decision: false });
+    }
+
+    const row = result.rows[0];
+    const now = new Date();
+    const deadline = row.opt_out_deadline ? new Date(row.opt_out_deadline) : null;
+    const windowOpen = row.decision === "pending" && deadline && now < deadline;
+
+    return res.json({
+      has_decision:        true,
+      decision_id:         row.id,
+      event_id:            row.event_id,
+      registration_id:     row.registration_id,
+      decision:            row.decision,
+      decided_at:          row.decided_at,
+      postponement_declared_at: row.postponement_declared_at,
+      new_date_set_at:     row.new_date_set_at,
+      opt_out_deadline:    row.opt_out_deadline,
+      new_start_datetime:  row.new_start_datetime,
+      window_open:         windowOpen,
+      window_seconds_remaining: windowOpen
+        ? Math.max(0, Math.floor((deadline - now) / 1000))
+        : 0,
+    });
+  } catch (err) {
+    console.error("[getMyPostponementDecision] Error:", err.message);
+    return res.status(500).json({ error: "Failed to fetch postponement decision" });
+  }
+};
+
+// ─── End postponement handlers ─────────────────────────────────────────────────
+
+
+/**
  * Toggle interest (bookmark) for an event
+
  * POST /events/:eventId/interest
  * Members only - toggles the interest status
  */
@@ -6591,7 +6664,13 @@ module.exports = {
   getEventById,
   deleteEvent,
   cancelEvent,
+  // Postponement
+  postponeEvent,
+  postponementOptOut,
+  postponementKeep,
+  getMyPostponementDecision,
   toggleEventInterest,
+
   getInterestedEvents,
   registerForEvent,
   cancelRegistration,

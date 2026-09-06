@@ -1909,7 +1909,30 @@ router.patch(
   authMiddleware,
   EventController.cancelEvent,
 );
+// Postponement — organiser side
+router.post(
+  "/events/:eventId/postpone",
+  authMiddleware,
+  EventController.postponeEvent,
+);
+// Postponement — buyer side (member-auth, decisionId in path)
+router.post(
+  "/event-postponement-decisions/:decisionId/opt-out",
+  authMiddleware,
+  EventController.postponementOptOut,
+);
+router.post(
+  "/event-postponement-decisions/:decisionId/keep",
+  authMiddleware,
+  EventController.postponementKeep,
+);
+router.get(
+  "/events/:eventId/postponement-decision",
+  authMiddleware,
+  EventController.getMyPostponementDecision,
+);
 // Attendance confirmation
+
 router.post(
   "/events/:eventId/confirm-attendance",
   authMiddleware,

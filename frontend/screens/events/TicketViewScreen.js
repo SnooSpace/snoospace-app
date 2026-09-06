@@ -35,7 +35,10 @@ import {
 } from "lucide-react-native";
 import QRCode from "react-native-qrcode-svg";
 import { LinearGradient } from "expo-linear-gradient";
-import { getMyTicket, submitRefundRequest, getRefundRequests } from "../../api/events";
+import {
+  getMyTicket, submitRefundRequest, getRefundRequests,
+  getPostponementDecision, submitPostponementOptOut, submitPostponementKeep,
+} from "../../api/events";
 import { useLocationName } from "../../utils/locationNameCache";
 import SnooLoader from "../../components/ui/SnooLoader";
 import { COLORS, BORDER_RADIUS, SHADOWS, FONTS } from "../../constants/theme";
@@ -65,6 +68,11 @@ export default function TicketViewScreen({ route, navigation }) {
   const [refundReason, setRefundReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // Postponement state
+  const [postponementDecision, setPostponementDecision] = useState(null); // null = not loaded yet
+  const [postponeSubmitting, setPostponeSubmitting] = useState(false);
+  const [countdown, setCountdown] = useState(0); // seconds remaining in opt-out window
+
   // Resolve location name with fallback
   const rawLocationName = useLocationName(ticket?.locationUrl, {
     fallback: ticket?.eventType === "virtual" ? "Virtual Event" : "Location TBD",
@@ -89,6 +97,8 @@ export default function TicketViewScreen({ route, navigation }) {
         setTicket(response.ticket);
         // Load refund request statuses
         loadRefundRequests(response.ticket.registrationId);
+        // Load postponement decision (non-fatal if event not postponed)
+        loadPostponementDecision();
       } else if (response?.error) {
         setError(response.error);
       }
@@ -113,6 +123,44 @@ export default function TicketViewScreen({ route, navigation }) {
       setRefundLoading(false);
     }
   };
+
+  const loadPostponementDecision = async () => {
+    if (!eventId) return;
+    try {
+      const res = await getPostponementDecision(eventId);
+      if (res?.has_decision) {
+        setPostponementDecision(res);
+        if (res.window_open && res.window_seconds_remaining > 0) {
+          setCountdown(res.window_seconds_remaining);
+        }
+      }
+    } catch (e) {
+      // Non-fatal — postponement banner just won't show
+      console.warn("Could not load postponement decision:", e.message);
+    }
+  };
+
+  // Live countdown ticker — updates every second while window is open
+  useEffect(() => {
+    if (countdown <= 0) return;
+    const timer = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) { clearInterval(timer); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [countdown]);
+
+  const formatCountdown = (secs) => {
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = secs % 60;
+    if (h > 0) return `${h}h ${m}m remaining`;
+    if (m > 0) return `${m}m ${s}s remaining`;
+    return `${s}s remaining`;
+  };
+
 
   // Returns the refund_request row for a given ticket_type_id, or null
   const getRequestForTier = useCallback(
@@ -522,7 +570,159 @@ export default function TicketViewScreen({ route, navigation }) {
           )}
         </View>
 
+        {/* ── POSTPONEMENT BANNER ── */}
+        {/* Shown when buyer has a pending decision on a postponed event */}
+        {postponementDecision?.has_decision && (
+          <View style={[styles.detailsCard, {
+            borderLeftWidth: 4,
+            borderLeftColor:
+              postponementDecision.decision === 'opted_out_refund'  ? SUCCESS_COLOR :
+              postponementDecision.decision === 'kept_ticket'        ? SUCCESS_COLOR :
+              postponementDecision.decision === 'auto_kept_no_response' ? MUTED_TEXT :
+              postponementDecision.decision === 'auto_refunded_indefinite_cap' ? PRIMARY_COLOR :
+              WARNING_COLOR,
+          }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+              <AlertCircle size={18} color={WARNING_COLOR} />
+              <Text style={[styles.sectionTitle, { marginLeft: 6, marginBottom: 0 }]}>
+                Event Postponed
+              </Text>
+            </View>
+
+            {/* Pending — window open */}
+            {postponementDecision.decision === 'pending' && postponementDecision.window_open && (
+              <>
+                <Text style={styles.detailText}>
+                  This event has been postponed to a new date. You have until the deadline
+                  below to request a full refund if you can no longer attend. No action
+                  means your ticket is automatically kept.
+                </Text>
+
+                {postponementDecision.new_start_datetime && (
+                  <View style={{ marginTop: 10, padding: 10, backgroundColor: '#EFF6FF', borderRadius: 10 }}>
+                    <Text style={[styles.labelText, { color: PRIMARY_COLOR }]}>New Date</Text>
+                    <Text style={[styles.valueText, { fontWeight: '700' }]}>
+                      {formatDate(postponementDecision.new_start_datetime)} · {formatTime(postponementDecision.new_start_datetime)}
+                    </Text>
+                  </View>
+                )}
+
+                {countdown > 0 && (
+                  <View style={{ marginTop: 8, padding: 10, backgroundColor: '#FFFBEB', borderRadius: 10, flexDirection: 'row', alignItems: 'center' }}>
+                    <Clock size={14} color={WARNING_COLOR} />
+                    <Text style={{ marginLeft: 6, color: WARNING_COLOR, fontWeight: '600', fontSize: 13 }}>
+                      {formatCountdown(countdown)}
+                    </Text>
+                  </View>
+                )}
+
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+                  <TouchableOpacity
+                    id="postpone-keep-btn"
+                    style={[styles.refundBtn, { flex: 1, backgroundColor: '#F0FDF4', borderColor: SUCCESS_COLOR }]}
+                    disabled={postponeSubmitting}
+                    onPress={async () => {
+                      Alert.alert(
+                        "Keep My Ticket",
+                        "You'll keep your ticket for the rescheduled event. No refund will be issued.",
+                        [
+                          { text: "Cancel", style: "cancel" },
+                          { text: "Confirm", onPress: async () => {
+                            setPostponeSubmitting(true);
+                            try {
+                              await submitPostponementKeep(postponementDecision.decision_id);
+                              await loadPostponementDecision();
+                            } catch (e) {
+                              Alert.alert("Error", e.message || "Could not confirm keep");
+                            } finally { setPostponeSubmitting(false); }
+                          }},
+                        ]
+                      );
+                    }}
+                  >
+                    <Text style={[styles.refundBtnText, { color: SUCCESS_COLOR }]}>Keep My Ticket</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    id="postpone-refund-btn"
+                    style={[styles.refundBtn, { flex: 1, backgroundColor: '#FEF2F2', borderColor: ERROR_COLOR }]}
+                    disabled={postponeSubmitting}
+                    onPress={async () => {
+                      Alert.alert(
+                        "Request Full Refund",
+                        `You'll receive a full refund of your ticket price. This cannot be undone once submitted.`,
+                        [
+                          { text: "Cancel", style: "cancel" },
+                          { text: "Request Refund", style: "destructive", onPress: async () => {
+                            setPostponeSubmitting(true);
+                            try {
+                              await submitPostponementOptOut(postponementDecision.decision_id);
+                              await loadPostponementDecision();
+                            } catch (e) {
+                              Alert.alert("Error", e.message || "Could not process refund request");
+                            } finally { setPostponeSubmitting(false); }
+                          }},
+                        ]
+                      );
+                    }}
+                  >
+                    <Text style={[styles.refundBtnText, { color: ERROR_COLOR }]}>Request Refund Instead</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+
+            {/* Pending — window not yet open (no new date set) */}
+            {postponementDecision.decision === 'pending' && !postponementDecision.window_open && !postponementDecision.new_date_set_at && (
+              <Text style={styles.detailText}>
+                The organiser has postponed this event. A new date will be announced soon.
+                Once the new date is confirmed, you'll have 72 hours to decide whether to
+                keep your ticket or request a full refund.
+              </Text>
+            )}
+
+            {/* Resolved states */}
+            {postponementDecision.decision === 'opted_out_refund' && (
+              <View style={{ backgroundColor: '#F0FDF4', padding: 10, borderRadius: 10 }}>
+                <Text style={{ color: SUCCESS_COLOR, fontWeight: '600', fontSize: 13 }}>
+                  ✓ Refund Requested
+                </Text>
+                <Text style={[styles.detailText, { marginTop: 4 }]}>
+                  Your full refund is being processed. You'll receive it within 5–7 business days.
+                </Text>
+              </View>
+            )}
+
+            {(postponementDecision.decision === 'kept_ticket' ||
+              postponementDecision.decision === 'auto_kept_no_response') && (
+              <View style={{ backgroundColor: '#F0FDF4', padding: 10, borderRadius: 10 }}>
+                <Text style={{ color: SUCCESS_COLOR, fontWeight: '600', fontSize: 13 }}>
+                  ✓ Ticket Kept
+                </Text>
+                <Text style={[styles.detailText, { marginTop: 4 }]}>
+                  {postponementDecision.decision === 'auto_kept_no_response'
+                    ? 'The opt-out window closed with no action — your ticket has been automatically kept.'
+                    : 'You confirmed you\'re keeping your ticket for the rescheduled event.'}
+                </Text>
+              </View>
+            )}
+
+            {postponementDecision.decision === 'auto_refunded_indefinite_cap' && (
+              <View style={{ backgroundColor: '#EFF6FF', padding: 10, borderRadius: 10 }}>
+                <Text style={{ color: PRIMARY_COLOR, fontWeight: '600', fontSize: 13 }}>
+                  ✓ Auto-Refunded
+                </Text>
+                <Text style={[styles.detailText, { marginTop: 4 }]}>
+                  No new date was set within 30 days of postponement. A full refund has been
+                  automatically processed to your original payment method.
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
         {/* ── REFUND SECTION ── */}
+
         {/* Only shown if registration is active and at least one tier is refundable */}
         {!isInvalid && refundableTiers.length > 0 && (
           <View style={styles.detailsCard}>

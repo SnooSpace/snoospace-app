@@ -441,3 +441,40 @@ export async function getRefundRequests(registrationId) {
   const token = await (await import("./auth")).getAuthToken();
   return apiGet(`/registrations/${registrationId}/refund-request`, 10000, token);
 }
+
+// ─── Postponement decision API ─────────────────────────────────────────────────
+
+/**
+ * Fetch the current postponement decision for the authenticated member on this event.
+ * Returns { has_decision: false } if none exists.
+ */
+export async function getPostponementDecision(eventId) {
+  const token = await (await import("./auth")).getAuthToken();
+  return apiGet(`/events/${eventId}/postponement-decision`, 10000, token);
+}
+
+/**
+ * Opt out of a postponed event and request a full refund.
+ * Must be called while decision='pending' and within the 72h window.
+ */
+export async function submitPostponementOptOut(decisionId) {
+  const token = await (await import("./auth")).getAuthToken();
+  return apiPost(
+    `/event-postponement-decisions/${decisionId}/opt-out`,
+    {},
+    token,
+  );
+}
+
+/**
+ * Explicitly confirm keeping the ticket on a postponed event.
+ * This is optional — the ticket is auto-kept if no action is taken before the deadline.
+ */
+export async function submitPostponementKeep(decisionId) {
+  const token = await (await import("./auth")).getAuthToken();
+  return apiPost(
+    `/event-postponement-decisions/${decisionId}/keep`,
+    {},
+    token,
+  );
+}

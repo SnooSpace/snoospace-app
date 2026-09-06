@@ -1,6 +1,7 @@
 const { createPool } = require("../config/db");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const { cancelEventWithRefunds } = require("../services/eventCancellationService");
 
 const pool = createPool();
 
@@ -2583,28 +2584,24 @@ const deleteEventAdmin = async (req, res) => {
  * Cancel an event (soft cancel - sets is_cancelled flag)
  */
 const cancelEventAdmin = async (req, res) => {
+  const { eventId } = req.params;
+
+  // NOTE: Admin cancel has no ownership restriction — any admin can cancel any event.
+  // Server-side guard: already-cancelled check is inside cancelEventWithRefunds.
+  // Admin UI confirmation dialog is recommended (flagged for follow-up; not yet
+  // implemented in the admin panel's cancel action).
   try {
-    const { eventId } = req.params;
-
-    const result = await pool.query(
-      `UPDATE events SET is_cancelled = true, updated_at = NOW() 
-       WHERE id = $1 
-       RETURNING id, title, is_cancelled`,
-      [eventId],
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Event not found" });
+    const summary = await cancelEventWithRefunds(pool, eventId, req.admin.id, 'admin');
+    return res.json(summary);
+  } catch (err) {
+    if (err.statusCode === 400 && err.code === 'ALREADY_CANCELLED') {
+      return res.status(400).json({ error: err.message });
     }
-
-    res.json({
-      success: true,
-      message: `Event "${result.rows[0].title}" has been cancelled`,
-      event: result.rows[0],
-    });
-  } catch (error) {
-    console.error("Error cancelling event:", error);
-    res.status(500).json({ error: "Failed to cancel event" });
+    if (err.statusCode === 404) {
+      return res.status(404).json({ error: err.message });
+    }
+    console.error('[cancelEventAdmin] Unexpected error:', err.message);
+    return res.status(500).json({ error: 'Failed to cancel event' });
   }
 };
 

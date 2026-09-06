@@ -1444,7 +1444,74 @@ async function ensureTables(pool) {
       CREATE INDEX IF NOT EXISTS idx_curated_list_events_list ON curated_list_events(curated_list_id, display_order);
       CREATE INDEX IF NOT EXISTS idx_curated_list_events_event ON curated_list_events(event_id);
 
+
+      -- ── Migration 085: Cancellation Auto-Refund Infrastructure ─────────────
+      -- events.payout_hold: when true, the payout cron skips this event.
+      -- Populated automatically by cancelEventWithRefunds on cancellation.
+      DO $$ BEGIN
+        ALTER TABLE events ADD COLUMN IF NOT EXISTS payout_hold BOOLEAN NOT NULL DEFAULT false;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+
+      -- refund_requests.trigger_source: 'buyer' | 'system_cancellation'
+      DO $$ BEGIN
+        ALTER TABLE refund_requests ADD COLUMN IF NOT EXISTS trigger_source VARCHAR(50) NOT NULL DEFAULT 'buyer';
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+
+      -- Partial unique index: one active refund_request per registration.
+      -- 'rejected' requests are excluded so a new request can supersede them.
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_refund_requests_registration_active
+        ON refund_requests (registration_id)
+        WHERE status NOT IN ('rejected');
+
+      -- Support index for cron's payout_hold filter
+      CREATE INDEX IF NOT EXISTS idx_events_payout_hold
+        ON events (payout_hold) WHERE payout_hold = true;
+
+      CREATE INDEX IF NOT EXISTS idx_events_is_cancelled
+        ON events (is_cancelled) WHERE is_cancelled = true;
+      -- ── End Migration 085 ──────────────────────────────────────────────────
+
+      -- ── Migration 086: Event Postponement System ───────────────────────────
+      DO $$ BEGIN
+        ALTER TABLE events ADD COLUMN IF NOT EXISTS is_postponed BOOLEAN NOT NULL DEFAULT false;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE events ADD COLUMN IF NOT EXISTS postponed_at TIMESTAMPTZ;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE events ADD COLUMN IF NOT EXISTS original_start_datetime TIMESTAMPTZ;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+
+      CREATE TABLE IF NOT EXISTS event_postponement_decisions (
+        id                       BIGSERIAL PRIMARY KEY,
+        event_id                 BIGINT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+        registration_id          BIGINT NOT NULL REFERENCES event_registrations(id) ON DELETE CASCADE,
+        member_id                BIGINT NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+        postponement_declared_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        new_date_set_at          TIMESTAMPTZ,
+        opt_out_deadline         TIMESTAMPTZ,
+        decision                 VARCHAR(40) NOT NULL DEFAULT 'pending'
+          CHECK (decision IN (
+            'pending','opted_out_refund','kept_ticket',
+            'auto_kept_no_response','auto_refunded_indefinite_cap'
+          )),
+        decided_at               TIMESTAMPTZ,
+        created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (event_id, registration_id, postponement_declared_at)
+      );
+      CREATE INDEX IF NOT EXISTS idx_epd_event    ON event_postponement_decisions(event_id);
+      CREATE INDEX IF NOT EXISTS idx_epd_member   ON event_postponement_decisions(member_id);
+      CREATE INDEX IF NOT EXISTS idx_epd_decision ON event_postponement_decisions(decision);
+      CREATE INDEX IF NOT EXISTS idx_epd_deadline ON event_postponement_decisions(opt_out_deadline)
+        WHERE decision = 'pending' AND opt_out_deadline IS NOT NULL;
+      CREATE INDEX IF NOT EXISTS idx_epd_no_date  ON event_postponement_decisions(postponement_declared_at)
+        WHERE decision = 'pending' AND new_date_set_at IS NULL;
+      CREATE INDEX IF NOT EXISTS idx_events_is_postponed ON events(is_postponed) WHERE is_postponed = true;
+      -- ── End Migration 086 ──────────────────────────────────────────────────
+
       -- Resynchronize table primary key sequences with MAX(id)
+
+
       DO $$
       DECLARE
         r RECORD;

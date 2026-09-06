@@ -17,7 +17,7 @@
  */
 
 const { createPool } = require("../config/db");
-const razorpay = require("../utils/razorpayClient");
+const { executeRazorpayRefund } = require("../utils/razorpayRefundExecutor");
 const { computeEventPayout } = require("../jobs/computeEventPayout");
 
 const pool = createPool();
@@ -471,19 +471,14 @@ const approveRefundRequest = async (req, res) => {
 
     const payment = paymentResult.rows[0];
 
-    // requested_amount is stored in rupees — Razorpay expects paise
-    const amountPaise = Math.round(rq.requested_amount * 100);
-
-    // Call Razorpay refund API (test-mode or live, per RAZORPAY_KEY_ID)
-    const razorpayRefund = await razorpay.payments.refund(
+    // Delegate to shared executor (rupees → paise conversion inside)
+    const razorpayRefund = await executeRazorpayRefund(
       payment.razorpay_payment_id,
+      rq.requested_amount,
       {
-        amount: amountPaise,
-        notes: {
-          refund_request_id: String(rq.id),
-          approved_by_admin: String(req.admin.id),
-          reason: rq.reason || "Admin approved refund",
-        },
+        refund_request_id: String(rq.id),
+        approved_by_admin: String(req.admin.id),
+        reason: rq.reason || "Admin approved refund",
       },
     );
 

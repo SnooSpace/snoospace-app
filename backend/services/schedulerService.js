@@ -21,6 +21,10 @@ const {
   resolvePostEventAttendance,
   analysePostEventEcho,
 } = require("../utils/postEventAttendanceResolver");
+const {
+  runPostponementWindowExpiry,
+  runIndefinitePostponementCap,
+} = require("./eventPostponementService");
 
 let pool = null;
 
@@ -280,6 +284,21 @@ const init = (dbPool) => {
   // ON CONFLICT DO NOTHING on event_id makes this idempotent.
   cron.schedule("45 * * * *", async () => {
     await runPayoutLedgerJob();
+  });
+
+  // ── Hourly at :30 — expire 72h postponement opt-out windows ──────────────
+  // Finds pending decisions whose opt_out_deadline has passed.
+  // Sets decision = 'auto_kept_no_response'. Releases payout_hold if all resolved.
+  cron.schedule("30 * * * *", async () => {
+    await runPostponementWindowExpiry(pool);
+  });
+
+  // ── Daily at 6am — 30-day indefinite postponement cap ─────────────────────
+  // Finds postponed events where no new date was ever set after 30 days.
+  // Auto-refunds all still-pending buyers. Releases payout_hold.
+  cron.schedule("0 6 * * *", async () => {
+    if (!pool) return;
+    await runIndefinitePostponementCap(pool);
   });
 
   console.log("[Scheduler] Scheduler service initialized");
@@ -628,6 +647,8 @@ const runPayoutLedgerJob = async () => {
   if (!pool) return;
   try {
     // Find all events that crossed the 48h threshold with no payout row yet.
+    // AND NOT e.payout_hold: cancelled events (and future postponed events) set
+    // payout_hold=true to prevent ledger computation on invalidated events.
     const eligible = await pool.query(`
       SELECT e.id AS event_id, e.end_datetime
       FROM events e
@@ -635,9 +656,11 @@ const runPayoutLedgerJob = async () => {
         AND NOT EXISTS (
           SELECT 1 FROM event_payouts ep WHERE ep.event_id = e.id
         )
+        AND NOT e.payout_hold
       ORDER BY e.end_datetime ASC
       LIMIT 50
     `);
+
 
     if (eligible.rows.length === 0) return;
 
@@ -697,5 +720,7 @@ module.exports = {
   triggerReminderCheck,
   sendAttendanceConfirmations,
   cleanupExpiredReservations,
-  runPayoutLedgerJob, // exported for manual invocation in tests/scripts
+  runPayoutLedgerJob,           // exported for manual invocation in tests/scripts
+  runPostponementWindowExpiry,  // exported for tests
+  runIndefinitePostponementCap, // exported for tests
 };
