@@ -1,9 +1,21 @@
-﻿/**
+/**
  * TicketViewScreen - Display user's event ticket with QR code
- * Shows: QR code for entry, event details, ticket breakdown
+ * Shows: QR code for entry, event details, ticket breakdown, per-tier refund request
  */
-import React, { useState, useEffect } from "react";
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Linking, Alert, Image } from "react-native";
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  StyleSheet,
+  Linking,
+  Alert,
+  Image,
+  TextInput,
+  Modal,
+  ActivityIndicator,
+} from "react-native";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -16,10 +28,14 @@ import {
   Clock,
   AlertCircle,
   TriangleAlert,
+  RotateCcw,
+  ChevronDown,
+  ChevronUp,
+  X,
 } from "lucide-react-native";
 import QRCode from "react-native-qrcode-svg";
 import { LinearGradient } from "expo-linear-gradient";
-import { getMyTicket } from "../../api/events";
+import { getMyTicket, submitRefundRequest, getRefundRequests } from "../../api/events";
 import { useLocationName } from "../../utils/locationNameCache";
 import SnooLoader from "../../components/ui/SnooLoader";
 import { COLORS, BORDER_RADIUS, SHADOWS, FONTS } from "../../constants/theme";
@@ -40,6 +56,14 @@ export default function TicketViewScreen({ route, navigation }) {
   const [ticket, setTicket] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Refund state
+  const [refundRequests, setRefundRequests] = useState([]); // array, keyed by ticket_type_id
+  const [refundLoading, setRefundLoading] = useState(false);
+  const [showRefundSheet, setShowRefundSheet] = useState(false);
+  const [selectedTier, setSelectedTier] = useState(null); // { ticketTypeId, name, totalPrice, refundPolicy }
+  const [refundReason, setRefundReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   // Resolve location name with fallback
   const rawLocationName = useLocationName(ticket?.locationUrl, {
@@ -63,6 +87,8 @@ export default function TicketViewScreen({ route, navigation }) {
       const response = await getMyTicket(eventId);
       if (response?.ticket) {
         setTicket(response.ticket);
+        // Load refund request statuses
+        loadRefundRequests(response.ticket.registrationId);
       } else if (response?.error) {
         setError(response.error);
       }
@@ -73,6 +99,27 @@ export default function TicketViewScreen({ route, navigation }) {
       setLoading(false);
     }
   };
+
+  const loadRefundRequests = async (registrationId) => {
+    if (!registrationId) return;
+    try {
+      setRefundLoading(true);
+      const res = await getRefundRequests(registrationId);
+      if (res?.requests) setRefundRequests(res.requests);
+    } catch (e) {
+      // Non-fatal — refund UI just won't show status
+      console.warn("Could not load refund requests:", e.message);
+    } finally {
+      setRefundLoading(false);
+    }
+  };
+
+  // Returns the refund_request row for a given ticket_type_id, or null
+  const getRequestForTier = useCallback(
+    (ticketTypeId) =>
+      refundRequests.find((r) => r.ticket_type_id === ticketTypeId) || null,
+    [refundRequests],
+  );
 
   const formatDate = (dateString) => {
     if (!dateString) return "";
@@ -124,12 +171,12 @@ export default function TicketViewScreen({ route, navigation }) {
   const getStatusBgColor = (status) => {
     switch (status) {
       case "registered":
-        return "#E8F5E9"; // Soft green
+        return "#E8F5E9";
       case "attended":
-        return "#E0F2FE"; // Soft blue
+        return "#E0F2FE";
       case "cancelled":
       case "revoked":
-        return "#FEE2E2"; // Soft red
+        return "#FEE2E2";
       default:
         return "#F3F4F6";
     }
@@ -147,6 +194,55 @@ export default function TicketViewScreen({ route, navigation }) {
         return "Revoked";
       default:
         return status;
+    }
+  };
+
+  // Buyer-facing refund request status label — intentionally neutral,
+  // does NOT expose auto_approved vs manual_review distinction to buyer.
+  const getRefundStatusDisplay = (req) => {
+    if (!req) return null;
+    switch (req.status) {
+      case "auto_approved":
+      case "manual_review":
+      case "pending_review":
+        return { label: "Refund Requested — pending review", color: WARNING_COLOR, bg: "#FFFBEB" };
+      case "approved":
+        return { label: "Refund Approved — processing", color: SUCCESS_COLOR, bg: "#ECFDF5" };
+      case "rejected":
+        return { label: "Refund Request Rejected", color: ERROR_COLOR, bg: "#FEF2F2" };
+      case "completed":
+        return { label: "Refund Completed ✓", color: SUCCESS_COLOR, bg: "#ECFDF5" };
+      default:
+        return { label: req.status, color: MUTED_TEXT, bg: "#F3F4F6" };
+    }
+  };
+
+  const handleOpenRefundSheet = (tier) => {
+    setSelectedTier(tier);
+    setRefundReason("");
+    setShowRefundSheet(true);
+  };
+
+  const handleSubmitRefund = async () => {
+    if (!selectedTier || !ticket?.registrationId) return;
+    try {
+      setSubmitting(true);
+      const res = await submitRefundRequest(
+        ticket.registrationId,
+        selectedTier.ticketTypeId,
+        refundReason.trim() || undefined,
+      );
+      if (res?.success) {
+        setShowRefundSheet(false);
+        // Refresh refund statuses
+        await loadRefundRequests(ticket.registrationId);
+      } else {
+        Alert.alert("Error", res?.error || "Failed to submit refund request");
+      }
+    } catch (e) {
+      Alert.alert("Error", e.message || "Failed to submit refund request");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -206,6 +302,17 @@ export default function TicketViewScreen({ route, navigation }) {
   const isRevoked = ticket?.status === "revoked";
   const isInvalid = isCancelled || isRevoked;
   const isPast = new Date(ticket?.eventDate) < new Date();
+
+  // Compute refundable tiers: only show refund UI for tickets where refund is allowed
+  // and registration is still active (not cancelled/revoked).
+  const refundableTiers = (!isInvalid && ticket?.tickets || []).filter(
+    (t) => t.refundPolicy?.allowed === true,
+  );
+
+  // Computed refund amount preview for the sheet
+  const refundPreviewAmount = selectedTier
+    ? (selectedTier.totalPrice * ((selectedTier.refundPolicy?.percentage ?? 100) / 100))
+    : 0;
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -277,7 +384,7 @@ export default function TicketViewScreen({ route, navigation }) {
             <Text style={styles.eventTitle} numberOfLines={2}>
               {ticket?.eventTitle}
             </Text>
-            
+
             {/* Organizer/Community Row */}
             <View style={styles.communityRow}>
               {ticket?.communityLogo && /^https?:\/\//.test(ticket.communityLogo) ? (
@@ -415,6 +522,66 @@ export default function TicketViewScreen({ route, navigation }) {
           )}
         </View>
 
+        {/* ── REFUND SECTION ── */}
+        {/* Only shown if registration is active and at least one tier is refundable */}
+        {!isInvalid && refundableTiers.length > 0 && (
+          <View style={styles.detailsCard}>
+            <Text style={styles.sectionTitle}>Refund</Text>
+
+            {refundableTiers.map((tier, idx) => {
+              const req = getRequestForTier(tier.ticketTypeId);
+              const statusDisplay = getRefundStatusDisplay(req);
+              const policy = tier.refundPolicy;
+              const tierRefundAmount = tier.totalPrice * (policy.percentage / 100);
+
+              return (
+                <View key={idx} style={[styles.bookingRow, { flexDirection: 'column', alignItems: 'flex-start', gap: 8, paddingVertical: 12 }]}>
+                  <Text style={styles.ticketName}>{tier.quantity}× {tier.name}</Text>
+
+                  {/* Policy summary */}
+                  <Text style={{ fontSize: 12, color: MUTED_TEXT, fontFamily: FONTS.semiBold }}>
+                    {policy.percentage}% refund · deadline {policy.deadline_hours_before}h before event
+                    {tierRefundAmount > 0 ? ` · up to ₹${tierRefundAmount.toLocaleString('en-IN')}` : ''}
+                  </Text>
+
+                  {req ? (
+                    /* Already has an active request — show status pill */
+                    <View style={[styles.statusPill, { backgroundColor: statusDisplay.bg, alignSelf: 'flex-start' }]}>
+                      <Text style={[styles.statusValue, { color: statusDisplay.color }]}>
+                        {statusDisplay.label}
+                      </Text>
+                    </View>
+                  ) : (
+                    /* No existing request — show Request button */
+                    !isPast && (
+                      <TouchableOpacity
+                        style={styles.refundBtn}
+                        onPress={() => handleOpenRefundSheet({
+                          ticketTypeId: tier.ticketTypeId,
+                          name: tier.name,
+                          totalPrice: tier.totalPrice,
+                          refundPolicy: policy,
+                        })}
+                        activeOpacity={0.8}
+                      >
+                        <RotateCcw size={14} color={PRIMARY_COLOR} strokeWidth={2} />
+                        <Text style={styles.refundBtnText}>Request Refund</Text>
+                      </TouchableOpacity>
+                    )
+                  )}
+
+                  {/* If rejected, show rejection reason if available */}
+                  {req?.status === 'rejected' && req?.rejection_reason && (
+                    <Text style={{ fontSize: 12, color: ERROR_COLOR, fontFamily: FONTS.semiBold }}>
+                      Reason: {req.rejection_reason}
+                    </Text>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        )}
+
         {/* Past Event Notice */}
         {isPast && !isCancelled && (
           <View style={styles.noticeCard}>
@@ -425,9 +592,79 @@ export default function TicketViewScreen({ route, navigation }) {
           </View>
         )}
 
-        {/* Bottom spacing to prevent content being covered by bottom navigation */}
+        {/* Bottom spacing */}
         <View style={{ height: 80 + insets.bottom }} />
       </ScrollView>
+
+      {/* ── REFUND REQUEST BOTTOM SHEET ── */}
+      <Modal
+        visible={showRefundSheet}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowRefundSheet(false)}
+      >
+        <View style={styles.sheetOverlay}>
+          <TouchableOpacity style={styles.sheetDismiss} onPress={() => setShowRefundSheet(false)} activeOpacity={1} />
+          <View style={[styles.sheetContainer, { paddingBottom: Math.max(insets.bottom, 24) }]}>
+            {/* Sheet Header */}
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Request Refund</Text>
+              <TouchableOpacity onPress={() => setShowRefundSheet(false)} activeOpacity={0.7}>
+                <X size={22} color={MUTED_TEXT} strokeWidth={2} />
+              </TouchableOpacity>
+            </View>
+
+            {selectedTier && (
+              <>
+                {/* Policy terms */}
+                <View style={styles.sheetPolicyBox}>
+                  <Text style={styles.sheetPolicyTitle}>{selectedTier.name}</Text>
+                  <Text style={styles.sheetPolicyLine}>
+                    Refund: {selectedTier.refundPolicy.percentage}% of ₹{selectedTier.totalPrice.toLocaleString('en-IN')}
+                  </Text>
+                  <Text style={[styles.sheetPolicyLine, { color: PRIMARY_COLOR, fontFamily: FONTS.semiBold }]}>
+                    You will receive: ₹{refundPreviewAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                  </Text>
+                  <Text style={styles.sheetPolicyLine}>
+                    Deadline: {selectedTier.refundPolicy.deadline_hours_before}h before event
+                  </Text>
+                  <Text style={[styles.sheetPolicyLine, { fontSize: 11, marginTop: 4 }]}>
+                    Platform fee is not included in the refund. Final approval is at organiser discretion.
+                  </Text>
+                </View>
+
+                {/* Reason input */}
+                <Text style={[styles.bookingLabel, { marginBottom: 6, marginTop: 16 }]}>
+                  Reason (optional)
+                </Text>
+                <TextInput
+                  style={styles.reasonInput}
+                  value={refundReason}
+                  onChangeText={setRefundReason}
+                  placeholder="Tell us why you'd like a refund…"
+                  placeholderTextColor="#94A3B8"
+                  multiline
+                  maxLength={300}
+                />
+
+                {/* Submit */}
+                <TouchableOpacity
+                  style={[styles.sheetSubmitBtn, submitting && { opacity: 0.6 }]}
+                  onPress={handleSubmitRefund}
+                  disabled={submitting}
+                  activeOpacity={0.85}
+                >
+                  {submitting ? (
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                  ) : (
+                    <Text style={styles.sheetSubmitBtnText}>Submit Refund Request</Text>
+                  )}
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -770,5 +1007,92 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#EF4444",
     fontFamily: FONTS.semiBold,
+  },
+  // Refund UI
+  refundBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: PRIMARY_COLOR,
+    alignSelf: "flex-start",
+  },
+  refundBtnText: {
+    fontSize: 13,
+    fontFamily: FONTS.semiBold,
+    color: PRIMARY_COLOR,
+  },
+  // Refund Sheet
+  sheetOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "flex-end",
+  },
+  sheetDismiss: {
+    flex: 1,
+  },
+  sheetContainer: {
+    backgroundColor: CARD_BACKGROUND,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+  },
+  sheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  sheetTitle: {
+    fontSize: 18,
+    fontFamily: FONTS.primary,
+    color: TEXT_COLOR,
+  },
+  sheetPolicyBox: {
+    backgroundColor: "#F8FAFF",
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#E0E8FF",
+    gap: 4,
+  },
+  sheetPolicyTitle: {
+    fontSize: 15,
+    fontFamily: FONTS.semiBold,
+    color: TEXT_COLOR,
+    marginBottom: 4,
+  },
+  sheetPolicyLine: {
+    fontSize: 13,
+    fontFamily: FONTS.semiBold,
+    color: MUTED_TEXT,
+  },
+  reasonInput: {
+    borderWidth: 1.5,
+    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    padding: 12,
+    minHeight: 80,
+    fontSize: 14,
+    fontFamily: FONTS.semiBold,
+    color: TEXT_COLOR,
+    textAlignVertical: "top",
+    marginBottom: 16,
+  },
+  sheetSubmitBtn: {
+    backgroundColor: PRIMARY_COLOR,
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sheetSubmitBtnText: {
+    fontSize: 15,
+    fontFamily: FONTS.semiBold,
+    color: "#FFFFFF",
   },
 });

@@ -75,6 +75,23 @@ const createEvent = async (req, res) => {
         .json({ error: "Title and event date are required" });
     }
 
+    // end_datetime is required — cannot be null, empty, or omitted.
+    // The frontend must send a real end time; we no longer silently copy start_datetime.
+    if (!end_datetime) {
+      return res
+        .status(400)
+        .json({ error: "End date and time are required" });
+    }
+
+    // Sanity check: end must be strictly after start
+    const resolvedStart = new Date(start_datetime || event_date);
+    const resolvedEnd   = new Date(end_datetime);
+    if (resolvedEnd <= resolvedStart) {
+      return res
+        .status(400)
+        .json({ error: "End date/time must be after the start date/time" });
+    }
+
     if (event_type === "virtual" && !virtual_link) {
       return res
         .status(400)
@@ -124,7 +141,7 @@ const createEvent = async (req, res) => {
       title,
       description || null,
       start_datetime || event_date,
-      end_datetime || event_date,
+      end_datetime,  // Required — validated above; never falls back to event_date
       resolvedGatesOpenTime,
       location_url || null,
       location_name || null, // New: custom location name
@@ -1825,6 +1842,25 @@ const updateEvent = async (req, res) => {
       return res.status(400).json({ error: "Invalid Google Maps URL" });
     }
 
+    // end_datetime validation for updates:
+    // - If explicitly sent as null/empty string, reject — it cannot be cleared.
+    // - If omitted entirely (undefined), treat as "no change" and skip.
+    // - If provided, must be strictly after start_datetime.
+    if (end_datetime !== undefined) {
+      if (!end_datetime) {
+        return res
+          .status(400)
+          .json({ error: "End date and time are required and cannot be removed" });
+      }
+      const updatedStart = new Date(start_datetime || event_date || existingEvent.start_datetime);
+      const updatedEnd   = new Date(end_datetime);
+      if (updatedEnd <= updatedStart) {
+        return res
+          .status(400)
+          .json({ error: "End date/time must be after the start date/time" });
+      }
+    }
+
     // Track which key fields changed (for notifications)
     const changedFields = [];
 
@@ -1865,8 +1901,8 @@ const updateEvent = async (req, res) => {
     }
     if (end_datetime !== undefined) {
       updates.push(`end_datetime = $${paramIndex++}`);
-      // If end_datetime is null/removed, fall back to start_datetime (same as createEvent behavior)
-      values.push(end_datetime || effectiveStartDateTime);
+      // end_datetime is validated above — it is always a real non-null value at this point.
+      values.push(end_datetime);
     }
     if (location_url !== undefined) {
       updates.push(`location_url = $${paramIndex++}`);
@@ -4172,12 +4208,16 @@ const getMyTicket = async (req, res) => {
 
     const registration = result.rows[0];
 
-    // Get ticket breakdown
+    // Get ticket breakdown — include refund_policy and ticket_type_id so buyer UI
+    // can determine refund eligibility without a second round-trip.
     const ticketsResult = await pool.query(
-      `SELECT ticket_name, quantity, unit_price, total_price
-       FROM registration_tickets
-       WHERE registration_id = $1
-       ORDER BY ticket_name`,
+      `SELECT rt.ticket_name, rt.quantity, rt.unit_price, rt.total_price,
+              rt.ticket_type_id,
+              tt.refund_policy
+       FROM registration_tickets rt
+       LEFT JOIN ticket_types tt ON rt.ticket_type_id = tt.id
+       WHERE rt.registration_id = $1
+       ORDER BY rt.ticket_name`,
       [registration.registration_id],
     );
 
@@ -4214,6 +4254,12 @@ const getMyTicket = async (req, res) => {
           quantity: t.quantity,
           unitPrice: parseFloat(t.unit_price),
           totalPrice: parseFloat(t.total_price),
+          ticketTypeId: t.ticket_type_id,
+          refundPolicy: t.refund_policy || {
+            allowed: true,
+            deadline_hours_before: 24,
+            percentage: 100,
+          },
         })),
       },
     });
@@ -5932,6 +5978,301 @@ const getEventInsights = async (req, res) => {
 
 
 // ===================================================================
+// GET COMMUNITY REVENUE REPORT (Full report screen)
+// GET /communities/revenue-report?period=7d|15d|30d|90d|all
+// ===================================================================
+const getCommunityRevenueReport = async (req, res) => {
+  try {
+    const { getRedis } = require('../services/redisService');
+    const userId   = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || userType !== 'community') {
+      return res.status(403).json({ error: 'Community access required' });
+    }
+
+    const rawPeriod    = req.query.period || '30d';
+    const validPeriods = ['7d', '15d', '30d', '90d', 'all'];
+    const period       = validPeriods.includes(rawPeriod) ? rawPeriod : '30d';
+
+    // ── Cache check ──────────────────────────────────────────────────
+    const cacheKey = `community:${userId}:revenue-report:${period}`;
+    const redis    = getRedis();
+    if (redis) {
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+          const parsed = typeof cached === 'string' ? JSON.parse(cached) : cached;
+          return res.json({ success: true, period, ...parsed, fromCache: true });
+        }
+      } catch { /* cache miss — continue */ }
+    }
+
+    // ── Period → interval mapping (null = all-time) ──────────────────
+    const intervalMap = { '7d': '6 days', '15d': '14 days', '30d': '29 days', '90d': '89 days', 'all': null };
+    const interval    = intervalMap[period];
+    const dateFilter  = interval ? `AND er.created_at >= NOW() - INTERVAL '${interval}'` : '';
+    // Previous period (equal length, immediately before current window)
+    const prevMap = { '7d': '13 days', '15d': '29 days', '30d': '59 days', '90d': '179 days', 'all': null };
+    const prevEnd = intervalMap[period]; // previous period ends where current begins
+
+    // ── 1. Current + Previous Summary ───────────────────────────────
+    const summaryResult = await pool.query(`
+      SELECT
+        COALESCE(SUM(er.total_amount), 0)   AS total_revenue,
+        COUNT(DISTINCT er.id)               AS tickets_sold
+      FROM event_registrations er
+      INNER JOIN events e ON er.event_id = e.id
+      WHERE (e.creator_id = $1 OR e.community_id = $1)
+        AND er.registration_status IN ('registered', 'attended', 'confirmed')
+        ${dateFilter}
+    `, [userId]);
+
+    let prevSummaryResult = null;
+    if (interval) {
+      // Previous period = window of same length ending at start of current window
+      prevSummaryResult = await pool.query(`
+        SELECT
+          COALESCE(SUM(er.total_amount), 0)   AS total_revenue,
+          COUNT(DISTINCT er.id)               AS tickets_sold
+        FROM event_registrations er
+        INNER JOIN events e ON er.event_id = e.id
+        WHERE (e.creator_id = $1 OR e.community_id = $1)
+          AND er.registration_status IN ('registered', 'attended', 'confirmed')
+          AND er.created_at >= NOW() - INTERVAL '${prevMap[period]}'
+          AND er.created_at <  NOW() - INTERVAL '${interval}'
+      `, [userId]);
+    }
+
+    const activeResult = await pool.query(`
+      SELECT COUNT(*) AS active_events_count
+      FROM events e
+      WHERE (e.creator_id = $1 OR e.community_id = $1)
+        AND COALESCE(e.start_datetime, e.event_date) >= NOW()
+        AND (e.is_cancelled = false OR e.is_cancelled IS NULL)
+    `, [userId]);
+
+    const cur  = summaryResult.rows[0];
+    const prev = prevSummaryResult?.rows[0] || null;
+
+    const totalRevenue  = parseFloat(cur.total_revenue) || 0;
+    const ticketsSold   = parseInt(cur.tickets_sold, 10) || 0;
+    const avgPrice      = ticketsSold > 0 ? Math.round(totalRevenue / ticketsSold) : 0;
+    const activeEventsCount = parseInt(activeResult.rows[0].active_events_count, 10) || 0;
+
+    const pctChange = (current, previous) => {
+      if (previous == null || previous === 0) return null;
+      return Math.round(((current - previous) / previous) * 100);
+    };
+
+    const prevRevenue = prev ? (parseFloat(prev.total_revenue) || 0) : null;
+    const prevTickets = prev ? (parseInt(prev.tickets_sold, 10) || 0) : null;
+
+    const summary = {
+      totalRevenue, ticketsSold, avgPrice, activeEventsCount,
+      previousPeriod: prev ? {
+        totalRevenue: prevRevenue,
+        ticketsSold: prevTickets,
+        avgPrice: prevTickets > 0 ? Math.round(prevRevenue / prevTickets) : 0,
+      } : null,
+      revenuePctChange: pctChange(totalRevenue, prevRevenue),
+      ticketsPctChange: pctChange(ticketsSold, prevTickets),
+    };
+
+    // ── 2. Timeseries (full daily series for period) ──────────────────
+    let timeseriesResult;
+    if (!interval) {
+      // "all": monthly for last 12 months
+      timeseriesResult = await pool.query(`
+        WITH months AS (
+          SELECT date_trunc('month', NOW() - (n || ' months')::interval)::date AS day
+          FROM generate_series(0, 11) AS n
+        ),
+        monthly AS (
+          SELECT
+            date_trunc('month', er.created_at)::date AS day,
+            COUNT(er.id)                              AS tickets,
+            COALESCE(SUM(er.total_amount), 0)         AS revenue
+          FROM event_registrations er
+          INNER JOIN events e ON er.event_id = e.id
+          WHERE (e.creator_id = $1 OR e.community_id = $1)
+            AND er.registration_status IN ('registered', 'attended', 'confirmed')
+          GROUP BY date_trunc('month', er.created_at)::date
+        )
+        SELECT m.day, COALESCE(mo.tickets, 0) AS tickets, COALESCE(mo.revenue, 0) AS revenue
+        FROM months m LEFT JOIN monthly mo ON m.day = mo.day
+        ORDER BY m.day ASC
+      `, [userId]);
+    } else {
+      timeseriesResult = await pool.query(`
+        WITH dates AS (
+          SELECT generate_series(
+            CURRENT_DATE - INTERVAL '${interval}',
+            CURRENT_DATE,
+            '1 day'::interval
+          )::date AS day
+        ),
+        daily AS (
+          SELECT
+            DATE(er.created_at) AS day,
+            COUNT(er.id)                       AS tickets,
+            COALESCE(SUM(er.total_amount), 0)  AS revenue
+          FROM event_registrations er
+          INNER JOIN events e ON er.event_id = e.id
+          WHERE (e.creator_id = $1 OR e.community_id = $1)
+            AND er.registration_status IN ('registered', 'attended', 'confirmed')
+            AND er.created_at >= CURRENT_DATE - INTERVAL '${interval}'
+          GROUP BY DATE(er.created_at)
+        )
+        SELECT d.day, COALESCE(dl.tickets, 0) AS tickets, COALESCE(dl.revenue, 0) AS revenue
+        FROM dates d LEFT JOIN daily dl ON d.day = dl.day
+        ORDER BY d.day ASC
+      `, [userId]);
+    }
+
+    const timeseries = timeseriesResult.rows.map(r => ({
+      day:     r.day instanceof Date ? r.day.toISOString().slice(0, 10) : String(r.day),
+      tickets: parseInt(r.tickets, 10),
+      revenue: parseFloat(r.revenue),
+    }));
+
+    // ── 3. Per-event breakdown ────────────────────────────────────────
+    const perEventResult = await pool.query(`
+      SELECT
+        e.id                                              AS event_id,
+        e.title                                           AS event_name,
+        e.max_attendees,
+        COUNT(DISTINCT er.id) FILTER (
+          WHERE er.registration_status IN ('registered','attended','confirmed')
+        )                                                 AS tickets_sold,
+        COALESCE(SUM(er.total_amount) FILTER (
+          WHERE er.registration_status IN ('registered','attended','confirmed')
+        ), 0)                                             AS gross_revenue,
+        COALESCE(SUM(er.discount_amount) FILTER (
+          WHERE er.registration_status IN ('registered','attended','confirmed')
+        ), 0)                                             AS discount_amount,
+        COUNT(DISTINCT er.id) FILTER (
+          WHERE er.registration_status = 'refunded'
+             OR (er.refund_amount IS NOT NULL AND er.refund_amount > 0)
+        )                                                 AS refund_count,
+        COALESCE(SUM(er.refund_amount) FILTER (
+          WHERE er.refund_amount IS NOT NULL AND er.refund_amount > 0
+        ), 0)                                             AS refund_amount,
+        -- Per-event ticket type capacity sum (fallback to max_attendees)
+        (SELECT SUM(tt.total_quantity)
+         FROM ticket_types tt
+         WHERE tt.event_id = e.id AND tt.is_active = true AND tt.total_quantity IS NOT NULL
+        )                                                 AS ticket_type_capacity
+      FROM events e
+      LEFT JOIN event_registrations er ON er.event_id = e.id ${dateFilter.replace('er.created_at', 'er.created_at')}
+      WHERE (e.creator_id = $1 OR e.community_id = $1)
+      GROUP BY e.id, e.title, e.max_attendees
+      ORDER BY gross_revenue DESC NULLS LAST
+    `, [userId]);
+
+    const perEvent = perEventResult.rows.map(r => {
+      const sold        = parseInt(r.tickets_sold, 10)  || 0;
+      const gross       = parseFloat(r.gross_revenue)   || 0;
+      const discount    = parseFloat(r.discount_amount) || 0;
+      const net         = gross - discount;
+      const refundCnt   = parseInt(r.refund_count, 10)  || 0;
+      const refundAmt   = parseFloat(r.refund_amount)   || 0;
+      // Capacity: prefer max_attendees, fall back to sum of ticket_type totals
+      const capacity    = r.max_attendees != null
+        ? parseInt(r.max_attendees, 10)
+        : (r.ticket_type_capacity != null ? parseInt(r.ticket_type_capacity, 10) : null);
+      const sellThrough = (capacity != null && capacity > 0) ? Math.min(100, Math.round((sold / capacity) * 100)) : null;
+      return {
+        eventId: r.event_id, eventName: r.event_name,
+        ticketsSold: sold, grossRevenue: gross, discountAmount: discount, netRevenue: net,
+        refundCount: refundCnt, refundAmount: refundAmt,
+        capacity, sellThroughRate: sellThrough,
+      };
+    });
+
+    // ── 4. Refunds summary ────────────────────────────────────────────
+    const refundsSummary = {
+      count:  perEvent.reduce((s, e) => s + e.refundCount,  0),
+      amount: perEvent.reduce((s, e) => s + e.refundAmount, 0),
+    };
+
+    // ── 5. Discount performance ───────────────────────────────────────
+    const discountResult = await pool.query(`
+      SELECT
+        dc.code, dc.discount_type, dc.discount_value,
+        COUNT(er.id)                          AS times_used,
+        COALESCE(SUM(er.discount_amount), 0)  AS total_saved
+      FROM event_registrations er
+      INNER JOIN events e ON er.event_id = e.id
+      INNER JOIN discount_codes dc
+        ON UPPER(TRIM(er.promo_code)) = dc.code_normalized
+        AND dc.event_id = er.event_id
+      WHERE (e.creator_id = $1 OR e.community_id = $1)
+        AND er.registration_status IN ('registered','attended','confirmed')
+        AND er.promo_code IS NOT NULL
+        ${dateFilter}
+      GROUP BY dc.id, dc.code, dc.discount_type, dc.discount_value
+      ORDER BY times_used DESC
+      LIMIT 20
+    `, [userId]);
+
+    const discountPerformance = discountResult.rows.map(r => ({
+      code:          r.code,
+      discountType:  r.discount_type,
+      discountValue: parseFloat(r.discount_value),
+      timesUsed:     parseInt(r.times_used, 10),
+      totalSaved:    parseFloat(r.total_saved),
+    }));
+
+    // ── 6. Repeat buyers ─────────────────────────────────────────────
+    const repeatResult = await pool.query(`
+      SELECT COUNT(*) AS repeat_count FROM (
+        SELECT er.member_id
+        FROM event_registrations er
+        INNER JOIN events e ON er.event_id = e.id
+        WHERE (e.creator_id = $1 OR e.community_id = $1)
+          AND er.registration_status IN ('registered','attended','confirmed')
+          ${dateFilter}
+        GROUP BY er.member_id
+        HAVING COUNT(DISTINCT er.event_id) > 1
+      ) sub
+    `, [userId]);
+
+    const repeatBuyers = { count: parseInt(repeatResult.rows[0].repeat_count, 10) || 0 };
+
+    // ── 7. Failed payments ────────────────────────────────────────────
+    const failedResult = await pool.query(`
+      SELECT COUNT(*) AS failed_count
+      FROM razorpay_payments rp
+      INNER JOIN events e ON rp.event_id = e.id
+      WHERE (e.creator_id = $1 OR e.community_id = $1)
+        AND rp.status = 'failed'
+        ${dateFilter.replace('er.created_at', 'rp.created_at')}
+    `, [userId]);
+
+    const failedPayments = { count: parseInt(failedResult.rows[0].failed_count, 10) || 0 };
+
+    // ── Assemble and cache ────────────────────────────────────────────
+    const payload = {
+      summary, timeseries, perEvent, refundsSummary,
+      discountPerformance, repeatBuyers, failedPayments,
+    };
+
+    if (redis) {
+      try {
+        await redis.set(cacheKey, JSON.stringify(payload), { ex: 300 }); // 5-min TTL
+      } catch { /* non-fatal */ }
+    }
+
+    res.json({ success: true, period, ...payload });
+  } catch (error) {
+    console.error('[getCommunityRevenueReport] Error:', error.message, error.stack);
+    res.status(500).json({ success: false, error: 'Failed to fetch revenue report' });
+  }
+};
+
+
+// ===================================================================
 // GET COMMUNITY REVENUE SUMMARY (Community Dashboard)
 // GET /communities/revenue-summary?period=7d|15d|30d|90d|all
 // ===================================================================
@@ -6057,6 +6398,184 @@ const getCommunityRevenueSummary = async (req, res) => {
   }
 };
 
+/**
+ * Submit a refund request for a specific ticket tier within a registration.
+ * POST /registrations/:registrationId/refund-request
+ * Body: { ticket_type_id: number, reason?: string }
+ *
+ * Per-tier model: one request per (registration_id, ticket_type_id) pair.
+ * 'auto_approved' = within deadline (money not moved; admin executes in Prompt D)
+ * 'manual_review' = outside deadline, admin must decide
+ */
+const submitRefundRequest = async (req, res) => {
+  try {
+    const userId   = req.user?.id;
+    const userType = req.user?.type;
+    if (!userId || userType !== 'member') {
+      return res.status(401).json({ error: 'Member authentication required' });
+    }
+
+    const { registrationId } = req.params;
+    const { ticket_type_id, reason } = req.body;
+
+    if (!ticket_type_id) {
+      return res.status(400).json({ error: 'ticket_type_id is required' });
+    }
+
+    // 1. Fetch registration + event + specific ticket tier
+    const regResult = await pool.query(
+      `SELECT er.id, er.member_id, er.event_id, er.registration_status,
+              e.start_datetime, e.title as event_title,
+              rt.total_price, rt.quantity,
+              tt.id as tt_id, tt.refund_policy
+       FROM event_registrations er
+       JOIN events e ON e.id = er.event_id
+       JOIN registration_tickets rt ON rt.registration_id = er.id
+                                    AND rt.ticket_type_id = $2
+       JOIN ticket_types tt ON tt.id = rt.ticket_type_id
+       WHERE er.id = $1 AND er.member_id = $3`,
+      [registrationId, ticket_type_id, userId]
+    );
+
+    if (regResult.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Registration or ticket tier not found, or does not belong to you',
+      });
+    }
+
+    const row = regResult.rows[0];
+
+    // 2. Registration must be active (not already cancelled)
+    if (row.registration_status === 'cancelled' || row.registration_status === 'revoked') {
+      return res.status(400).json({ error: 'Cannot request a refund for a cancelled registration' });
+    }
+
+    // 3. Check refund_policy.allowed
+    const policy = row.refund_policy || { allowed: true, deadline_hours_before: 24, percentage: 100 };
+    if (!policy.allowed) {
+      return res.status(400).json({ error: 'This ticket type is not eligible for a refund' });
+    }
+
+    // 4. Duplicate-submission guard — block if an active (non-rejected) request already exists for this tier
+    const dupCheck = await pool.query(
+      `SELECT id FROM refund_requests
+       WHERE registration_id = $1 AND ticket_type_id = $2
+         AND status NOT IN ('rejected')`,
+      [registrationId, ticket_type_id]
+    );
+    if (dupCheck.rows.length > 0) {
+      return res.status(400).json({ error: 'A refund request already exists for this ticket tier' });
+    }
+
+    // 5. Compute hours_until_event and auto-tag
+    const hoursUntilEvent = (new Date(row.start_datetime) - new Date()) / (1000 * 60 * 60);
+    // Note: deadline is about pre-event eligibility — measured against start_datetime, not end_datetime
+    const status = hoursUntilEvent >= policy.deadline_hours_before
+      ? 'auto_approved'
+      : 'manual_review';
+
+    // 6. requested_amount = total_price for this tier * policy percentage
+    const requestedAmount = parseFloat(row.total_price) * (policy.percentage / 100);
+
+    // 7. Insert the request with a frozen policy snapshot
+    const insertResult = await pool.query(
+      `INSERT INTO refund_requests
+         (registration_id, member_id, event_id, ticket_type_id,
+          requested_amount, reason, status, policy_snapshot)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING *`,
+      [
+        registrationId,
+        userId,
+        row.event_id,
+        ticket_type_id,
+        requestedAmount.toFixed(2),
+        reason?.trim() || null,
+        status,
+        JSON.stringify(policy),
+      ]
+    );
+
+    const created = insertResult.rows[0];
+
+    // 8. In-app + push notification to buyer (non-blocking)
+    try {
+      await notificationService.createSimpleNotification(pool, {
+        recipientId: userId,
+        recipientType: 'member',
+        actorId: row.event_id,
+        actorType: 'event',
+        type: 'refund_requested',
+        payload: {
+          registrationId: parseInt(registrationId),
+          eventId: row.event_id,
+          eventTitle: row.event_title,
+          requestedAmount,
+          status,
+        },
+      });
+      await pushService.sendPushNotification(
+        pool,
+        userId,
+        'member',
+        'Refund Request Submitted',
+        `Your refund request of ₹${requestedAmount.toLocaleString('en-IN')} for ${row.event_title} is ${status === 'auto_approved' ? 'pending processing' : 'under review'}.`,
+        { type: 'refund_requested', registrationId: parseInt(registrationId) }
+      );
+    } catch (notifErr) {
+      console.error('[submitRefundRequest] Notification failed:', notifErr.message);
+      // Do not fail the request if notification fails
+    }
+
+    return res.status(201).json({ success: true, request: created });
+  } catch (error) {
+    console.error('[submitRefundRequest] Error:', error.message);
+    return res.status(500).json({ error: 'Failed to submit refund request' });
+  }
+};
+
+/**
+ * Get the current refund request(s) for a registration.
+ * GET /registrations/:registrationId/refund-request
+ * Returns all per-tier requests for this registration, or empty array if none.
+ * Member must own the registration.
+ */
+const getRefundRequest = async (req, res) => {
+  try {
+    const userId   = req.user?.id;
+    const userType = req.user?.type;
+    if (!userId || userType !== 'member') {
+      return res.status(401).json({ error: 'Member authentication required' });
+    }
+
+    const { registrationId } = req.params;
+
+    // Verify ownership
+    const ownerCheck = await pool.query(
+      'SELECT id FROM event_registrations WHERE id = $1 AND member_id = $2',
+      [registrationId, userId]
+    );
+    if (ownerCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Registration not found or does not belong to you' });
+    }
+
+    const result = await pool.query(
+      `SELECT rr.*,
+              tt.name as ticket_type_name
+       FROM refund_requests rr
+       LEFT JOIN ticket_types tt ON tt.id = rr.ticket_type_id
+       WHERE rr.registration_id = $1
+       ORDER BY rr.requested_at DESC`,
+      [registrationId]
+    );
+
+    return res.json({ success: true, requests: result.rows });
+  } catch (error) {
+    console.error('[getRefundRequest] Error:', error.message);
+    return res.status(500).json({ error: 'Failed to fetch refund request' });
+  }
+};
+
 module.exports = {
   createEvent,
   getCommunityEvents,
@@ -6078,6 +6597,9 @@ module.exports = {
   cancelRegistration,
   getMyTicket,
   verifyTicket,
+  // Refund requests (buyer-initiated)
+  submitRefundRequest,
+  getRefundRequest,
   // Ticket gifting
   createTicketGift,
   getEventGifts,
@@ -6103,6 +6625,8 @@ module.exports = {
   getEventInsights,
   // Community Revenue Summary (Dashboard)
   getCommunityRevenueSummary,
+  // Community Revenue Report (Full report screen)
+  getCommunityRevenueReport,
 
   // Event Engagement
   likeEvent,

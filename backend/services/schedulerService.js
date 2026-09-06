@@ -80,7 +80,7 @@ const init = (dbPool) => {
       const recentlyEnded = await pool.query(`
         SELECT DISTINCT e.id
         FROM events e
-        WHERE COALESCE(e.end_datetime, e.start_datetime + INTERVAL '2 hours')
+        WHERE e.end_datetime
               BETWEEN NOW() - INTERVAL '3 hours' AND NOW() - INTERVAL '1 hour'
           AND NOT EXISTS (
             SELECT 1 FROM event_registrations er
@@ -469,13 +469,13 @@ const sendAttendanceConfirmations = async () => {
     const endedAfter = new Date(now.getTime() - 1.25 * 60 * 60 * 1000);
     const endedBefore = new Date(now.getTime() - 0.75 * 60 * 60 * 1000);
 
-    // Get recently ended events (using end_datetime or start_datetime + 1h as fallback)
+    // Get recently ended events (end_datetime is always populated — required field since schema fix)
     const eventsResult = await pool.query(
       `SELECT e.id, e.title, e.community_id, c.name as community_name,
-              COALESCE(e.end_datetime, e.start_datetime + INTERVAL '1 hour') as effective_end
+              e.end_datetime as effective_end
        FROM events e
        JOIN communities c ON e.community_id = c.id
-       WHERE (COALESCE(e.end_datetime, e.start_datetime + INTERVAL '1 hour') BETWEEN $1 AND $2)
+       WHERE (e.end_datetime BETWEEN $1 AND $2)
          AND e.is_published = true
          AND (e.is_cancelled = false OR e.is_cancelled IS NULL)`,
       [endedAfter.toISOString(), endedBefore.toISOString()]

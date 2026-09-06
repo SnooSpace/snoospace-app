@@ -218,7 +218,7 @@ export default function EditEventModal({
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showEndTimePicker, setShowEndTimePicker] = useState(false);
   const [showGatesTimePicker, setShowGatesTimePicker] = useState(false);
-  const [hasEndTime, setHasEndTime] = useState(false);
+  // hasEndTime toggle removed — end time is a required field.
 
   // Decode Google Maps URL for review section display.
   // Use the custom locationName (or generic fallback) so the review always shows something useful.
@@ -233,13 +233,12 @@ export default function EditEventModal({
       setEventDate(
         eventData.event_date ? new Date(eventData.event_date) : new Date(),
       );
+      // end_datetime is now required — always load from eventData if present
       if (eventData.end_datetime) {
         setEndDate(new Date(eventData.end_datetime));
-        setHasEndTime(true);
-      } else {
-        setEndDate(new Date(eventData.event_date || new Date()));
-        setHasEndTime(false);
       }
+      // If absent (legacy event), endDate stays at its default (current time) so the
+      // form does not crash, but the organizer must pick a real end time to save.
 
       setGatesOpenTime(
         eventData.gates_open_time ? new Date(eventData.gates_open_time) : null,
@@ -318,7 +317,7 @@ export default function EditEventModal({
         endDate: eventData.end_datetime
           ? new Date(eventData.end_datetime).toISOString()
           : null,
-        hasEndTime: !!eventData.end_datetime,
+        // hasEndTime removed — end time is always required now
         hasGates: !!eventData.gates_open_time,
         eventType: eventData.event_type || "in-person",
         locationUrl: eventData.location_url || "",
@@ -361,8 +360,7 @@ export default function EditEventModal({
       title !== initialSnapshot.title ||
       description !== initialSnapshot.description ||
       eventDate.toISOString() !== initialSnapshot.eventDate ||
-      (hasEndTime ? endDate.toISOString() : null) !== initialSnapshot.endDate ||
-      hasEndTime !== initialSnapshot.hasEndTime ||
+      (endDate ? endDate.toISOString() : null) !== initialSnapshot.endDate ||
       hasGates !== initialSnapshot.hasGates ||
       eventType !== initialSnapshot.eventType ||
       locationUrl !== initialSnapshot.locationUrl ||
@@ -385,7 +383,6 @@ export default function EditEventModal({
     description,
     eventDate,
     endDate,
-    hasEndTime,
     hasGates,
     eventType,
     locationUrl,
@@ -424,6 +421,10 @@ export default function EditEventModal({
     if (step === 1) {
       if (!title.trim()) {
         Alert.alert("Required", "Please enter an event title");
+        return false;
+      }
+      if (!endDate || endDate <= eventDate) {
+        Alert.alert("Required", "End date/time is required and must be after the start time");
         return false;
       }
       if (eventType === "virtual" && !virtualLink.trim()) {
@@ -473,8 +474,7 @@ export default function EditEventModal({
         event_date: eventDate.toISOString(),
         start_datetime: eventDate.toISOString(),
         has_time: true,
-        end_datetime: hasEndTime ? endDate.toISOString() : null,
-        has_end_time: hasEndTime,
+        end_datetime: endDate ? endDate.toISOString() : null,
         gates_open_time:
           eventType !== "virtual" && hasGates && gatesOpenTime
             ? gatesOpenTime.toISOString()
@@ -669,32 +669,34 @@ export default function EditEventModal({
                     <View
                       style={[
                         styles.dateCardIconInfo,
-                        hasEndTime && { backgroundColor: "#EEF2FF" },
+                        endDate && { backgroundColor: "#EEF2FF" },
                       ]}
                     >
                       <Flag
                         size={16}
                         color={
-                          hasEndTime
+                          endDate
                             ? MODAL_TOKENS.primary
                             : MODAL_TOKENS.textSecondary
                         }
                       />
                     </View>
                     <View>
-                      <Text style={styles.dateCardLabel}>End Time</Text>
+                      <Text style={styles.dateCardLabel}>
+                        End Time <Text style={{ color: "#EF4444" }}>*</Text>
+                      </Text>
                       <Text
                         style={[
                           styles.dateCardValue,
-                          !hasEndTime && { color: MODAL_TOKENS.textMuted },
+                          !endDate && { color: MODAL_TOKENS.textMuted },
                         ]}
                       >
-                        {hasEndTime && endDate
+                        {endDate
                           ? endDate.toLocaleTimeString([], {
                               hour: "2-digit",
                               minute: "2-digit",
                             })
-                          : "Pick time"}
+                          : "Required — pick time"}
                       </Text>
                     </View>
                   </TouchableOpacity>
@@ -725,7 +727,7 @@ export default function EditEventModal({
                   setEventDate(newEventDate);
                   if (newEnd) {
                     const newEndDate = new Date(newEnd);
-                    if (hasEndTime && endDate) {
+                    if (endDate) {
                       newEndDate.setHours(
                         endDate.getHours(),
                         endDate.getMinutes(),
@@ -746,7 +748,7 @@ export default function EditEventModal({
                 time={eventDate || new Date()}
                 onChange={(newTime) => {
                   setEventDate(newTime);
-                  if (hasEndTime && endDate) {
+                  if (endDate) {
                     const minEnd = new Date(newTime.getTime() + 15 * 60 * 1000);
                     if (endDate < minEnd) {
                       const autoEnd = new Date(endDate);
@@ -770,7 +772,7 @@ export default function EditEventModal({
                 onClose={() => setShowEndTimePicker(false)}
                 time={endDate || eventDate || new Date()}
                 onChange={(newTime) => {
-                  setHasEndTime(true);
+                  // End time is now always required; setHasEndTime removed.
                   const isSameDay =
                     eventDate &&
                     (!endDate ||
@@ -1317,7 +1319,7 @@ export default function EditEventModal({
                     minute: "2-digit",
                   })}
                 </Text>
-                {hasEndTime && (
+                {endDate && (
                   <Text style={styles.reviewSubValue}>
                     Ends:{" "}
                     {endDate.toLocaleTimeString([], {

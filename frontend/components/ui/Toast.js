@@ -3,7 +3,10 @@ import { StyleSheet, Text, View, Dimensions, Platform, Pressable } from "react-n
 import Animated, {
   FadeInUp,
   FadeOutUp,
-  withSpring,
+  FadeInDown,
+  FadeOutDown,
+  withTiming,
+  Easing,
   useAnimatedStyle,
   useSharedValue,
 } from "react-native-reanimated";
@@ -33,13 +36,21 @@ const TOAST_TYPES = {
   },
 };
 
-const Toast = ({ title, message, type = "success", onDismiss }) => {
+const Toast = ({
+  title,
+  message,
+  type = "success",
+  duration = 4000,
+  position = "top",
+  bottomOffset,
+  onDismiss,
+}) => {
   const insets = useSafeAreaInsets();
   const IconComponent = TOAST_TYPES[type]?.icon || Info;
   const mainColor = TOAST_TYPES[type]?.color || COLORS.primary;
   const bgColor = TOAST_TYPES[type]?.bg || "rgba(255, 255, 255, 0.8)";
 
-  const scale = useSharedValue(0.9);
+  const progressAnim = useSharedValue(1);
 
   useEffect(() => {
     Haptics.notificationAsync(
@@ -47,21 +58,57 @@ const Toast = ({ title, message, type = "success", onDismiss }) => {
         ? Haptics.NotificationFeedbackType.Error 
         : Haptics.NotificationFeedbackType.Success
     );
-    scale.value = withSpring(1, { damping: 15, stiffness: 200 });
-  }, []);
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
+    progressAnim.value = 1;
+    progressAnim.value = withTiming(0, {
+      duration,
+      easing: Easing.linear,
+    });
+  }, [duration, type]);
+
+  const progressStyle = useAnimatedStyle(() => {
+    const val = Math.max(0, Math.min(1, progressAnim.value));
+    return {
+      transform: [{ scaleX: val }],
+      opacity: val === 0 ? 0 : 0.9,
+    };
+  });
+
+  const isRelative = position === "relative" || position === "inline";
+  const isBottom = position === "bottom";
+
+  const enteringAnim = isBottom
+    ? FadeInDown.duration(250)
+    : isRelative
+    ? FadeInDown.duration(250)
+    : FadeInUp.duration(250);
+
+  const exitingAnim = isBottom
+    ? FadeOutDown.duration(200)
+    : isRelative
+    ? FadeOutUp.duration(200)
+    : FadeOutUp.duration(200);
+
+  const positionStyle = isRelative
+    ? {
+        position: "relative",
+        left: 0,
+        right: 0,
+        top: 0,
+        width: "100%",
+        zIndex: 10,
+      }
+    : isBottom
+    ? { bottom: bottomOffset ?? Math.max(insets.bottom + 16, 24) }
+    : { top: insets.top + 70 };
 
   return (
     <Animated.View
-      entering={FadeInUp.duration(400).springify()}
-      exiting={FadeOutUp.duration(300)}
+      entering={enteringAnim}
+      exiting={exitingAnim}
       style={[
         styles.container,
-        { top: insets.top + 70 },
-        animatedStyle
+        positionStyle,
       ]}
     >
       <View style={styles.toastWrapper}>
@@ -84,8 +131,14 @@ const Toast = ({ title, message, type = "success", onDismiss }) => {
           </Pressable>
         </View>
         
-        {/* Subtle bottom indicator */}
-        <View style={[styles.indicator, { backgroundColor: mainColor }]} />
+        {/* Animated bottom indicator line reducing based on duration */}
+        <Animated.View
+          style={[
+            styles.indicator,
+            { backgroundColor: mainColor },
+            progressStyle,
+          ]}
+        />
       </View>
     </Animated.View>
   );
@@ -149,7 +202,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 3,
-    opacity: 0.8,
+    opacity: 0.85,
+    borderRadius: 1.5,
   },
 });
 

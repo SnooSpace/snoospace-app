@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useLayoutEffect } from "react";
+import React, { useState, useEffect, useRef, useLayoutEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -159,6 +159,7 @@ import AttendanceConfirmationModal from "../../components/modals/AttendanceConfi
 import SnooLoader from "../../components/ui/SnooLoader";
 import DynamicStatusBar from "../../components/navigation/DynamicStatusBar";
 import { useToast } from "../../context/ToastContext";
+import Toast from "../../components/ui/Toast";
 import {
   getEventState,
   shouldShowViewAttendees,
@@ -198,6 +199,27 @@ const EventDetailsScreen = ({ route, navigation }) => {
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const [roleToastVisible, setRoleToastVisible] = useState(false);
+  const [roleToastId, setRoleToastId] = useState(0);
+  const [actionContentHeight, setActionContentHeight] = useState(48);
+  const roleToastTimeoutRef = useRef(null);
+
+  const dismissRoleToast = useCallback(() => {
+    if (roleToastTimeoutRef.current) {
+      clearTimeout(roleToastTimeoutRef.current);
+      roleToastTimeoutRef.current = null;
+    }
+    setRoleToastVisible(false);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (roleToastTimeoutRef.current) {
+        clearTimeout(roleToastTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const [isInterested, setIsInterested] = useState(false);
   const [isRegistered, setIsRegistered] = useState(false);
   const [isInvited, setIsInvited] = useState(false);
@@ -441,22 +463,18 @@ const EventDetailsScreen = ({ route, navigation }) => {
     currentUser?.type === "community" &&
     parseInt(currentUser?.id) === parseInt(event?.creator_id);
 
-  // Show toast message for restricted roles (communities)
+  // Show toast message for restricted roles (communities) directly above register button
   const showRoleRestrictionMessage = () => {
     HapticsService.triggerImpactMedium();
-    if (currentUser?.type === "community") {
-      showToast(
-        "Individual Account Required",
-        "Community accounts cannot attend events. Please sign in with an individual member account to register.",
-        "info"
-      );
-    } else {
-      showToast(
-        "Individual Account Required",
-        "Only individual member accounts can register to attend events.",
-        "info"
-      );
+    if (roleToastTimeoutRef.current) {
+      clearTimeout(roleToastTimeoutRef.current);
     }
+    setRoleToastId(Date.now());
+    setRoleToastVisible(true);
+    roleToastTimeoutRef.current = setTimeout(() => {
+      setRoleToastVisible(false);
+      roleToastTimeoutRef.current = null;
+    }, 4000);
   };
 
   const handleRegister = () => {
@@ -1252,7 +1270,40 @@ const EventDetailsScreen = ({ route, navigation }) => {
                   </Text>
                 </View>
               ) : (
-                <View style={styles.stickyActionContent}>
+                <View style={{ width: "100%", position: "relative" }}>
+                  {roleToastVisible && (
+                    <View
+                      style={[
+                        styles.roleToastOverlay,
+                        { bottom: actionContentHeight + 10 },
+                      ]}
+                      pointerEvents="box-none"
+                    >
+                      <Toast
+                        key={roleToastId}
+                        title="Individual Account Required"
+                        message={
+                          currentUser?.type === "community"
+                            ? "Community accounts cannot attend events. Please sign in with an individual member account to register."
+                            : "Only individual member accounts can register to attend events."
+                        }
+                        type="info"
+                        duration={4000}
+                        position="relative"
+                        onDismiss={dismissRoleToast}
+                      />
+                    </View>
+                  )}
+
+                  <View
+                    style={styles.stickyActionContent}
+                    onLayout={(e) => {
+                      const h = e.nativeEvent.layout.height;
+                      if (h > 0 && h !== actionContentHeight) {
+                        setActionContentHeight(h);
+                      }
+                    }}
+                  >
                   <View style={styles.stickyPriceContainer}>
                     <Text style={styles.stickyPriceLabel}>Starting from</Text>
                     <Text style={styles.stickyPriceValue}>
@@ -1322,8 +1373,9 @@ const EventDetailsScreen = ({ route, navigation }) => {
                     )}
                   </TouchableOpacity>
                 </View>
-              )}
-            </View>
+              </View>
+            )}
+          </View>
 
             {/* Content Section */}
             <View 
@@ -1930,14 +1982,8 @@ const EventDetailsScreen = ({ route, navigation }) => {
                         : null,
                       {
                         label: "Event ends",
-                        // Treat end_datetime as absent if it equals start_datetime
-                        // (backend stores start == end when no end time is set)
-                        time:
-                          event.end_datetime &&
-                          event.end_datetime !== event.start_datetime &&
-                          event.end_datetime !== event.event_date
-                            ? event.end_datetime
-                            : null,
+                        // end_datetime is always a real, user-specified value \u2014 display directly.
+                        time: event.end_datetime || event.start_datetime || event.event_date,
                       },
                     ]
                       .filter(Boolean)
@@ -2238,6 +2284,13 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 20,
     zIndex: 20,
+  },
+  roleToastOverlay: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    zIndex: 999,
+    elevation: 30,
   },
   stickyActionContent: {
     flexDirection: "row",

@@ -5,6 +5,7 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
+  Pressable,
   FlatList,
   Image,
   Alert,
@@ -242,6 +243,8 @@ export default function CommunityDashboardScreen({ navigation }) {
   const [revenuePeriod, setRevenuePeriod] = useState("30d");
   const [revenueLoading, setRevenueLoading] = useState(false);
   const [showPeriodDropdown, setShowPeriodDropdown] = useState(false);
+  const pillRef = useRef(null);
+  const [dropdownCoords, setDropdownCoords] = useState({ top: 0, right: 20 });
 
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [previousEvents, setPreviousEvents] = useState([]);
@@ -334,7 +337,24 @@ export default function CommunityDashboardScreen({ navigation }) {
     }
   };
 
-  const handlePeriodPicker = () => setShowPeriodDropdown((p) => !p);
+  const handlePeriodPicker = () => {
+    if (showPeriodDropdown) {
+      setShowPeriodDropdown(false);
+      return;
+    }
+    if (pillRef.current) {
+      pillRef.current.measureInWindow((x, y, width, height) => {
+        const windowWidth = Dimensions.get("window").width;
+        setDropdownCoords({
+          top: (y ?? 0) + (height ?? 0) + 6,
+          right: Math.max(16, windowWidth - ((x ?? 0) + (width ?? 0))),
+        });
+        setShowPeriodDropdown(true);
+      });
+    } else {
+      setShowPeriodDropdown(true);
+    }
+  };
 
   // --- Handlers ---
   const handleCreateEvent = async () => {
@@ -946,8 +966,11 @@ export default function CommunityDashboardScreen({ navigation }) {
             <View style={styles.revenueHeader}>
               <Text style={styles.revenueLabelLarge}>Total Revenue</Text>
               <TouchableOpacity
+                ref={pillRef}
+                collapsable={false}
                 style={[styles.revenueTimePill, showPeriodDropdown && styles.revenueTimePillOpen]}
                 onPress={handlePeriodPicker}
+                activeOpacity={0.7}
               >
                 <Text style={styles.revenueTimePillText}>{PERIOD_LABELS[revenuePeriod]}</Text>
                 <ChevronDown
@@ -957,40 +980,6 @@ export default function CommunityDashboardScreen({ navigation }) {
                 />
               </TouchableOpacity>
             </View>
-
-            {/* Inline Period Dropdown */}
-            {showPeriodDropdown && (
-              <View style={styles.periodDropdown}>
-                {PERIOD_OPTIONS.map((opt) => (
-                  <TouchableOpacity
-                    key={opt.value}
-                    style={[
-                      styles.periodDropdownItem,
-                      revenuePeriod === opt.value && styles.periodDropdownItemActive,
-                    ]}
-                    onPress={() => {
-                      setShowPeriodDropdown(false);
-                      if (opt.value !== revenuePeriod) {
-                        setRevenuePeriod(opt.value);
-                        loadRevenueSummary(opt.value);
-                      }
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.periodDropdownText,
-                        revenuePeriod === opt.value && styles.periodDropdownTextActive,
-                      ]}
-                    >
-                      {opt.label}
-                    </Text>
-                    {revenuePeriod === opt.value && (
-                      <CircleCheck size={13} color="#2563EB" />
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
 
             {/* Main Value */}
             <Text style={styles.revenueValueLarge}>₹{formatINR(revenue.total)}</Text>
@@ -1036,15 +1025,13 @@ export default function CommunityDashboardScreen({ navigation }) {
               );
             })()}
 
-            {/* Footer Link — full report screen coming soon */}
+            {/* Footer Link — navigates to full revenue report screen */}
             <TouchableOpacity
-              style={[styles.reportFooter, { opacity: 0.5 }]}
+              style={styles.reportFooter}
               onPress={() =>
-                Alert.alert(
-                  "Coming Soon",
-                  "The full revenue report screen is currently being built.",
-                  [{ text: "Got it" }],
-                )
+                navigation.navigate("CommunityRevenueReport", {
+                  period: revenuePeriod,
+                })
               }
             >
               <Text style={styles.reportFooterText}>
@@ -1234,6 +1221,61 @@ export default function CommunityDashboardScreen({ navigation }) {
         secondaryAction={alertModalConfig.secondaryAction}
         onClose={hideAlertModal}
       />
+
+      {/* Period Picker Dropdown Modal (tap outside to close) */}
+      <Modal
+        visible={showPeriodDropdown}
+        transparent
+        animationType="none"
+        statusBarTranslucent={true}
+        onRequestClose={() => setShowPeriodDropdown(false)}
+      >
+        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setShowPeriodDropdown(false)}
+          />
+          <View
+            style={[
+              styles.periodDropdown,
+              {
+                position: "absolute",
+                top: dropdownCoords.top,
+                right: dropdownCoords.right,
+              },
+            ]}
+          >
+            {PERIOD_OPTIONS.map((opt) => (
+              <TouchableOpacity
+                key={opt.value}
+                style={[
+                  styles.periodDropdownItem,
+                  revenuePeriod === opt.value && styles.periodDropdownItemActive,
+                ]}
+                onPress={() => {
+                  setShowPeriodDropdown(false);
+                  if (opt.value !== revenuePeriod) {
+                    setRevenuePeriod(opt.value);
+                    loadRevenueSummary(opt.value);
+                  }
+                }}
+              >
+                <Text
+                  style={[
+                    styles.periodDropdownText,
+                    revenuePeriod === opt.value && styles.periodDropdownTextActive,
+                  ]}
+                >
+                  {opt.label}
+                </Text>
+                {revenuePeriod === opt.value && (
+                  <CircleCheck size={13} color="#2563EB" />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      </Modal>
 
       {/* Draft Prompt Modal (shown on Dashboard) */}
       {showDraftPrompt && (

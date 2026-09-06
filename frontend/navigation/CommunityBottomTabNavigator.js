@@ -151,6 +151,7 @@ const getTabBarStyle = (route, customHiddenRoutes = []) => {
     "EventQuality",
     "AudienceIntelligence",
     "OpportunitiesList",
+    "CommunityRevenueReport",
   ];
   const allHiddenRoutes = [...baseHiddenRoutes, ...customHiddenRoutes];
   
@@ -217,7 +218,7 @@ const CommunityBottomTabNavigator = ({ navigation, route }) => {
         component={CommunityDashboardStackNavigator}
         options={({ route }) => ({
           tabBarLabel: "Dashboard",
-          tabBarStyle: getTabBarStyle(route, ["AudienceIntelligence"]),
+          tabBarStyle: getTabBarStyle(route, ["AudienceIntelligence", "CommunityRevenueReport"]),
         })}
       />
       <Tab.Screen

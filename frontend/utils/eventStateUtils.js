@@ -12,14 +12,19 @@ export const EVENT_STATES = {
 };
 
 /**
- * Get effective end time for an event
- * If end_datetime is missing, default to start + 1 hour
+ * Get effective end time for an event.
+ * end_datetime is a required field as of the schema fix — all events created
+ * or edited via the app will always have a real end_datetime.
+ * The fallback to start + 1h is kept ONLY as a narrow defensive path for
+ * any pre-existing cached objects that might not have been refreshed yet.
  */
 export function getEffectiveEndTime(event) {
   if (event.end_datetime) {
     return new Date(event.end_datetime);
   }
 
+  // Defensive fallback for legacy cached objects only — not expected for any
+  // event created or edited after the end_datetime required-field rollout.
   const start = new Date(event.start_datetime || event.event_date);
   return new Date(start.getTime() + 60 * 60 * 1000); // +1 hour
 }

@@ -297,7 +297,7 @@ const CreateEventModal = ({
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showEndTimePicker, setShowEndTimePicker] = useState(false);
   const [showGatesTimePicker, setShowGatesTimePicker] = useState(false);
-  const [hasEndTime, setHasEndTime] = useState(false);
+  // hasEndTime toggle removed — end time is now a required field.
   const [hasTime, setHasTime] = useState(false); // true once user explicitly picks a start time
   const [draftExists, setDraftExists] = useState(false);
   const [showSaveDraftModal, setShowSaveDraftModal] = useState(false);
@@ -359,8 +359,7 @@ const CreateEventModal = ({
     setHasReachedReview(false);
     setTitle("");
     setEventDate(null);
-    setEndDate(null);
-    setHasEndTime(false);
+    setEndDate(null);  // user must pick a real end time
     setHasTime(false);
     setGatesOpenTime(null);
     setHasGates(false);
@@ -390,8 +389,7 @@ const CreateEventModal = ({
     event_date: eventDate.toISOString(),
     start_datetime: eventDate.toISOString(),
     has_time: hasTime,
-    end_datetime: hasEndTime ? endDate.toISOString() : null,
-    has_end_time: hasEndTime,
+    end_datetime: endDate ? endDate.toISOString() : null,
     gates_open_time:
       eventType !== "virtual" && hasGates && gatesOpenTime
         ? gatesOpenTime.toISOString()
@@ -496,17 +494,10 @@ const CreateEventModal = ({
           setHasTime(savedHasTime);
         }
 
-        const hasEnd =
-          draft.data.has_end_time !== undefined
-            ? draft.data.has_end_time
-            : draft.data.hasEndTime;
+        // Restore end time from draft (end time is now always required)
         const endStr = draft.data.end_datetime || draft.data.endDate;
-
-        if (hasEnd && endStr) {
+        if (endStr) {
           setEndDate(new Date(endStr));
-          setHasEndTime(true);
-        } else {
-          setHasEndTime(false);
         }
 
         setHasGates(
@@ -664,6 +655,8 @@ const CreateEventModal = ({
       case 1:
         if (!title.trim()) return false;
         if (!eventDate || !hasTime) return false;
+        if (!endDate) return false;  // end time is required
+        if (endDate <= eventDate) return false;  // must be after start
         // Use selectedVenue (new flow) OR fall back to the legacy locationUrl+locationName
         if (eventType !== "virtual" && !selectedVenue && !locationName.trim()) return false;
         if (
@@ -695,6 +688,7 @@ const CreateEventModal = ({
     if (step === 1) {
       if (!title.trim()) return "title";
       if (!eventDate || !hasTime) return "dateTime";
+      if (!endDate || endDate <= eventDate) return "endTime";  // end time required
       if (eventType !== "virtual" && !selectedVenue && !locationName.trim())
         return "location";
       if (
@@ -743,6 +737,7 @@ const CreateEventModal = ({
     const fieldFilled = {
       title: !!title.trim(),
       dateTime: !!eventDate && hasTime,
+      endTime: !!endDate && endDate > eventDate,  // end time required
       location: !!(selectedVenue || locationName.trim()),
       virtualLink: !!virtualLink.trim(),
       ticketing: ticketTypes.length > 0,
@@ -759,6 +754,7 @@ const CreateEventModal = ({
     title,
     eventDate,
     hasTime,
+    endDate,
     selectedVenue,
     locationName,
     virtualLink,
@@ -945,40 +941,46 @@ const CreateEventModal = ({
                     </View>
                   </TouchableOpacity>
 
-                  {/* End Time Card — always visible */}
+                  {/* End Time Card — always visible, always required */}
                   <TouchableOpacity
-                    style={styles.dateCard}
+                    style={[
+                      styles.dateCard,
+                      errorField === "endTime" && { borderColor: "#EF4444", borderWidth: 1 },
+                    ]}
                     onPress={() => setShowEndTimePicker(true)}
                   >
                     <View
                       style={[
                         styles.dateCardIconInfo,
-                        hasEndTime && { backgroundColor: "#EEF2FF" },
+                        endDate && { backgroundColor: "#EEF2FF" },
                       ]}
                     >
                       <Flag
                         size={16}
                         color={
-                          hasEndTime
+                          endDate
                             ? MODAL_TOKENS.primary
                             : MODAL_TOKENS.textSecondary
                         }
                       />
                     </View>
                     <View>
-                      <Text style={styles.dateCardLabel}>End Time</Text>
+                      <Text style={styles.dateCardLabel}>
+                        End Time <Text style={{ color: "#EF4444" }}>*</Text>
+                      </Text>
                       <Text
                         style={[
                           styles.dateCardValue,
-                          !hasEndTime && { color: MODAL_TOKENS.textMuted },
+                          !endDate && { color: MODAL_TOKENS.textMuted },
+                          errorField === "endTime" && { color: "#EF4444" },
                         ]}
                       >
-                        {hasEndTime && endDate
+                        {endDate
                           ? endDate.toLocaleTimeString([], {
                               hour: "2-digit",
                               minute: "2-digit",
                             })
-                          : "Pick time"}
+                          : "Required — pick time"}
                       </Text>
                     </View>
                   </TouchableOpacity>
@@ -1017,7 +1019,7 @@ const CreateEventModal = ({
                   if (newEnd) {
                     // Range confirmed — apply end date, preserve existing end time
                     const newEndDate = new Date(newEnd);
-                    if (hasEndTime && endDate) {
+                    if (endDate) {
                       newEndDate.setHours(
                         endDate.getHours(),
                         endDate.getMinutes(),
@@ -1067,7 +1069,7 @@ const CreateEventModal = ({
                   setHasTime(true);
 
                   // ── Auto-adjust end time if it would be < start + 15 min ──
-                  if (hasEndTime && endDate) {
+                  if (endDate) {
                     const minEndTime = new Date(
                       newTime.getTime() + 15 * 60 * 1000,
                     );
@@ -1104,7 +1106,7 @@ const CreateEventModal = ({
                     : null
                 }
                 onChange={(newTime) => {
-                  setHasEndTime(true);
+                  // End time is now always required; setHasEndTime removed.
                   // For single-day: if end time is within 15min of start, push to next day
                   const isSameDay =
                     eventDate &&
@@ -1813,7 +1815,7 @@ const CreateEventModal = ({
                     minute: "2-digit",
                   })}
                 </Text>
-                {hasEndTime && (
+                {endDate && (
                   <Text style={styles.reviewSubValue}>
                     Ends:{" "}
                     {endDate.toLocaleTimeString([], {

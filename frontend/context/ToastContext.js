@@ -7,19 +7,31 @@ export const ToastProvider = ({ children }) => {
   const [toast, setToast] = useState(null);
   const timeoutRef = useRef(null);
 
-  const showToast = useCallback((title, message, type = "success", duration = 4000) => {
-    // Clear existing timeout if any
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
+  const showToast = useCallback(
+    (title, message, type = "success", duration = 4000, options = {}) => {
+      // Clear existing timeout if any
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
 
-    setToast({ title, message, type });
+      const id = Date.now();
+      setToast({
+        id,
+        title,
+        message,
+        type,
+        duration,
+        position: options?.position || "top",
+        bottomOffset: options?.bottomOffset,
+      });
 
-    timeoutRef.current = setTimeout(() => {
-      setToast(null);
-      timeoutRef.current = null;
-    }, duration);
-  }, []);
+      timeoutRef.current = setTimeout(() => {
+        setToast(null);
+        timeoutRef.current = null;
+      }, duration);
+    },
+    []
+  );
 
   const hideToast = useCallback(() => {
     if (timeoutRef.current) {
@@ -34,9 +46,13 @@ export const ToastProvider = ({ children }) => {
       {children}
       {toast && (
         <Toast
+          key={toast.id}
           title={toast.title}
           message={toast.message}
           type={toast.type}
+          duration={toast.duration}
+          position={toast.position}
+          bottomOffset={toast.bottomOffset}
           onDismiss={hideToast}
         />
       )}

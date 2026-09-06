@@ -325,6 +325,17 @@ export async function getCommunityRevenueSummary(period = "30d") {
 }
 
 /**
+ * Get full revenue report for the authenticated community (Revenue Report screen)
+ * @param {"7d"|"15d"|"30d"|"90d"|"all"} period
+ * @returns {Promise<Object>} { success, period, summary, timeseries, perEvent,
+ *   refundsSummary, discountPerformance, repeatBuyers, failedPayments }
+ */
+export async function getCommunityRevenueReport(period = "30d") {
+  const token = await (await import("./auth")).getAuthToken();
+  return apiGet(`/communities/revenue-report?period=${period}`, 20000, token);
+}
+
+/**
  * Toggle event like (like if not liked, unlike if liked)
  * @param {string|number} eventId
  * @param {boolean} isCurrentlyLiked - current like state for routing POST vs DELETE
@@ -402,4 +413,31 @@ export async function getEventVerifications() {
 export async function updateEventVerification(payload) {
   const token = await (await import("./auth")).getAuthToken();
   return apiPost("/events/verifications", payload, 15000, token);
+}
+
+/**
+ * Submit a buyer-initiated refund request for a specific ticket tier.
+ * POST /registrations/:registrationId/refund-request
+ * @param {number} registrationId
+ * @param {number} ticketTypeId - the specific tier to request refund for
+ * @param {string} [reason] - optional buyer-supplied reason
+ */
+export async function submitRefundRequest(registrationId, ticketTypeId, reason) {
+  const token = await (await import("./auth")).getAuthToken();
+  return apiPost(
+    `/registrations/${registrationId}/refund-request`,
+    { ticket_type_id: ticketTypeId, reason },
+    15000,
+    token,
+  );
+}
+
+/**
+ * Get all refund requests for a registration (per-tier array).
+ * GET /registrations/:registrationId/refund-request
+ * Returns { success, requests: [] }
+ */
+export async function getRefundRequests(registrationId) {
+  const token = await (await import("./auth")).getAuthToken();
+  return apiGet(`/registrations/${registrationId}/refund-request`, 10000, token);
 }

@@ -493,6 +493,34 @@ async function ensureTables(pool) {
       );
       CREATE INDEX IF NOT EXISTS idx_registration_tickets_registration ON registration_tickets(registration_id);
 
+      -- Buyer-initiated refund requests (one per ticket tier per registration)
+      CREATE TABLE IF NOT EXISTS refund_requests (
+        id                BIGSERIAL PRIMARY KEY,
+        registration_id   BIGINT       NOT NULL REFERENCES event_registrations(id) ON DELETE CASCADE,
+        member_id         BIGINT       NOT NULL REFERENCES members(id)              ON DELETE CASCADE,
+        event_id          BIGINT       NOT NULL REFERENCES events(id)               ON DELETE CASCADE,
+        ticket_type_id    BIGINT                REFERENCES ticket_types(id)         ON DELETE SET NULL,
+        requested_amount  NUMERIC(10,2) NOT NULL,
+        reason            TEXT,
+        rejection_reason  TEXT,
+        status            VARCHAR(32)  NOT NULL DEFAULT 'pending_review'
+                          CHECK (status IN (
+                            'pending_review', 'auto_approved', 'manual_review',
+                            'approved', 'rejected', 'completed'
+                          )),
+        policy_snapshot   JSONB        NOT NULL,
+        requested_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+        decided_at        TIMESTAMPTZ,
+        completed_at      TIMESTAMPTZ,
+        decided_by        BIGINT
+      );
+      CREATE INDEX IF NOT EXISTS idx_refund_requests_registration ON refund_requests(registration_id);
+      CREATE INDEX IF NOT EXISTS idx_refund_requests_ticket_type  ON refund_requests(ticket_type_id);
+      CREATE INDEX IF NOT EXISTS idx_refund_requests_status       ON refund_requests(status);
+      CREATE INDEX IF NOT EXISTS idx_refund_requests_member       ON refund_requests(member_id);
+      CREATE INDEX IF NOT EXISTS idx_refund_requests_event        ON refund_requests(event_id);
+
+
       -- Discount codes for events (promo codes)
       CREATE TABLE IF NOT EXISTS discount_codes (
         id BIGSERIAL PRIMARY KEY,

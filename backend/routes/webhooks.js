@@ -127,6 +127,24 @@ const handlePaymentCaptured = async (pool, payment, event) => {
     [orderId]
   );
 
+  // Bust community revenue caches (summary + report, all periods)
+  try {
+    const { getRedis } = require('../services/redisService');
+    const redis = getRedis();
+    if (redis) {
+      // Look up community_id from the event so we know which community to bust
+      const evtRow = await pool.query('SELECT creator_id FROM events WHERE id = $1', [parseInt(event_id)]);
+      const communityId = evtRow.rows[0]?.creator_id;
+      if (communityId) {
+        const periods = ['7d', '15d', '30d', '90d', 'all'];
+        await Promise.all(periods.flatMap(p => [
+          redis.del(`community:${communityId}:revenue-summary:${p}`),
+          redis.del(`community:${communityId}:revenue-report:${p}`),
+        ]));
+      }
+    }
+  } catch { /* non-fatal */ }
+
   console.log(`[Razorpay] payment.captured: payment ${payment.id} for user ${user_id}, event ${event_id}`);
 
   if (!user_id || !event_id) {
@@ -299,36 +317,138 @@ const handlePaymentFailed = async (pool, payment, event) => {
 };
 
 // ─── Refund Created Handler ───────────────────────────────────────────────────
+// BUG FIX: Wraps all writes in a single transaction so sold_count decrement
+// and refund_amount population are atomic with the existing status updates.
+// A partial failure will ROLLBACK — no inconsistent state is left behind.
 const handleRefundCreated = async (pool, refund, event) => {
-  await pool.query(
-    `UPDATE razorpay_payments SET status = 'refunded', metadata = $2
-     WHERE razorpay_payment_id = $1`,
-    [refund.payment_id, JSON.stringify(event)]
+  // Razorpay always sends amount in paise (smallest unit). Convert to rupees
+  // for event_registrations.refund_amount which stores monetary values in rupees
+  // (consistent with total_amount stored as rupees at registration time).
+  const refundAmountRupees = (refund.amount || 0) / 100;
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // ── 1. Mark payment as refunded ────────────────────────────────────────
+    await client.query(
+      `UPDATE razorpay_payments SET status = 'refunded', metadata = $2
+       WHERE razorpay_payment_id = $1`,
+      [refund.payment_id, JSON.stringify(event)]
+    );
+
+    // ── 2. Mark order as refunded ──────────────────────────────────────────
+    await client.query(
+      `UPDATE razorpay_orders
+       SET status = 'refunded', updated_at = NOW()
+       WHERE razorpay_order_id = (
+         SELECT razorpay_order_id FROM razorpay_payments
+         WHERE razorpay_payment_id = $1
+       )`,
+      [refund.payment_id]
+    );
+
+    // ── 3. Identify the registration affected by this refund ───────────────
+    // Join path: razorpay_payments → (user_id + event_id) → event_registrations
+    const regResult = await client.query(
+      `SELECT er.id AS registration_id
+       FROM event_registrations er
+       INNER JOIN razorpay_payments rp
+         ON rp.user_id = er.member_id AND rp.event_id = er.event_id
+       WHERE rp.razorpay_payment_id = $1
+         AND er.registration_status = 'registered'
+       LIMIT 1`,
+      [refund.payment_id]
+    );
+
+    let registrationId = null;
+    if (regResult.rows.length > 0) {
+      registrationId = regResult.rows[0].registration_id;
+    }
+
+    // ── 4. Cancel the registration and populate refund_amount ──────────────
+    // FIX 2: Set refund_amount on cancellation.
+    // Guarded by registration_status = 'registered' — same guard as the
+    // original query, preserving the existing idempotency behaviour.
+    await client.query(
+      `UPDATE event_registrations er
+       SET registration_status = 'cancelled',
+           refund_amount        = $2,
+           cancelled_at         = NOW()
+       FROM razorpay_payments rp
+       WHERE rp.razorpay_payment_id = $1
+         AND er.member_id = rp.user_id
+         AND er.event_id  = rp.event_id
+         AND er.registration_status = 'registered'`,
+      [refund.payment_id, refundAmountRupees]
+    );
+
+    // ── 5. Decrement sold_count on ticket_types ────────────────────────────
+    // FIX 1: Restore ticket inventory on refund.
+    //
+    // registration_tickets stores one row per ticket-type per order, with a
+    // quantity column (INTEGER >= 1). A single registration can span multiple
+    // ticket types (e.g., 2 Stag + 1 Couple), so we decrement each
+    // ticket_type independently by its own quantity, not a hardcoded 1.
+    //
+    // GREATEST(..., 0) prevents sold_count from going negative in edge cases
+    // (e.g., data corrected manually, or duplicate webhook delivery).
+    if (registrationId !== null) {
+      await client.query(
+        `UPDATE ticket_types tt
+         SET sold_count = GREATEST(tt.sold_count - rt_agg.total_qty, 0)
+         FROM (
+           SELECT ticket_type_id, SUM(quantity) AS total_qty
+           FROM registration_tickets
+           WHERE registration_id = $1
+             AND ticket_type_id IS NOT NULL
+           GROUP BY ticket_type_id
+         ) AS rt_agg
+         WHERE tt.id = rt_agg.ticket_type_id`,
+        [registrationId]
+      );
+    } else {
+      // No registration_tickets rows found (legacy free-registration or
+      // data gap) — nothing to decrement; log for observability.
+      console.warn(
+        `[Razorpay] refund.created: no registration_tickets found for payment ${refund.payment_id} — sold_count not decremented`
+      );
+    }
+
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;   // re-throw so the outer handleRazorpayWebhook catch can log it
+  } finally {
+    client.release();
+  }
+
+  console.log(
+    `[Razorpay] refund.created processed: payment=${refund.payment_id} ` +
+    `refund_amount=₹${refundAmountRupees}`
   );
 
-  await pool.query(
-    `UPDATE razorpay_orders
-     SET status = 'refunded', updated_at = NOW()
-     WHERE razorpay_order_id = (
-       SELECT razorpay_order_id FROM razorpay_payments
-       WHERE razorpay_payment_id = $1
-     )`,
-    [refund.payment_id]
-  );
-
-  // Cancel the event registration for this payment
-  await pool.query(
-    `UPDATE event_registrations er
-     SET registration_status = 'cancelled'
-     FROM razorpay_payments rp
-     WHERE rp.razorpay_payment_id = $1
-       AND er.member_id = rp.user_id
-       AND er.event_id = rp.event_id
-       AND er.registration_status = 'registered'`,
-    [refund.payment_id]
-  );
-
-  console.log(`[Razorpay] refund.created processed for payment: ${refund.payment_id}`);
+  // Bust community revenue caches on refund
+  try {
+    const { getRedis } = require('../services/redisService');
+    const redis = getRedis();
+    if (redis) {
+      const evtRow = await pool.query(
+        `SELECT e.creator_id FROM razorpay_payments rp
+         INNER JOIN events e ON rp.event_id = e.id
+         WHERE rp.razorpay_payment_id = $1 LIMIT 1`,
+        [refund.payment_id]
+      );
+      const communityId = evtRow.rows[0]?.creator_id;
+      if (communityId) {
+        const periods = ['7d', '15d', '30d', '90d', 'all'];
+        await Promise.all(periods.flatMap(p => [
+          redis.del(`community:${communityId}:revenue-summary:${p}`),
+          redis.del(`community:${communityId}:revenue-report:${p}`),
+        ]));
+      }
+    }
+  } catch { /* non-fatal */ }
 };
 
 // ─── Main Webhook Handler ─────────────────────────────────────────────────────

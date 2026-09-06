@@ -695,6 +695,12 @@ router.get(
   authMiddleware,
   EventController.getCommunityRevenueSummary,
 );
+// Community revenue report (full screen) — must stay before any /:id/* wildcard routes
+router.get(
+  "/communities/revenue-report",
+  authMiddleware,
+  EventController.getCommunityRevenueReport,
+);
 router.get(
   "/communities/:id/events/public",
   authMiddleware,
@@ -1827,6 +1833,17 @@ router.post("/event-comments/:commentId/like", authMiddleware, EventController.l
 router.delete("/event-comments/:commentId/like", authMiddleware, EventController.unlikeEventComment);
 router.post("/event-comments/:commentId/pin", authMiddleware, EventController.pinEventComment);
 router.delete("/event-comments/:commentId/pin", authMiddleware, EventController.unpinEventComment);
+// Buyer-initiated refund requests (per ticket tier)
+router.post(
+  "/registrations/:registrationId/refund-request",
+  authMiddleware,
+  EventController.submitRefundRequest,
+);
+router.get(
+  "/registrations/:registrationId/refund-request",
+  authMiddleware,
+  EventController.getRefundRequest,
+);
 // Event registration routes
 router.post(
   "/events/:eventId/register",

@@ -57,10 +57,10 @@ async function scheduleEventPrompts(pool) {
   // — so we schedule prompts for events that ended recently, not replaying the past
   const { rows } = await pool.query(`
     SELECT er.member_id AS user_id, e.id AS event_id,
-           COALESCE(e.end_datetime, e.start_datetime + INTERVAL '2 hours') AS end_time
+           e.end_datetime AS end_time
     FROM event_registrations er
     JOIN events e ON e.id = er.event_id
-    WHERE COALESCE(e.end_datetime, e.start_datetime + INTERVAL '2 hours')
+    WHERE e.end_datetime
             BETWEEN (NOW() - INTERVAL '7 hours') AND (NOW() - INTERVAL '${PROMPT_DELAY_HOURS} hours')
       AND er.registration_status IN ('attended', 'confirmed', 'registered')
       -- Skip if a prompt already exists for this user + event
