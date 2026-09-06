@@ -520,6 +520,42 @@ async function ensureTables(pool) {
       CREATE INDEX IF NOT EXISTS idx_refund_requests_member       ON refund_requests(member_id);
       CREATE INDEX IF NOT EXISTS idx_refund_requests_event        ON refund_requests(event_id);
 
+      -- Payout ledger: one row per event, computed 48h after end_datetime or on admin early-request.
+      -- 'released' = admin bookkeeping only; no automated bank transfer occurs.
+      CREATE TABLE IF NOT EXISTS event_payouts (
+        id                    BIGSERIAL PRIMARY KEY,
+        event_id              BIGINT       NOT NULL REFERENCES events(id)      ON DELETE CASCADE,
+        community_id          BIGINT       NOT NULL REFERENCES communities(id)  ON DELETE CASCADE,
+        status                VARCHAR(20)  NOT NULL DEFAULT 'ready'
+                              CHECK (status IN ('pending', 'ready', 'released')),
+        gross_revenue         NUMERIC(12,2) NOT NULL,
+        total_discounts       NUMERIC(12,2) NOT NULL DEFAULT 0,
+        platform_fee_amount   NUMERIC(12,2) NOT NULL,
+        refunds_deducted      NUMERIC(12,2) NOT NULL DEFAULT 0,
+        -- INTENTIONALLY NULL: pending GST/tax compliance decision. Do NOT compute.
+        tax_amount            NUMERIC(12,2) DEFAULT NULL,
+        final_payout_amount   NUMERIC(12,2) NOT NULL,
+        ledger_snapshot       JSONB        NOT NULL,
+        trigger_type          VARCHAR(20)  NOT NULL
+                              CHECK (trigger_type IN ('scheduled', 'early_on_demand')),
+        scheduled_release_at  TIMESTAMPTZ  NOT NULL,
+        actual_released_at    TIMESTAMPTZ,
+        released_by           BIGINT       REFERENCES admins(id) ON DELETE SET NULL,
+        created_at            TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_event_payouts_event_id      ON event_payouts(event_id);
+      CREATE INDEX IF NOT EXISTS idx_event_payouts_status               ON event_payouts(status);
+      CREATE INDEX IF NOT EXISTS idx_event_payouts_community            ON event_payouts(community_id);
+      CREATE INDEX IF NOT EXISTS idx_event_payouts_scheduled_release    ON event_payouts(scheduled_release_at);
+
+      -- Per-community early payout toggle (admin-only write).
+      CREATE TABLE IF NOT EXISTS community_payout_settings (
+        community_id         BIGINT   NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+        early_payout_enabled BOOLEAN  NOT NULL DEFAULT FALSE,
+        updated_by           BIGINT   REFERENCES admins(id)               ON DELETE SET NULL,
+        updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (community_id)
+      );
 
       -- Discount codes for events (promo codes)
       CREATE TABLE IF NOT EXISTS discount_codes (

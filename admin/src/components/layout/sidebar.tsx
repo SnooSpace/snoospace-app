@@ -22,6 +22,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   Building2,
+  Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -82,6 +83,11 @@ const mainNavItems = [
     title: "Analytics",
     href: "/analytics",
     icon: BarChart3,
+  },
+  {
+    title: "Finance",
+    href: "/finance",
+    icon: Wallet,
   },
   {
     title: "Reports",

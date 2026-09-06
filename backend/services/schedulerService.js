@@ -16,6 +16,7 @@ const { runReputationJob } = require("../jobs/computeReputationScores");
 const { runTrustFlagsJob } = require("../jobs/computeTrustFlags");
 const { scheduleReviewPrompts, deliverReviewPrompts } = require("../jobs/scheduleReviewPrompts");
 const { runVerificationMediaPurgeJob } = require("../jobs/purgeVerificationMedia");
+const { computeEventPayout } = require("../jobs/computeEventPayout");
 const {
   resolvePostEventAttendance,
   analysePostEventEcho,
@@ -271,6 +272,14 @@ const init = (dbPool) => {
     } catch (err) {
       console.error("[Scheduler] Verification media purge error:", err.message);
     }
+  });
+
+  // ── Hourly at :45 — 48h post-event payout ledger computation ─────────────
+  // Finds events where NOW() >= end_datetime + 48h with no existing payout row.
+  // Computes ledger and inserts event_payouts row with status='ready'.
+  // ON CONFLICT DO NOTHING on event_id makes this idempotent.
+  cron.schedule("45 * * * *", async () => {
+    await runPayoutLedgerJob();
   });
 
   console.log("[Scheduler] Scheduler service initialized");
@@ -607,10 +616,86 @@ const cleanupExpiredReservations = async () => {
   }
 };
 
+// ── Hourly at :45 — compute payout ledgers for events 48h+ past end_datetime ──
+// Runs at minute :45 (offset from :00 attendance job and :30 collab expiry).
+// Finds events where NOW() >= end_datetime + 48h AND no event_payouts row exists.
+// For each, calls computeEventPayout() and inserts a 'ready' ledger row.
+// ON CONFLICT DO NOTHING ensures idempotency if the cron fires twice (e.g. restart).
+//
+// Does NOT execute any real bank transfer — 'ready' means "computed and available
+// for admin review." Admin must manually mark as 'released' in the panel.
+const runPayoutLedgerJob = async () => {
+  if (!pool) return;
+  try {
+    // Find all events that crossed the 48h threshold with no payout row yet.
+    const eligible = await pool.query(`
+      SELECT e.id AS event_id, e.end_datetime
+      FROM events e
+      WHERE NOW() >= e.end_datetime + INTERVAL '48 hours'
+        AND NOT EXISTS (
+          SELECT 1 FROM event_payouts ep WHERE ep.event_id = e.id
+        )
+      ORDER BY e.end_datetime ASC
+      LIMIT 50
+    `);
+
+    if (eligible.rows.length === 0) return;
+
+    console.log(`[Scheduler/Payouts] Processing ${eligible.rows.length} eligible event(s)`);
+
+    for (const row of eligible.rows) {
+      try {
+        const computed = await computeEventPayout(pool, row.event_id);
+        const scheduledAt = new Date(row.end_datetime);
+        scheduledAt.setHours(scheduledAt.getHours() + 48);
+
+        await pool.query(
+          `INSERT INTO event_payouts (
+             event_id, community_id, status,
+             gross_revenue, total_discounts, platform_fee_amount,
+             refunds_deducted, tax_amount, final_payout_amount,
+             ledger_snapshot, trigger_type, scheduled_release_at
+           ) VALUES ($1,$2,'ready',$3,$4,$5,$6,$7,$8,$9,'scheduled',$10)
+           ON CONFLICT (event_id) DO NOTHING`,
+          [
+            computed.eventId,
+            computed.communityId,
+            computed.grossRevenue,
+            computed.totalDiscounts,
+            computed.platformFeeAmount,
+            computed.refundsDeducted,
+            computed.taxAmount,        // null — intentional
+            computed.finalPayoutAmount,
+            JSON.stringify(computed.ledgerSnapshot),
+            scheduledAt.toISOString(),
+          ],
+        );
+
+        if (computed.finalPayoutAmount < 0) {
+          console.warn(
+            `[Scheduler/Payouts] Event ${row.event_id}: NEGATIVE payout ₹${computed.finalPayoutAmount} — ` +
+            `refunds exceeded gross revenue. Admin review required.`,
+          );
+        } else {
+          console.log(
+            `[Scheduler/Payouts] Event ${row.event_id}: payout ₹${computed.finalPayoutAmount} marked ready`,
+          );
+        }
+      } catch (err) {
+        console.error(`[Scheduler/Payouts] Failed for event ${row.event_id}:`, err.message);
+        // Continue to next event — one failure doesn't block others
+      }
+    }
+  } catch (err) {
+    console.error('[Scheduler/Payouts] Job error:', err.message);
+  }
+};
+
 module.exports = {
   init,
   sendEventReminders,
   triggerReminderCheck,
   sendAttendanceConfirmations,
   cleanupExpiredReservations,
+  runPayoutLedgerJob, // exported for manual invocation in tests/scripts
 };

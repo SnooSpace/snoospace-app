@@ -47,6 +47,7 @@ const CreatorFollowController = require("../controllers/creatorFollowController"
 const CommunityVoiceController = require("../controllers/communityVoiceController");
 const PaymentController = require("../controllers/paymentController");
 const SessionController = require("../controllers/sessionController");
+const FinancialController = require("../controllers/financialController");
 const videoInsightsRouter = require('./videoInsights');
 const { adminAuthMiddleware } = require("../middleware/adminAuth");
 const { requireBehavioralConsent, requireBrandConsent, requireBrandAcknowledgment, checkCreatorEventConsent } = require("../middleware/consentGate");
@@ -96,6 +97,20 @@ router.get("/db/health", async (req, res) => {
 // ============================================
 router.post("/admin/login", CategoryController.adminLogin);
 router.post("/admin/create", CategoryController.createAdmin); // TODO: Protect in production
+
+// ============================================
+// ADMIN FINANCIAL (Protected)
+// Payout ledger, refund queue, community payout settings.
+// No real bank transfer happens — 'released' is bookkeeping only.
+// ============================================
+router.get("/admin/payouts",                             adminAuthMiddleware, FinancialController.listPayouts);
+router.post("/admin/events/:eventId/trigger-early-payout", adminAuthMiddleware, FinancialController.triggerEarlyPayout);
+router.post("/admin/payouts/:payoutId/release",          adminAuthMiddleware, FinancialController.releasePayout);
+router.get("/admin/community-payout-settings",           adminAuthMiddleware, FinancialController.listCommunityPayoutSettings);
+router.patch("/admin/communities/:communityId/payout-settings", adminAuthMiddleware, FinancialController.updateCommunityPayoutSettings);
+router.get("/admin/refund-requests",                    adminAuthMiddleware, FinancialController.listRefundRequests);
+router.post("/admin/refund-requests/:requestId/approve", adminAuthMiddleware, FinancialController.approveRefundRequest);
+router.post("/admin/refund-requests/:requestId/reject",  adminAuthMiddleware, FinancialController.rejectRefundRequest);
 
 // ============================================
 // ADMIN ANALYTICS (Protected)

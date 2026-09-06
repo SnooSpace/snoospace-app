@@ -1768,4 +1768,173 @@ export async function reviewVerification(
   });
 }
 
+// ============================================
+// FINANCE API
+// ============================================
 
+export interface LedgerTier {
+  ticket_type_id: number | null;
+  tier_name: string;
+  tickets_sold: number;
+  gross: number;
+  platform_fee: number;
+  net_before_refund: number;
+}
+
+export interface LedgerSnapshot {
+  computed_at: string;
+  event_id: number;
+  event_title: string;
+  tiers: LedgerTier[];
+  totals: {
+    gross_revenue: number;
+    total_discounts: number;
+    platform_fee_amount: number;
+    refunds_deducted: number;
+    tax_amount: null; // intentionally null — pending compliance decision
+    final_payout_amount: number;
+  };
+  notes: string | null;
+}
+
+export interface EventPayout {
+  id: number;
+  event_id: number;
+  community_id: number;
+  status: "pending" | "ready" | "released";
+  gross_revenue: string;
+  total_discounts: string;
+  platform_fee_amount: string;
+  refunds_deducted: string;
+  tax_amount: null;
+  final_payout_amount: string;
+  ledger_snapshot: LedgerSnapshot;
+  trigger_type: "scheduled" | "early_on_demand";
+  scheduled_release_at: string;
+  actual_released_at: string | null;
+  created_at: string;
+  event_title: string;
+  event_start: string;
+  event_end: string;
+  community_name: string;
+  released_by_name: string | null;
+}
+
+export interface RefundRequest {
+  id: number;
+  registration_id: number;
+  member_id: number;
+  event_id: number;
+  ticket_type_id: number | null;
+  requested_amount: string;
+  reason: string | null;
+  rejection_reason: string | null;
+  status: "pending_review" | "auto_approved" | "manual_review" | "approved" | "rejected" | "completed";
+  policy_snapshot: {
+    allowed: boolean;
+    deadline_hours_before: number;
+    percentage: number;
+  };
+  requested_at: string;
+  decided_at: string | null;
+  completed_at: string | null;
+  buyer_name: string;
+  buyer_username: string;
+  event_title: string;
+  event_start: string;
+  event_end: string;
+  ticket_tier_name: string | null;
+  decided_by_name: string | null;
+}
+
+export interface CommunityPayoutSetting {
+  community_id: number;
+  name: string;
+  logo_url: string | null;
+  early_payout_enabled: boolean;
+  updated_at: string | null;
+  updated_by_name: string | null;
+}
+
+// Get all payouts
+export async function getPayouts(params?: {
+  status?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<{ payouts: EventPayout[]; total: number; page: number; pageSize: number }> {
+  const qs = new URLSearchParams(
+    Object.entries(params || {})
+      .filter(([, v]) => v !== undefined)
+      .map(([k, v]) => [k, String(v)])
+  ).toString();
+  return apiRequest(`/admin/payouts${qs ? `?${qs}` : ""}`);
+}
+
+// Release a payout (bookkeeping only — no real bank transfer)
+export async function releasePayout(payoutId: number): Promise<{ success: boolean; payout: EventPayout }> {
+  return apiRequest(`/admin/payouts/${payoutId}/release`, { method: "POST" });
+}
+
+// Trigger early payout for an event
+export async function triggerEarlyPayout(eventId: number): Promise<{ success: boolean; payout: object }> {
+  return apiRequest(`/admin/events/${eventId}/trigger-early-payout`, { method: "POST" });
+}
+
+// Get community payout settings
+export async function getCommunityPayoutSettings(params?: {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+}): Promise<{ settings: CommunityPayoutSetting[]; total: number }> {
+  const qs = new URLSearchParams(
+    Object.entries(params || {})
+      .filter(([, v]) => v !== undefined)
+      .map(([k, v]) => [k, String(v)])
+  ).toString();
+  return apiRequest(`/admin/community-payout-settings${qs ? `?${qs}` : ""}`);
+}
+
+// Update community payout settings
+export async function updateCommunityPayoutSettings(
+  communityId: number,
+  earlyPayoutEnabled: boolean
+): Promise<{ success: boolean; settings: CommunityPayoutSetting }> {
+  return apiRequest(`/admin/communities/${communityId}/payout-settings`, {
+    method: "PATCH",
+    body: JSON.stringify({ early_payout_enabled: earlyPayoutEnabled }),
+  });
+}
+
+// Get refund requests queue
+export async function getRefundRequests(params?: {
+  status?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<{ requests: RefundRequest[]; total: number; page: number; pageSize: number }> {
+  const qs = new URLSearchParams(
+    Object.entries(params || {})
+      .filter(([, v]) => v !== undefined)
+      .map(([k, v]) => [k, String(v)])
+  ).toString();
+  return apiRequest(`/admin/refund-requests${qs ? `?${qs}` : ""}`);
+}
+
+// Approve a refund request (calls Razorpay, webhook handles downstream)
+export async function approveRefundRequest(requestId: number): Promise<{
+  success: boolean;
+  razorpay_refund_id: string;
+  amount_refunded: string;
+}> {
+  return apiRequest(`/admin/refund-requests/${requestId}/approve`, { method: "POST" });
+}
+
+// Reject a refund request
+export async function rejectRefundRequest(
+  requestId: number,
+  rejectionReason: string
+): Promise<{ success: boolean; request: RefundRequest }> {
+  return apiRequest(`/admin/refund-requests/${requestId}/reject`, {
+    method: "POST",
+    body: JSON.stringify({ rejection_reason: rejectionReason }),
+  });
+}
