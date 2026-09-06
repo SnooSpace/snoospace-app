@@ -339,7 +339,7 @@ export default function SwipeableModal({
                 sheetHeight.value = e.nativeEvent.layout.height;
               }}
             >
-              <View style={[sheetStyle, { overflow: "hidden" }]}>
+              <View style={[styles.defaultSheet, sheetStyle, { overflow: "hidden" }]}>
                 {header ? (
                   <>
                     <GestureDetector gesture={headerPanGesture}>
@@ -374,10 +374,11 @@ export default function SwipeableModal({
 }
 
 // ─── Convenience Sub-components ──────────────────────────────────────────────
-SwipeableModal.ScrollView = function ModalScrollView(props) {
+SwipeableModal.ScrollView = React.forwardRef(function ModalScrollView(props, ref) {
   const { scrollProps } = useSwipeableModalScroll();
   return (
     <ScrollView
+      ref={ref}
       {...scrollProps}
       {...props}
       style={[{ flexGrow: 1, flexShrink: 1 }, props.style]}
@@ -387,7 +388,7 @@ SwipeableModal.ScrollView = function ModalScrollView(props) {
       }}
     />
   );
-};
+});
 
 SwipeableModal.FlatList = function ModalFlatList(props) {
   const { scrollProps } = useSwipeableModalScroll();
@@ -404,10 +405,11 @@ SwipeableModal.FlatList = function ModalFlatList(props) {
   );
 };
 
-SwipeableModal.KeyboardAwareScrollView = function ModalKeyboardAwareScrollView(props) {
+SwipeableModal.KeyboardAwareScrollView = React.forwardRef(function ModalKeyboardAwareScrollView(props, ref) {
   const { scrollProps } = useSwipeableModalScroll();
   return (
     <KeyboardAwareScrollView
+      ref={ref}
       {...scrollProps}
       {...props}
       style={[{ flexGrow: 1, flexShrink: 1 }, props.style]}
@@ -417,7 +419,7 @@ SwipeableModal.KeyboardAwareScrollView = function ModalKeyboardAwareScrollView(p
       }}
     />
   );
-};
+});
 
 SwipeableModal.SectionList = function ModalSectionList(props) {
   const { scrollProps } = useSwipeableModalScroll();
@@ -445,6 +447,11 @@ const styles = StyleSheet.create({
   animatedSheet: {
     width: "100%",
     alignItems: "stretch",
+  },
+  defaultSheet: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
   },
   contentContainer: {
     flexGrow: 1,

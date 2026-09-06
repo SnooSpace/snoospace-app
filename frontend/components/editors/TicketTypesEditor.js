@@ -50,6 +50,13 @@ import {
   Check,
   BadgePercent,
   Zap,
+  RotateCcw,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  Percent,
+  Copy,
+  Info,
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -184,13 +191,27 @@ const TicketTypesEditor = React.forwardRef(
       max_per_order: "10",
       sales_start_date: null,
       sales_end_date: null,
-      // Refund policy — per-tier, organiser-configurable
-      refund_policy_allowed: true,
+      // Refund policy — per-tier, default non-refundable
+      refund_policy_allowed: false,
       refund_policy_deadline: "24",
       refund_policy_percentage: "100",
     });
 
     const [alertConfig, setAlertConfig] = useState(null);
+    const modalScrollRef = useRef(null);
+    const refundSectionY = useRef(0);
+
+    const scrollToRefundSection = () => {
+      setTimeout(() => {
+        if (modalScrollRef.current) {
+          if (typeof modalScrollRef.current.scrollToPosition === "function") {
+            modalScrollRef.current.scrollToPosition(0, refundSectionY.current || 850, true);
+          } else if (typeof modalScrollRef.current.scrollTo === "function") {
+            modalScrollRef.current.scrollTo({ y: refundSectionY.current || 850, animated: true });
+          }
+        }
+      }, 350);
+    };
 
     const resetForm = () => {
       setCurrentTicket({
@@ -204,7 +225,7 @@ const TicketTypesEditor = React.forwardRef(
         max_per_order: "10",
         sales_start_date: null,
         sales_end_date: null,
-        refund_policy_allowed: true,
+        refund_policy_allowed: false,
         refund_policy_deadline: "24",
         refund_policy_percentage: "100",
       });
@@ -221,8 +242,12 @@ const TicketTypesEditor = React.forwardRef(
       resetForm();
     };
 
-    const openAddModal = () => {
+    const openAddModal = (options = {}) => {
       resetForm();
+      if (options.scrollToRefund) {
+        setShowRefundPolicy(true);
+        scrollToRefundSection();
+      }
       setShowModal(true);
     };
 
@@ -231,9 +256,9 @@ const TicketTypesEditor = React.forwardRef(
       openEditModal,
     }));
 
-    const openEditModal = (index) => {
+    const openEditModal = (index, options = {}) => {
       const ticket = ticketTypes[index];
-      const rp = ticket.refund_policy || { allowed: true, deadline_hours_before: 24, percentage: 100 };
+      const rp = ticket.refund_policy || { allowed: false, deadline_hours_before: 24, percentage: 100 };
       setCurrentTicket({
         name: ticket.name || "",
         description: ticket.description || "",
@@ -249,7 +274,7 @@ const TicketTypesEditor = React.forwardRef(
         sales_end_date: ticket.sales_end_date
           ? new Date(ticket.sales_end_date)
           : null,
-        refund_policy_allowed: rp.allowed !== false,
+        refund_policy_allowed: rp.allowed === true,
         refund_policy_deadline: rp.deadline_hours_before?.toString() ?? "24",
         refund_policy_percentage: rp.percentage?.toString() ?? "100",
       });
@@ -265,12 +290,12 @@ const TicketTypesEditor = React.forwardRef(
           ? "restricted"
           : "none",
       );
-      // Expand refund section if it has a non-default policy
-      setShowRefundPolicy(
-        rp.allowed === false ||
-        rp.deadline_hours_before !== 24 ||
-        rp.percentage !== 100
-      );
+      if (options.scrollToRefund) {
+        setShowRefundPolicy(true);
+        scrollToRefundSection();
+      } else {
+        setShowRefundPolicy(rp.allowed === true);
+      }
       setShowAdvanced(false);
 
       setEditingIndex(index);
@@ -612,32 +637,15 @@ const TicketTypesEditor = React.forwardRef(
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.label}>Ticketing</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            {ticketTypes.length >= 2 && (
-              <TouchableOpacity
-                onPress={() => {
-                  // Apply first tier's policy to ALL other tiers
-                  const src = ticketTypes[0]?.refund_policy || { allowed: true, deadline_hours_before: 24, percentage: 100 };
-                  const updated = ticketTypes.map((t) => ({ ...t, refund_policy: { ...src } }));
-                  onChange(updated);
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={{ fontSize: 12, fontFamily: FONTS.semiBold, color: '#2962FF' }}>
-                  Apply policy to all
-                </Text>
-              </TouchableOpacity>
-            )}
-            {ticketTypes.length > 0 && (
-              <TouchableOpacity
-                style={styles.addButton}
-                onPress={onAddPress || openAddModal}
-              >
-                <Ionicons name="add-circle" size={24} color={COLORS.primary} />
-                <Text style={styles.addButtonText}>Add Ticket Type</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+          {ticketTypes.length > 0 && (
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={onAddPress || openAddModal}
+            >
+              <Ionicons name="add-circle" size={20} color={COLORS.primary} />
+              <Text style={styles.addButtonText}>Add Ticket Type</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Empty State */}
@@ -774,40 +782,18 @@ const TicketTypesEditor = React.forwardRef(
                         </Text>
                       </View>
                     )}
-                    {/* Refund policy badge */}
-                    {ticket.refund_policy && (
-                      <View style={[
-                        styles.visibilityBadge,
-                        { backgroundColor: ticket.refund_policy.allowed ? '#ECFDF5' : '#FEF2F2',
-                          borderColor: ticket.refund_policy.allowed ? '#A7F3D0' : '#FECACA' }
-                      ]}>
-                        <Text style={[
-                          styles.visibilityText,
-                          { color: ticket.refund_policy.allowed ? '#047857' : '#991B1B' }
-                        ]}>
-                          {ticket.refund_policy.allowed
-                            ? `${ticket.refund_policy.percentage}% refund`
-                            : 'No refund'}
-                        </Text>
-                      </View>
-                    )}
+                    <TouchableOpacity
+                      style={styles.refundActionBtn}
+                      onPress={() => openEditModal(index, { scrollToRefund: true })}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.refundActionBtnText}>
+                        {ticket.refund_policy?.allowed
+                          ? `${ticket.refund_policy.percentage}% refund`
+                          : "Non-refundable"}
+                      </Text>
+                    </TouchableOpacity>
                     <View style={{ flex: 1 }} />
-                    {/* Copy policy to another tier */}
-                    {ticketTypes.length >= 2 && ticket.refund_policy && (
-                      <TouchableOpacity
-                        style={styles.actionBtn}
-                        onPress={() => {
-                          const src = ticket.refund_policy;
-                          const updated = ticketTypes.map((t, i) =>
-                            i === index ? t : { ...t, refund_policy: { ...src } }
-                          );
-                          onChange(updated);
-                        }}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={[styles.actionBtnText, { color: '#2962FF' }]}>Copy policy</Text>
-                      </TouchableOpacity>
-                    )}
                     <TouchableOpacity
                       style={styles.actionBtn}
                       onPress={() => openEditModal(index)}
@@ -859,6 +845,7 @@ const TicketTypesEditor = React.forwardRef(
           }
         >
           <SwipeableModal.KeyboardAwareScrollView
+            ref={modalScrollRef}
             style={styles.modalBody}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 110 }}
@@ -1399,94 +1386,262 @@ const TicketTypesEditor = React.forwardRef(
                 </View>
 
                 {/* REFUND POLICY — collapsed by default, per-tier */}
-                <View style={styles.elevatedCard}>
+                <View
+                  style={styles.elevatedCard}
+                  onLayout={(e) => {
+                    refundSectionY.current = e.nativeEvent.layout.y;
+                  }}
+                >
                   <TouchableOpacity
-                    style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+                    style={styles.refundHeaderRow}
                     onPress={() => {
                       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
                       setShowRefundPolicy(!showRefundPolicy);
                     }}
                     activeOpacity={0.7}
                   >
-                    <View>
-                      <Text style={styles.fieldLabel}>Refund Policy</Text>
-                      <Text style={[styles.inputHelper, { marginTop: 2 }]}>
-                        {currentTicket.refund_policy_allowed
-                          ? `${currentTicket.refund_policy_percentage}% refund · ${currentTicket.refund_policy_deadline}h deadline`
-                          : 'Non-refundable'}
-                      </Text>
+                    <View style={styles.refundHeaderLeft}>
+                      <View
+                        style={[
+                          styles.refundIconContainer,
+                          currentTicket.refund_policy_allowed
+                            ? styles.refundIconContainerActive
+                            : styles.refundIconContainerInactive,
+                        ]}
+                      >
+                        <RotateCcw
+                          size={18}
+                          color={
+                            currentTicket.refund_policy_allowed
+                              ? "#10B981"
+                              : "#64748B"
+                          }
+                          strokeWidth={2}
+                        />
+                      </View>
+                      <View style={styles.refundHeaderTextCol}>
+                        <Text style={styles.refundCardTitle}>Refund Policy</Text>
+                        <Text
+                          style={[
+                            styles.refundCardSubtitle,
+                            currentTicket.refund_policy_allowed && styles.refundCardSubtitleActive,
+                          ]}
+                        >
+                          {currentTicket.refund_policy_allowed
+                            ? `${currentTicket.refund_policy_percentage}% refund · ${currentTicket.refund_policy_deadline}h deadline`
+                            : "Non-refundable for this tier"}
+                        </Text>
+                      </View>
                     </View>
-                    <Ionicons
-                      name={showRefundPolicy ? 'chevron-up' : 'chevron-down'}
-                      size={18}
-                      color="#64748B"
-                    />
+                    {showRefundPolicy ? (
+                      <ChevronUp size={20} color="#94A3B8" />
+                    ) : (
+                      <ChevronDown size={20} color="#94A3B8" />
+                    )}
                   </TouchableOpacity>
 
                   {showRefundPolicy && (
-                    <View style={{ marginTop: 16 }}>
+                    <View style={styles.refundBody}>
+                      <View style={styles.refundDivider} />
+
                       {/* Allow refunds toggle */}
-                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                        <Text style={[styles.fieldLabel, { marginBottom: 0 }]}>Allow refunds</Text>
+                      <View style={styles.refundToggleRow}>
+                        <View style={{ flex: 1, marginRight: 12 }}>
+                          <Text style={styles.refundToggleTitle}>Allow refunds</Text>
+                          <Text style={styles.refundToggleHelper}>
+                            Attendees can request a refund before the deadline
+                          </Text>
+                        </View>
                         <Switch
                           value={currentTicket.refund_policy_allowed}
                           onValueChange={(val) => {
                             LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
                             setCurrentTicket({ ...currentTicket, refund_policy_allowed: val });
                           }}
-                          trackColor={{ false: '#E5E7EB', true: '#A7F3D0' }}
-                          thumbColor={currentTicket.refund_policy_allowed ? '#047857' : '#9CA3AF'}
+                          trackColor={{ false: "#E2E8F0", true: "#BFDBFE" }}
+                          thumbColor={currentTicket.refund_policy_allowed ? "#2962FF" : "#FFFFFF"}
                         />
                       </View>
 
                       {currentTicket.refund_policy_allowed && (
-                        <View style={{ gap: 12 }}>
-                          {/* Deadline */}
-                          <View>
-                            <Text style={[styles.fieldLabel, { marginBottom: 6 }]}>
-                              Deadline (hours before event)
-                            </Text>
-                            <View style={styles.priceContainer}>
+                        <View style={styles.refundFieldsContainer}>
+                          {/* Field 1: Cancellation Deadline */}
+                          <View style={styles.refundFieldBlock}>
+                            <View style={styles.refundFieldLabelRow}>
+                              <Text style={styles.refundFieldLabel}>Cancellation Deadline</Text>
+                              <Text style={styles.refundFieldHint}>Hours before event starts</Text>
+                            </View>
+
+                            <View style={styles.unifiedInputContainer}>
+                              <Clock size={16} color="#94A3B8" style={{ marginRight: 10 }} />
                               <TextInput
-                                style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                                style={styles.unifiedTextInput}
                                 value={currentTicket.refund_policy_deadline}
                                 onChangeText={(t) =>
-                                  setCurrentTicket({ ...currentTicket, refund_policy_deadline: t })
+                                  setCurrentTicket({
+                                    ...currentTicket,
+                                    refund_policy_deadline: t.replace(/[^0-9]/g, ""),
+                                  })
                                 }
                                 placeholder="24"
                                 placeholderTextColor="#94A3B8"
                                 keyboardType="numeric"
                               />
-                              <Text style={{ marginLeft: 8, color: '#64748B', fontFamily: FONTS.semiBold, fontSize: 13 }}>hrs</Text>
+                              <View style={styles.unifiedSuffixBadge}>
+                                <Text style={styles.unifiedSuffixText}>hrs</Text>
+                              </View>
                             </View>
-                            <Text style={styles.inputHelper}>
-                              Buyers can request a refund up to this many hours before the event starts
-                            </Text>
+
+                            {/* Preset chips for deadline */}
+                            <View style={styles.refundPresetRow}>
+                              {[
+                                { label: "12 hrs", value: "12" },
+                                { label: "24 hrs", value: "24" },
+                                { label: "48 hrs", value: "48" },
+                                { label: "7 days", value: "168" },
+                              ].map((chip) => {
+                                const isSelected = currentTicket.refund_policy_deadline === chip.value;
+                                return (
+                                  <TouchableOpacity
+                                    key={chip.value}
+                                    style={[
+                                      styles.refundPresetChip,
+                                      isSelected && styles.refundPresetChipActive,
+                                    ]}
+                                    onPress={() => {
+                                      setCurrentTicket({
+                                        ...currentTicket,
+                                        refund_policy_deadline: chip.value,
+                                      });
+                                    }}
+                                    activeOpacity={0.7}
+                                  >
+                                    <Text
+                                      style={[
+                                        styles.refundPresetChipText,
+                                        isSelected && styles.refundPresetChipTextActive,
+                                      ]}
+                                    >
+                                      {chip.label}
+                                    </Text>
+                                  </TouchableOpacity>
+                                );
+                              })}
+                            </View>
                           </View>
 
-                          {/* Percentage */}
-                          <View>
-                            <Text style={[styles.fieldLabel, { marginBottom: 6 }]}>
-                              Refund amount (%)
-                            </Text>
-                            <View style={styles.priceContainer}>
+                          {/* Field 2: Refund Percentage */}
+                          <View style={styles.refundFieldBlock}>
+                            <View style={styles.refundFieldLabelRow}>
+                              <Text style={styles.refundFieldLabel}>Refund Amount</Text>
+                              <Text style={styles.refundFieldHint}>Percentage of ticket price returned</Text>
+                            </View>
+
+                            <View style={styles.unifiedInputContainer}>
+                              <Percent size={16} color="#94A3B8" style={{ marginRight: 10 }} />
                               <TextInput
-                                style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                                style={styles.unifiedTextInput}
                                 value={currentTicket.refund_policy_percentage}
-                                onChangeText={(t) =>
-                                  setCurrentTicket({ ...currentTicket, refund_policy_percentage: t })
-                                }
+                                onChangeText={(t) => {
+                                  const num = t.replace(/[^0-9]/g, "");
+                                  if (num === "" || parseInt(num, 10) <= 100) {
+                                    setCurrentTicket({
+                                      ...currentTicket,
+                                      refund_policy_percentage: num,
+                                    });
+                                  }
+                                }}
                                 placeholder="100"
                                 placeholderTextColor="#94A3B8"
                                 keyboardType="numeric"
                               />
-                              <Text style={{ marginLeft: 8, color: '#64748B', fontFamily: FONTS.semiBold, fontSize: 13 }}>%</Text>
+                              <View style={styles.unifiedSuffixBadge}>
+                                <Text style={styles.unifiedSuffixText}>%</Text>
+                              </View>
                             </View>
-                            <Text style={styles.inputHelper}>
-                              0 = no money returned · 100 = full refund (platform fee not refunded)
+
+                            {/* Preset chips for percentage */}
+                            <View style={styles.refundPresetRow}>
+                              {[
+                                { label: "50%", value: "50" },
+                                { label: "75%", value: "75" },
+                                { label: "90%", value: "90" },
+                                { label: "100%", value: "100" },
+                              ].map((chip) => {
+                                const isSelected = currentTicket.refund_policy_percentage === chip.value;
+                                return (
+                                  <TouchableOpacity
+                                    key={chip.value}
+                                    style={[
+                                      styles.refundPresetChip,
+                                      isSelected && styles.refundPresetChipActive,
+                                    ]}
+                                    onPress={() => {
+                                      setCurrentTicket({
+                                        ...currentTicket,
+                                        refund_policy_percentage: chip.value,
+                                      });
+                                    }}
+                                    activeOpacity={0.7}
+                                  >
+                                    <Text
+                                      style={[
+                                        styles.refundPresetChipText,
+                                        isSelected && styles.refundPresetChipTextActive,
+                                      ]}
+                                    >
+                                      {chip.label}
+                                    </Text>
+                                  </TouchableOpacity>
+                                );
+                              })}
+                            </View>
+                          </View>
+
+                          {/* Fee Disclaimer Note */}
+                          <View style={styles.refundInfoCard}>
+                            <Info size={14} color="#64748B" style={{ marginTop: 1, marginRight: 8 }} />
+                            <Text style={styles.refundInfoText}>
+                              Platform and payment processing fees are non-refundable. 100% returns full ticket face value.
                             </Text>
                           </View>
                         </View>
+                      )}
+
+                      {ticketTypes.length >= 2 && (
+                        <TouchableOpacity
+                          style={styles.applyToAllButton}
+                          onPress={() => {
+                            const currentRp = {
+                              allowed: currentTicket.refund_policy_allowed,
+                              deadline_hours_before: currentTicket.refund_policy_allowed
+                                ? parseInt(currentTicket.refund_policy_deadline) || 24
+                                : 0,
+                              percentage: currentTicket.refund_policy_allowed
+                                ? parseInt(currentTicket.refund_policy_percentage) || 100
+                                : 0,
+                            };
+                            const updated = ticketTypes.map((t, i) =>
+                              i === editingIndex ? { ...t, refund_policy: currentRp } : { ...t, refund_policy: { ...currentRp } }
+                            );
+                            onChange(updated);
+                            setAlertConfig({
+                              visible: true,
+                              title: "Policy Applied",
+                              message: "This refund policy has been applied to all ticket types.",
+                              primaryAction: {
+                                text: "OK",
+                                onPress: () => setAlertConfig(null),
+                              },
+                            });
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <Copy size={15} color="#2962FF" />
+                          <Text style={styles.applyToAllText}>
+                            Apply this policy to all ticket types
+                          </Text>
+                        </TouchableOpacity>
                       )}
                     </View>
                   )}
@@ -1664,11 +1819,13 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     paddingVertical: 10,
     paddingHorizontal: 16,
+    overflow: "hidden",
   },
   addButtonText: {
-    fontFamily: "BasicCommercial-Bold",
+    fontFamily: "Manrope-SemiBold",
     color: "#111827",
     fontSize: 15,
+    includeFontPadding: false,
   },
   emptyCard: {
     backgroundColor: "#FFFFFF",
@@ -1828,6 +1985,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: "Manrope-SemiBold",
     color: "#4B5563",
+  },
+  refundActionBtn: {
+    paddingVertical: 4,
+  },
+  refundActionBtnText: {
+    fontSize: 14,
+    fontFamily: "Manrope-SemiBold",
+    color: "#2962FF",
   },
 
   modalSheet: {
@@ -2530,6 +2695,186 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.semiBold,
     fontSize: 16,
     color: "#FFFFFF",
+  },
+
+  // --- REFUND POLICY REDESIGN ---
+  refundHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  refundHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    marginRight: 12,
+  },
+  refundIconContainer: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  refundIconContainerActive: {
+    backgroundColor: "#ECFDF5",
+  },
+  refundIconContainerInactive: {
+    backgroundColor: "#F1F5F9",
+  },
+  refundHeaderTextCol: {
+    flex: 1,
+  },
+  refundCardTitle: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 16,
+    color: "#0F172A",
+  },
+  refundCardSubtitle: {
+    fontFamily: FONTS.regular,
+    fontSize: 13,
+    color: "#64748B",
+    marginTop: 2,
+  },
+  refundCardSubtitleActive: {
+    color: "#059669",
+    fontFamily: FONTS.medium,
+  },
+  refundBody: {
+    marginTop: 16,
+  },
+  refundDivider: {
+    height: 1,
+    backgroundColor: "#F1F5F9",
+    marginBottom: 16,
+  },
+  refundToggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  refundToggleTitle: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 15,
+    color: "#1E293B",
+  },
+  refundToggleHelper: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: "#64748B",
+    marginTop: 2,
+  },
+  refundFieldsContainer: {
+    marginTop: 20,
+    gap: 18,
+  },
+  refundFieldBlock: {
+    gap: 8,
+  },
+  refundFieldLabelRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "baseline",
+  },
+  refundFieldLabel: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 14,
+    color: "#1E293B",
+  },
+  refundFieldHint: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: "#94A3B8",
+  },
+  unifiedInputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    height: 50,
+  },
+  unifiedTextInput: {
+    flex: 1,
+    fontFamily: FONTS.semiBold,
+    fontSize: 16,
+    color: "#0F172A",
+    padding: 0,
+  },
+  unifiedSuffixBadge: {
+    backgroundColor: "#F1F5F9",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  unifiedSuffixText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 13,
+    color: "#475569",
+  },
+  refundPresetRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 2,
+  },
+  refundPresetChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  refundPresetChipActive: {
+    backgroundColor: "#EEF2FF",
+    borderColor: "#C7D2FE",
+  },
+  refundPresetChipText: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: "#64748B",
+  },
+  refundPresetChipTextActive: {
+    fontFamily: FONTS.semiBold,
+    color: "#2962FF",
+  },
+  refundInfoCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 4,
+  },
+  refundInfoText: {
+    flex: 1,
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: "#64748B",
+    lineHeight: 17,
+  },
+  applyToAllButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#DBEAFE",
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginTop: 20,
+  },
+  applyToAllText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 13,
+    color: "#2962FF",
   },
 });
 

@@ -535,7 +535,7 @@ const PromoEditor = React.forwardRef(
           <Text style={styles.label}>Promos & Discounts</Text>
           <TouchableOpacity style={styles.addButton} onPress={openAddModal}>
             <Ionicons name="add-circle" size={20} color={COLORS.primary} />
-            <Text style={styles.addButtonText}>Add Promo</Text>
+            <Text style={styles.addButtonText} numberOfLines={1}>Add</Text>
           </TouchableOpacity>
         </View>
 
@@ -1470,11 +1470,13 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingLeft: 10,
     paddingRight: 14,
+    overflow: "hidden",
   },
   addButtonText: {
-    fontFamily: "BasicCommercial-Bold",
+    fontFamily: "Manrope-SemiBold",
     color: "#111827",
     fontSize: 15,
+    includeFontPadding: false,
   },
   emptyState: {
     alignItems: "center",

@@ -1,5 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { StyleSheet, View, Text, Pressable, TouchableOpacity } from "react-native";
+import {
+  StyleSheet,
+  View,
+  Text,
+  Pressable,
+  TouchableOpacity,
+  Platform,
+} from "react-native";
 import Svg, { Path } from "react-native-svg";
 import SwipeableModal from "../modals/SwipeableModal";
 import { COLORS, FONTS } from "../../constants/theme";
@@ -124,11 +131,17 @@ export default function VerifiedBadge({ tier, isVerified, size = 16, style }) {
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
         onRequestClose={() => setModalVisible(false)}
+        sheetStyle={styles.sheet}
+        header={
+          <View style={styles.handleContainer}>
+            <View style={styles.handleBar} />
+          </View>
+        }
       >
         <View style={styles.sheetContent}>
           {/* Active Badge Hero Container */}
           <View style={[styles.iconContainer, { backgroundColor: activeConfig.badgeBg }]}>
-            <RosetteBadgeIcon color={activeConfig.color} size={40} />
+            <RosetteBadgeIcon color={activeConfig.color} size={36} />
           </View>
 
           {/* Hero Title */}
@@ -162,8 +175,18 @@ export default function VerifiedBadge({ tier, isVerified, size = 16, style }) {
                   },
                 ]}
               >
-                <View style={styles.cardIconWrapper}>
-                  <RosetteBadgeIcon color={TIER_CONFIG.plans_verified.color} size={24} />
+                <View
+                  style={[
+                    styles.cardIconWrapper,
+                    {
+                      backgroundColor:
+                        selectedTier === "plans_verified"
+                          ? "#FFFFFF"
+                          : TIER_CONFIG.plans_verified.badgeBg,
+                    },
+                  ]}
+                >
+                  <RosetteBadgeIcon color={TIER_CONFIG.plans_verified.color} size={22} />
                 </View>
                 <Text style={styles.cardTitle}>Plans verified</Text>
                 <Text style={styles.cardSubtitle}>Teal · hosting & joining</Text>
@@ -185,8 +208,20 @@ export default function VerifiedBadge({ tier, isVerified, size = 16, style }) {
                   },
                 ]}
               >
-                <View style={styles.cardIconWrapper}>
-                  <RosetteBadgeIcon color={TIER_CONFIG.selfie_verified.color} size={24} />
+                <View
+                  style={[
+                    styles.cardIconWrapper,
+                    {
+                      backgroundColor:
+                        selectedTier === "selfie_verified" ||
+                        selectedTier === "discover_verified" ||
+                        selectedTier === "id_verified"
+                          ? "#FFFFFF"
+                          : TIER_CONFIG.selfie_verified.badgeBg,
+                    },
+                  ]}
+                >
+                  <RosetteBadgeIcon color={TIER_CONFIG.selfie_verified.color} size={22} />
                 </View>
                 <Text style={styles.cardTitle}>Discover verified</Text>
                 <Text style={styles.cardSubtitle}>Blue · photos match video</Text>
@@ -220,26 +255,45 @@ const styles = StyleSheet.create({
     opacity: 0.75,
     transform: [{ scale: 0.95 }],
   },
+  sheet: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    overflow: "hidden",
+    paddingBottom: Platform.OS === "ios" ? 36 : 24,
+  },
+  handleContainer: {
+    alignItems: "center",
+    paddingTop: 12,
+    paddingBottom: 4,
+    backgroundColor: "#FFFFFF",
+  },
+  handleBar: {
+    width: 38,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#E2E8F0",
+  },
   sheetContent: {
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 28,
+    paddingTop: 4,
+    backgroundColor: "#FFFFFF",
   },
   iconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 12,
   },
   sheetTitle: {
     fontFamily: FONTS.basicCommercialBold,
-    fontSize: 20,
+    fontSize: 22,
     color: COLORS.textPrimary,
     textAlign: "center",
-    marginBottom: 8,
+    marginBottom: 6,
   },
   tagContainer: {
     paddingHorizontal: 12,
@@ -256,39 +310,44 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.textSecondary,
     textAlign: "center",
-    lineHeight: 22,
-    marginBottom: 20,
-    paddingHorizontal: 6,
+    lineHeight: 21,
+    marginBottom: 22,
+    paddingHorizontal: 10,
   },
   cardsSection: {
     width: "100%",
-    marginBottom: 20,
+    marginBottom: 22,
   },
   sectionHeader: {
     fontFamily: FONTS.basicCommercialBold,
-    fontSize: 13,
-    color: COLORS.textSecondary,
+    fontSize: 12,
+    color: COLORS.textMuted,
     textTransform: "uppercase",
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
     marginBottom: 10,
     paddingHorizontal: 2,
   },
   cardsRow: {
     flexDirection: "row",
-    gap: 10,
+    gap: 12,
   },
   referenceCard: {
     flex: 1,
-    paddingVertical: 14,
-    paddingHorizontal: 8,
-    borderRadius: 14,
-    backgroundColor: "#F9FAFB",
+    paddingVertical: 16,
+    paddingHorizontal: 10,
+    borderRadius: 16,
+    backgroundColor: "#F8FAFC",
     borderWidth: 1.5,
-    borderColor: "#E5E7EB",
+    borderColor: "#E2E8F0",
     alignItems: "center",
     justifyContent: "center",
   },
   cardIconWrapper: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 8,
   },
   cardTitle: {
@@ -303,11 +362,12 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: COLORS.textSecondary,
     textAlign: "center",
+    lineHeight: 15,
   },
   closeButton: {
     width: "100%",
-    height: 48,
-    borderRadius: 14,
+    height: 50,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
   },

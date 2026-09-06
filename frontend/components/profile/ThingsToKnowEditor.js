@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -13,7 +13,10 @@ import {
   StatusBar,
   Keyboard,
   Animated,
+  Dimensions,
 } from "react-native";
+import SwipeableModal from "../modals/SwipeableModal";
+import HapticsService from "../../services/HapticsService";
 import {
   Users,
   TriangleAlert,
@@ -70,6 +73,8 @@ import {
 
 import { COLORS, FONTS, SHADOWS } from "../../constants/theme";
 import GradientButton from "../ui/GradientButton";
+
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 // Typography constants
 const TOKENS = {
@@ -224,6 +229,7 @@ const PRESETS = {
 
 const ThingsToKnowEditor = ({ items = [], onChange, minItems = 3 }) => {
   const [showPresets, setShowPresets] = useState(false);
+  const [stagedPresets, setStagedPresets] = useState([]);
   const [showCustom, setShowCustom] = useState(false);
   const [showIconPicker, setShowIconPicker] = useState(false);
   const [customLabel, setCustomLabel] = useState("");
@@ -261,21 +267,46 @@ const ThingsToKnowEditor = ({ items = [], onChange, minItems = 3 }) => {
     { name: "Calendar", label: "Calendar" },
   ];
 
-  const addPresetItem = (preset) => {
-    // Check if already added
+  const togglePresetItem = (preset) => {
+    // If already added to the list, don't allow toggling
     if (items.some((item) => item.preset_id === preset.id)) {
-      Alert.alert("Already Added", "This item is already in your list.");
       return;
     }
 
-    const newItem = {
+    HapticsService.triggerImpactLight();
+    setStagedPresets((prev) => {
+      const exists = prev.some((p) => p.id === preset.id);
+      if (exists) {
+        return prev.filter((p) => p.id !== preset.id);
+      } else {
+        return [...prev, preset];
+      }
+    });
+  };
+
+  const confirmStagedPresets = () => {
+    if (stagedPresets.length === 0) return;
+    HapticsService.triggerImpactMedium();
+
+    const newItems = stagedPresets.map((preset, idx) => ({
       preset_id: preset.id,
       icon_name: preset.icon,
       label: preset.label,
-      order: items.length,
-    };
+      order: items.length + idx,
+    }));
 
-    onChange([...items, newItem]);
+    onChange([...items, ...newItems]);
+    setStagedPresets([]);
+    setShowPresets(false);
+  };
+
+  const handleOpenPresets = () => {
+    setStagedPresets([]);
+    setShowPresets(true);
+  };
+
+  const handleClosePresets = () => {
+    setStagedPresets([]);
     setShowPresets(false);
   };
 
@@ -354,7 +385,7 @@ const ThingsToKnowEditor = ({ items = [], onChange, minItems = 3 }) => {
             >
               <GradientButton
                 title="Browse Presets"
-                onPress={() => setShowPresets(true)}
+                onPress={handleOpenPresets}
                 style={{ width: "100%", borderRadius: 16, overflow: "hidden" }}
                 gradientStyle={{ borderRadius: 16, paddingVertical: 14 }}
                 textStyle={{ fontFamily: TOKENS.fonts.semibold }}
@@ -401,7 +432,7 @@ const ThingsToKnowEditor = ({ items = [], onChange, minItems = 3 }) => {
               <GradientButton
                 title="Browse Presets"
                 icon={<List size={18} color="#FFFFFF" strokeWidth={2.5} />}
-                onPress={() => setShowPresets(true)}
+                onPress={handleOpenPresets}
                 style={{ width: "100%", borderRadius: 16, overflow: "hidden" }}
                 gradientStyle={{
                   borderRadius: 16,
@@ -454,28 +485,41 @@ const ThingsToKnowEditor = ({ items = [], onChange, minItems = 3 }) => {
       </View>
 
       {/* Presets Modal */}
-      <Modal
+      <SwipeableModal
         visible={showPresets}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowPresets(false)}
-        statusBarTranslucent={true}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Select from Presets</Text>
-            <TouchableOpacity onPress={() => setShowPresets(false)}>
-              <X size={28} color={TOKENS.textPrimary} strokeWidth={2} />
-            </TouchableOpacity>
+        onClose={handleClosePresets}
+        onRequestClose={handleClosePresets}
+        sheetStyle={styles.presetsSheet}
+        header={
+          <View style={styles.sheetHeader}>
+            <View style={styles.handle} />
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select from Presets</Text>
+              <TouchableOpacity
+                onPress={handleClosePresets}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={styles.closeBtn}
+              >
+                <X size={20} color={TOKENS.textPrimary} strokeWidth={2} />
+              </TouchableOpacity>
+            </View>
           </View>
-
-          <ScrollView>
+        }
+      >
+        <View style={styles.presetsContainer}>
+          <SwipeableModal.ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.presetsContent}
+          >
             {Object.entries(PRESETS).map(([category, presets]) => (
               <View key={category} style={styles.category}>
                 <Text style={styles.categoryTitle}>{category}</Text>
                 {presets.map((preset) => {
                   const isAdded = items.some(
                     (item) => item.preset_id === preset.id,
+                  );
+                  const isStaged = stagedPresets.some(
+                    (p) => p.id === preset.id,
                   );
                   const IconCmp = ICON_MAP[preset.icon] || Info;
                   return (
@@ -484,21 +528,27 @@ const ThingsToKnowEditor = ({ items = [], onChange, minItems = 3 }) => {
                       style={[
                         styles.presetItem,
                         isAdded && styles.presetItemAdded,
+                        isStaged && styles.presetItemStaged,
                       ]}
-                      onPress={() => !isAdded && addPresetItem(preset)}
+                      onPress={() => togglePresetItem(preset)}
                       disabled={isAdded}
-                      activeOpacity={0.7}
+                      activeOpacity={0.75}
                     >
                       <View
                         style={[
                           styles.presetIconContainer,
                           isAdded && styles.presetIconContainerAdded,
+                          isStaged && styles.presetIconContainerStaged,
                         ]}
                       >
                         <IconCmp
                           size={18}
                           color={
-                            isAdded ? TOKENS.textSecondary : TOKENS.primary
+                            isAdded
+                              ? TOKENS.textSecondary
+                              : isStaged
+                              ? TOKENS.primary
+                              : TOKENS.primary
                           }
                           strokeWidth={2}
                         />
@@ -507,120 +557,163 @@ const ThingsToKnowEditor = ({ items = [], onChange, minItems = 3 }) => {
                         style={[
                           styles.presetLabel,
                           isAdded && styles.presetLabelAdded,
+                          isStaged && styles.presetLabelStaged,
                         ]}
                       >
                         {preset.label}
                       </Text>
-                      {isAdded && (
+                      {isAdded ? (
                         <CircleCheck
                           size={20}
                           color={TOKENS.success}
                           strokeWidth={2}
                         />
-                      )}
+                      ) : isStaged ? (
+                        <CircleCheck
+                          size={20}
+                          color={TOKENS.primary}
+                          strokeWidth={2.2}
+                        />
+                      ) : null}
                     </TouchableOpacity>
                   );
                 })}
               </View>
             ))}
-          </ScrollView>
+          </SwipeableModal.ScrollView>
+
+          {stagedPresets.length > 0 && (
+            <TouchableOpacity
+              style={styles.floatingPillButton}
+              onPress={confirmStagedPresets}
+              activeOpacity={0.88}
+            >
+              <Text style={styles.floatingPillTitle}>
+                Select {stagedPresets.length}
+              </Text>
+              <Text style={styles.floatingPillSubtext}>Tap to confirm</Text>
+            </TouchableOpacity>
+          )}
         </View>
-      </Modal>
+      </SwipeableModal>
 
       {/* Custom Item Modal */}
-      <Modal
+      <SwipeableModal
         visible={showCustom}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowCustom(false)}
-        statusBarTranslucent={true}
-      >
-        <View style={styles.modalOverlay}>
-          <Animated.View
-            style={[
-              styles.customModal,
-              {
-                paddingBottom:
-                  Platform.OS === "ios"
-                    ? keyboardHeight + 40
-                    : keyboardHeight + 24,
-              },
-            ]}
-          >
+        onClose={() => {
+          setShowCustom(false);
+          setShowIconPicker(false);
+        }}
+        onRequestClose={() => {
+          setShowCustom(false);
+          setShowIconPicker(false);
+        }}
+        sheetStyle={styles.customSheet}
+        avoidKeyboard
+        header={
+          <View style={styles.sheetHeader}>
+            <View style={styles.handle} />
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Add Custom Item</Text>
-              <TouchableOpacity onPress={() => setShowCustom(false)}>
-                <X size={24} color={TOKENS.textPrimary} />
+              <TouchableOpacity
+                onPress={() => {
+                  setShowCustom(false);
+                  setShowIconPicker(false);
+                }}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={styles.closeBtn}
+              >
+                <X size={20} color={TOKENS.textPrimary} strokeWidth={2} />
               </TouchableOpacity>
             </View>
-
-            <Text style={styles.label}>Icon</Text>
-            <TouchableOpacity
-              style={styles.iconSelector}
-              onPress={() => setShowIconPicker(!showIconPicker)}
-            >
+          </View>
+        }
+      >
+        <SwipeableModal.ScrollView
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.customSheetContent}
+        >
+          <Text style={styles.label}>Icon</Text>
+          <TouchableOpacity
+            style={styles.iconSelector}
+            onPress={() => setShowIconPicker(!showIconPicker)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.selectedIconCircle}>
               {(() => {
                 const SelectedIcon = ICON_MAP[customIcon] || Info;
                 return (
                   <SelectedIcon
-                    size={24}
+                    size={20}
                     color={TOKENS.primary}
                     strokeWidth={2}
                   />
                 );
               })()}
-              <Text style={styles.iconSelectorText}>Tap to change icon</Text>
-            </TouchableOpacity>
+            </View>
+            <Text style={styles.iconSelectorText}>Tap to change icon</Text>
+          </TouchableOpacity>
 
-            {showIconPicker && (
-              <View style={styles.iconGrid}>
-                {popularIcons.map((iconConfig) => {
-                  const IconCmp = ICON_MAP[iconConfig.name] || Info;
-                  return (
-                    <TouchableOpacity
-                      key={iconConfig.name}
+          {showIconPicker && (
+            <View style={styles.iconGrid}>
+              {popularIcons.map((iconConfig) => {
+                const IconCmp = ICON_MAP[iconConfig.name] || Info;
+                const isSelected = customIcon === iconConfig.name;
+                return (
+                  <TouchableOpacity
+                    key={iconConfig.name}
+                    style={[
+                      styles.iconOption,
+                      isSelected && styles.iconOptionSelected,
+                    ]}
+                    onPress={() => {
+                      setCustomIcon(iconConfig.name);
+                      setShowIconPicker(false);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <IconCmp
+                      size={22}
+                      color={isSelected ? TOKENS.primary : TOKENS.textSecondary}
+                      strokeWidth={2}
+                    />
+                    <Text
                       style={[
-                        styles.iconOption,
-                        customIcon === iconConfig.name &&
-                          styles.iconOptionSelected,
+                        styles.iconLabel,
+                        isSelected && styles.iconLabelSelected,
                       ]}
-                      onPress={() => {
-                        setCustomIcon(iconConfig.name);
-                        setShowIconPicker(false);
-                      }}
+                      numberOfLines={1}
                     >
-                      <IconCmp
-                        size={24}
-                        color={TOKENS.primary}
-                        strokeWidth={2}
-                      />
-                      <Text style={styles.iconLabel}>{iconConfig.label}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
+                      {iconConfig.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
 
-            <Text style={styles.label}>Label</Text>
-            <TextInput
-              style={styles.input}
-              value={customLabel}
-              onChangeText={setCustomLabel}
-              placeholder="e.g., 'Bring your own chair'"
-              placeholderTextColor={TOKENS.textMuted}
-              maxLength={60}
-            />
+          <Text style={styles.label}>Label</Text>
+          <TextInput
+            style={styles.input}
+            value={customLabel}
+            onChangeText={setCustomLabel}
+            placeholder="e.g., 'Bring your own chair'"
+            placeholderTextColor={TOKENS.textMuted}
+            maxLength={60}
+            returnKeyType="done"
+            onSubmitEditing={addCustomItem}
+          />
 
-            <TouchableOpacity
-              style={styles.saveButton}
-              onPress={addCustomItem}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.saveButtonText}>Add Item</Text>
-            </TouchableOpacity>
-          </Animated.View>
-        </View>
-      </Modal>
+          <TouchableOpacity
+            style={styles.saveButton}
+            onPress={addCustomItem}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.saveButtonText}>Add Item</Text>
+          </TouchableOpacity>
+        </SwipeableModal.ScrollView>
+      </SwipeableModal>
     </View>
   );
 };
@@ -720,52 +813,82 @@ const styles = StyleSheet.create({
     color: TOKENS.textSecondary,
     textAlign: "center",
   },
-  requirementInvalid: {
-    color: TOKENS.error,
-  },
-  modalContainer: {
-    flex: 1,
+  sheetHeader: {
     backgroundColor: "#FFFFFF",
-    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 44,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.4)",
-    justifyContent: "flex-end",
-  },
-  customModal: {
-    backgroundColor: "#FFFFFF",
-    width: "100%",
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    padding: 24,
-    ...SHADOWS.md,
+  handle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#E2E8F0",
+    alignSelf: "center",
+    marginTop: 10,
+    marginBottom: 4,
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: "#F3F4F6",
   },
   modalTitle: {
     fontFamily: TOKENS.fonts.bold,
-    fontSize: 20,
+    fontSize: 18,
     color: "#111827",
   },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  presetsSheet: {
+    backgroundColor: "#F9F9F9",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    maxHeight: SCREEN_HEIGHT * 0.88,
+    overflow: "hidden",
+  },
+  presetsContainer: {
+    flex: 1,
+    backgroundColor: "#F9F9F9",
+    position: "relative",
+  },
+  presetsContent: {
+    paddingBottom: Platform.OS === "ios" ? 110 : 96,
+    backgroundColor: "#F9F9F9",
+  },
+  customSheet: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    maxHeight: SCREEN_HEIGHT * 0.88,
+    overflow: "hidden",
+  },
+  customSheetContent: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === "ios" ? 36 : 24,
+  },
   category: {
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 4,
   },
   categoryTitle: {
     fontFamily: TOKENS.fonts.bold,
-    fontSize: 13,
+    fontSize: 12,
     color: TOKENS.primary,
-    marginBottom: 16,
+    marginBottom: 12,
     textTransform: "uppercase",
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
   },
   presetItem: {
     flexDirection: "row",
@@ -773,14 +896,23 @@ const styles = StyleSheet.create({
     padding: 14,
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: "#E6ECF8",
+    marginBottom: 10,
+    borderWidth: 1.5,
+    borderColor: "#E5E7EB",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
   },
   presetItemAdded: {
-    backgroundColor: "#F9FAFB",
-    borderColor: "#F3F4F6",
+    backgroundColor: "#F3F4F6",
+    borderColor: "#E5E7EB",
     opacity: 0.7,
+  },
+  presetItemStaged: {
+    backgroundColor: "rgba(41, 98, 255, 0.07)",
+    borderColor: TOKENS.primary,
   },
   presetIconContainer: {
     width: 36,
@@ -794,6 +926,9 @@ const styles = StyleSheet.create({
   presetIconContainerAdded: {
     backgroundColor: "#E5E7EB",
   },
+  presetIconContainerStaged: {
+    backgroundColor: "#FFFFFF",
+  },
   presetLabel: {
     fontFamily: TOKENS.fonts.medium,
     fontSize: 15,
@@ -803,71 +938,126 @@ const styles = StyleSheet.create({
   presetLabelAdded: {
     color: TOKENS.textSecondary,
   },
+  presetLabelStaged: {
+    color: TOKENS.primary,
+    fontFamily: TOKENS.fonts.semibold,
+  },
+  floatingPillButton: {
+    position: "absolute",
+    bottom: Platform.OS === "ios" ? 34 : 24,
+    right: 20,
+    backgroundColor: TOKENS.primary,
+    paddingVertical: 10,
+    paddingHorizontal: 22,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.22,
+    shadowRadius: 10,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.25)",
+  },
+  floatingPillTitle: {
+    fontFamily: TOKENS.fonts.semibold,
+    fontSize: 15,
+    color: "#FFFFFF",
+    lineHeight: 19,
+  },
+  floatingPillSubtext: {
+    fontFamily: TOKENS.fonts.regular,
+    fontSize: 11,
+    color: "rgba(255, 255, 255, 0.85)",
+    lineHeight: 14,
+    marginTop: 1,
+  },
   label: {
     fontFamily: TOKENS.fonts.semibold,
     fontSize: 14,
     color: "#374151",
-    marginTop: 20,
+    marginTop: 16,
     marginBottom: 8,
   },
   iconSelector: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 16,
+    padding: 12,
     backgroundColor: "#F9FAFB",
     borderRadius: 16,
     borderWidth: 1,
     borderColor: "#E6ECF8",
   },
+  selectedIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(41, 98, 255, 0.10)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
   iconSelectorText: {
     marginLeft: 12,
     fontFamily: TOKENS.fonts.medium,
-    fontSize: 15,
+    fontSize: 14,
     color: TOKENS.textSecondary,
   },
   iconGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    marginTop: 12,
+    marginTop: 10,
     gap: 8,
+    padding: 12,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
   },
   iconOption: {
-    width: "22%",
+    width: "22.5%",
     aspectRatio: 1,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 14,
-    backgroundColor: "#F9FAFB",
-    borderWidth: 2,
-    borderColor: "transparent",
+    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    padding: 4,
   },
   iconOptionSelected: {
     borderColor: TOKENS.primary,
-    backgroundColor: "#F4F6FA",
+    backgroundColor: "rgba(41, 98, 255, 0.08)",
   },
   iconLabel: {
     fontFamily: TOKENS.fonts.medium,
     fontSize: 11,
     color: TOKENS.textSecondary,
-    marginTop: 6,
+    marginTop: 4,
     textAlign: "center",
+  },
+  iconLabelSelected: {
+    color: TOKENS.primary,
+    fontFamily: TOKENS.fonts.semibold,
   },
   input: {
     fontFamily: TOKENS.fonts.regular,
     borderWidth: 1,
     borderColor: "#E6ECF8",
     borderRadius: 16,
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     fontSize: 15,
     color: TOKENS.textPrimary,
     backgroundColor: "#F9FAFB",
   },
   saveButton: {
     backgroundColor: TOKENS.primary,
-    paddingVertical: 16,
-    borderRadius: 24,
+    height: 50,
+    borderRadius: 16,
     alignItems: "center",
-    marginTop: 28,
+    justifyContent: "center",
+    marginTop: 24,
   },
   saveButtonText: {
     color: "#FFFFFF",
