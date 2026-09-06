@@ -15,6 +15,7 @@ import {
   Animated,
   Dimensions,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import SwipeableModal from "../modals/SwipeableModal";
 import HapticsService from "../../services/HapticsService";
 import {
@@ -58,6 +59,7 @@ import {
   Zap,
   Ticket,
   CircleCheck,
+  Check,
   AlertCircle,
   MapPin,
   Calendar,
@@ -484,118 +486,114 @@ const ThingsToKnowEditor = ({ items = [], onChange, minItems = 3 }) => {
         </View>
       </View>
 
-      {/* Presets Modal */}
-      <SwipeableModal
+      {/* Presets Screen */}
+      <Modal
         visible={showPresets}
-        onClose={handleClosePresets}
+        animationType="slide"
+        presentationStyle="pageSheet"
         onRequestClose={handleClosePresets}
-        sheetStyle={styles.presetsSheet}
-        header={
-          <View style={styles.sheetHeader}>
-            <View style={styles.handle} />
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select from Presets</Text>
-              <TouchableOpacity
-                onPress={handleClosePresets}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                style={styles.closeBtn}
-              >
-                <X size={20} color={TOKENS.textPrimary} strokeWidth={2} />
-              </TouchableOpacity>
-            </View>
-          </View>
-        }
+        statusBarTranslucent={true}
       >
-        <View style={styles.presetsContainer}>
-          <SwipeableModal.ScrollView
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.presetsContent}
-          >
-            {Object.entries(PRESETS).map(([category, presets]) => (
-              <View key={category} style={styles.category}>
-                <Text style={styles.categoryTitle}>{category}</Text>
-                {presets.map((preset) => {
-                  const isAdded = items.some(
-                    (item) => item.preset_id === preset.id,
-                  );
-                  const isStaged = stagedPresets.some(
-                    (p) => p.id === preset.id,
-                  );
-                  const IconCmp = ICON_MAP[preset.icon] || Info;
-                  return (
-                    <TouchableOpacity
-                      key={preset.id}
-                      style={[
-                        styles.presetItem,
-                        isAdded && styles.presetItemAdded,
-                        isStaged && styles.presetItemStaged,
-                      ]}
-                      onPress={() => togglePresetItem(preset)}
-                      disabled={isAdded}
-                      activeOpacity={0.75}
-                    >
-                      <View
-                        style={[
-                          styles.presetIconContainer,
-                          isAdded && styles.presetIconContainerAdded,
-                          isStaged && styles.presetIconContainerStaged,
-                        ]}
-                      >
-                        <IconCmp
-                          size={18}
-                          color={
-                            isAdded
-                              ? TOKENS.textSecondary
-                              : isStaged
-                              ? TOKENS.primary
-                              : TOKENS.primary
-                          }
-                          strokeWidth={2}
-                        />
-                      </View>
-                      <Text
-                        style={[
-                          styles.presetLabel,
-                          isAdded && styles.presetLabelAdded,
-                          isStaged && styles.presetLabelStaged,
-                        ]}
-                      >
-                        {preset.label}
-                      </Text>
-                      {isAdded ? (
-                        <CircleCheck
-                          size={20}
-                          color={TOKENS.success}
-                          strokeWidth={2}
-                        />
-                      ) : isStaged ? (
-                        <CircleCheck
-                          size={20}
-                          color={TOKENS.primary}
-                          strokeWidth={2.2}
-                        />
-                      ) : null}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            ))}
-          </SwipeableModal.ScrollView>
-
-          {stagedPresets.length > 0 && (
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Select from Presets</Text>
             <TouchableOpacity
-              style={styles.floatingPillButton}
-              onPress={confirmStagedPresets}
-              activeOpacity={0.88}
+              onPress={handleClosePresets}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={styles.closeBtn}
             >
-              <Text style={styles.floatingPillTitle}>
-                Select {stagedPresets.length}
-              </Text>
-              <Text style={styles.floatingPillSubtext}>Tap to confirm</Text>
+              <X size={20} color={TOKENS.textPrimary} strokeWidth={2} />
             </TouchableOpacity>
-          )}
-        </View>
-      </SwipeableModal>
+          </View>
+
+          <View style={styles.presetsContainer}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.presetsContent}
+              style={styles.presetsScrollView}
+            >
+              {Object.entries(PRESETS).map(([category, presets]) => (
+                <View key={category} style={styles.category}>
+                  <Text style={styles.categoryTitle}>{category}</Text>
+                  {presets.map((preset) => {
+                    const isAdded = items.some(
+                      (item) => item.preset_id === preset.id,
+                    );
+                    const isStaged = stagedPresets.some(
+                      (p) => p.id === preset.id,
+                    );
+                    const IconCmp = ICON_MAP[preset.icon] || Info;
+                    return (
+                      <TouchableOpacity
+                        key={preset.id}
+                        style={[
+                          styles.presetItem,
+                          isAdded && styles.presetItemAdded,
+                          isStaged && styles.presetItemStaged,
+                        ]}
+                        onPress={() => togglePresetItem(preset)}
+                        disabled={isAdded}
+                        activeOpacity={0.75}
+                      >
+                        <View
+                          style={[
+                            styles.presetIconContainer,
+                            isAdded && styles.presetIconContainerAdded,
+                            isStaged && styles.presetIconContainerStaged,
+                          ]}
+                        >
+                          <IconCmp
+                            size={18}
+                            color={
+                              isAdded
+                                ? TOKENS.textSecondary
+                                : isStaged
+                                ? "#2563EB"
+                                : TOKENS.primary
+                            }
+                            strokeWidth={2}
+                          />
+                        </View>
+                        <Text
+                          style={[
+                            styles.presetLabel,
+                            isAdded && styles.presetLabelAdded,
+                            isStaged && styles.presetLabelStaged,
+                          ]}
+                        >
+                          {preset.label}
+                        </Text>
+                        {isAdded ? (
+                          <View style={styles.checkCircleAdded}>
+                            <Check size={12} color="#FFFFFF" strokeWidth={3} />
+                          </View>
+                        ) : isStaged ? (
+                          <View style={styles.checkCircleStaged}>
+                            <Check size={12} color="#FFFFFF" strokeWidth={3} />
+                          </View>
+                        ) : null}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ))}
+            </ScrollView>
+
+            {stagedPresets.length > 0 && (
+              <TouchableOpacity
+                style={styles.floatingPillButton}
+                onPress={confirmStagedPresets}
+                activeOpacity={0.88}
+              >
+                <Text style={styles.floatingPillTitle}>
+                  Selected {stagedPresets.length}
+                </Text>
+                <Text style={styles.floatingPillSubtext}>Tap to confirm</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </SafeAreaView>
+      </Modal>
 
       {/* Custom Item Modal */}
       <SwipeableModal
@@ -813,6 +811,10 @@ const styles = StyleSheet.create({
     color: TOKENS.textSecondary,
     textAlign: "center",
   },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+  },
   sheetHeader: {
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 28,
@@ -832,29 +834,27 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: "#F3F4F6",
+    backgroundColor: "#FFFFFF",
   },
   modalTitle: {
     fontFamily: TOKENS.fonts.bold,
-    fontSize: 18,
+    fontSize: 20,
     color: "#111827",
   },
   closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: "#F3F4F6",
     alignItems: "center",
     justifyContent: "center",
   },
-  presetsSheet: {
+  presetsScrollView: {
+    flex: 1,
     backgroundColor: "#F9F9F9",
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    maxHeight: SCREEN_HEIGHT * 0.88,
-    overflow: "hidden",
   },
   presetsContainer: {
     flex: 1,
@@ -899,11 +899,6 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     borderWidth: 1.5,
     borderColor: "#E5E7EB",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
   },
   presetItemAdded: {
     backgroundColor: "#F3F4F6",
@@ -911,8 +906,8 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   presetItemStaged: {
-    backgroundColor: "rgba(41, 98, 255, 0.07)",
-    borderColor: TOKENS.primary,
+    backgroundColor: "#EEF4FF",
+    borderColor: "#2563EB",
   },
   presetIconContainer: {
     width: 36,
@@ -927,7 +922,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#E5E7EB",
   },
   presetIconContainerStaged: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#DBEAFE",
   },
   presetLabel: {
     fontFamily: TOKENS.fonts.medium,
@@ -939,8 +934,24 @@ const styles = StyleSheet.create({
     color: TOKENS.textSecondary,
   },
   presetLabelStaged: {
-    color: TOKENS.primary,
+    color: "#1E3A8A",
     fontFamily: TOKENS.fonts.semibold,
+  },
+  checkCircleStaged: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "#2563EB",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkCircleAdded: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "#10B981",
+    alignItems: "center",
+    justifyContent: "center",
   },
   floatingPillButton: {
     position: "absolute",

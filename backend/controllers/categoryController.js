@@ -2,6 +2,7 @@ const { createPool } = require("../config/db");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { cancelEventWithRefunds } = require("../services/eventCancellationService");
+const { MAIN_EVENT_CATEGORIES } = require("../constants/eventCategories");
 
 const pool = createPool();
 
@@ -463,25 +464,68 @@ const getEventsByCategory = async (req, res) => {
       });
     }
 
-    // Get category info (supports either numeric ID or category slug)
-    const isNumeric = /^\d+$/.test(String(categoryId).trim());
-    const categoryQuery = isNumeric
-      ? await pool.query(
-          `SELECT id, name, slug, icon_name FROM discover_categories WHERE id = $1`,
-          [parseInt(categoryId, 10)],
-        )
-      : await pool.query(
-          `SELECT id, name, slug, icon_name FROM discover_categories WHERE slug = $1`,
-          [String(categoryId).trim()],
-        );
+    // 1. Check if categoryId corresponds to a main category or slug
+    const normalizedInput = String(categoryId || "").trim().toLowerCase();
+    const mainCategory = MAIN_EVENT_CATEGORIES.find(
+      (m) => m.slug === normalizedInput || m.name.toLowerCase() === normalizedInput
+    );
 
-    if (categoryQuery.rows.length === 0) {
-      return res.status(404).json({ error: "Category not found" });
+    let category = null;
+    let targetCategoryIds = [];
+    let groupNames = [];
+
+    if (mainCategory) {
+      groupNames.push(mainCategory.name);
+      category = {
+        id: mainCategory.slug,
+        name: mainCategory.name,
+        slug: mainCategory.slug,
+        icon_name: mainCategory.iconName,
+        is_main: true,
+        subcategories: mainCategory.subcategories
+      };
+
+      const subcatNamesLower = mainCategory.subcategories.map((s) => s.toLowerCase());
+      const catQuery = await pool.query(
+        `SELECT id, name, slug FROM discover_categories WHERE is_active = true`
+      );
+      const matchingRows = catQuery.rows.filter(
+        (r) =>
+          subcatNamesLower.includes(r.name.toLowerCase()) ||
+          r.slug === mainCategory.slug ||
+          r.name.toLowerCase() === mainCategory.name.toLowerCase()
+      );
+      targetCategoryIds = matchingRows.map((r) => r.id);
+    } else {
+      // Get category info (supports either numeric ID or category slug)
+      const isNumeric = /^\d+$/.test(String(categoryId).trim());
+      const categoryQuery = isNumeric
+        ? await pool.query(
+            `SELECT id, name, slug, icon_name FROM discover_categories WHERE id = $1`,
+            [parseInt(categoryId, 10)],
+          )
+        : await pool.query(
+            `SELECT id, name, slug, icon_name FROM discover_categories WHERE slug = $1`,
+            [String(categoryId).trim()],
+          );
+
+      if (categoryQuery.rows.length === 0) {
+        return res.status(404).json({ error: "Category not found" });
+      }
+
+      category = categoryQuery.rows[0];
+      targetCategoryIds = [category.id];
+
+      const parentMain = MAIN_EVENT_CATEGORIES.find((m) =>
+        m.subcategories.some((s) => s.toLowerCase() === category.name.toLowerCase()) ||
+        m.slug === category.slug
+      );
+      if (parentMain) {
+        groupNames.push(parentMain.name);
+      }
     }
 
-    const category = categoryQuery.rows[0];
-
-    // Get events for this category
+    // Get events for this category & its subcategories
     const eventsQuery = `
       SELECT 
         e.id,
@@ -503,7 +547,7 @@ const getEventsByCategory = async (req, res) => {
         COALESCE(e.community_id, e.creator_id) as community_id,
         c.name as community_name,
         c.logo_url as community_logo,
-        edc.is_featured,
+        COALESCE(bool_or(edc.is_featured), false) as is_featured,
         COALESCE(COUNT(DISTINCT er.member_id) FILTER (WHERE er.registration_status = 'registered'), 0) as attendee_count,
         (
           SELECT COALESCE(json_agg(json_build_object('name', m2.name, 'profile_photo_url', m2.profile_photo_url)), '[]'::json)
@@ -519,20 +563,24 @@ const getEventsByCategory = async (req, res) => {
         TO_CHAR(e.start_datetime, 'Dy, DD Mon, HH:MI AM') as formatted_date,
         TO_CHAR(e.start_datetime, 'HH:MI AM') as formatted_time
       FROM events e
-      INNER JOIN event_discover_categories edc ON e.id = edc.event_id
-      INNER JOIN communities c ON COALESCE(e.community_id, e.creator_id) = c.id
+      LEFT JOIN event_discover_categories edc ON e.id = edc.event_id
+      LEFT JOIN communities c ON COALESCE(e.community_id, e.creator_id) = c.id
       LEFT JOIN event_registrations er ON e.id = er.event_id
-      WHERE edc.category_id = $1
+      WHERE (
+        (cardinality($1::bigint[]) > 0 AND edc.category_id = ANY($1::bigint[]))
+        OR (cardinality($2::text[]) > 0 AND LOWER(COALESCE(e.category_group, '')) = ANY(SELECT LOWER(unnest($2::text[]))))
+      )
         AND e.start_datetime >= NOW()
         AND (e.is_published = true OR e.is_published IS NULL)
         AND e.is_cancelled IS NOT TRUE
-      GROUP BY e.id, c.id, edc.is_featured, edc.display_order
-      ORDER BY edc.is_featured DESC, e.start_datetime ASC
-      LIMIT $2 OFFSET $3
+      GROUP BY e.id, c.id
+      ORDER BY COALESCE(bool_or(edc.is_featured), false) DESC, e.start_datetime ASC
+      LIMIT $3 OFFSET $4
     `;
 
     const eventsResult = await pool.query(eventsQuery, [
-      category.id,
+      targetCategoryIds.length > 0 ? targetCategoryIds : [-1],
+      groupNames,
       parsedLimit,
       parsedOffset,
     ]);

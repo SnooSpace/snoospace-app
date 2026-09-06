@@ -1,4 +1,5 @@
 const { getCategoryColor } = require("../utils/categoryColors");
+const { MAIN_EVENT_CATEGORIES } = require("../constants/eventCategories");
 
 let hasEnsuredColumns = false;
 
@@ -500,7 +501,7 @@ const getExploreFeed = async (req, res) => {
       return count > 0 ? { count, hasUnviewed: true } : null;
     };
 
-    // 0. Categories Quick-Nav (sorted by display_order)
+    // 0. Categories Quick-Nav (returns main categories with their associated subcategory IDs)
     const queryCategories = async () => {
       const q = `
         SELECT 
@@ -516,7 +517,29 @@ const getExploreFeed = async (req, res) => {
         ORDER BY display_order ASC, id ASC
       `;
       const res = await pool.query(q);
-      return res.rows;
+      const allSubcats = res.rows;
+
+      // Group into curated top-level main categories
+      return MAIN_EVENT_CATEGORIES.map((mainCat, index) => {
+        const subcatNamesLower = mainCat.subcategories.map(s => s.toLowerCase());
+        const matchingRows = allSubcats.filter(row => 
+          subcatNamesLower.includes(row.name.toLowerCase()) || 
+          row.slug === mainCat.slug ||
+          row.name.toLowerCase() === mainCat.name.toLowerCase()
+        );
+        const subCategoryIds = matchingRows.map(r => r.id);
+        const primaryId = matchingRows.find(r => r.slug === mainCat.slug)?.id || matchingRows[0]?.id || (index + 1);
+
+        return {
+          id: primaryId,
+          name: mainCat.name,
+          slug: mainCat.slug,
+          iconName: mainCat.iconName,
+          displayOrder: index + 1,
+          subCategoryIds,
+          subcategories: mainCat.subcategories
+        };
+      });
     };
 
     // 6. What's Hot on SnooSpace (Featured/Boosted + 48h Velocity Score)

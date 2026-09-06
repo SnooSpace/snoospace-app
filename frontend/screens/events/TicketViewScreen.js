@@ -24,6 +24,7 @@ import {
   ArrowLeft,
   Calendar,
   MapPin,
+  Video,
   ChevronRight,
   Clock,
   AlertCircle,
@@ -40,6 +41,7 @@ import {
   getPostponementDecision, submitPostponementOptOut, submitPostponementKeep,
 } from "../../api/events";
 import { useLocationName } from "../../utils/locationNameCache";
+import { detectMeetingPlatform } from "../../utils/meetingPlatformUtils";
 import SnooLoader from "../../components/ui/SnooLoader";
 import { COLORS, BORDER_RADIUS, SHADOWS, FONTS } from "../../constants/theme";
 import { getGradientForName, getInitials } from "../../utils/AvatarGenerator";
@@ -483,6 +485,50 @@ export default function TicketViewScreen({ route, navigation }) {
                 <ChevronRight size={16} color={MUTED_TEXT} strokeWidth={2.2} />
               </TouchableOpacity>
             )}
+
+            {/* Virtual / Hybrid Meeting Link Row */}
+            {!!ticket?.virtualLink && (() => {
+              const platformInfo = detectMeetingPlatform(
+                ticket.virtualLink,
+                ticket?.meetingPlatform
+              );
+              return (
+                <TouchableOpacity
+                  style={styles.infoRow}
+                  onPress={() => {
+                    const raw = ticket.virtualLink;
+                    const match = raw.match(/https?:\/\/[^\s]+/i);
+                    const targetUrl = match ? match[0] : raw.trim();
+                    if (targetUrl) {
+                      Linking.openURL(targetUrl).catch(() => {
+                        Alert.alert("Unable to open link", "Please check your internet connection or install the meeting app.");
+                      });
+                    }
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.iconContainer, { backgroundColor: platformInfo.bg || "rgba(41, 98, 255, 0.08)" }]}>
+                    <Video size={18} color={platformInfo.color || PRIMARY_COLOR} strokeWidth={2} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.infoText} numberOfLines={1}>
+                      {platformInfo.id !== "virtual" ? `Join on ${platformInfo.name}` : "Join Video Call"}
+                    </Text>
+                    <Text
+                      style={{
+                        fontFamily: "Manrope-Regular",
+                        fontSize: 12,
+                        color: MUTED_TEXT,
+                        marginTop: 2,
+                      }}
+                    >
+                      Tap to open meeting link
+                    </Text>
+                  </View>
+                  <ChevronRight size={16} color={MUTED_TEXT} strokeWidth={2.2} />
+                </TouchableOpacity>
+              );
+            })()}
           </View>
         </View>
 

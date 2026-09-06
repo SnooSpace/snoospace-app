@@ -50,7 +50,7 @@ export default function SwipeableModal({
   children,
   sheetStyle,
   statusBarTranslucent = true,
-  navigationBarTranslucent = false,
+  navigationBarTranslucent = Platform.OS === "android",
   backdropColor = "rgba(0, 0, 0, 0.4)",
   useBlur = false,
   blurIntensity = 20,
@@ -100,6 +100,7 @@ export default function SwipeableModal({
     if (visible) {
       isSwipedDownRef.current = false;
       scrollY.value = 0;
+      keyboardHeight.value = 0;
       // Reset values to start states synchronously before mounting layout
       translateY.value = SCREEN_HEIGHT;
       backdropOpacity.value = 0;
@@ -116,6 +117,7 @@ export default function SwipeableModal({
     } else {
       if (isSwipedDownRef.current) {
         setShouldRender(false);
+        keyboardHeight.value = 0;
       } else {
         backdropOpacity.value = withTiming(0, { duration: 250 });
         translateY.value = withTiming(
@@ -123,6 +125,7 @@ export default function SwipeableModal({
           { duration: 250 },
           () => {
             runOnJS(setShouldRender)(false);
+            keyboardHeight.value = 0;
           }
         );
       }

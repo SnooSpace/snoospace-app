@@ -794,25 +794,27 @@ const TicketTypesEditor = React.forwardRef(
                       </Text>
                     </TouchableOpacity>
                     <View style={{ flex: 1 }} />
-                    <TouchableOpacity
-                      style={styles.actionBtn}
-                      onPress={() => openEditModal(index)}
-                    >
-                      <Text style={styles.actionBtnText}>Edit</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.actionBtn}
-                      onPress={() => handleDelete(index)}
-                    >
-                      <Text
-                        style={[
-                          styles.actionBtnText,
-                          { color: soldCount > 0 ? "#9CA3AF" : "#EF4444" },
-                        ]}
+                    <View style={styles.tileActionsRight}>
+                      <TouchableOpacity
+                        style={styles.actionBtn}
+                        onPress={() => openEditModal(index)}
                       >
-                        Delete
-                      </Text>
-                    </TouchableOpacity>
+                        <Text style={styles.actionBtnText}>Edit</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.actionBtn}
+                        onPress={() => handleDelete(index)}
+                      >
+                        <Text
+                          style={[
+                            styles.actionBtnText,
+                            { color: soldCount > 0 ? "#9CA3AF" : "#EF4444" },
+                          ]}
+                        >
+                          Delete
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
               </View>
             </View>
@@ -1961,7 +1963,13 @@ const styles = StyleSheet.create({
   tileActions: {
     flexDirection: "row",
     alignItems: "center",
+    paddingRight: 6,
+  },
+  tileActionsRight: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 16,
+    marginRight: 6,
   },
   visibilityBadge: {
     flexDirection: "row",
@@ -1979,7 +1987,6 @@ const styles = StyleSheet.create({
   },
   actionBtn: {
     paddingVertical: 4,
-    marginLeft: 12,
   },
   actionBtnText: {
     fontSize: 14,

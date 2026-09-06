@@ -136,11 +136,11 @@ const createEvent = async (req, res) => {
 
     const query = `
       INSERT INTO events (
-        community_id, title, description, start_datetime, end_datetime, gates_open_time, location_url,
+        community_id, title, description, event_date, start_datetime, end_datetime, gates_open_time, location_url,
         location_name, max_attendees, banner_url, event_type, virtual_link, meeting_platform, venue_id,
         creator_id, is_published, ticket_price, access_type, invite_public_visibility, created_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, NOW())
       RETURNING *
     `;
 
@@ -148,7 +148,8 @@ const createEvent = async (req, res) => {
       userId, // community_id
       title,
       description || null,
-      start_datetime || event_date,
+      start_datetime || event_date, // event_date (legacy NOT NULL column — mirrors start_datetime)
+      start_datetime || event_date, // start_datetime
       end_datetime,  // Required — validated above; never falls back to event_date
       resolvedGatesOpenTime,
       location_url || null,
@@ -4262,6 +4263,7 @@ const getMyTicket = async (req, res) => {
         e.location_name,
         e.event_type,
         e.virtual_link,
+        e.meeting_platform,
         c.id as community_id,
         c.name as community_name,
         c.logo_url as community_logo,
@@ -4311,6 +4313,7 @@ const getMyTicket = async (req, res) => {
         locationName: registration.location_name,
         eventType: registration.event_type,
         virtualLink: registration.virtual_link,
+        meetingPlatform: registration.meeting_platform,
         communityId: registration.community_id,
         communityName: registration.community_name,
         communityLogo: registration.community_logo,

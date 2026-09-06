@@ -68,6 +68,7 @@ import { getDiscoverCategories } from "../../api/categories";
 import VenueSearchSheet from "../location/VenueSearchSheet";
 import MapLocationPicker from "../location/MapLocationPicker";
 import MiniMapPreview from "../location/MiniMapPreview";
+import SwipeableModal from "./SwipeableModal";
 
 // Import our components
 import StepIndicator from "../ui/StepIndicator";
@@ -2375,60 +2376,57 @@ const CreateEventModal = ({
         </Modal>
 
         {/* Publish Confirmation Bottom Sheet */}
-        <Modal
+        <SwipeableModal
           visible={showPublishSheet}
-          transparent
-          animationType="slide"
-          statusBarTranslucent={true}
-          onRequestClose={() => setShowPublishSheet(false)}
-        >
-          <TouchableOpacity
-            style={styles.sheetOverlay}
-            activeOpacity={1}
-            onPress={() => setShowPublishSheet(false)}
-          >
-            <View style={styles.publishSheetContainer}>
-              <View style={styles.sheetHandle} />
-              <Text style={styles.publishSheetTitle}>Ready to publish?</Text>
-              <Text style={styles.publishSheetSubtitle}>
-                Your event will go live immediately and be visible to your
-                community.
-              </Text>
-              <View style={styles.publishSheetActions}>
-                <TouchableOpacity
-                  style={styles.publishCancelButton}
-                  onPress={() => setShowPublishSheet(false)}
-                >
-                  <Text style={styles.publishCancelText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.publishConfirmButton,
-                    creating && { opacity: 0.7 },
-                  ]}
-                  disabled={creating}
-                  onPress={async () => {
-                    setShowPublishSheet(false);
-                    await handleCreate();
-                  }}
-                >
-                  <LinearGradient
-                    colors={MODAL_TOKENS.primaryGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.publishConfirmGradient}
-                  >
-                    {creating ? (
-                      <SnooLoader color="#fff" />
-                    ) : (
-                      <Text style={styles.publishConfirmText}>Publish</Text>
-                    )}
-                  </LinearGradient>
-                </TouchableOpacity>
-              </View>
+          onClose={() => setShowPublishSheet(false)}
+          sheetStyle={styles.publishSheetContainer}
+          avoidKeyboard={false}
+          header={
+            <View style={styles.publishSheetHeader}>
+              <View style={styles.publishSheetHandle} />
             </View>
-          </TouchableOpacity>
-        </Modal>
+          }
+        >
+          <View style={styles.publishSheetBody}>
+            <Text style={styles.publishSheetTitle}>Ready to publish?</Text>
+            <Text style={styles.publishSheetSubtitle}>
+              Your event will go live immediately and be visible to your
+              community.
+            </Text>
+            <View style={styles.publishSheetActions}>
+              <TouchableOpacity
+                style={styles.publishCancelButton}
+                onPress={() => setShowPublishSheet(false)}
+              >
+                <Text style={styles.publishCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.publishConfirmButton,
+                  creating && { opacity: 0.7 },
+                ]}
+                disabled={creating}
+                onPress={async () => {
+                  setShowPublishSheet(false);
+                  await handleCreate();
+                }}
+              >
+                <LinearGradient
+                  colors={MODAL_TOKENS.primaryGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.publishConfirmGradient}
+                >
+                  {creating ? (
+                    <SnooLoader color="#fff" />
+                  ) : (
+                    <Text style={styles.publishConfirmText}>Publish</Text>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </SwipeableModal>
 
         <SuccessCard
           visible={showSuccessModal}
@@ -3147,9 +3145,27 @@ const styles = StyleSheet.create({
     backgroundColor: MODAL_TOKENS.background,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    paddingHorizontal: 24,
-    paddingBottom: 40,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    overflow: "hidden",
+  },
+  publishSheetHeader: {
+    alignItems: "center",
     paddingTop: 12,
+    paddingBottom: 6,
+    backgroundColor: MODAL_TOKENS.background,
+  },
+  publishSheetHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#D1D5DB",
+  },
+  publishSheetBody: {
+    paddingHorizontal: 24,
+    paddingBottom: Platform.OS === "ios" ? 44 : 32,
+    paddingTop: 4,
+    backgroundColor: MODAL_TOKENS.background,
   },
   publishSheetTitle: {
     fontFamily: "BasicCommercial-Bold",

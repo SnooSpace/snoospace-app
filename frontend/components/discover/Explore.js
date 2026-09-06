@@ -26,9 +26,29 @@ import { getCategoryColor } from "../../constants/categoryColors";
 import { COLORS, SHADOWS, FONTS } from "../../constants/theme";
 import { getOptimizedImageUrl } from "../../utils/imageUtils";
 import { toggleEventInterest } from "../../api/events";
+import { getEventsByCategory } from "../../api/categories";
 import EventBus from "../../utils/EventBus";
 import HapticsService from "../../services/HapticsService";
 import CompactEventCard from "../cards/CompactEventCard";
+import EdgeSwipeScrollView from "../ui/EdgeSwipeScrollView";
+import SnooLoader from "../ui/SnooLoader";
+
+const FALLBACK_MAIN_CATEGORIES = [
+  { id: "music", name: "Music", slug: "music", iconName: "music", subcategories: ["Live Concerts", "DJ Nights", "Open Mic Nights", "EDM & Electronic"] },
+  { id: "food-dining", name: "Food & Dining", slug: "food-dining", iconName: "utensils-crossed", subcategories: ["Food Festivals", "Coffee Meetups", "Cooking Classes"] },
+  { id: "sports-fitness", name: "Sports & Fitness", slug: "sports-fitness", iconName: "heart-pulse", subcategories: ["Run Clubs", "Cycling Groups", "Yoga & Meditation"] },
+  { id: "tech-startup", name: "Tech & Startup", slug: "tech-startup", iconName: "code", subcategories: ["Hackathons", "Startup Meetups", "Developer Conferences"] },
+  { id: "gaming-esports", name: "Gaming & Esports", slug: "gaming-esports", iconName: "gamepad-2", subcategories: ["LAN Parties", "Esports Tournaments", "Board Game Nights"] },
+  { id: "outdoors-adventure", name: "Outdoors & Adventure", slug: "outdoors-adventure", iconName: "tent", subcategories: ["Hiking", "Camping", "Road Trips"] },
+  { id: "arts-culture", name: "Arts & Culture", slug: "arts-culture", iconName: "palette", subcategories: ["Exhibitions", "Poetry", "Theatre"] },
+  { id: "education-workshops", name: "Education & Workshops", slug: "education-workshops", iconName: "graduation-cap", subcategories: ["Skill-building", "Book Clubs"] },
+  { id: "nightlife-parties", name: "Nightlife & Parties", slug: "nightlife-parties", iconName: "martini", subcategories: ["Club Nights", "House Parties", "Rooftop Parties"] },
+  { id: "wellness-mindfulness", name: "Wellness & Mindfulness", slug: "wellness-mindfulness", iconName: "heart-handshake", subcategories: ["Meditation", "Sound Healing", "Mental Health Support", "Spa & Self-care"] },
+  { id: "networking-professional", name: "Networking & Career", slug: "networking-professional", iconName: "briefcase", subcategories: ["Networking Mixers", "Career Fairs", "Conferences"] },
+  { id: "comedy-entertainment", name: "Comedy & Entertainment", slug: "comedy-entertainment", iconName: "laugh", subcategories: ["Stand-up Open Mics", "Improv Nights"] },
+  { id: "family-kids", name: "Family & Kids", slug: "family-kids", iconName: "baby", subcategories: ["Kids' Workshops", "Family Picnics"] },
+  { id: "seasonal-holiday", name: "Seasonal & Holiday", slug: "seasonal-holiday", iconName: "sparkles", subcategories: ["Festivals", "Holiday Parties"] },
+];
 
 // Convert kebab-case backend icon name to PascalCase Lucide icon component
 const getLucideIcon = (iconName) => {
@@ -193,6 +213,11 @@ export default function Explore({
   // Active rail filter pill state
   const [activeFilter, setActiveFilter] = useState("all");
 
+  // Selected top-level category filter state
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [categoryEvents, setCategoryEvents] = useState([]);
+  const [categoryEventsLoading, setCategoryEventsLoading] = useState(false);
+
   // Local interest / bookmark state map keyed by eventId
   const [interestMap, setInterestMap] = useState({});
 
@@ -225,6 +250,47 @@ export default function Explore({
       if (unsub) unsub();
     };
   }, []);
+
+  // Fetch events when a top-level category is selected
+  useEffect(() => {
+    if (!selectedCategory) {
+      setCategoryEvents([]);
+      setCategoryEventsLoading(false);
+      return;
+    }
+
+    let isMounted = true;
+    const fetchEvents = async () => {
+      setCategoryEventsLoading(true);
+      try {
+        const identifier = selectedCategory.slug || selectedCategory.id;
+        const res = await getEventsByCategory(identifier);
+        if (isMounted && res?.events) {
+          setCategoryEvents(res.events);
+          const map = {};
+          res.events.forEach((evt) => {
+            const id = evt.id || evt.eventId;
+            if (id) {
+              map[id] = Boolean(evt.is_interested || evt.isInterested);
+              map[String(id)] = Boolean(evt.is_interested || evt.isInterested);
+            }
+          });
+          setInterestMap((prev) => ({ ...map, ...prev }));
+        }
+      } catch (err) {
+        console.error("[Explore] Failed to load category events:", err);
+      } finally {
+        if (isMounted) {
+          setCategoryEventsLoading(false);
+        }
+      }
+    };
+
+    fetchEvents();
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedCategory]);
 
   const handleToggleInterest = async (eventId) => {
     if (!eventId) return;
@@ -326,26 +392,50 @@ export default function Explore({
 
   // 0. Category Quick-Nav (District reference style: horizontal scrolling icon tiles)
   const renderCategoryQuickNav = () => {
-    const displayCategories = activeCategories.length > 0
-      ? activeCategories
-      : activeCategoryRails.map((r) => ({
-          id: r.categoryId,
-          name: r.category,
-          slug: r.categorySlug,
-          iconName: r.iconName || "tags"
-        }));
-
-    if (displayCategories.length === 0) return null;
+    const displayCategories =
+      activeCategories.length > 0 ? activeCategories : FALLBACK_MAIN_CATEGORIES;
 
     return (
       <View style={styles.quickNavSection}>
-        <ScrollView
-          horizontal
+        <EdgeSwipeScrollView
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.quickNavScrollPadding}
         >
+          {/* All category pill */}
+          <TouchableOpacity
+            style={styles.categoryTile}
+            activeOpacity={0.75}
+            onPress={() => {
+              HapticsService.triggerImpactLight();
+              setSelectedCategory(null);
+            }}
+          >
+            <View
+              style={[
+                styles.categoryTileIconContainer,
+                selectedCategory === null && styles.categoryTileIconContainerActive,
+              ]}
+            >
+              <LucideIcons.LayoutGrid
+                size={20}
+                color={selectedCategory === null ? "#2962FF" : "#2C2C2A"}
+                strokeWidth={1.8}
+              />
+            </View>
+            <Text
+              style={[
+                styles.categoryTileText,
+                selectedCategory === null && styles.categoryTileTextActive,
+              ]}
+              numberOfLines={1}
+            >
+              All
+            </Text>
+          </TouchableOpacity>
+
           {displayCategories.map((cat) => {
             const IconComp = getLucideIcon(cat.iconName || cat.icon_name);
+            const isSelected = selectedCategory?.slug === cat.slug;
             return (
               <TouchableOpacity
                 key={cat.id || cat.slug}
@@ -353,25 +443,130 @@ export default function Explore({
                 activeOpacity={0.75}
                 onPress={() => {
                   HapticsService.triggerImpactLight();
-                  if (navigation) {
-                    navigation.navigate("CategoryEvents", {
-                      categoryId: cat.id,
-                      categorySlug: cat.slug,
-                      categoryName: cat.name
-                    });
+                  if (isSelected) {
+                    setSelectedCategory(null);
+                  } else {
+                    setSelectedCategory(cat);
                   }
                 }}
               >
-                <View style={styles.categoryTileIconContainer}>
-                  <IconComp size={20} color="#2C2C2A" strokeWidth={1.8} />
+                <View
+                  style={[
+                    styles.categoryTileIconContainer,
+                    isSelected && styles.categoryTileIconContainerActive,
+                  ]}
+                >
+                  <IconComp
+                    size={20}
+                    color={isSelected ? "#2962FF" : "#2C2C2A"}
+                    strokeWidth={1.8}
+                  />
                 </View>
-                <Text style={styles.categoryTileText} numberOfLines={1}>
+                <Text
+                  style={[
+                    styles.categoryTileText,
+                    isSelected && styles.categoryTileTextActive,
+                  ]}
+                  numberOfLines={1}
+                >
                   {cat.name}
                 </Text>
               </TouchableOpacity>
             );
           })}
-        </ScrollView>
+        </EdgeSwipeScrollView>
+      </View>
+    );
+  };
+
+  // Filtered Category View (shown when a top-level category is selected)
+  const renderFilteredCategoryView = () => {
+    if (!selectedCategory) return null;
+
+    const subcats = selectedCategory.subcategories || [];
+
+    return (
+      <View style={styles.filteredSectionContainer}>
+        {/* Category Header Row */}
+        <View style={styles.filteredHeaderRow}>
+          <View style={{ flex: 1, marginRight: 12 }}>
+            <Text style={styles.filteredCategoryTitle}>
+              {selectedCategory.name}
+            </Text>
+            <Text style={styles.filteredCategorySubtitle}>
+              Events across all {selectedCategory.name.toLowerCase()} subcategories
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.clearFilterButton}
+            onPress={() => {
+              HapticsService.triggerImpactLight();
+              setSelectedCategory(null);
+            }}
+          >
+            <Text style={styles.clearFilterButtonText}>Show all</Text>
+            <X size={14} color="#5F5E5A" strokeWidth={2} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Subcategories tags preview */}
+        {subcats.length > 0 && (
+          <EdgeSwipeScrollView
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.subcatPillsContainer}
+            style={{ marginBottom: 16 }}
+          >
+            {subcats.map((sub, idx) => (
+              <View key={idx} style={styles.subcatPill}>
+                <Text style={styles.subcatPillText}>{sub}</Text>
+              </View>
+            ))}
+          </EdgeSwipeScrollView>
+        )}
+
+        {/* Events Grid or Loader */}
+        {categoryEventsLoading ? (
+          <View style={styles.categoryLoaderContainer}>
+            <SnooLoader />
+          </View>
+        ) : categoryEvents.length === 0 ? (
+          <View style={styles.emptyCategoryContainer}>
+            <Calendar size={36} color="#B0B0B5" strokeWidth={1.5} />
+            <Text style={styles.emptyCategoryTitle}>No upcoming events found</Text>
+            <Text style={styles.emptyCategorySubtitle}>
+              There are no live or upcoming events in {selectedCategory.name} right now.
+            </Text>
+            <TouchableOpacity
+              style={styles.emptyClearButton}
+              onPress={() => setSelectedCategory(null)}
+            >
+              <Text style={styles.emptyClearButtonText}>Explore other categories</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.filteredEventsGrid}>
+            {categoryEvents.map((item) => {
+              const id = item.id || item.eventId;
+              const isInterested = Boolean(interestMap[id] ?? item.isInterested);
+              return (
+                <View key={id} style={styles.gridEventCardWrapper}>
+                  <CompactEventCard
+                    event={{
+                      ...item,
+                      id,
+                      category: item.category || selectedCategory.name,
+                    }}
+                    width={(SCREEN_WIDTH - 44) / 2}
+                    showBookmark={true}
+                    isInterested={isInterested}
+                    onToggleInterest={handleToggleInterest}
+                    onPress={() => handleEventPress(id, item)}
+                  />
+                </View>
+              );
+            })}
+          </View>
+        )}
       </View>
     );
   };
@@ -385,8 +580,7 @@ export default function Explore({
           <View style={styles.liveIndicator} />
           <Text style={styles.sectionTitle}>Live now</Text>
         </View>
-        <ScrollView
-          horizontal
+        <EdgeSwipeScrollView
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.horizontalScrollPadding}
         >
@@ -414,7 +608,7 @@ export default function Explore({
               </Text>
             </TouchableOpacity>
           ))}
-        </ScrollView>
+        </EdgeSwipeScrollView>
       </View>
     );
   };
@@ -523,8 +717,7 @@ export default function Explore({
       return (
         <View style={styles.sectionContainer}>
           <Text style={styles.sectionTitle}>This weekend</Text>
-          <ScrollView
-            horizontal
+          <EdgeSwipeScrollView
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.horizontalScrollPadding}
           >
@@ -579,7 +772,7 @@ export default function Explore({
                 </TouchableOpacity>
               );
             })}
-          </ScrollView>
+          </EdgeSwipeScrollView>
         </View>
       );
     }
@@ -697,8 +890,7 @@ export default function Explore({
     return (
       <View style={styles.sectionContainer}>
         <Text style={styles.sectionTitle}>Curated collections</Text>
-        <ScrollView
-          horizontal
+        <EdgeSwipeScrollView
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.horizontalScrollPadding}
         >
@@ -771,7 +963,7 @@ export default function Explore({
               </TouchableOpacity>
             );
           })}
-        </ScrollView>
+        </EdgeSwipeScrollView>
       </View>
     );
   };
@@ -792,8 +984,7 @@ export default function Explore({
           </View>
         </View>
 
-        <ScrollView
-          horizontal
+        <EdgeSwipeScrollView
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.horizontalScrollPadding}
         >
@@ -816,7 +1007,7 @@ export default function Explore({
               </View>
             );
           })}
-        </ScrollView>
+        </EdgeSwipeScrollView>
       </View>
     );
   };
@@ -839,8 +1030,7 @@ export default function Explore({
           </TouchableOpacity>
         </View>
 
-        <ScrollView
-          horizontal
+        <EdgeSwipeScrollView
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.horizontalScrollPadding}
         >
@@ -870,7 +1060,7 @@ export default function Explore({
               </Text>
             </TouchableOpacity>
           ))}
-        </ScrollView>
+        </EdgeSwipeScrollView>
       </View>
     );
   };
@@ -881,8 +1071,7 @@ export default function Explore({
       <View>
         {/* Filter Pills Row above Category Rails */}
         <View style={styles.filterPillsContainer}>
-          <ScrollView
-            horizontal
+          <EdgeSwipeScrollView
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.horizontalScrollPadding}
           >
@@ -909,7 +1098,7 @@ export default function Explore({
                 </TouchableOpacity>
               );
             })}
-          </ScrollView>
+          </EdgeSwipeScrollView>
         </View>
 
         {activeCategoryRails.map((rail) => {
@@ -926,8 +1115,7 @@ export default function Explore({
                   <Text style={styles.seeAllText}>See all</Text>
                 </TouchableOpacity>
               </View>
-              <ScrollView
-                horizontal
+              <EdgeSwipeScrollView
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.horizontalScrollPadding}
               >
@@ -950,7 +1138,7 @@ export default function Explore({
                     />
                   );
                 })}
-              </ScrollView>
+              </EdgeSwipeScrollView>
             </View>
           );
         })}
@@ -965,8 +1153,7 @@ export default function Explore({
     return (
       <View style={styles.sectionContainer}>
         <Text style={styles.sectionTitle}>Something different</Text>
-        <ScrollView
-          horizontal
+        <EdgeSwipeScrollView
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.horizontalScrollPadding}
         >
@@ -989,7 +1176,7 @@ export default function Explore({
               />
             );
           })}
-        </ScrollView>
+        </EdgeSwipeScrollView>
       </View>
     );
   };
@@ -1042,15 +1229,21 @@ export default function Explore({
       }
     >
       {renderCategoryQuickNav()}
-      {renderLiveNow()}
-      {renderHero()}
-      {renderWeekend()}
-      {renderWhatsHot()}
-      {renderCuratedLists()}
-      {renderOpenPlansQuickNav()}
-      {renderCategoryRails()}
-      {renderSomethingDifferent()}
-      {renderOpportunitiesBanner()}
+      {selectedCategory ? (
+        renderFilteredCategoryView()
+      ) : (
+        <>
+          {renderLiveNow()}
+          {renderHero()}
+          {renderWeekend()}
+          {renderWhatsHot()}
+          {renderCuratedLists()}
+          {renderOpenPlansQuickNav()}
+          {renderCategoryRails()}
+          {renderSomethingDifferent()}
+          {renderOpportunitiesBanner()}
+        </>
+      )}
       <View style={styles.bottomSpacing} />
     </ScrollView>
   );
@@ -1141,6 +1334,116 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 6,
     lineHeight: 14
+  },
+  categoryTileIconContainerActive: {
+    backgroundColor: "#EFF6FF",
+    borderColor: "#2563EB",
+    borderWidth: 1.5,
+  },
+  categoryTileTextActive: {
+    fontFamily: FONTS.semiBold,
+    color: "#2563EB",
+  },
+
+  // Filtered Category Screen Section
+  filteredSectionContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    marginBottom: 24,
+  },
+  filteredHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  filteredCategoryTitle: {
+    fontFamily: FONTS.primary, // BasicCommercial-Bold
+    fontSize: 20,
+    color: "#2C2C2A",
+  },
+  filteredCategorySubtitle: {
+    fontFamily: FONTS.regular, // Manrope-Regular
+    fontSize: 13,
+    color: "#71717A",
+    marginTop: 2,
+  },
+  clearFilterButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: "#F4F4F5",
+    gap: 4,
+  },
+  clearFilterButtonText: {
+    fontFamily: FONTS.semiBold, // Manrope-SemiBold
+    fontSize: 12,
+    color: "#5F5E5A",
+  },
+  subcatPillsContainer: {
+    paddingRight: 16,
+    gap: 8,
+  },
+  subcatPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: "#F4F4F5",
+    borderWidth: 1,
+    borderColor: "rgba(0, 0, 0, 0.04)",
+  },
+  subcatPillText: {
+    fontFamily: FONTS.medium, // Manrope-Medium
+    fontSize: 12,
+    color: "#52525B",
+  },
+  categoryLoaderContainer: {
+    paddingVertical: 48,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyCategoryContainer: {
+    paddingVertical: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  emptyCategoryTitle: {
+    fontFamily: FONTS.primary, // BasicCommercial-Bold
+    fontSize: 17,
+    color: "#2C2C2A",
+    marginTop: 12,
+    marginBottom: 6,
+    textAlign: "center",
+  },
+  emptyCategorySubtitle: {
+    fontFamily: FONTS.regular, // Manrope-Regular
+    fontSize: 13,
+    color: "#71717A",
+    textAlign: "center",
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+  emptyClearButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: "#2C2C2A",
+  },
+  emptyClearButtonText: {
+    fontFamily: FONTS.semiBold, // Manrope-SemiBold
+    fontSize: 13,
+    color: "#FFFFFF",
+  },
+  filteredEventsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
+  gridEventCardWrapper: {
+    marginBottom: 14,
   },
 
   // Open Plans Activity Tiles

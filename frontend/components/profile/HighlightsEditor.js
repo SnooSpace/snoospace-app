@@ -12,7 +12,11 @@ import {
   Platform,
   Keyboard,
   ScrollView,
+  Dimensions,
 } from "react-native";
+
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+import SwipeableModal from "../modals/SwipeableModal";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   Star,
@@ -80,6 +84,105 @@ const popularIcons = [
   { name: "Megaphone", icon: Megaphone, label: "Megaphone" },
   { name: "Zap", icon: Zap, label: "Flash" },
 ];
+
+export const HIGHLIGHT_ICON_THEMES = {
+  Star: {
+    color: "#D97706",
+    bgColor: "#FEF3C7",
+    activeBg: "#F59E0B",
+    borderColor: "#FDE68A",
+  },
+  Trophy: {
+    color: "#B45309",
+    bgColor: "#FEF9C3",
+    activeBg: "#EAB308",
+    borderColor: "#FEF08A",
+  },
+  Music: {
+    color: "#7C3AED",
+    bgColor: "#EDE9FE",
+    activeBg: "#8B5CF6",
+    borderColor: "#DDD6FE",
+  },
+  Utensils: {
+    color: "#EA580C",
+    bgColor: "#FFEDD5",
+    activeBg: "#F97316",
+    borderColor: "#FED7AA",
+  },
+  Gift: {
+    color: "#DB2777",
+    bgColor: "#FCE7F3",
+    activeBg: "#EC4899",
+    borderColor: "#FBCFE8",
+  },
+  Users: {
+    color: "#2563EB",
+    bgColor: "#DBEAFE",
+    activeBg: "#3B82F6",
+    borderColor: "#BFDBFE",
+  },
+  Heart: {
+    color: "#E11D48",
+    bgColor: "#FFE4E6",
+    activeBg: "#F43F5E",
+    borderColor: "#FECDD3",
+  },
+  Sparkles: {
+    color: "#6366F1",
+    bgColor: "#E0E7FF",
+    activeBg: "#818CF8",
+    borderColor: "#C7D2FE",
+  },
+  Ticket: {
+    color: "#0284C7",
+    bgColor: "#E0F2FE",
+    activeBg: "#0EA5E9",
+    borderColor: "#BAE6FD",
+  },
+  Ribbon: {
+    color: "#059669",
+    bgColor: "#D1FAE5",
+    activeBg: "#10B981",
+    borderColor: "#A7F3D0",
+  },
+  Megaphone: {
+    color: "#DC2626",
+    bgColor: "#FEE2E2",
+    activeBg: "#EF4444",
+    borderColor: "#FECACA",
+  },
+  Zap: {
+    color: "#D97706",
+    bgColor: "#FEF3C7",
+    activeBg: "#F59E0B",
+    borderColor: "#FDE68A",
+  },
+};
+
+export const getHighlightTheme = (iconName) => {
+  const normalized = {
+    "star-outline": "Star",
+    "trophy-outline": "Trophy",
+    "musical-notes-outline": "Music",
+    "restaurant-outline": "Utensils",
+    "gift-outline": "Gift",
+    "people-outline": "Users",
+    "heart-outline": "Heart",
+    "sparkles-outline": "Sparkles",
+    "ticket-outline": "Ticket",
+    "ribbon-outline": "Ribbon",
+    "megaphone-outline": "Megaphone",
+    "flash-outline": "Zap",
+  }[iconName] || iconName;
+
+  return HIGHLIGHT_ICON_THEMES[normalized] || {
+    color: "#3565F2",
+    bgColor: "#EEF2FF",
+    activeBg: "#3565F2",
+    borderColor: "#C7D2FE",
+  };
+};
 
 const getIconComponent = (iconName) => {
   const mapping = {
@@ -283,6 +386,7 @@ const HighlightsEditor = ({ highlights = [], onChange, maxHighlights = 5 }) => {
 
   const renderHighlightCard = ({ item, index }) => {
     const IconComp = getIconComponent(item.icon_name);
+    const theme = getHighlightTheme(item.icon_name);
     const anim = getEntryAnim(index);
     return (
       <Animated.View
@@ -296,8 +400,13 @@ const HighlightsEditor = ({ highlights = [], onChange, maxHighlights = 5 }) => {
       >
         <View style={styles.highlightHeader}>
           <View style={styles.iconTitleRow}>
-            <View style={styles.cardIconCircle}>
-              <IconComp size={20} color={"#4B5563"} strokeWidth={2} />
+            <View
+              style={[
+                styles.cardIconCircle,
+                { backgroundColor: theme.bgColor },
+              ]}
+            >
+              <IconComp size={20} color={theme.color} strokeWidth={2} />
             </View>
             <View style={{ flex: 1, justifyContent: "center" }}>
               <Text style={styles.highlightTitle}>{item.title}</Text>
@@ -385,24 +494,25 @@ const HighlightsEditor = ({ highlights = [], onChange, maxHighlights = 5 }) => {
       </View>
 
       {/* Edit/Add Modal */}
-      <Modal
+      <SwipeableModal
         visible={showModal}
-        transparent
-        animationType="slide"
-        statusBarTranslucent={true}
-      >
-        <View style={styles.modalOverlay}>
-          <Animated.View
-            style={[
-              styles.modalContent,
-              {
-                paddingBottom:
-                  Platform.OS === "ios"
-                    ? keyboardHeight + 40
-                    : keyboardHeight + 24,
-              },
-            ]}
-          >
+        onClose={() => {
+          setCurrentHighlight({
+            icon_name: "Star",
+            title: "",
+            description: "",
+            order: 0,
+          });
+          setEditingIndex(null);
+          setShowIconPicker(false);
+          setShowModal(false);
+        }}
+        sheetStyle={styles.sheetContainer}
+        avoidKeyboard={false}
+        navigationBarTranslucent={Platform.OS === "android"}
+        header={
+          <View style={styles.sheetHeader}>
+            <View style={styles.sheetHandle} />
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
                 {editingIndex !== null ? "Edit Highlight" : "Add Highlight"}
@@ -421,130 +531,142 @@ const HighlightsEditor = ({ highlights = [], onChange, maxHighlights = 5 }) => {
                   setShowModal(false);
                 }}
               >
-                <X size={24} color={"#111827"} strokeWidth={2} />
+                <X size={22} color={"#111827"} strokeWidth={2} />
               </TouchableOpacity>
             </View>
-
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ paddingBottom: 24 }}
-              keyboardShouldPersistTaps="handled"
-            >
-              {/* Icon Picker */}
-              <Text style={styles.label}>Icon</Text>
-              <View style={styles.iconGrid}>
-                {popularIcons.map((icon) => {
-                  const IconComponent = icon.icon;
-                  const isSelected = currentHighlight.icon_name === icon.name;
-                  return (
-                    <TouchableOpacity
-                      key={icon.name}
-                      style={[
-                        styles.iconOption,
-                        isSelected && styles.iconOptionSelected,
-                      ]}
-                      onPress={() => {
-                        setCurrentHighlight({
-                          ...currentHighlight,
-                          icon_name: icon.name,
-                        });
-                        setShowIconPicker(false);
-                      }}
-                    >
-                      <IconComponent
-                        size={24}
-                        color={isSelected ? "#FFFFFF" : TOKENS.textSecondary}
-                        strokeWidth={2}
-                      />
-                      <Text
-                        style={[
-                          styles.iconLabel,
-                          isSelected && styles.iconLabelSelected,
-                        ]}
-                      >
-                        {icon.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-
-              {/* Title Input */}
-              <Text style={styles.label}>
-                Title <Text style={{ color: TOKENS.textPrimary }}></Text>
-              </Text>
-              <TextInput
-                style={styles.input}
-                value={currentHighlight.title}
-                onChangeText={(text) =>
-                  setCurrentHighlight({ ...currentHighlight, title: text })
-                }
-                placeholder="Why this event stands out"
-                placeholderTextColor={"#9CA3AF"}
-                maxLength={50}
-              />
-
-              {/* Description Input */}
-              <Text style={styles.label}>Description • Optional</Text>
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                value={currentHighlight.description}
-                onChangeText={(text) =>
-                  setCurrentHighlight({
-                    ...currentHighlight,
-                    description: text,
-                  })
-                }
-                placeholder="Brief explanation..."
-                placeholderTextColor={"#9CA3AF"}
-                multiline
-                numberOfLines={3}
-                maxLength={500}
-                textAlignVertical="top"
-              />
-
-              {/* Animated Success Message (Appears when word count >= 50) */}
-              <Animated.View
-                pointerEvents={descriptionWords >= 50 ? "auto" : "none"}
-                style={[
-                  styles.animatedCheckmarkContainer,
-                  {
-                    opacity: fadeAnim,
-                    transform: [{ translateY: slideAnim }],
-                    height: descriptionWords >= 50 ? "auto" : 0,
-                    overflow: "hidden",
-                  },
-                ]}
-              >
-                <View style={styles.iconCircleCustom}>
-                  <Check size={12} color="#FFFFFF" strokeWidth={3} />
-                </View>
-                <Text style={styles.validText}>Description looks good!</Text>
-              </Animated.View>
-
-              {/* Save Button */}
-              <TouchableOpacity
-                style={styles.saveButton}
-                onPress={saveHighlight}
-                activeOpacity={0.8}
-              >
-                <View
+          </View>
+        }
+      >
+        <SwipeableModal.KeyboardAwareScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.sheetContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Icon Picker */}
+          <Text style={styles.label}>Icon</Text>
+          <View style={styles.iconGrid}>
+            {popularIcons.map((icon) => {
+              const IconComponent = icon.icon;
+              const isSelected = currentHighlight.icon_name === icon.name;
+              const theme = getHighlightTheme(icon.name);
+              return (
+                <TouchableOpacity
+                  key={icon.name}
                   style={[
-                    styles.saveButtonGradient,
-                    { backgroundColor: TOKENS.primary },
+                    styles.iconOption,
+                    {
+                      backgroundColor: isSelected
+                        ? theme.activeBg
+                        : theme.bgColor,
+                      borderColor: isSelected
+                        ? theme.color
+                        : theme.borderColor,
+                    },
                   ]}
+                  onPress={() => {
+                    setCurrentHighlight({
+                      ...currentHighlight,
+                      icon_name: icon.name,
+                    });
+                    setShowIconPicker(false);
+                  }}
+                  activeOpacity={0.8}
                 >
-                  <Text style={styles.saveButtonText}>
-                    {editingIndex !== null
-                      ? "Update Highlight"
-                      : "Add Highlight"}
+                  <IconComponent
+                    size={22}
+                    color={isSelected ? "#FFFFFF" : theme.color}
+                    strokeWidth={2}
+                  />
+                  <Text
+                    style={[
+                      styles.iconLabel,
+                      {
+                        color: isSelected ? "#FFFFFF" : theme.color,
+                        fontFamily: isSelected
+                          ? TOKENS.fonts.semibold
+                          : TOKENS.fonts.medium,
+                      },
+                    ]}
+                  >
+                    {icon.label}
                   </Text>
-                </View>
-              </TouchableOpacity>
-            </ScrollView>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {/* Title Input */}
+          <Text style={styles.label}>Title</Text>
+          <TextInput
+            style={styles.input}
+            value={currentHighlight.title}
+            onChangeText={(text) =>
+              setCurrentHighlight({ ...currentHighlight, title: text })
+            }
+            placeholder="Why this event stands out"
+            placeholderTextColor={"#9CA3AF"}
+            maxLength={50}
+          />
+
+          {/* Description Input */}
+          <Text style={styles.label}>Description • Optional</Text>
+          <TextInput
+            style={[styles.input, styles.textArea]}
+            value={currentHighlight.description}
+            onChangeText={(text) =>
+              setCurrentHighlight({
+                ...currentHighlight,
+                description: text,
+              })
+            }
+            placeholder="Brief explanation..."
+            placeholderTextColor={"#9CA3AF"}
+            multiline
+            numberOfLines={3}
+            maxLength={500}
+            textAlignVertical="top"
+          />
+
+          {/* Animated Success Message (Appears when word count >= 50) */}
+          <Animated.View
+            pointerEvents={descriptionWords >= 50 ? "auto" : "none"}
+            style={[
+              styles.animatedCheckmarkContainer,
+              {
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }],
+                height: descriptionWords >= 50 ? "auto" : 0,
+                overflow: "hidden",
+              },
+            ]}
+          >
+            <View style={styles.iconCircleCustom}>
+              <Check size={12} color="#FFFFFF" strokeWidth={3} />
+            </View>
+            <Text style={styles.validText}>Description looks good!</Text>
           </Animated.View>
-        </View>
-      </Modal>
+
+          {/* Save Button */}
+          <TouchableOpacity
+            style={styles.saveButton}
+            onPress={saveHighlight}
+            activeOpacity={0.85}
+          >
+            <View
+              style={[
+                styles.saveButtonGradient,
+                { backgroundColor: TOKENS.primary },
+              ]}
+            >
+              <Text style={styles.saveButtonText}>
+                {editingIndex !== null
+                  ? "Update Highlight"
+                  : "Add Highlight"}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </SwipeableModal.KeyboardAwareScrollView>
+      </SwipeableModal>
     </View>
   );
 };
@@ -682,39 +804,57 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#9CA3AF",
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(17, 24, 39, 0.4)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
+  sheetContainer: {
     backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    paddingHorizontal: 24,
-    paddingTop: 32,
-    maxHeight: "95%",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    maxHeight: SCREEN_HEIGHT * 0.9,
+    overflow: "hidden",
+  },
+  sheetHeader: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingTop: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  sheetHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#E2E8F0",
+    alignSelf: "center",
+    marginBottom: 8,
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 28,
+    paddingHorizontal: 20,
+    paddingBottom: 12,
   },
   modalTitle: {
     fontFamily: TOKENS.fonts.bold,
-    fontSize: 22,
+    fontSize: 20,
     color: "#111827",
   },
   closeButton: {
     padding: 4,
+  },
+  sheetContent: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === "ios" ? 44 : 32,
   },
   label: {
     fontFamily: TOKENS.fonts.semibold,
     fontSize: 14,
     color: "#374151",
     marginBottom: 8,
-    marginTop: 20,
+    marginTop: 18,
   },
   iconSelector: {
     flexDirection: "row",
@@ -735,36 +875,23 @@ const styles = StyleSheet.create({
   iconGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    marginTop: 12,
+    marginTop: 10,
     gap: 10,
     justifyContent: "space-between",
   },
   iconOption: {
-    width: "22%",
+    width: "22.5%",
     aspectRatio: 1,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 16,
-    backgroundColor: "#F9FAFB",
-    borderWidth: 1,
-    borderColor: "transparent",
-  },
-  iconOptionSelected: {
-    backgroundColor: "#4B5563",
-    borderColor: "#1F2937",
-    borderWidth: 1,
+    borderWidth: 1.5,
+    padding: 4,
   },
   iconLabel: {
-    fontFamily: TOKENS.fonts.medium,
     fontSize: 11,
-    color: TOKENS.textSecondary,
-    marginBottom: 8,
-    height: 16,
+    marginTop: 4,
     textAlign: "center",
-  },
-  iconLabelSelected: {
-    color: "#FFFFFF",
-    fontFamily: TOKENS.fonts.semibold,
   },
   input: {
     fontFamily: TOKENS.fonts.medium,
@@ -784,7 +911,8 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     borderRadius: 16,
-    marginTop: 36,
+    marginTop: 24,
+    marginBottom: 8,
   },
   saveButtonGradient: {
     paddingVertical: 18,

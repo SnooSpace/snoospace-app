@@ -20,6 +20,7 @@ import {
   Bookmark,
   MapPin,
   Video,
+  Layers,
   Clock,
   Calendar,
   Ticket,
@@ -158,6 +159,7 @@ import { Alert, ToastAndroid, Platform } from "react-native";
 import AttendanceConfirmationModal from "../../components/modals/AttendanceConfirmationModal";
 import SnooLoader from "../../components/ui/SnooLoader";
 import DynamicStatusBar from "../../components/navigation/DynamicStatusBar";
+import { getHighlightTheme } from "../../components/profile/HighlightsEditor";
 import { useToast } from "../../context/ToastContext";
 import Toast from "../../components/ui/Toast";
 import {
@@ -991,23 +993,103 @@ const EventDetailsScreen = ({ route, navigation }) => {
                 </TouchableOpacity>
               )}
 
-              {/* Location or Virtual Link Section */}
+              {/* Location or Virtual / Hybrid Link Section */}
               <View style={{ marginBottom: 0 }}>
-                {event?.event_type === "virtual" ? (() => {
+                {event?.event_type === "hybrid" ? (() => {
                   const platformInfo = detectMeetingPlatform(
                     event?.virtual_link || event?.meeting_link,
                     event?.meeting_platform
                   );
                   const isBrandedPlatform = platformInfo.id !== "virtual";
-                  const joinLabel = isBrandedPlatform ? `Join on ${platformInfo.name}` : "Join Virtual Event";
 
                   return (
                     <>
+                      {/* Hybrid Event Format Indicator */}
                       <View
                         style={{
                           flexDirection: "row",
                           alignItems: "center",
                           marginBottom: 8,
+                        }}
+                      >
+                        <Layers size={16} color="#7C3AED" strokeWidth={2} />
+                        <Text
+                          style={{
+                            fontFamily: "Manrope-Medium",
+                            fontSize: 15,
+                            color: "#7C3AED",
+                            marginLeft: 8,
+                          }}
+                        >
+                          Hybrid Event • In-person & Online
+                        </Text>
+                      </View>
+
+                      {/* In-person Venue */}
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          marginBottom: 6,
+                        }}
+                      >
+                        <MapPin size={16} color={MUTED_TEXT} strokeWidth={2} />
+                        <Text
+                          style={{
+                            fontFamily: "Manrope-Medium",
+                            fontSize: 15,
+                            color: MUTED_TEXT,
+                            marginLeft: 8,
+                          }}
+                          numberOfLines={1}
+                        >
+                          {displayLocationName}
+                        </Text>
+                      </View>
+
+                      {event?.location_url ? (
+                        <TouchableOpacity
+                          onPress={handleOpenLocation}
+                          onPressIn={() => setIsMapLinkPressed(true)}
+                          onPressOut={() => setIsMapLinkPressed(false)}
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            marginLeft: 24,
+                            marginBottom: 10,
+                          }}
+                          activeOpacity={1}
+                        >
+                          <Text
+                            style={{
+                              fontFamily: "Manrope-SemiBold",
+                              fontSize: 13,
+                              lineHeight: 18,
+                              color: isMapLinkPressed ? "#1A42CC" : PRIMARY_COLOR,
+                              marginRight: 6,
+                            }}
+                          >
+                            View location on map
+                          </Text>
+                          <MoveRight
+                            size={15}
+                            color={isMapLinkPressed ? "#1A42CC" : PRIMARY_COLOR}
+                            strokeWidth={2.5}
+                            style={{
+                              transform: [{ translateY: 0.5 }],
+                            }}
+                          />
+                        </TouchableOpacity>
+                      ) : (
+                        <View style={{ marginBottom: 4 }} />
+                      )}
+
+                      {/* Online Meeting Platform */}
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          marginBottom: 4,
                           flexWrap: "wrap",
                           gap: 6,
                         }}
@@ -1021,7 +1103,9 @@ const EventDetailsScreen = ({ route, navigation }) => {
                           }}
                           numberOfLines={1}
                         >
-                          {event?.location_name || (isBrandedPlatform ? `Hosted on ${platformInfo.name}` : "Online / Virtual Event")}
+                          {isBrandedPlatform
+                            ? `Conducted on ${platformInfo.name}`
+                            : "Conducted Online"}
                         </Text>
                         {isBrandedPlatform && (
                           <View
@@ -1045,58 +1129,100 @@ const EventDetailsScreen = ({ route, navigation }) => {
                         )}
                       </View>
 
-                      {isRegistered && (event?.virtual_link || event?.meeting_link) ? (
-                        <TouchableOpacity
-                          onPress={() => {
-                            const link = event?.virtual_link || event?.meeting_link;
-                            if (link) Linking.openURL(link);
-                          }}
+                      {/* Video link note (never link directly on details screen) */}
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          marginLeft: 24,
+                          marginBottom: 16,
+                        }}
+                      >
+                        <Lock size={12} color={MUTED_TEXT} strokeWidth={2} style={{ marginRight: 6 }} />
+                        <Text
                           style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            marginLeft: 24,
-                            marginBottom: 16,
-                          }}
-                          activeOpacity={0.8}
-                        >
-                          <Text
-                            style={{
-                              fontFamily: "Manrope-SemiBold",
-                              fontSize: 13,
-                              lineHeight: 18,
-                              color: platformInfo.color || PRIMARY_COLOR,
-                              marginRight: 6,
-                            }}
-                          >
-                            {joinLabel}
-                          </Text>
-                          <MoveRight
-                            size={15}
-                            color={platformInfo.color || PRIMARY_COLOR}
-                            strokeWidth={2.5}
-                          />
-                        </TouchableOpacity>
-                      ) : (
-                        <View
-                          style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            marginLeft: 24,
-                            marginBottom: 16,
+                            fontFamily: "Manrope-Regular",
+                            fontSize: 12,
+                            color: MUTED_TEXT,
                           }}
                         >
-                          <Lock size={12} color={MUTED_TEXT} strokeWidth={2} style={{ marginRight: 6 }} />
-                          <Text
+                          Video link provided in ticket upon registration
+                        </Text>
+                      </View>
+                    </>
+                  );
+                })() : event?.event_type === "virtual" ? (() => {
+                  const platformInfo = detectMeetingPlatform(
+                    event?.virtual_link || event?.meeting_link,
+                    event?.meeting_platform
+                  );
+                  const isBrandedPlatform = platformInfo.id !== "virtual";
+
+                  return (
+                    <>
+                      {/* Virtual Event Indicator & Platform */}
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          marginBottom: 4,
+                          flexWrap: "wrap",
+                          gap: 6,
+                        }}
+                      >
+                        <Video size={16} color={platformInfo.color || PRIMARY_COLOR} strokeWidth={2} />
+                        <Text
+                          style={{
+                            fontFamily: "Manrope-Medium",
+                            fontSize: 15,
+                            color: MUTED_TEXT,
+                          }}
+                          numberOfLines={1}
+                        >
+                          {event?.location_name || (isBrandedPlatform ? `Conducted on ${platformInfo.name}` : "Online / Virtual Event")}
+                        </Text>
+                        {isBrandedPlatform && (
+                          <View
                             style={{
-                              fontFamily: "Manrope-Regular",
-                              fontSize: 12,
-                              color: MUTED_TEXT,
+                              paddingHorizontal: 8,
+                              paddingVertical: 2,
+                              borderRadius: 6,
+                              backgroundColor: platformInfo.bg,
                             }}
                           >
-                            Meeting link unlocked upon registration
-                          </Text>
-                        </View>
-                      )}
+                            <Text
+                              style={{
+                                fontFamily: "Manrope-SemiBold",
+                                fontSize: 11,
+                                color: platformInfo.color,
+                              }}
+                            >
+                              {platformInfo.name}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+
+                      {/* Video link note (never link directly on details screen) */}
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          marginLeft: 24,
+                          marginBottom: 16,
+                        }}
+                      >
+                        <Lock size={12} color={MUTED_TEXT} strokeWidth={2} style={{ marginRight: 6 }} />
+                        <Text
+                          style={{
+                            fontFamily: "Manrope-Regular",
+                            fontSize: 12,
+                            color: MUTED_TEXT,
+                          }}
+                        >
+                          Video link provided in ticket upon registration
+                        </Text>
+                      </View>
                     </>
                   );
                 })() : (
@@ -1188,8 +1314,8 @@ const EventDetailsScreen = ({ route, navigation }) => {
                   </View>
                 )}
 
-                {/* Horizontal Scrollable Categories */}
-                {categories.length > 0 && (
+                {/* Horizontal Scrollable Categories and Format Badge */}
+                {(categories.length > 0 || event?.event_type === "hybrid" || event?.event_type === "virtual") && (
                   <Animated.View
                     style={{
                       opacity: categoriesAnim,
@@ -1208,13 +1334,25 @@ const EventDetailsScreen = ({ route, navigation }) => {
                       showsHorizontalScrollIndicator={false}
                       contentContainerStyle={[
                         styles.categoriesScrollContent,
-                        categories.length <= 2 && {
+                        (categories.length + (event?.event_type === "hybrid" || event?.event_type === "virtual" ? 1 : 0)) <= 2 && {
                           flex: 1,
                           justifyContent: "center",
                         },
                       ]}
                       style={styles.categoriesScroll}
                     >
+                      {event?.event_type === "hybrid" && (
+                        <View style={styles.hybridBadgeChip}>
+                          <Layers size={13} color="#7C3AED" strokeWidth={2} style={{ marginRight: 5 }} />
+                          <Text style={styles.hybridBadgeChipText}>Hybrid Event</Text>
+                        </View>
+                      )}
+                      {event?.event_type === "virtual" && (
+                        <View style={styles.virtualBadgeChip}>
+                          <Video size={13} color={PRIMARY_COLOR} strokeWidth={2} style={{ marginRight: 5 }} />
+                          <Text style={styles.virtualBadgeChipText}>Virtual Event</Text>
+                        </View>
+                      )}
                       {categories.map((category, index) => (
                         <View key={index} style={styles.categoryChip}>
                           <Text style={styles.categoryText}>{category}</Text>
@@ -1415,13 +1553,21 @@ const EventDetailsScreen = ({ route, navigation }) => {
                   {event.highlights.map((highlight, index) => {
                     const HighlightIcon =
                       THINGS_ICON_MAP[highlight.icon_name] || Star;
+                    const theme = getHighlightTheme(highlight.icon_name);
                     return (
                       <View key={index} style={styles.highlightItem}>
-                        <HighlightIcon
-                          size={20}
-                          color={MUTED_TEXT}
-                          strokeWidth={2}
-                        />
+                        <View
+                          style={[
+                            styles.highlightIconContainer,
+                            { backgroundColor: theme.bgColor },
+                          ]}
+                        >
+                          <HighlightIcon
+                            size={18}
+                            color={theme.color}
+                            strokeWidth={2}
+                          />
+                        </View>
                         <View style={styles.highlightContent}>
                           <Text style={styles.highlightTitle}>
                             {highlight.title}
@@ -2120,11 +2266,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 20,
     padding: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 4,
     borderWidth: 1,
     borderColor: "#F3F4F6",
   },
@@ -2359,6 +2500,38 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#1E3A8A",
   },
+  hybridBadgeChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 24,
+    backgroundColor: "rgba(124, 58, 237, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(124, 58, 237, 0.18)",
+    marginHorizontal: 4,
+  },
+  hybridBadgeChipText: {
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 12,
+    color: "#7C3AED",
+  },
+  virtualBadgeChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 24,
+    backgroundColor: "rgba(41, 98, 255, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(41, 98, 255, 0.18)",
+    marginHorizontal: 4,
+  },
+  virtualBadgeChipText: {
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 12,
+    color: PRIMARY_COLOR,
+  },
   statusChip: {
     alignSelf: "flex-start",
     marginBottom: 8,
@@ -2493,23 +2666,31 @@ const styles = StyleSheet.create({
   highlightItem: {
     flexDirection: "row",
     alignItems: "flex-start",
-    marginBottom: 12,
+    marginBottom: 14,
+  },
+  highlightIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 1,
   },
   highlightContent: {
     flex: 1,
     marginLeft: 12,
   },
   highlightTitle: {
-    fontSize: 16,
-    fontFamily: "Manrope-Regular",
-    color: MUTED_TEXT,
+    fontSize: 15,
+    fontFamily: "Manrope-SemiBold",
+    color: TEXT_COLOR,
     lineHeight: 20,
   },
   highlightDesc: {
     fontSize: 13,
     fontFamily: "Manrope-Regular",
-    color: TEXT_COLOR,
-    marginTop: 4,
+    color: MUTED_TEXT,
+    marginTop: 2,
     lineHeight: 18,
   },
   thingRow: {

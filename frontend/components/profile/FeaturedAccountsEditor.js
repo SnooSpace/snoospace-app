@@ -13,7 +13,11 @@ import {
   Platform,
   Keyboard,
   ScrollView,
+  Dimensions,
 } from "react-native";
+
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+import SwipeableModal from "../modals/SwipeableModal";
 import {
   Mic,
   Music,
@@ -304,36 +308,41 @@ const FeaturedAccountsEditor = ({ accounts = [], onChange }) => {
       ) : null}
 
       {/* Add Account Modal */}
-      <Modal
+      <SwipeableModal
         visible={showModal}
-        transparent
-        animationType="slide"
-        statusBarTranslucent={true}
-      >
-        <View style={styles.modalOverlay}>
-          <Animated.View
-            style={[
-              styles.modalContent,
-              {
-                paddingBottom:
-                  Platform.OS === "ios"
-                    ? keyboardHeight + 40
-                    : keyboardHeight + 24,
-              },
-            ]}
-          >
+        onClose={() => {
+          setShowModal(false);
+          setMode(null);
+          setSearchQuery("");
+          setSearchResults([]);
+        }}
+        sheetStyle={styles.sheetContainer}
+        avoidKeyboard={false}
+        navigationBarTranslucent={Platform.OS === "android"}
+        header={
+          <View style={styles.sheetHeader}>
+            <View style={styles.sheetHandle} />
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Add Participant</Text>
-              <TouchableOpacity onPress={() => setShowModal(false)}>
-                <X size={28} color={TOKENS.textPrimary} strokeWidth={2} />
+              <TouchableOpacity
+                onPress={() => {
+                  setShowModal(false);
+                  setMode(null);
+                  setSearchQuery("");
+                  setSearchResults([]);
+                }}
+              >
+                <X size={22} color={TOKENS.textPrimary} strokeWidth={2} />
               </TouchableOpacity>
             </View>
-
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ paddingBottom: 24 }}
-              keyboardShouldPersistTaps="handled"
-            >
+          </View>
+        }
+      >
+        <SwipeableModal.KeyboardAwareScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.sheetContent}
+          keyboardShouldPersistTaps="handled"
+        >
               {/* Role Selection */}
               <View style={styles.section}>
                 <Text style={styles.label}>Role </Text>
@@ -554,10 +563,8 @@ const FeaturedAccountsEditor = ({ accounts = [], onChange }) => {
                   </TouchableOpacity>
                 </View>
               )}
-            </ScrollView>
-          </Animated.View>
-        </View>
-      </Modal>
+        </SwipeableModal.KeyboardAwareScrollView>
+      </SwipeableModal>
     </View>
   );
 };
@@ -680,29 +687,46 @@ const styles = StyleSheet.create({
     color: TOKENS.primary,
     marginLeft: 8,
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(17, 24, 39, 0.4)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
+  sheetContainer: {
     backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    paddingHorizontal: 24,
-    paddingTop: 32,
-    paddingBottom: 40,
-    maxHeight: "95%",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    maxHeight: SCREEN_HEIGHT * 0.9,
+    overflow: "hidden",
+  },
+  sheetHeader: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingTop: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  sheetHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#E2E8F0",
+    alignSelf: "center",
+    marginBottom: 8,
+  },
+  sheetContent: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === "ios" ? 44 : 32,
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 28,
+    paddingHorizontal: 20,
+    paddingBottom: 12,
   },
   modalTitle: {
     fontFamily: TOKENS.fonts.bold,
-    fontSize: 22,
+    fontSize: 20,
     color: "#111827",
   },
   sectionHeaderOptional: {

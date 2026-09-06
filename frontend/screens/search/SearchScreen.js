@@ -178,22 +178,30 @@ export default function SearchScreen({ navigation, route }) {
     if (!isScreenFocused || focused || query.length > 0) return;
 
     const interval = setInterval(() => {
+      // 1. Fade out current word
       Animated.timing(placeholderOpacity, {
         toValue: 0,
-        duration: 150,
+        duration: 180,
         useNativeDriver: true,
-      }).start(() => {
-        setPlaceholderIndex((prev) => (prev + 1) % placeholders.length);
-        Animated.timing(placeholderOpacity, {
-          toValue: 1,
-          duration: 150,
-          useNativeDriver: true,
-        }).start();
+      }).start(({ finished }) => {
+        if (finished) {
+          // 2. Change text while invisible
+          setPlaceholderIndex((prev) => (prev + 1) % placeholders.length);
+        }
       });
-    }, 1800);
+    }, 2200);
 
     return () => clearInterval(interval);
   }, [isScreenFocused, focused, query]);
+
+  // 3. Once React commits the new placeholderIndex, smoothly fade in
+  useEffect(() => {
+    Animated.timing(placeholderOpacity, {
+      toValue: 1,
+      duration: 180,
+      useNativeDriver: true,
+    }).start();
+  }, [placeholderIndex]);
 
   const doSearch = useCallback(
     async (reset = false) => {
@@ -1568,7 +1576,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 16,
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
+    borderRadius: 25,
     borderWidth: 0.5,
     borderColor: "#D3D1C7",
     height: 50,

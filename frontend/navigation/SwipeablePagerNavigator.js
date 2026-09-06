@@ -407,6 +407,19 @@ function SwipeablePagerNavigator({
     handleSnap(index);
   };
 
+  useEffect(() => {
+    const unsubDelta = EventBus.on("navigate-tab-delta", (delta) => {
+      const current = currentIndex.value;
+      const target = Math.max(0, Math.min(pageCount - 1, current + delta));
+      if (target !== current) {
+        handleTabPress(target);
+      }
+    });
+    return () => {
+      if (unsubDelta) unsubDelta();
+    };
+  }, [pageCount]);
+
   const currentRoute = state.routes[state.index];
   const currentDescriptor = currentRoute ? descriptors[currentRoute.key] : null;
   const shouldHideTabBar =

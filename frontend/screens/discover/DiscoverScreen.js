@@ -12,6 +12,7 @@ import GradientSafeArea from "../../components/ui/GradientSafeArea";
 import OpenPlansSection from "../plans/OpenPlansSection";
 import CompactEventCard from "../../components/cards/CompactEventCard";
 import EventBus from "../../utils/EventBus";
+import EdgeSwipeScrollView from "../../components/ui/EdgeSwipeScrollView";
 import {
   COLORS,
   SPACING,
@@ -197,16 +198,12 @@ export default function DiscoverScreen({ navigation }) {
             <ChevronRight size={18} color={COLORS.primary} strokeWidth={2.2} />
           </TouchableOpacity>
         </View>
-        <ScrollView
-          horizontal
+        <EdgeSwipeScrollView
           showsHorizontalScrollIndicator={false}
           snapToInterval={175 + SPACING.m}
           decelerationRate="fast"
           snapToAlignment="start"
           contentContainerStyle={styles.horizontalList}
-          onScrollBeginDrag={() => EventBus.emit("disable-tab-swipe")}
-          onScrollEndDrag={() => EventBus.emit("enable-tab-swipe")}
-          onMomentumScrollEnd={() => EventBus.emit("enable-tab-swipe")}
         >
           {slicedEvents.map((event) => (
             <View key={event.id} style={{ width: 175 }}>
@@ -217,7 +214,7 @@ export default function DiscoverScreen({ navigation }) {
               />
             </View>
           ))}
-        </ScrollView>
+        </EdgeSwipeScrollView>
       </View>
     );
   };
@@ -242,13 +239,9 @@ export default function DiscoverScreen({ navigation }) {
             <ChevronRight size={18} color={COLORS.primary} strokeWidth={2.2} />
           </TouchableOpacity>
         </View>
-        <ScrollView
-          horizontal
+        <EdgeSwipeScrollView
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.horizontalList}
-          onScrollBeginDrag={() => EventBus.emit("disable-tab-swipe")}
-          onScrollEndDrag={() => EventBus.emit("enable-tab-swipe")}
-          onMomentumScrollEnd={() => EventBus.emit("enable-tab-swipe")}
         >
           {suggestedCommunities.map((community, index) => (
             <TribeCard
@@ -258,7 +251,7 @@ export default function DiscoverScreen({ navigation }) {
               onPress={handleCommunityPress}
             />
           ))}
-        </ScrollView>
+        </EdgeSwipeScrollView>
         <View style={styles.vibeMatchContainer}>
           <View style={styles.vibeMatchPill}>
             <Sparkles size={18} color="#2962FF" style={styles.vibeMatchIcon} />
@@ -276,13 +269,9 @@ export default function DiscoverScreen({ navigation }) {
     return (
       <View style={styles.section}>
         <Text style={styles.sectionTitleContainer}>People You Should Meet</Text>
-        <ScrollView
-          horizontal
+        <EdgeSwipeScrollView
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.horizontalList}
-          onScrollBeginDrag={() => EventBus.emit("disable-tab-swipe")}
-          onScrollEndDrag={() => EventBus.emit("enable-tab-swipe")}
-          onMomentumScrollEnd={() => EventBus.emit("enable-tab-swipe")}
         >
           {people.map((person) => (
             <DiscoverScreenPersonCard
@@ -291,7 +280,7 @@ export default function DiscoverScreen({ navigation }) {
               onPress={() => navigation.navigate("MemberPublicProfile", { memberId: person.id })}
             />
           ))}
-        </ScrollView>
+        </EdgeSwipeScrollView>
       </View>
     );
   };
@@ -311,16 +300,12 @@ export default function DiscoverScreen({ navigation }) {
             <ChevronRight size={18} color={COLORS.primary} strokeWidth={2.2} />
           </TouchableOpacity>
         </View>
-        <ScrollView
-          horizontal
+        <EdgeSwipeScrollView
           showsHorizontalScrollIndicator={false}
           snapToInterval={175 + SPACING.m}
           decelerationRate="fast"
           snapToAlignment="start"
           contentContainerStyle={styles.horizontalList}
-          onScrollBeginDrag={() => EventBus.emit("disable-tab-swipe")}
-          onScrollEndDrag={() => EventBus.emit("enable-tab-swipe")}
-          onMomentumScrollEnd={() => EventBus.emit("enable-tab-swipe")}
         >
           {slicedExploreEvents.map((event) => (
             <View key={event.id} style={{ width: 175 }}>
@@ -331,7 +316,7 @@ export default function DiscoverScreen({ navigation }) {
               />
             </View>
           ))}
-        </ScrollView>
+        </EdgeSwipeScrollView>
       </View>
     );
   };

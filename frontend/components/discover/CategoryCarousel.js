@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import DiscoverEventCard from "./DiscoverEventCard";
+import EdgeSwipeScrollView from "../ui/EdgeSwipeScrollView";
 import { COLORS, BORDER_RADIUS } from "../../constants/theme";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -62,8 +63,7 @@ export default function CategoryCarousel({
       </View>
 
       {/* Horizontal Scroll of Event Cards */}
-      <ScrollView
-        horizontal
+      <EdgeSwipeScrollView
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
         style={styles.scrollView}
@@ -88,7 +88,7 @@ export default function CategoryCarousel({
             />
           </View>
         ))}
-      </ScrollView>
+      </EdgeSwipeScrollView>
     </View>
   );
 }
