@@ -43,7 +43,6 @@ import {
   MapPin,
   AlertCircle,
   Trash2,
-  Search,
   CircleCheck,
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -53,6 +52,10 @@ import CustomTimePicker from "../ui/CustomTimePicker";
 import { updateEvent } from "../../api/events";
 import { getDiscoverCategories } from "../../api/categories";
 import { useLocationName } from "../../utils/locationNameCache";
+import { detectMeetingPlatform } from "../../utils/meetingPlatformUtils";
+import VenueSearchSheet from "../location/VenueSearchSheet";
+import MapLocationPicker from "../location/MapLocationPicker";
+import MiniMapPreview from "../location/MiniMapPreview";
 
 const MODAL_TOKENS = {
   primary: "#3565F2",
@@ -194,6 +197,7 @@ export default function EditEventModal({
   const [locationUrl, setLocationUrl] = useState("");
   const [locationName, setLocationName] = useState("");
   const [virtualLink, setVirtualLink] = useState("");
+  const [meetingPlatform, setMeetingPlatform] = useState("");
   const [maxAttendees, setMaxAttendees] = useState("");
   const [ticketTypes, setTicketTypes] = useState([]);
   const [promos, setPromos] = useState([]);
@@ -201,6 +205,12 @@ export default function EditEventModal({
   // Event visibility
   const [accessType, setAccessType] = useState("public"); // 'public' or 'invite_only'
   const [invitePublicVisibility, setInvitePublicVisibility] = useState(false);
+
+  // ── Venue / Location (unified flow) ──
+  const [selectedVenue, setSelectedVenue] = useState(null);
+  const [pendingPlace, setPendingPlace] = useState(null);
+  const [venueSheetVisible, setVenueSheetVisible] = useState(false);
+  const [mapPickerVisible, setMapPickerVisible] = useState(false);
 
   // Step 2-6: Content
   const [bannerCarousel, setBannerCarousel] = useState([]);
@@ -225,7 +235,8 @@ export default function EditEventModal({
   const decodedLocationName = useLocationName(locationUrl, {
     fallback: locationName.trim() || "View Location",
   });
-  const displayLocationName = locationName.trim() || decodedLocationName;
+  const displayLocationName =
+    selectedVenue?.venueName || locationName.trim() || decodedLocationName;
 
   useEffect(() => {
     if (eventData && visible) {
@@ -248,7 +259,26 @@ export default function EditEventModal({
       setLocationUrl(eventData.location_url || "");
       setLocationName(eventData.location_name || "");
       setVirtualLink(eventData.virtual_link || "");
+      setMeetingPlatform("");
       setMaxAttendees(eventData.max_attendees?.toString() || "");
+
+      // Restore venue — prefer structured venue data (with coords), fall back to name-only
+      const venueName = eventData.venue_name || eventData.location_name || "";
+      if (venueName) {
+        setSelectedVenue({
+          venueName,
+          venueAddress: eventData.venue_address || "",
+          venueShortAddress: eventData.venue_short_address || "",
+          venueLat: eventData.venue_lat || null,
+          venueLng: eventData.venue_lng || null,
+          venueCategory: eventData.venue_category || null,
+          venueProvider: eventData.venue_provider || null,
+          venueProviderId: eventData.venue_provider_id || null,
+          manuallyAdjusted: eventData.venue_manually_adjusted || false,
+        });
+      } else {
+        setSelectedVenue(null);
+      }
 
       if (eventData.banner_carousel?.length > 0) {
         setBannerCarousel(eventData.banner_carousel);
@@ -324,6 +354,8 @@ export default function EditEventModal({
         locationName: eventData.location_name || "",
         virtualLink: eventData.virtual_link || "",
         maxAttendees: eventData.max_attendees?.toString() || "",
+        venueLat: eventData.venue_lat || null,
+        venueLng: eventData.venue_lng || null,
         bannerCarousel: JSON.stringify(eventData.banner_carousel || []),
         gallery: JSON.stringify(eventData.gallery || []),
         highlights: JSON.stringify(eventData.highlights || []),
@@ -367,6 +399,8 @@ export default function EditEventModal({
       locationName !== initialSnapshot.locationName ||
       virtualLink !== initialSnapshot.virtualLink ||
       maxAttendees !== initialSnapshot.maxAttendees ||
+      (selectedVenue?.venueLat ?? null) !== initialSnapshot.venueLat ||
+      (selectedVenue?.venueLng ?? null) !== initialSnapshot.venueLng ||
       JSON.stringify(bannerCarousel) !== initialSnapshot.bannerCarousel ||
       JSON.stringify(gallery) !== initialSnapshot.gallery ||
       JSON.stringify(highlights) !== initialSnapshot.highlights ||
@@ -389,6 +423,7 @@ export default function EditEventModal({
     locationName,
     virtualLink,
     maxAttendees,
+    selectedVenue,
     bannerCarousel,
     gallery,
     highlights,
@@ -480,10 +515,21 @@ export default function EditEventModal({
             ? gatesOpenTime.toISOString()
             : null,
         location_url: locationUrl.trim() || null,
-        location_name: locationName.trim() || null,
+        location_name: (selectedVenue?.venueName ?? locationName.trim()) || null,
+        // Unified venue fields (from new search+map flow)
+        venue_name: (selectedVenue?.venueName ?? locationName.trim()) || null,
+        venue_address: selectedVenue?.venueAddress ?? null,
+        venue_short_address: selectedVenue?.venueShortAddress ?? null,
+        venue_lat: selectedVenue?.venueLat ?? null,
+        venue_lng: selectedVenue?.venueLng ?? null,
+        venue_category: selectedVenue?.venueCategory ?? null,
+        venue_provider: selectedVenue?.venueProvider ?? null,
+        venue_provider_id: selectedVenue?.venueProviderId ?? null,
+        venue_manually_adjusted: selectedVenue?.manuallyAdjusted ?? false,
         max_attendees: maxAttendees ? parseInt(maxAttendees) : null,
         event_type: eventType,
         virtual_link: virtualLink.trim() || null,
+        meeting_platform: detectMeetingPlatform(virtualLink, meetingPlatform).name,
         banner_carousel: bannerCarousel,
         gallery,
         highlights,
@@ -1009,63 +1055,100 @@ export default function EditEventModal({
               )}
             </View>
 
-            {/* Location */}
+            {/* ── Location Section — In-Person / Hybrid (new venue flow) ── */}
             {eventType !== "virtual" && (
-              <>
-                <View style={styles.sectionBlock}>
-                  <Text style={styles.label}>Location</Text>
-                  <View style={styles.locationCard}>
-                    <Search size={20} color={MODAL_TOKENS.primary} />
-                    <TextInput
-                      style={styles.locationInput}
-                      value={locationUrl}
-                      onChangeText={setLocationUrl}
-                      placeholder="Google Maps Link"
-                      placeholderTextColor={MODAL_TOKENS.textMuted}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                    />
-                  </View>
-                </View>
-                <View style={[styles.sectionBlock, { marginTop: -8 }]}>
-                  <Text style={styles.label}>Location Name</Text>
-                  <View
-                    style={[
-                      styles.locationCard,
-                      {
-                        backgroundColor: "transparent",
-                        borderWidth: 1,
-                        borderColor: MODAL_TOKENS.border,
-                        paddingVertical: 12,
-                      },
-                    ]}
+              <View style={styles.sectionBlock}>
+                <Text style={styles.label}>Location</Text>
+
+                {selectedVenue ? (
+                  /* ── Confirmed venue card with mini map ── */
+                  <TouchableOpacity
+                    onPress={() => setVenueSheetVisible(true)}
+                    activeOpacity={0.85}
+                    style={styles.confirmedVenueCard}
                   >
-                    <TextInput
-                      style={[
-                        styles.locationInput,
-                        { marginLeft: 0, fontSize: 14 },
-                      ]}
-                      value={locationName}
-                      onChangeText={setLocationName}
-                      placeholder="e.g. Room 302, Central Park"
-                      placeholderTextColor={MODAL_TOKENS.textMuted}
-                    />
-                  </View>
-                  <Text
-                    style={{
-                      fontFamily: "Manrope-Regular",
-                      fontSize: 12,
-                      color: MODAL_TOKENS.textMuted,
-                      marginTop: 4,
-                    }}
+                    {selectedVenue.venueLat && selectedVenue.venueLng ? (
+                      <MiniMapPreview
+                        lat={selectedVenue.venueLat}
+                        lng={selectedVenue.venueLng}
+                        name={selectedVenue.venueName}
+                        height={140}
+                        borderRadius={12}
+                      />
+                    ) : null}
+                    <View style={styles.confirmedVenueInfo}>
+                      <View style={styles.confirmedVenueRow}>
+                        <MapPin size={14} color={MODAL_TOKENS.primary} strokeWidth={2} />
+                        <Text style={styles.confirmedVenueName} numberOfLines={1}>
+                          {selectedVenue.venueName}
+                        </Text>
+                      </View>
+                      {!!selectedVenue.venueShortAddress && (
+                        <Text style={styles.confirmedVenueAddr} numberOfLines={1}>
+                          {selectedVenue.venueShortAddress}
+                        </Text>
+                      )}
+                      <Text style={styles.confirmedVenueChange}>Tap to change</Text>
+                    </View>
+                  </TouchableOpacity>
+                ) : (
+                  /* ── Empty location field — tap to open search ── */
+                  <TouchableOpacity
+                    style={styles.locationCard}
+                    onPress={() => setVenueSheetVisible(true)}
+                    activeOpacity={0.7}
                   >
-                    Give attendees a recognisable name for your venue.
-                  </Text>
-                </View>
-              </>
+                    <MapPin size={20} color={MODAL_TOKENS.primary} strokeWidth={2} />
+                    <Text style={styles.locationPlaceholder}>
+                      {locationName.trim() || locationUrl.trim()
+                        ? locationName.trim() || "Tap to update venue"
+                        : "Search for a venue or area…"}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
+                {/* ── VenueSearchSheet ── */}
+                <VenueSearchSheet
+                  visible={venueSheetVisible}
+                  onClose={() => setVenueSheetVisible(false)}
+                  onSelect={(place) => {
+                    setPendingPlace(place);
+                    setVenueSheetVisible(false);
+                    setMapPickerVisible(true);
+                  }}
+                  onDropPin={() => {
+                    setPendingPlace(null);
+                    setMapPickerVisible(true);
+                  }}
+                  title="Where's this event?"
+                  showNearby={true}
+                  userLocation={null}
+                />
+
+                {/* ── MapLocationPicker ── */}
+                <MapLocationPicker
+                  visible={mapPickerVisible}
+                  initialPlace={pendingPlace}
+                  userLocation={null}
+                  onBack={() => {
+                    setMapPickerVisible(false);
+                    if (pendingPlace) setVenueSheetVisible(true);
+                  }}
+                  onConfirm={(venue) => {
+                    setSelectedVenue(venue);
+                    setLocationName(venue.venueName ?? "");
+                    if (venue.venueLat && venue.venueLng) {
+                      setLocationUrl(
+                        `https://www.google.com/maps/search/?api=1&query=${venue.venueLat},${venue.venueLng}`
+                      );
+                    }
+                    setMapPickerVisible(false);
+                  }}
+                />
+              </View>
             )}
 
-            {/* Virtual Link */}
+            {/* Virtual Link Section — Virtual / Hybrid */}
             {(eventType === "virtual" || eventType === "hybrid") && (
               <View style={styles.sectionBlock}>
                 <Text style={styles.label}>
@@ -1084,6 +1167,35 @@ export default function EditEventModal({
                     keyboardType="url"
                   />
                 </View>
+                {virtualLink.trim().length > 0 && (() => {
+                  const detected = detectMeetingPlatform(virtualLink, meetingPlatform);
+                  return (
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        marginTop: 8,
+                        paddingHorizontal: 10,
+                        paddingVertical: 5,
+                        backgroundColor: detected.bg,
+                        borderRadius: 8,
+                        alignSelf: "flex-start",
+                        gap: 6,
+                      }}
+                    >
+                      <Video size={13} color={detected.color} />
+                      <Text
+                        style={{
+                          fontFamily: "Manrope-SemiBold",
+                          fontSize: 12,
+                          color: detected.color,
+                        }}
+                      >
+                        Platform: {detected.name}
+                      </Text>
+                    </View>
+                  );
+                })()}
               </View>
             )}
 
@@ -2131,12 +2243,55 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
     marginBottom: 12,
   },
+  locationPlaceholder: {
+    fontFamily: MODAL_TOKENS.fonts.medium,
+    fontSize: 15,
+    color: MODAL_TOKENS.textMuted,
+    marginLeft: 12,
+    flex: 1,
+  },
   locationInput: {
     flex: 1,
     fontFamily: MODAL_TOKENS.fonts.medium,
     fontSize: 15,
     color: MODAL_TOKENS.textPrimary,
     marginLeft: 12,
+  },
+  // ── Confirmed Venue Card ──
+  confirmedVenueCard: {
+    borderRadius: 14,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: MODAL_TOKENS.border,
+    backgroundColor: MODAL_TOKENS.background,
+  },
+  confirmedVenueInfo: {
+    padding: 12,
+    gap: 2,
+  },
+  confirmedVenueRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  confirmedVenueName: {
+    fontFamily: MODAL_TOKENS.fonts.semibold,
+    fontSize: 14,
+    color: MODAL_TOKENS.textPrimary,
+    flex: 1,
+  },
+  confirmedVenueAddr: {
+    fontFamily: MODAL_TOKENS.fonts.regular,
+    fontSize: 12,
+    color: MODAL_TOKENS.textSecondary,
+    marginLeft: 20,
+  },
+  confirmedVenueChange: {
+    fontFamily: MODAL_TOKENS.fonts.medium,
+    fontSize: 12,
+    color: MODAL_TOKENS.primary,
+    marginLeft: 20,
+    marginTop: 4,
   },
 
   // ── Floating Footer ──

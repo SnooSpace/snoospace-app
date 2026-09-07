@@ -331,6 +331,18 @@ const NotificationRow = ({
           icon: <CheckCircle2 size={18} color="#34C759" strokeWidth={2} />,
           bg: "rgba(52, 199, 89, 0.1)",
         };
+      // --- Verification rejection cascade ---
+      case "plan_attendee_ver_failed":
+      case "plan_host_ver_failed":
+        return {
+          icon: <AlertCircle size={18} color="#FF9500" strokeWidth={2} />,
+          bg: "rgba(255, 149, 0, 0.12)",
+        };
+      case "plan_host_ver_takedown":
+        return {
+          icon: <CircleX size={18} color="#FF3B30" strokeWidth={2} />,
+          bg: "rgba(255, 59, 48, 0.1)",
+        };
       default:
         return {
           icon: <Bell size={18} color="#8E8E93" strokeWidth={2} />,
@@ -957,6 +969,37 @@ const NotificationRow = ({
         </Text>
       );
       subtitle = payload.message;
+      break;
+
+    case "plan_attendee_ver_failed":
+      isNavigable = true;
+      onPress = () => navigation.navigate("PlanDetail", { planId: payload.planId });
+      title = (
+        <Text style={styles.title}>
+          <Text style={styles.bold}>{payload.attendeeName || "An attendee"}</Text> failed identity verification for <Text style={styles.bold}>"{payload.planTitle}"</Text>.
+        </Text>
+      );
+      subtitle = "It's your call whether to keep or remove them from this plan.";
+      break;
+
+    case "plan_host_ver_failed":
+      isNavigable = true;
+      onPress = () => navigation.navigate("PlanDetail", { planId: payload.planId });
+      title = (
+        <Text style={styles.title}>
+          The host of <Text style={styles.bold}>"{payload.planTitle}"</Text> failed identity verification.
+        </Text>
+      );
+      subtitle = "It's your call whether to still attend.";
+      break;
+
+    case "plan_host_ver_takedown":
+      isNavigable = false;
+      title = (
+        <Text style={styles.title}>
+          <Text style={styles.bold}>"{payload.planTitle}"</Text> was taken down because the host failed identity verification.
+        </Text>
+      );
       break;
 
   }

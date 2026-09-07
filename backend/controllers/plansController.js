@@ -642,35 +642,8 @@ async function cancelPlan(req, res) {
       });
     }
 
-    // Mark plan as cancelled
-    await pool.query(
-      `UPDATE open_plans SET status = 'cancelled' WHERE id = $1`,
-      [planId]
-    );
-
-    // Fetch host name and all pending requesters to notify
-    const [hostR, pendingR] = await Promise.all([
-      pool.query(`SELECT name FROM members WHERE id = $1`, [userId]),
-      pool.query(
-        `SELECT requester_id FROM open_plan_requests WHERE plan_id = $1 AND status = 'pending'`,
-        [planId]
-      ),
-    ]);
-    const hostName = hostR.rows[0]?.name || 'Someone';
-
-    // Notify pending requesters that the plan was removed
-    for (const requester of pendingR.rows) {
-      try {
-        await pushService.sendPushNotification(
-          pool, requester.requester_id, 'member',
-          'Plan Removed 😔',
-          `The plan "${plan.title}" has been removed by the host.`,
-          { type: 'plan_cancelled', planId }
-        );
-      } catch (e) {
-        console.warn('[cancelPlan] Push failed for pending requester', requester.requester_id, e.message);
-      }
-    }
+    // Mark plan as cancelled and notify pending requesters via shared core helper.
+    await cancelPlanCore(pool, planId, plan, `The plan "${plan.title}" has been removed by the host.`);
 
     res.json({ success: true });
   } catch (err) {
@@ -700,4 +673,44 @@ async function closePlan(req, res) {
   }
 }
 
-module.exports = { createPlan, getPlans, getPlanById, updatePlan, cancelPlan, closePlan };
+// ---------------------------------------------------------------------------
+// Internal helper: cancelPlanCore
+// Marks a plan as cancelled and sends push notifications to all pending
+// requesters with a caller-specified message string.
+//
+// Callers:
+//   - cancelPlan()                  (HTTP DELETE route, host-initiated)
+//   - verificationRejectionService  (rejection cascade, system-initiated)
+//
+// Preconditions the caller must already have verified:
+//   - plan exists with the given planId
+//   - plan.status is NOT already 'cancelled'
+//   - accepted_count === 0 (required for cancellation to be valid)
+// ---------------------------------------------------------------------------
+async function cancelPlanCore(pool, planId, plan, pendingRequesterMessage) {
+  await pool.query(
+    `UPDATE open_plans SET status = 'cancelled' WHERE id = $1`,
+    [planId]
+  );
+
+  // Notify all pending requesters
+  const pendingR = await pool.query(
+    `SELECT requester_id FROM open_plan_requests WHERE plan_id = $1 AND status = 'pending'`,
+    [planId]
+  );
+
+  for (const requester of pendingR.rows) {
+    try {
+      await pushService.sendPushNotification(
+        pool, requester.requester_id, 'member',
+        'Plan Removed 😔',
+        pendingRequesterMessage,
+        { type: 'plan_cancelled', planId }
+      );
+    } catch (e) {
+      console.warn('[cancelPlanCore] Push failed for pending requester', requester.requester_id, e.message);
+    }
+  }
+}
+
+module.exports = { createPlan, getPlans, getPlanById, updatePlan, cancelPlan, closePlan, cancelPlanCore };

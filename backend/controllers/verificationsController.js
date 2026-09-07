@@ -1,6 +1,7 @@
 const { uploadImage } = require('../config/cloudinary');
 const { detectFace } = require('../services/faceDetectionService');
 const { getFaceDetectionMessage } = require('../config/faceDetectionMessages');
+const { handleVerificationRejection } = require('../services/verificationRejectionService');
 
 const ALLOWED_MIME_TYPES = ['video/mp4', 'video/quicktime', 'video/webm'];
 
@@ -188,6 +189,15 @@ async function submitVerification(req, res) {
               tier: freshMem.rows[0].verification_tier,
               scope,
             });
+          }
+
+          // Trigger downstream cascade: block access, cancel/notify hosted plans,
+          // auto-decline pending join requests, notify hosts of approved attendances.
+          // Non-fatal — the service swallows internal errors after logging.
+          try {
+            await handleVerificationRejection(pool, io, userId, scope);
+          } catch (cascadeErr) {
+            console.error('[verificationsController.submitVerification] Rejection cascade error (non-fatal):', cascadeErr);
           }
         } else {
           // 'uncertain', 'no_face_in_video', or 'insufficient_references'
@@ -384,6 +394,15 @@ async function adminReview(req, res) {
         tier: freshMem.rows[0].verification_tier,
         scope,
       });
+    }
+
+    // If this is a rejection, trigger the downstream cascade.
+    if (status === 'rejected') {
+      try {
+        await handleVerificationRejection(pool, io, userId, scope);
+      } catch (cascadeErr) {
+        console.error('[verificationsController.adminReview] Rejection cascade error (non-fatal):', cascadeErr);
+      }
     }
 
     res.json({ verification: updatedVer });

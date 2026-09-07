@@ -217,6 +217,21 @@ export const NotificationTypes = {
   },
 
   // --- System Category ---
+  plan_attendee_ver_failed: {
+    category: "system",
+    channel: "system",
+    icon: "⚠️",
+  },
+  plan_host_ver_failed: {
+    category: "system",
+    channel: "system",
+    icon: "⚠️",
+  },
+  plan_host_ver_takedown: {
+    category: "system",
+    channel: "system",
+    icon: "🚫",
+  },
   removal_request: {
     category: "system",
     channel: "moderation",
