@@ -3,6 +3,7 @@ import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Alert, KeyboardAv
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
 import { Camera, Info, X, Video, Trophy, TriangleAlert } from "lucide-react-native";
+import SwipeableModal from "../../../components/modals/SwipeableModal";
 import { Ionicons } from "@expo/vector-icons";
 import SuccessCard from "../../../components/feedback/SuccessCard";
 import HapticsService from "../../../services/HapticsService";
@@ -566,45 +567,45 @@ export default function CommunityCreatePostScreen({ navigation }) {
   );
 
   const renderGuidelinesModal = () => (
-    <Modal
+    <SwipeableModal
       visible={showGuidelines}
-      transparent={true}
-      animationType="slide"
-      onRequestClose={() => setShowGuidelines(false)}
-    >
-      <TouchableOpacity
-        style={styles.modalOverlay}
-        activeOpacity={1}
-        onPress={() => setShowGuidelines(false)}
-      >
-        <View style={styles.bottomSheet}>
-          <View style={styles.sheetHeader}>
-            <View style={styles.sheetHandle} />
-            <Text style={styles.sheetTitle}>Community Post Guidelines</Text>
-          </View>
-          <View style={styles.sheetContent}>
-            <Text style={styles.guidelineText}>
-              • Share updates about community events and activities
-            </Text>
-            <Text style={styles.guidelineText}>
-              • Tag relevant members and partners
-            </Text>
-            <Text style={styles.guidelineText}>
-              • Keep content relevant to your community
-            </Text>
-            <Text style={styles.guidelineText}>
-              • Be respectful and inclusive
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={styles.sheetCloseButton}
-            onPress={() => setShowGuidelines(false)}
-          >
-            <Text style={styles.sheetCloseButtonText}>Got it</Text>
-          </TouchableOpacity>
+      onClose={() => setShowGuidelines(false)}
+      backdropColor="rgba(0,0,0,0.5)"
+      header={
+        <View collapsable={false} style={styles.sheetHeaderContainer}>
+          <View style={styles.sheetHandle} />
+          <Text style={styles.sheetTitle}>Community Post Guidelines</Text>
         </View>
-      </TouchableOpacity>
-    </Modal>
+      }
+    >
+      <View
+        style={[
+          styles.guidelinesSheetBody,
+          { paddingBottom: Math.max(insets.bottom, 20) + 16 },
+        ]}
+      >
+        <View style={styles.sheetContent}>
+          <Text style={styles.guidelineText}>
+            • Share updates about community events and activities
+          </Text>
+          <Text style={styles.guidelineText}>
+            • Tag relevant members and partners
+          </Text>
+          <Text style={styles.guidelineText}>
+            • Keep content relevant to your community
+          </Text>
+          <Text style={styles.guidelineText}>
+            • Be respectful and inclusive
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={styles.sheetCloseButton}
+          onPress={() => setShowGuidelines(false)}
+        >
+          <Text style={styles.sheetCloseButtonText}>Got it</Text>
+        </TouchableOpacity>
+      </View>
+    </SwipeableModal>
   );
 
   // Determine if submit is allowed based on type
@@ -1186,56 +1187,52 @@ const styles = StyleSheet.create({
     color: "#FF3B30",
     fontWeight: "600",
   },
-  // Bottom Sheet Styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
-  },
-  bottomSheet: {
-    backgroundColor: "#FFF",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingBottom: 40,
-    minHeight: 300,
-  },
-  sheetHeader: {
+  // Sheet Header & General Sheet Styles
+  sheetHeaderContainer: {
     alignItems: "center",
-    paddingVertical: 12,
+    paddingTop: 12,
+    paddingBottom: 8,
+    paddingHorizontal: 20,
   },
   sheetHandle: {
-    width: 40,
-    height: 5,
-    backgroundColor: "#E5E5E5",
-    borderRadius: 3,
-    marginBottom: 16,
+    width: 38,
+    height: 4,
+    backgroundColor: "#E2E8F0",
+    borderRadius: 2,
+    alignSelf: "center",
+    marginBottom: 14,
   },
   sheetTitle: {
+    fontFamily: "BasicCommercial-Bold",
     fontSize: 18,
-    fontWeight: "700",
     color: COLORS.textPrimary,
+    textAlign: "center",
   },
   sheetContent: {
     paddingHorizontal: 24,
     gap: 16,
     marginTop: 10,
   },
+  guidelinesSheetBody: {
+    paddingTop: 8,
+  },
   guidelineText: {
-    fontSize: 15,
+    fontFamily: "Manrope-Regular",
+    fontSize: 14,
     color: "#555",
     lineHeight: 22,
   },
   sheetCloseButton: {
     backgroundColor: "#F8F9FA",
     marginHorizontal: 24,
-    marginTop: 30,
+    marginTop: 28,
     paddingVertical: 14,
     borderRadius: 16,
     alignItems: "center",
   },
   sheetCloseButtonText: {
+    fontFamily: "Manrope-SemiBold",
     fontSize: 16,
-    fontWeight: "600",
     color: COLORS.textPrimary,
   },
 });

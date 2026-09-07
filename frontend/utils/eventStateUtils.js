@@ -245,3 +245,95 @@ export function getProgressBarColor(percentage) {
 
   return "#10B981"; // Green
 }
+
+/**
+ * Checks if a location string is empty, placeholder, or generic "Selected Location"
+ * @param {string|null|undefined} loc
+ * @returns {boolean}
+ */
+export function isGenericOrSelectedLocation(loc) {
+  if (!loc || typeof loc !== "string") return true;
+  const lower = loc.trim().toLowerCase();
+  return (
+    lower === "" ||
+    lower === "selected location" ||
+    lower === "selected_location" ||
+    lower === "location tbd" ||
+    lower === "venue tbd" ||
+    lower === "tbd"
+  );
+}
+
+/**
+ * Resolves event mode, display text, and icon name for event cards.
+ * - Shows mode of event ("Hybrid", "In-Person", "Virtual") instead of "Selected Location"
+ * - Returns appropriate Lucide icon name: "Layers" for Hybrid, "Video" for Virtual, "MapPin" for In-Person
+ * @param {Object} event - Event object
+ * @param {string|null} [customLocation] - Optional override location name
+ * @returns {{
+ *   eventType: 'in-person' | 'virtual' | 'hybrid',
+ *   isVirtual: boolean,
+ *   isHybrid: boolean,
+ *   isInPerson: boolean,
+ *   modeLabel: 'Hybrid' | 'Virtual' | 'In-Person',
+ *   displayText: string,
+ *   iconName: 'Layers' | 'Video' | 'MapPin'
+ * }}
+ */
+export function getEventModeDetails(event, customLocation = null) {
+  const eventType = (event?.event_type || event?.eventType || "in-person").toLowerCase();
+  const isHybrid = eventType === "hybrid";
+  const isVirtual = eventType === "virtual";
+  const isInPerson = !isHybrid && !isVirtual;
+
+  const rawLoc = (
+    customLocation ||
+    event?.location_name ||
+    event?.venue_name ||
+    event?.location ||
+    event?.address ||
+    ""
+  ).trim();
+
+  const isGeneric = isGenericOrSelectedLocation(rawLoc);
+
+  let modeLabel = "In-Person";
+  let iconName = "MapPin";
+
+  if (isHybrid) {
+    modeLabel = "Hybrid";
+    iconName = "Layers";
+  } else if (isVirtual) {
+    modeLabel = "Virtual";
+    iconName = "Video";
+  } else {
+    modeLabel = "In-Person";
+    iconName = "MapPin";
+  }
+
+  let displayText;
+  if (isVirtual) {
+    displayText =
+      !isGeneric &&
+      rawLoc.toLowerCase() !== "virtual event" &&
+      rawLoc.toLowerCase() !== "online / virtual event" &&
+      rawLoc.toLowerCase() !== "online event"
+        ? rawLoc
+        : "Virtual";
+  } else if (isGeneric) {
+    // Replace "Selected location" or generic/empty text with mode of event
+    displayText = modeLabel;
+  } else {
+    displayText = rawLoc;
+  }
+
+  return {
+    eventType,
+    isVirtual,
+    isHybrid,
+    isInPerson,
+    modeLabel,
+    displayText,
+    iconName,
+  };
+}

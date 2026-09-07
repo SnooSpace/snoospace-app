@@ -19,7 +19,11 @@ export default function CommunitySearchStackNavigator() {
         ...(Platform.OS === "ios" ? { animationDuration: 350 } : {}),
       }}
     >
-      <Stack.Screen name="CommunitySearchHome" component={SearchScreen} />
+      <Stack.Screen
+        name="CommunitySearchHome"
+        component={SearchScreen}
+        options={{ gestureEnabled: false }}
+      />
       <Stack.Screen name="SponsorProfile" component={SponsorProfileScreen} />
       <Stack.Screen name="VenueProfile" component={VenueProfileScreen} />
     </Stack.Navigator>

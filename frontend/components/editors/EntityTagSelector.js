@@ -18,6 +18,8 @@ import {
   Users,
   Image as ImageIcon,
   Video,
+  HelpCircle,
+  X,
 } from "lucide-react-native";
 import { apiGet } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
@@ -50,6 +52,8 @@ const EntityTagSelector = ({
   // Optional: parent can intercept challenge selection to show a conflict modal.
   // Called as onBeforeChallengeSelect(challenge, proceed) — call proceed() to confirm.
   onBeforeChallengeSelect,
+  onOpenInfo,
+  onClose,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
@@ -386,19 +390,47 @@ const EntityTagSelector = ({
           <TouchableOpacity
             style={styles.backButton}
             onPress={goBackToCommunities}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <ArrowLeft size={18} color={LOCAL_COLORS.challenge} strokeWidth={2} />
           </TouchableOpacity>
         )}
         <View style={styles.stepBadge}>
-          <Trophy size={16} color={LOCAL_COLORS.challenge} strokeWidth={2.5} />
+          <Trophy size={16} color={LOCAL_COLORS.challenge} strokeWidth={2} />
           <Text style={styles.stepText}>
             {step === "community"
-              ? "Select a community"
+              ? "Tag Challenge › Select Community"
               : `${selectedCommunity?.name} › Challenges`}
           </Text>
         </View>
+
+        <View style={styles.stepHeaderRight}>
+          {onOpenInfo && (
+            <TouchableOpacity
+              onPress={onOpenInfo}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={styles.headerIconButton}
+            >
+              <HelpCircle size={18} color="#64748B" strokeWidth={2} />
+            </TouchableOpacity>
+          )}
+          {onClose && (
+            <TouchableOpacity
+              onPress={onClose}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={styles.headerIconButton}
+            >
+              <X size={18} color="#64748B" strokeWidth={2} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
+
+      {step === "community" && (
+        <Text style={styles.stepHint}>
+          Search for a community hosting an active challenge to submit your post as an entry.
+        </Text>
+      )}
 
       {/* Search Input */}
       <View style={styles.searchContainer}>
@@ -443,8 +475,24 @@ const styles = StyleSheet.create({
   stepHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 10,
+    marginBottom: 6,
     gap: 8,
+  },
+  stepHeaderRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginLeft: "auto",
+    gap: 10,
+  },
+  headerIconButton: {
+    padding: 2,
+  },
+  stepHint: {
+    fontFamily: "Manrope-Regular",
+    fontSize: 12,
+    color: "#64748B",
+    marginBottom: 10,
+    lineHeight: 16,
   },
   backButton: {
     padding: 4,

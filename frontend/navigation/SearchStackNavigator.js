@@ -19,7 +19,11 @@ export default function SearchStackNavigator() {
       }}
       initialRouteName="SearchMain"
     >
-      <Stack.Screen name="SearchMain" component={SearchScreen} />
+      <Stack.Screen
+        name="SearchMain"
+        component={SearchScreen}
+        options={{ gestureEnabled: false }}
+      />
       <Stack.Screen name="VenueProfile" component={VenueProfileScreen} />
       <Stack.Screen
         name="CommunityPublicProfile"

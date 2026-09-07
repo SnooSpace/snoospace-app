@@ -3481,6 +3481,13 @@ const getInterestedEvents = async (req, res) => {
           e.ticket_price
         ) AS min_price,
         COALESCE(
+          (SELECT MAX(base_price) FROM ticket_types WHERE event_id = e.id AND is_active = true AND base_price > 0),
+          e.ticket_price
+        ) AS max_price,
+        EXISTS(
+          SELECT 1 FROM ticket_types tt WHERE tt.event_id = e.id AND tt.is_active = true OFFSET 1 LIMIT 1
+        ) AS has_multiple_tickets,
+        COALESCE(
           (SELECT COUNT(*) FROM event_registrations WHERE event_id = e.id AND registration_status = 'registered'),
           0
         ) AS attendee_count,

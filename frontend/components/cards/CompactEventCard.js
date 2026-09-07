@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { Image } from 'expo-image';
-import { Clock, MapPin, Calendar, CheckCircle2, Video, Bookmark } from 'lucide-react-native';
+import { Clock, MapPin, Calendar, CheckCircle2, Video, Bookmark, Layers } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, FONTS, SHADOWS } from '../../constants/theme';
 import { formatPrice } from '../../utils/pricingUtils';
 import { getOptimizedImageUrl } from '../../utils/imageUtils';
+import { getEventModeDetails } from '../../utils/eventStateUtils';
 
 function parseEventDate(dateString, formattedDate) {
   if (formattedDate) {
@@ -38,25 +39,46 @@ function formatEventTime(dateString, formattedTime) {
 }
 
 function getEventPriceLabel(event) {
-  if (event.is_free || event.isFree || event.cost_type === 'free') return 'Free';
-  if (event.ticket_types && event.ticket_types.length > 0) {
-    const prices = event.ticket_types
-      .map((t) => parseFloat(t.base_price) || 0)
-      .filter((p) => p > 0);
-    if (prices.length > 0) {
-      return formatPrice(Math.min(...prices));
+  if (!event || event.is_free || event.isFree || event.cost_type === 'free') return 'Free';
+
+  let parsedTickets = [];
+  if (event.ticket_types) {
+    if (typeof event.ticket_types === 'string') {
+      try {
+        parsedTickets = JSON.parse(event.ticket_types);
+      } catch (_) {
+        parsedTickets = [];
+      }
+    } else if (Array.isArray(event.ticket_types)) {
+      parsedTickets = event.ticket_types;
     }
   }
-  if (event.min_price && parseFloat(event.min_price) > 0) {
-    return formatPrice(parseFloat(event.min_price));
+
+  let lowestPrice = 0;
+
+  if (parsedTickets && parsedTickets.length > 0) {
+    const prices = parsedTickets
+      .map((t) => parseFloat(t.base_price ?? t.price) || 0)
+      .filter((p) => p > 0);
+    if (prices.length > 0) {
+      lowestPrice = Math.min(...prices);
+    }
   }
-  if (event.base_price && parseFloat(event.base_price) > 0) {
-    return formatPrice(parseFloat(event.base_price));
+
+  if (lowestPrice <= 0) {
+    if (event.ticket_price && parseFloat(event.ticket_price) > 0) {
+      lowestPrice = parseFloat(event.ticket_price);
+    } else if (event.min_price && parseFloat(event.min_price) > 0) {
+      lowestPrice = parseFloat(event.min_price);
+    } else if (event.base_price && parseFloat(event.base_price) > 0) {
+      lowestPrice = parseFloat(event.base_price);
+    }
   }
-  if (event.ticket_price && parseFloat(event.ticket_price) > 0) {
-    return formatPrice(parseFloat(event.ticket_price));
-  }
-  return 'Free';
+
+  if (lowestPrice <= 0) return 'Free';
+
+  const formattedPrice = formatPrice(lowestPrice);
+  return `${formattedPrice} onwards`;
 }
 
 export default function CompactEventCard({
@@ -76,8 +98,8 @@ export default function CompactEventCard({
   const formattedTimeStr = event.formatted_time || event.formattedTime;
   const { day, month } = parseEventDate(dateStr, formattedDateStr);
   const priceLabel = getEventPriceLabel(event);
+  const { displayText: locationText, iconName } = getEventModeDetails(event);
   const isFree = priceLabel === 'Free';
-  const isVirtual = event.event_type === 'virtual' || event.eventType === 'virtual' || event.event_type === 'hybrid' || event.eventType === 'hybrid';
 
   // Comprehensive image fallback checking all known SnooSpace event image fields
   const rawImageUrl =
@@ -95,10 +117,6 @@ export default function CompactEventCard({
     null;
 
   const imageUrl = rawImageUrl ? getOptimizedImageUrl(rawImageUrl, { width: Math.round(cardW * 2) }) : null;
-
-  const locationText = isVirtual
-    ? (event.location_name || event.venue_name || 'Online Event')
-    : (event.venue_name || event.location_name || event.location || event.address || 'Venue TBD');
 
   let statusBadge = null;
   if (event.isLiveNow || event.is_live) {
@@ -206,10 +224,12 @@ export default function CompactEventCard({
           </Text>
 
           <View style={styles.metaRow}>
-            {isVirtual ? (
-              <Video size={11} color={COLORS.textSecondary} strokeWidth={2} />
+            {iconName === 'Layers' ? (
+              <Layers size={11} color="#475569" strokeWidth={2} />
+            ) : iconName === 'Video' ? (
+              <Video size={11} color="#475569" strokeWidth={2} />
             ) : (
-              <MapPin size={11} color={COLORS.textSecondary} strokeWidth={2} />
+              <MapPin size={11} color="#475569" strokeWidth={2} />
             )}
             <Text style={styles.metaText} numberOfLines={1}>
               {locationText}
@@ -217,7 +237,7 @@ export default function CompactEventCard({
           </View>
 
           <View style={styles.metaRow}>
-            <Clock size={11} color={COLORS.textSecondary} strokeWidth={2} />
+            <Clock size={11} color="#475569" strokeWidth={2} />
             <Text style={styles.metaText} numberOfLines={1}>
               {formatEventTime(dateStr, formattedTimeStr)}
             </Text>
@@ -393,7 +413,7 @@ const styles = StyleSheet.create({
   metaText: {
     fontFamily: FONTS.medium,
     fontSize: 11,
-    color: COLORS.textSecondary,
+    color: '#334155',
     flex: 1,
   },
   bottomRow: {

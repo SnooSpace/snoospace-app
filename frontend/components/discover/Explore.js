@@ -179,7 +179,7 @@ const StatusBadge = ({ isLiveNow, spotsLeft, isFree, eventType }) => {
   return null;
 };
 
-export default function Explore({
+function Explore({
   feedData = {},
   loading = false,
   refreshing = false,
@@ -1919,3 +1919,5 @@ const styles = StyleSheet.create({
     color: "#888780"
   }
 });
+
+export default React.memo(Explore);

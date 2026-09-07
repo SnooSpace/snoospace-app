@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   StyleSheet,
   View,
@@ -13,7 +13,9 @@ import {
   Dimensions,
   Platform,
   Modal,
+  RefreshControl,
 } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import { Pressable as GHPressable } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -67,7 +69,12 @@ import {
 import { getActiveAccount } from "../../../api/auth";
 import SnooLoader from "../../../components/ui/SnooLoader";
 import { getCreatorStats } from "../../../api/audienceIntelligence";
-import { getCommunityRevenueSummary } from "../../../api/events";
+import {
+  getCommunityRevenueSummary,
+  getCommunityEvents,
+  deleteEvent,
+  cancelEvent,
+} from "../../../api/events";
 
 // --- Design Tokens (Founder Dashboard) ---
 const DASHBOARD_TOKENS = {
@@ -251,6 +258,7 @@ export default function CommunityDashboardScreen({ navigation }) {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [activeTab, setActiveTab] = useState("upcoming");
   const [audienceStats, setAudienceStats] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Promote state
   const [showPromoteSheet, setShowPromoteSheet] = useState(false);
@@ -259,31 +267,28 @@ export default function CommunityDashboardScreen({ navigation }) {
   // Scroll Animation
   const scrollY = useRef(new Animated.Value(0)).current;
 
-  useEffect(() => {
-    loadDashboard();
-    loadAudienceStats();
-    loadRevenueSummary("30d");
-  }, []);
-
-  const loadDashboard = async () => {
+  const loadDashboard = async (isRefresh = false) => {
     try {
-      setLoading(true);
-      // Simulate API call or fetch real data
-      const { getCommunityEvents } = await import("../../../api/events");
+      if (!isRefresh && upcomingEvents.length === 0 && previousEvents.length === 0) {
+        setLoading(true);
+      }
       const eventsData = await getCommunityEvents();
 
-      if (eventsData?.events) {
-        setUpcomingEvents(eventsData.events.filter((e) => !e.is_past));
-        setPreviousEvents(eventsData.events.filter((e) => e.is_past));
-        setMetrics((prev) => ({
-          ...prev,
-          eventsHosted: eventsData.events.length,
-        }));
-      }
+      const allEvents = Array.isArray(eventsData)
+        ? eventsData
+        : eventsData?.events || [];
+
+      setUpcomingEvents(allEvents.filter((e) => !e.is_past));
+      setPreviousEvents(allEvents.filter((e) => e.is_past));
+      setMetrics((prev) => ({
+        ...prev,
+        eventsHosted: allEvents.length,
+      }));
     } catch (error) {
       console.error("Dashboard error:", error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -298,6 +303,24 @@ export default function CommunityDashboardScreen({ navigation }) {
     } catch (error) {
       console.error("Audience stats error:", error);
     }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      loadDashboard();
+      loadAudienceStats();
+      loadRevenueSummary(revenuePeriod);
+    }, [revenuePeriod])
+  );
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await Promise.allSettled([
+      loadDashboard(true),
+      loadAudienceStats(),
+      loadRevenueSummary(revenuePeriod),
+    ]);
+    setRefreshing(false);
   };
 
   // ── Revenue helpers ──────────────────────────────────────────────────────────
@@ -412,8 +435,14 @@ export default function CommunityDashboardScreen({ navigation }) {
     });
   };
 
-  const handleEventCreated = () => loadDashboard();
-  const handleEventUpdated = () => loadDashboard();
+  const handleEventCreated = () => {
+    loadDashboard(true);
+    loadRevenueSummary(revenuePeriod);
+  };
+  const handleEventUpdated = () => {
+    loadDashboard(true);
+    loadRevenueSummary(revenuePeriod);
+  };
 
   // 3-dots menu handler for event cards in the dashboard
   const handleEventLongPress = (event) => {
@@ -469,10 +498,8 @@ export default function CommunityDashboardScreen({ navigation }) {
                   onPress: async () => {
                     setModalConfig((prev) => ({ ...prev, visible: false }));
                     try {
-                      const { deleteEvent } =
-                        await import("../../../api/events");
                       await deleteEvent(event.id);
-                      loadDashboard();
+                      loadDashboard(true);
                     } catch (err) {
                       Alert.alert(
                         "Error",
@@ -514,10 +541,8 @@ export default function CommunityDashboardScreen({ navigation }) {
                     onPress: async () => {
                       setModalConfig((prev) => ({ ...prev, visible: false }));
                       try {
-                        const { cancelEvent } =
-                          await import("../../../api/events");
                         await cancelEvent(event.id);
-                        loadDashboard();
+                        loadDashboard(true);
                       } catch (err) {
                         Alert.alert(
                           "Error",
@@ -556,10 +581,8 @@ export default function CommunityDashboardScreen({ navigation }) {
                     onPress: async () => {
                       setModalConfig((prev) => ({ ...prev, visible: false }));
                       try {
-                        const { deleteEvent } =
-                          await import("../../../api/events");
                         await deleteEvent(event.id);
-                        loadDashboard();
+                        loadDashboard(true);
                       } catch (err) {
                         Alert.alert(
                           "Error",
@@ -599,10 +622,8 @@ export default function CommunityDashboardScreen({ navigation }) {
                     onPress: async () => {
                       setModalConfig((prev) => ({ ...prev, visible: false }));
                       try {
-                        const { cancelEvent } =
-                          await import("../../../api/events");
                         await cancelEvent(event.id);
-                        loadDashboard();
+                        loadDashboard(true);
                       } catch (err) {
                         Alert.alert(
                           "Error",
@@ -811,6 +832,14 @@ export default function CommunityDashboardScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
         scrollEventThrottle={16}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={["#2563EB"]}
+            tintColor="#2563EB"
+          />
+        }
       >
         {/* 0️ Dashboard Header (Top Navigation) */}
         <View style={styles.dashboardHeader}>

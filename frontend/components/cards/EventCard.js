@@ -38,10 +38,12 @@ import {
   MessageCircle,
   ChartNoAxesCombined,
   Send,
+  Layers,
 } from "lucide-react-native";
 import { COLORS, BORDER_RADIUS, SHADOWS, FONTS } from "../../constants/theme";
 import { getGradientForName, getInitials } from "../../utils/AvatarGenerator";
 import { useLocationName } from "../../utils/locationNameCache";
+import { getEventModeDetails } from "../../utils/eventStateUtils";
 import {
   toggleEventInterest,
   recordEventView,
@@ -575,6 +577,11 @@ function EventCard({
     ? null
     : event.location_name || rawLocationName;
 
+  const { displayText: modeLocationText, iconName } = getEventModeDetails(
+    event,
+    shouldHideLocation ? null : locationName
+  );
+
   const isEventOwner =
     currentUserAccount?.type === "community" &&
     String(currentUserAccount?.id) === String(community_id);
@@ -866,7 +873,11 @@ function EventCard({
               ]}
               pointerEvents="none"
             >
-              <Video size={compact ? 10 : 12} color="#FFFFFF" strokeWidth={2.2} />
+              {event_type === "hybrid" ? (
+                <Layers size={compact ? 10 : 12} color="#FFFFFF" strokeWidth={2.2} />
+              ) : (
+                <Video size={compact ? 10 : 12} color="#FFFFFF" strokeWidth={2.2} />
+              )}
               <Text
                 style={[
                   styles.virtualBadgeText,
@@ -1142,12 +1153,12 @@ function EventCard({
                 <View style={styles.metaItemCompact}>
                   <Clock
                     size={13}
-                    color={COLORS.textSecondary}
+                    color="#475569"
                     strokeWidth={2}
                   />
                   <Text style={styles.metaTextCompact} numberOfLines={1}>
                     {displayDate} • {displayTime}
-                    {locationName ? ` • ${locationName}` : ""}
+                    {modeLocationText ? ` • ${modeLocationText}` : ""}
                   </Text>
                 </View>
               </View>
@@ -1157,7 +1168,7 @@ function EventCard({
                 <View style={styles.metaItem}>
                   <Clock
                     size={14}
-                    color={COLORS.textSecondary}
+                    color="#475569"
                     strokeWidth={2}
                   />
                   <Text style={styles.metaText}>
@@ -1165,33 +1176,32 @@ function EventCard({
                   </Text>
                 </View>
 
-                {(event_type === "virtual" || locationName) && (
+                {modeLocationText ? (
                   <View style={styles.metaItem}>
-                    {event_type === "virtual" ? (
-                      <>
-                        <Video
-                          size={14}
-                          color={COLORS.textSecondary}
-                          strokeWidth={2}
-                        />
-                        <Text style={styles.metaText} numberOfLines={1}>
-                          {locationName || "Online / Virtual Event"}
-                        </Text>
-                      </>
+                    {iconName === "Layers" ? (
+                      <Layers
+                        size={14}
+                        color="#475569"
+                        strokeWidth={2}
+                      />
+                    ) : iconName === "Video" ? (
+                      <Video
+                        size={14}
+                        color="#475569"
+                        strokeWidth={2}
+                      />
                     ) : (
-                      <>
-                        <MapPin
-                          size={14}
-                          color={COLORS.textSecondary}
-                          strokeWidth={2}
-                        />
-                        <Text style={styles.metaText} numberOfLines={1}>
-                          {locationName}
-                        </Text>
-                      </>
+                      <MapPin
+                        size={14}
+                        color="#475569"
+                        strokeWidth={2}
+                      />
                     )}
+                    <Text style={styles.metaText} numberOfLines={1}>
+                      {modeLocationText}
+                    </Text>
                   </View>
-                )}
+                ) : null}
               </View>
             )}
           </View>
@@ -1738,7 +1748,7 @@ const styles = StyleSheet.create({
   metaText: {
     fontSize: 13,
     fontFamily: FONTS.medium,
-    color: COLORS.textSecondary,
+    color: "#334155",
     flex: 1,
   },
   priceDetailsRow: {
@@ -1991,7 +2001,7 @@ const styles = StyleSheet.create({
   metaTextCompact: {
     fontSize: 12,
     fontFamily: FONTS.medium,
-    color: COLORS.textSecondary,
+    color: "#334155",
     flex: 1,
   },
   bottomRowCompact: {

@@ -18,7 +18,6 @@ import {
   StyleSheet,
   Platform,
   Alert,
-  ActivityIndicator,
   Dimensions,
 } from "react-native";
 import SwipeableModal from "../modals/SwipeableModal";
@@ -127,6 +126,24 @@ const QuotaBar = ({ used, max, resetsAt }) => {
   );
 };
 
+const QuotaBarSkeleton = ({ max = 5 }) => (
+  <View style={quotaStyles.container}>
+    <View style={quotaStyles.row}>
+      <View style={quotaStyles.skeletonLabel} />
+      <View style={quotaStyles.skeletonCount} />
+    </View>
+    <View style={quotaStyles.track}>
+      {Array.from({ length: max }).map((_, i) => (
+        <View
+          key={i}
+          style={[quotaStyles.segment, i < max - 1 && quotaStyles.segmentGap]}
+        />
+      ))}
+    </View>
+    <View style={quotaStyles.skeletonSub} />
+  </View>
+);
+
 const quotaStyles = StyleSheet.create({
   container: {
     marginTop: 4,
@@ -188,7 +205,32 @@ const quotaStyles = StyleSheet.create({
     fontFamily: FONTS.medium,
     fontSize: 13,
   },
+  skeletonLabel: {
+    width: 130,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#E9E4FB",
+  },
+  skeletonCount: {
+    width: 28,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#E9E4FB",
+  },
+  skeletonSub: {
+    width: 170,
+    height: 13,
+    borderRadius: 6,
+    backgroundColor: "#E9E4FB",
+    marginTop: 2,
+  },
 });
+
+// Module-level quota cache to prevent layout flicker and re-fetch latency across opens
+const quotaCache = {
+  event: null,
+  plan: null,
+};
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
@@ -205,41 +247,47 @@ const PromoteSheet = ({
   const [engagementType, setEngagementType] = useState(null);
   const [engagementData, setEngagementData] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [quota, setQuota] = useState(null);
-  const [quotaLoading, setQuotaLoading] = useState(false);
+  const [quota, setQuota] = useState(() => quotaCache[sourceType] || null);
+  const [quotaLoading, setQuotaLoading] = useState(!quotaCache[sourceType]);
 
-  useEffect(() => {
-    let timer;
-    if (visible) {
-      setPromoText("");
-      setEngagementType(null);
-      setEngagementData(null);
-      
-      // Delay API call and tab bar hiding until slide animation completes (350ms) to ensure smooth transitions
-      timer = setTimeout(() => {
-        loadQuota();
-        EventBus.emit("hide-tab-bar");
-      }, 350);
-    } else {
-      EventBus.emit("show-tab-bar");
-    }
-    return () => {
-      if (timer) clearTimeout(timer);
-      EventBus.emit("show-tab-bar");
-    };
-  }, [visible]);
-
-  const loadQuota = async () => {
+  const loadQuota = useCallback(async () => {
     try {
-      setQuotaLoading(true);
+      if (!quotaCache[sourceType]) {
+        setQuotaLoading(true);
+      }
       const res = await getPromoteQuota(sourceType);
-      if (res?.quota) setQuota(res.quota);
+      if (res?.quota) {
+        quotaCache[sourceType] = res.quota;
+        setQuota(res.quota);
+      }
     } catch (_) {
       // Non-fatal — proceed without quota display
     } finally {
       setQuotaLoading(false);
     }
-  };
+  }, [sourceType]);
+
+  useEffect(() => {
+    if (visible) {
+      setPromoText("");
+      setEngagementType(null);
+      setEngagementData(null);
+
+      // Immediately hydrate from module cache if available
+      if (quotaCache[sourceType]) {
+        setQuota(quotaCache[sourceType]);
+      }
+
+      // Hide tab bar and load/refresh quota immediately
+      EventBus.emit("hide-tab-bar");
+      loadQuota();
+    } else {
+      EventBus.emit("show-tab-bar");
+    }
+    return () => {
+      EventBus.emit("show-tab-bar");
+    };
+  }, [visible, sourceType, loadQuota]);
 
   const quotaExceeded = quota && quota.used >= quota.max;
 
@@ -290,6 +338,14 @@ const PromoteSheet = ({
           : await promotePlan(payload);
 
       if (result?.success) {
+        if (quotaCache[sourceType]) {
+          quotaCache[sourceType] = {
+            ...quotaCache[sourceType],
+            used: (quotaCache[sourceType].used || 0) + 1,
+            remaining: Math.max(0, (quotaCache[sourceType].remaining || 1) - 1),
+          };
+          setQuota({ ...quotaCache[sourceType] });
+        }
         HapticsService.triggerSuccess?.() ||
           HapticsService.triggerImpactLight();
         onSuccess?.(result.post);
@@ -520,18 +576,14 @@ const PromoteSheet = ({
         )}
 
         {/* Quota bar */}
-        {quotaLoading ? (
-          <ActivityIndicator
-            size="small"
-            color="#7C3AED"
-            style={{ marginVertical: 12 }}
-          />
-        ) : quota ? (
+        {quota ? (
           <QuotaBar
             used={quota.used}
             max={quota.max}
             resetsAt={quota.resets_at}
           />
+        ) : quotaLoading ? (
+          <QuotaBarSkeleton max={sourceType === "event" ? 5 : 3} />
         ) : null}
       </SwipeableModal.KeyboardAwareScrollView>
 
@@ -572,7 +624,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    maxHeight: SCREEN_HEIGHT * 0.88,
+    height: Math.round(SCREEN_HEIGHT * 0.88),
+    maxHeight: Math.round(SCREEN_HEIGHT * 0.88),
     overflow: "hidden",
   },
   header: {
@@ -630,7 +683,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F3F4F6",
   },
   scroll: {
-    flexShrink: 1,
+    flex: 1,
   },
   scrollContent: {
     padding: 20,

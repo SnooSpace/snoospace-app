@@ -5,7 +5,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { View, TextInput, FlatList, Text, TouchableOpacity, StyleSheet, Keyboard, ScrollView, InteractionManager, Animated, Alert } from "react-native";
+import { View, TextInput, FlatList, Text, TouchableOpacity, StyleSheet, Keyboard, ScrollView, InteractionManager, Animated, Alert, BackHandler } from "react-native";
 import { Image } from "expo-image"; // ── PERF: memory-disk cache for search avatars
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
@@ -91,7 +91,6 @@ export default function SearchScreen({ navigation, route }) {
       setActiveFilter(route.params.filter);
       if (route.params.autoFocus) {
         setFocused(true);
-        setTimeout(() => inputRef.current?.focus(), 150);
       }
     }
   }, [route?.params?.filter, route?.params?.autoFocus]);
@@ -160,8 +159,12 @@ export default function SearchScreen({ navigation, route }) {
     }
   }, []);
 
+  const handleExploreRefresh = useCallback(() => {
+    loadExploreFeed(true);
+  }, [loadExploreFeed]);
+
   // Dismiss creator opportunities banner
-  const handleDismissOpportunities = async () => {
+  const handleDismissOpportunities = useCallback(async () => {
     try {
       setExploreFeedData(prev => ({
         ...prev,
@@ -171,7 +174,7 @@ export default function SearchScreen({ navigation, route }) {
     } catch (err) {
       console.error("Error dismissing opportunities banner:", err);
     }
-  };
+  }, []);
 
   // Rotating placeholder animation (only run when screen is actively focused)
   useEffect(() => {
@@ -343,55 +346,79 @@ export default function SearchScreen({ navigation, route }) {
     }
   }, [userId, loadRecents]);
 
-  // Hide bottom tab bar dynamically when search bar is focused
+  // Hide bottom tab bar dynamically when search bar is focused via lightweight EventBus
   useEffect(() => {
-    const parent = navigation.getParent();
-    const grandparent = parent ? parent.getParent() : null;
-    
     if (focused) {
       EventBus.emit("disable-tab-swipe");
+      EventBus.emit("hide-tab-bar");
     } else {
       EventBus.emit("enable-tab-swipe");
-    }
-    
-    if (parent) {
-      if (focused) {
-        parent.setOptions({
-          tabBarStyle: { display: "none" },
-        });
-      } else {
-        parent.setOptions({
-          tabBarStyle: undefined,
-        });
-      }
-    }
-    
-    if (grandparent) {
-      if (focused) {
-        grandparent.setOptions({
-          tabBarStyle: { display: "none" },
-        });
-      } else {
-        grandparent.setOptions({
-          tabBarStyle: undefined,
-        });
-      }
+      EventBus.emit("show-tab-bar");
     }
     
     return () => {
       EventBus.emit("enable-tab-swipe");
-      if (parent) {
-        parent.setOptions({
-          tabBarStyle: undefined,
-        });
-      }
-      if (grandparent) {
-        grandparent.setOptions({
-          tabBarStyle: undefined,
-        });
-      }
+      EventBus.emit("show-tab-bar");
     };
-  }, [focused, navigation]);
+  }, [focused]);
+
+  // Instant back handler: drop native focus and keyboard immediately, exit search mode
+  const handleBack = useCallback(() => {
+    inputRef.current?.blur();
+    Keyboard.dismiss();
+    setFocused(false);
+    setQuery("");
+    setResults([]);
+    setEventResults([]);
+    if (route?.params?.autoFocus) {
+      navigation.setParams({ autoFocus: false });
+    }
+  }, [navigation, route?.params?.autoFocus]);
+
+  // Keep refs so event listeners always access the latest values without re-subscribing
+  const focusedRef = useRef(focused);
+  useEffect(() => {
+    focusedRef.current = focused;
+  }, [focused]);
+
+  const handleBackRef = useRef(handleBack);
+  useEffect(() => {
+    handleBackRef.current = handleBack;
+  }, [handleBack]);
+
+  // Intercept React Navigation back actions (edge swipe, iOS back gesture, goBack)
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("beforeRemove", (e) => {
+      if (focusedRef.current) {
+        // Prevent default navigation (which would bubble to TabRouter and navigate to HomeFeedScreen)
+        e.preventDefault();
+        // Exit search mode and return to Explore screen
+        handleBackRef.current?.();
+      }
+    });
+
+    return unsubscribe;
+  }, [navigation]);
+
+  // Handle Android hardware/gesture back press when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        if (focusedRef.current) {
+          handleBackRef.current?.();
+          return true; // Consume event so React Navigation / OS does not handle it
+        }
+        return false;
+      };
+
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        onBackPress
+      );
+
+      return () => subscription.remove();
+    }, [])
+  );
 
   // Listen for follow/circle updates from other screens (profile pages)
   useEffect(() => {
@@ -1282,16 +1309,16 @@ export default function SearchScreen({ navigation, route }) {
   };
 
   // Handle discover feed event card press
-  const handleDiscoverItemPress = (event) => {
+  const handleDiscoverItemPress = useCallback((event) => {
     // Navigate to EventDetails screen
-    if (event.id) {
+    if (event?.id) {
       Keyboard.dismiss();
       navigation.navigate("EventDetails", {
         eventId: event.id,
         eventData: event,
       });
     }
-  };
+  }, [navigation]);
 
   return (
     <View style={styles.container}>
@@ -1308,41 +1335,15 @@ export default function SearchScreen({ navigation, route }) {
       )}
 
       {/* Search Input Box */}
-      <View
-        style={[
-          styles.searchContainer,
-          focused && styles.searchContainerFocused,
-          focused && { paddingTop: 60 } // Align when header is hidden
-        ]}
-      >
-        {focused && (
+      {!focused ? (
+        <View style={styles.searchContainer}>
           <TouchableOpacity
-            onPress={() => {
-              Keyboard.dismiss();
-              setQuery("");
-              setFocused(false);
-              inputRef.current?.blur();
-            }}
-            style={styles.backButton}
+            activeOpacity={0.85}
+            delayPressIn={0}
+            onPress={() => setFocused(true)}
+            style={styles.searchBox}
           >
-            <ArrowLeft size={24} color="#2C2C2A" />
-          </TouchableOpacity>
-        )}
-        <View style={[styles.searchBox, focused && { flex: 1 }]}>
-          <Search size={20} color="#8E8E93" />
-          <TextInput
-            ref={inputRef}
-            style={styles.input}
-            placeholder=""
-            placeholderTextColor="#8E8E93"
-            value={query}
-            onChangeText={setQuery}
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="search"
-            onFocus={() => setFocused(true)}
-          />
-          {(!focused && query.length === 0) && (
+            <Search size={20} color="#8E8E93" />
             <View style={styles.placeholderOverlay} pointerEvents="none">
               <Text style={styles.placeholderText}>Search </Text>
               <Animated.Text
@@ -1354,17 +1355,57 @@ export default function SearchScreen({ navigation, route }) {
                 {placeholders[placeholderIndex]}
               </Animated.Text>
             </View>
-          )}
-          {query.length > 0 && (
-            <TouchableOpacity
-              onPress={() => setQuery("")}
-              hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
-            >
-              <CircleX size={20} color="#8E8E93" />
-            </TouchableOpacity>
-          )}
+          </TouchableOpacity>
         </View>
-      </View>
+      ) : (
+        <View style={[styles.searchContainer, styles.searchContainerFocused, { paddingTop: 60 }]}>
+          <TouchableOpacity
+            onPress={handleBack}
+            hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+            activeOpacity={0.7}
+            delayPressIn={0}
+            style={styles.backButton}
+          >
+            <ArrowLeft size={22} color="#2C2C2A" strokeWidth={2} />
+          </TouchableOpacity>
+          <View style={[styles.searchBox, { flex: 1 }]}>
+            <Search size={20} color="#8E8E93" />
+            <TextInput
+              ref={inputRef}
+              style={styles.input}
+              placeholder=""
+              placeholderTextColor="#8E8E93"
+              value={query}
+              onChangeText={setQuery}
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="search"
+              autoFocus={true}
+            />
+            {query.length === 0 && (
+              <View style={styles.placeholderOverlay} pointerEvents="none">
+                <Text style={styles.placeholderText}>Search </Text>
+                <Animated.Text
+                  style={[
+                    styles.placeholderText,
+                    { opacity: placeholderOpacity }
+                  ]}
+                >
+                  {placeholders[placeholderIndex]}
+                </Animated.Text>
+              </View>
+            )}
+            {query.length > 0 && (
+              <TouchableOpacity
+                onPress={() => setQuery("")}
+                hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+              >
+                <CircleX size={20} color="#8E8E93" />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      )}
 
       {/* Filter Tabs - Only show when search is focused */}
       {focused && (
@@ -1374,6 +1415,7 @@ export default function SearchScreen({ navigation, route }) {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.filterContent}
             style={{ flexGrow: 0 }} // Added to prevent expansion
+            keyboardShouldPersistTaps="handled"
           >
             {["events", "people", "communities", "creators"].map(
               (filter) => (
@@ -1416,6 +1458,7 @@ export default function SearchScreen({ navigation, route }) {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.subFilterContent}
               style={{ flexGrow: 0, marginTop: 10, marginBottom: 4 }}
+              keyboardShouldPersistTaps="handled"
             >
               {["all", "upcoming", "live", "past"].map((subFilter) => (
                 <TouchableOpacity
@@ -1484,6 +1527,7 @@ export default function SearchScreen({ navigation, route }) {
             data={recents}
             keyExtractor={(item) => String(item.id)}
             renderItem={renderRecentItem}
+            keyboardShouldPersistTaps="handled"
             ListEmptyComponent={
               <View style={styles.helper}>
                 <Text style={styles.helperText}>No recent searches</Text>
@@ -1507,6 +1551,7 @@ export default function SearchScreen({ navigation, route }) {
             renderItem={activeFilter === "events" ? renderEventItem : renderItem}
             onEndReached={onEndReached}
             onEndReachedThreshold={0.6}
+            keyboardShouldPersistTaps="handled"
             ListEmptyComponent={
               canSearch && !loading ? (
                 <View style={styles.helper}>
@@ -1527,18 +1572,24 @@ export default function SearchScreen({ navigation, route }) {
         </View>
       )}
 
-      {/* Explore Feed */}
-      {showDiscoverGrid && (
+      {/* Explore Feed - Kept mounted to prevent heavy remount lag when exiting search */}
+      <View
+        style={[
+          styles.contentContainer,
+          !showDiscoverGrid && styles.hiddenExploreContainer,
+        ]}
+        pointerEvents={showDiscoverGrid ? "auto" : "none"}
+      >
         <Explore
           feedData={exploreFeedData}
           loading={exploreFeedLoading}
           refreshing={exploreFeedRefreshing}
-          onRefresh={() => loadExploreFeed(true)}
+          onRefresh={handleExploreRefresh}
           onEventPress={handleDiscoverItemPress}
           onDismissOpportunities={handleDismissOpportunities}
           navigation={navigation}
         />
-      )}
+      </View>
     </View>
   );
 }
@@ -1569,7 +1620,14 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   backButton: {
-    padding: 4,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  hiddenExploreContainer: {
+    display: "none",
   },
   searchBox: {
     flexDirection: "row",

@@ -8,12 +8,13 @@ import {
 } from "react-native";
 import { Image } from "expo-image"; // ── PERF: memory-disk cache + off-thread decode
 import { LinearGradient } from "expo-linear-gradient";
-import { Calendar, Clock, MapPin, Video, MoveRight } from "lucide-react-native";
+import { Calendar, Clock, MapPin, Video, MoveRight, Layers } from "lucide-react-native";
 import { COLORS, FONTS, SHADOWS } from "../../constants/theme";
 import { getEventDetails } from "../../api/events";
 import SnooLoader from "../ui/SnooLoader";
 import { getOptimizedImageUrl } from "../../utils/imageUtils";
 import UnavailableCard from "./UnavailableCard";
+import { getEventModeDetails } from "../../utils/eventStateUtils";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH * 0.65; // Scaled down to match SharedPostCard and fit nicely in chat
@@ -243,12 +244,17 @@ const SharedEventCard = React.memo(({ metadata, onPress, style, isMyMessage = fa
       : `₹${lowestPrice.toLocaleString("en-IN")} onwards`;
 
     const { month: m, day: d } = parseDisplayDate(fDate);
+    const { displayText: modeLocationText, iconName } = getEventModeDetails(
+      event,
+      dLocation
+    );
 
     return {
       displayTitle: dTitle,
       displayCommunity: dCommunity,
       displayBannerUrl: dBannerUrl,
-      displayLocation: dLocation,
+      displayLocation: modeLocationText,
+      iconName,
       displayCommunityLogo: dCommunityLogo,
       formattedDate: fDate,
       formattedTime: fTime,
@@ -376,23 +382,25 @@ const SharedEventCard = React.memo(({ metadata, onPress, style, isMyMessage = fa
           {/* Metadata Grid */}
           <View style={styles.metaGrid}>
             <View style={styles.metaItem}>
-              <Clock size={12} color={COLORS.textSecondary} strokeWidth={2} />
+              <Clock size={12} color="#475569" strokeWidth={2} />
               <Text style={styles.metaText} numberOfLines={1}>
                 {formattedDate || "TBD"}{formattedTime ? ` • ${formattedTime}` : ""}
               </Text>
             </View>
-            {(displayLocation || isVirtual) && (
+            {displayLocation ? (
               <View style={styles.metaItem}>
-                {isVirtual ? (
-                  <Video size={12} color={COLORS.textSecondary} strokeWidth={2} />
+                {iconName === "Layers" ? (
+                  <Layers size={12} color="#475569" strokeWidth={2} />
+                ) : iconName === "Video" ? (
+                  <Video size={12} color="#475569" strokeWidth={2} />
                 ) : (
-                  <MapPin size={12} color={COLORS.textSecondary} strokeWidth={2} />
+                  <MapPin size={12} color="#475569" strokeWidth={2} />
                 )}
                 <Text style={styles.metaText} numberOfLines={1}>
-                  {isVirtual ? "Virtual Event" : displayLocation}
+                  {displayLocation}
                 </Text>
               </View>
-            )}
+            ) : null}
           </View>
 
           {/* Price & Explicit View Details CTA Row */}
@@ -576,7 +584,7 @@ const styles = StyleSheet.create({
   metaText: {
     fontSize: 11,
     fontFamily: FONTS.medium,
-    color: COLORS.textSecondary,
+    color: "#334155",
     flex: 1,
   },
   priceDetailsRow: {

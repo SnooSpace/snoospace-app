@@ -21,7 +21,8 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
-import { Camera, Info, X, Video, Trophy, TriangleAlert } from "lucide-react-native";
+import { Camera, Info, X, Video, Trophy, TriangleAlert, Target, Award } from "lucide-react-native";
+import SwipeableModal from "../../components/modals/SwipeableModal";
 import { apiPost } from "../../api/client";
 import ImageUploader from "../../components/media/ImageUploader";
 import MentionInput from "../../components/editors/MentionInput";
@@ -82,6 +83,7 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [showGuidelines, setShowGuidelines] = useState(false);
+  const [showChallengeInfoModal, setShowChallengeInfoModal] = useState(false);
   const [showDiscardModal, setShowDiscardModal] = useState(false);
   const [showEntityTagger, setShowEntityTagger] = useState(false);
   const [parentScrollEnabled, setParentScrollEnabled] = useState(true);
@@ -744,47 +746,257 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
   );
 
   const renderGuidelinesModal = () => (
-    <Modal
+    <SwipeableModal
       visible={showGuidelines}
-      transparent={true}
-      animationType="slide"
-      onRequestClose={() => setShowGuidelines(false)}
-      statusBarTranslucent={true}
-    >
-      <TouchableOpacity
-        style={styles.modalOverlay}
-        activeOpacity={1}
-        onPress={() => setShowGuidelines(false)}
-      >
-        <View style={styles.bottomSheet}>
-          <View style={styles.sheetHeader}>
-            <View style={styles.sheetHandle} />
-            <Text style={styles.sheetTitle}>Post Guidelines</Text>
-          </View>
-          <View style={styles.sheetContent}>
-            <Text style={styles.guidelineText}>
-              • Be respectful and kind to everyone
-            </Text>
-            <Text style={styles.guidelineText}>
-              • No spam or inappropriate content
-            </Text>
-            <Text style={styles.guidelineText}>
-              • Tag relevant people and places
-            </Text>
-            <Text style={styles.guidelineText}>
-              • Share meaningful moments with your community
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={styles.sheetCloseButton}
-            onPress={() => setShowGuidelines(false)}
-          >
-            <Text style={styles.sheetCloseButtonText}>Got it</Text>
-          </TouchableOpacity>
+      onClose={() => setShowGuidelines(false)}
+      backdropColor="rgba(0,0,0,0.5)"
+      header={
+        <View collapsable={false} style={styles.sheetHeaderContainer}>
+          <View style={styles.sheetHandle} />
+          <Text style={styles.sheetTitle}>Post Guidelines</Text>
         </View>
-      </TouchableOpacity>
-    </Modal>
+      }
+    >
+      <View
+        style={[
+          styles.guidelinesSheetBody,
+          { paddingBottom: Math.max(insets.bottom, 20) + 16 },
+        ]}
+      >
+        <View style={styles.sheetContent}>
+          <Text style={styles.guidelineText}>
+            • Be respectful and kind to everyone
+          </Text>
+          <Text style={styles.guidelineText}>
+            • No spam or inappropriate content
+          </Text>
+          <Text style={styles.guidelineText}>
+            • Tag relevant people and places
+          </Text>
+          <Text style={styles.guidelineText}>
+            • Share meaningful moments with your community
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={styles.sheetCloseButton}
+          onPress={() => setShowGuidelines(false)}
+        >
+          <Text style={styles.sheetCloseButtonText}>Got it</Text>
+        </TouchableOpacity>
+      </View>
+    </SwipeableModal>
   );
+
+  const renderChallengeInfoModal = () => {
+    const isChallengeTagged = entityTags.some((e) => e.type === "challenge");
+    const currentChallenge = entityTags.find((e) => e.type === "challenge");
+
+    return (
+      <SwipeableModal
+        visible={showChallengeInfoModal}
+        onClose={() => setShowChallengeInfoModal(false)}
+        backdropColor="rgba(0,0,0,0.5)"
+        header={
+          <View collapsable={false} style={styles.sheetHeaderContainer}>
+            <View style={styles.sheetHandle} />
+            <View style={styles.sheetIconCircle}>
+              <Trophy size={20} color="#FF6B35" strokeWidth={2} />
+            </View>
+            <Text style={styles.sheetTitle}>
+              {isChallengeTagged ? "Tagged Challenge" : "Community Challenges"}
+            </Text>
+          </View>
+        }
+      >
+        <View
+          style={[
+            styles.challengeModalBody,
+            { paddingBottom: Math.max(insets.bottom, 20) + 16 },
+          ]}
+        >
+          {isChallengeTagged ? (
+            <>
+              <Text style={styles.challengeModalSubtitle}>
+                This post will be submitted as an official entry to this community challenge upon publishing.
+              </Text>
+
+              <View style={styles.taggedChallengeCard}>
+                <View style={styles.taggedChallengeHeader}>
+                  <View style={styles.taggedChallengeIconBox}>
+                    <Trophy size={18} color="#FF6B35" strokeWidth={2} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.taggedChallengeTitle} numberOfLines={2}>
+                      {currentChallenge?.name || "Challenge"}
+                    </Text>
+                    {currentChallenge?.communityName && (
+                      <Text style={styles.taggedChallengeCommunity}>
+                        Hosted by {currentChallenge.communityName}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+
+                {challengeSubmissionType && (
+                  <View style={styles.taggedChallengeReqRow}>
+                    {challengeSubmissionType === "video" ? (
+                      <>
+                        <Video size={14} color="#7C3AED" strokeWidth={2} />
+                        <Text
+                          style={[
+                            styles.taggedChallengeReqText,
+                            { color: "#7C3AED" },
+                          ]}
+                        >
+                          Video submission required
+                        </Text>
+                      </>
+                    ) : (
+                      <>
+                        <Camera size={14} color="#D97706" strokeWidth={2} />
+                        <Text
+                          style={[
+                            styles.taggedChallengeReqText,
+                            { color: "#D97706" },
+                          ]}
+                        >
+                          Photo submission required
+                        </Text>
+                      </>
+                    )}
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.challengeModalActions}>
+                <TouchableOpacity
+                  style={styles.challengePrimaryButton}
+                  onPress={() => {
+                    HapticsService.triggerImpactLight();
+                    setShowChallengeInfoModal(false);
+                    setShowEntityTagger(true);
+                  }}
+                >
+                  <Text style={styles.challengePrimaryButtonText}>
+                    Change Challenge
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.challengeDestructiveButton}
+                  onPress={() => {
+                    HapticsService.triggerNotificationWarning();
+                    setEntityTags(
+                      entityTags.filter((e) => e.type !== "challenge"),
+                    );
+                    setShowChallengeInfoModal(false);
+                    setShowEntityTagger(false);
+                  }}
+                >
+                  <Text style={styles.challengeDestructiveButtonText}>
+                    Remove Challenge Tag
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.challengeSecondaryButton}
+                  onPress={() => setShowChallengeInfoModal(false)}
+                >
+                  <Text style={styles.challengeSecondaryButtonText}>
+                    Keep Challenge
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          ) : (
+            <>
+              <Text style={styles.challengeModalSubtitle}>
+                Tag an active community challenge to enter your post into the competition, share proof, and get featured!
+              </Text>
+
+              <View style={styles.challengeInfoList}>
+                <View style={styles.challengeInfoRow}>
+                  <View
+                    style={[
+                      styles.infoIconContainer,
+                      { backgroundColor: "#EFF6FF" },
+                    ]}
+                  >
+                    <Target size={18} color="#2563EB" strokeWidth={2} />
+                  </View>
+                  <View style={styles.infoTextContainer}>
+                    <Text style={styles.infoRowTitle}>Enter Active Contests</Text>
+                    <Text style={styles.infoRowDescription}>
+                      Browse challenges hosted by campus communities you belong to or discover.
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.challengeInfoRow}>
+                  <View
+                    style={[
+                      styles.infoIconContainer,
+                      { backgroundColor: "#F5F3FF" },
+                    ]}
+                  >
+                    <Camera size={18} color="#7C3AED" strokeWidth={2} />
+                  </View>
+                  <View style={styles.infoTextContainer}>
+                    <Text style={styles.infoRowTitle}>Submit Required Proof</Text>
+                    <Text style={styles.infoRowDescription}>
+                      Attach photo or video proof that satisfies the challenge task criteria.
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.challengeInfoRow}>
+                  <View
+                    style={[
+                      styles.infoIconContainer,
+                      { backgroundColor: "#ECFDF5" },
+                    ]}
+                  >
+                    <Award size={18} color="#059669" strokeWidth={2} />
+                  </View>
+                  <View style={styles.infoTextContainer}>
+                    <Text style={styles.infoRowTitle}>Get Featured & Win</Text>
+                    <Text style={styles.infoRowDescription}>
+                      Your post appears on the challenge leaderboard and submissions gallery.
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.challengeModalActions}>
+                <TouchableOpacity
+                  style={styles.challengePrimaryButton}
+                  onPress={() => {
+                    HapticsService.triggerImpactLight();
+                    setShowChallengeInfoModal(false);
+                    setShowEntityTagger(true);
+                  }}
+                >
+                  <Trophy size={18} color="#FFFFFF" strokeWidth={2} />
+                  <Text style={styles.challengePrimaryButtonText}>
+                    Tag a Challenge
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.challengeSecondaryButton}
+                  onPress={() => setShowChallengeInfoModal(false)}
+                >
+                  <Text style={styles.challengeSecondaryButtonText}>
+                    Got it
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
+        </View>
+      </SwipeableModal>
+    );
+  };
 
   return (
     <View style={styles.safeArea}>
@@ -1062,6 +1274,8 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
                     onInteractionStart={() => setParentScrollEnabled(false)}
                     onInteractionEnd={() => setParentScrollEnabled(true)}
                     onBeforeChallengeSelect={handleBeforeChallengeSelect}
+                    onOpenInfo={() => setShowChallengeInfoModal(true)}
+                    onClose={() => setShowEntityTagger(false)}
                   />
                 </View>
               )}
@@ -1122,13 +1336,7 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
           <TouchableOpacity
             onPress={() => {
               HapticsService.triggerImpactLight();
-              if (entityTags.some((e) => e.type === "challenge")) {
-                // Already tagged — clear the challenge and close the tagger
-                setEntityTags(entityTags.filter((e) => e.type !== "challenge"));
-                setShowEntityTagger(false);
-              } else {
-                setShowEntityTagger(!showEntityTagger);
-              }
+              setShowChallengeInfoModal(true);
             }}
             style={styles.toolbarButton}
           >
@@ -1160,6 +1368,7 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
         </View>
       </KeyboardAwareToolbar>}
       {renderGuidelinesModal()}
+      {renderChallengeInfoModal()}
       {renderDiscardModal()}
       {renderConflictModal()}
       {renderRemoveMediaModal()}
@@ -1280,57 +1489,200 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     gap: 32,
   },
-  // Bottom Sheet Styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
-  },
-  bottomSheet: {
-    backgroundColor: "#FFF",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingBottom: 40,
-    minHeight: 300,
-  },
-  sheetHeader: {
+  // Sheet Header & General Sheet Styles
+  sheetHeaderContainer: {
     alignItems: "center",
-    paddingVertical: 12,
+    paddingTop: 12,
+    paddingBottom: 8,
+    paddingHorizontal: 20,
   },
   sheetHandle: {
+    width: 38,
+    height: 4,
+    backgroundColor: "#E2E8F0",
+    borderRadius: 2,
+    alignSelf: "center",
+    marginBottom: 14,
+  },
+  sheetIconCircle: {
     width: 40,
-    height: 5,
-    backgroundColor: "#E5E5E5",
-    borderRadius: 3,
-    marginBottom: 16,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#FFF3ED",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
   },
   sheetTitle: {
+    fontFamily: "BasicCommercial-Bold",
     fontSize: 18,
-    fontWeight: "700",
     color: COLORS.textDark,
+    textAlign: "center",
   },
   sheetContent: {
     paddingHorizontal: 24,
     gap: 16,
     marginTop: 10,
   },
+  guidelinesSheetBody: {
+    paddingTop: 8,
+  },
   guidelineText: {
-    fontSize: 15,
-    color: "#555",
+    fontFamily: "Manrope-Regular",
+    fontSize: 14,
+    color: "#475569",
     lineHeight: 22,
   },
   sheetCloseButton: {
     backgroundColor: COLORS.cardBg,
     marginHorizontal: 24,
-    marginTop: 30,
+    marginTop: 28,
     paddingVertical: 14,
     borderRadius: 16,
     alignItems: "center",
   },
   sheetCloseButtonText: {
+    fontFamily: "Manrope-SemiBold",
     fontSize: 16,
-    fontWeight: "600",
     color: COLORS.textDark,
+  },
+
+  // Challenge Info Modal Styles
+  challengeModalBody: {
+    paddingHorizontal: 20,
+    paddingTop: 6,
+  },
+  challengeModalSubtitle: {
+    fontFamily: "Manrope-Regular",
+    fontSize: 13,
+    color: "#64748B",
+    textAlign: "center",
+    lineHeight: 19,
+    paddingHorizontal: 12,
+    marginBottom: 18,
+  },
+  challengeInfoList: {
+    gap: 12,
+    marginBottom: 22,
+  },
+  challengeInfoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F8FAFC",
+    borderRadius: 16,
+    padding: 12,
+    gap: 12,
+  },
+  infoIconContainer: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  infoTextContainer: {
+    flex: 1,
+  },
+  infoRowTitle: {
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 14,
+    color: "#1E293B",
+    marginBottom: 2,
+  },
+  infoRowDescription: {
+    fontFamily: "Manrope-Regular",
+    fontSize: 12,
+    color: "#64748B",
+    lineHeight: 16,
+  },
+  challengeModalActions: {
+    gap: 10,
+    marginTop: 4,
+  },
+  challengePrimaryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FF6B35",
+    paddingVertical: 14,
+    borderRadius: 16,
+    gap: 8,
+  },
+  challengePrimaryButtonText: {
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 16,
+    color: "#FFFFFF",
+  },
+  challengeSecondaryButton: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F1F5F9",
+    paddingVertical: 14,
+    borderRadius: 16,
+  },
+  challengeSecondaryButtonText: {
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 15,
+    color: "#475569",
+  },
+  challengeDestructiveButton: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FEF2F2",
+    paddingVertical: 14,
+    borderRadius: 16,
+  },
+  challengeDestructiveButtonText: {
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 15,
+    color: "#EF4444",
+  },
+  taggedChallengeCard: {
+    backgroundColor: "#FFF7ED",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#FFEDD5",
+    padding: 16,
+    marginBottom: 20,
+    gap: 12,
+  },
+  taggedChallengeHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  taggedChallengeIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#FFEDD5",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  taggedChallengeTitle: {
+    fontFamily: "BasicCommercial-Bold",
+    fontSize: 15,
+    color: "#1E293B",
+  },
+  taggedChallengeCommunity: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 12,
+    color: "#EA580C",
+    marginTop: 2,
+  },
+  taggedChallengeReqRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#FFFFFF",
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  taggedChallengeReqText: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 12,
   },
   // Entity tagger & challenge banner
   entityTaggerContainer: {
