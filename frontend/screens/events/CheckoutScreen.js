@@ -78,6 +78,7 @@ export default function CheckoutScreen({ route, navigation }) {
   const [isConfirmed, setIsConfirmed] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
+  const [confirmedOrderId, setConfirmedOrderId] = useState(null);
 
   // Reservation state
   const [sessionId, setSessionId] = useState(null);
@@ -331,6 +332,10 @@ export default function CheckoutScreen({ route, navigation }) {
           throw new Error(order.error || "Failed to create payment order");
         }
 
+        if (order.orderId) {
+          setConfirmedOrderId(order.orderId);
+        }
+
         // Fetch current user info for prefill (best-effort)
         let prefillName = order.prefill?.name || "";
         let prefillEmail = order.prefill?.email || "";
@@ -495,7 +500,17 @@ export default function CheckoutScreen({ route, navigation }) {
           visible={showCelebration}
           onClose={handleCelebrationClose}
           type="booking"
-          data={{ title: event?.title || "Event" }}
+          data={{
+            title: event?.title || "Grand Theft Auto Premier",
+            coverImage: event?.cover_image_url,
+            ticketTier: cartItems?.[0]?.ticket?.name || "Standard Access",
+            ticketCount:
+              cartItems?.reduce((sum, item) => sum + (item.quantity || 1), 0) ||
+              1,
+            orderId: confirmedOrderId
+              ? `#${confirmedOrderId.replace(/^order_/, "").slice(-8).toUpperCase()}`
+              : "#GTA-9042-X",
+          }}
         />
         {RazorpayUI}
         <DynamicStatusBar style="dark-content" />

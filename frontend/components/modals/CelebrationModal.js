@@ -7,102 +7,135 @@ import {
   TouchableOpacity,
   Dimensions,
   Image,
-  Share,
+  Platform,
 } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
-  withSequence,
-  withDelay,
   withTiming,
-  runOnJS,
+  Easing,
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
-import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
-import { COLORS } from "../../constants/theme";
 import { BlurView } from "expo-blur";
+import { BadgeCheck, Ticket } from "lucide-react-native";
+import Svg, {
+  Path,
+  Defs,
+  ClipPath,
+  G,
+  Rect,
+  Line,
+} from "react-native-svg";
 
-const { width, height } = Dimensions.get("window");
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
+// 340 x 500 coordinate system matching the SVG design
+const TICKET_DESIGN_WIDTH = 340;
+const TICKET_DESIGN_HEIGHT = 500;
+const CARD_WIDTH = Math.min(SCREEN_WIDTH - 36, TICKET_DESIGN_WIDTH);
+const CARD_HEIGHT = (CARD_WIDTH * TICKET_DESIGN_HEIGHT) / TICKET_DESIGN_WIDTH;
+const SCALE_FACTOR = CARD_WIDTH / TICKET_DESIGN_WIDTH;
+
+// Ticket Silhouette with Zig-Zag Top & Bottom Edges + Side Notches
+const TICKET_PATH = `
+  M 16,30 
+  L 28,16 L 40,30 L 52,16 L 64,30 L 76,16 L 88,30 L 100,16 L 112,30 L 124,16 L 136,30 L 148,16 L 160,30 L 172,16 L 184,30 L 196,16 L 208,30 L 220,16 L 232,30 L 244,16 L 256,30 L 268,16 L 280,30 L 292,16 L 304,30 L 316,16 L 324,24 
+  V 300 
+  A 14,14 0 0 0 310,314 
+  A 14,14 0 0 0 324,328 
+  V 466 
+  L 316,474 L 304,460 L 292,474 L 280,460 L 268,474 L 256,460 L 244,474 L 232,460 L 220,474 L 208,460 L 196,474 L 184,460 L 172,474 L 160,460 L 148,474 L 136,460 L 124,474 L 112,460 L 100,474 L 88,460 L 76,474 L 64,460 L 52,474 L 40,460 L 28,474 L 16,460 
+  V 328 
+  A 14,14 0 0 0 30,314 
+  A 14,14 0 0 0 16,300 
+  V 24 
+  Z
+`;
 
 const CelebrationModal = ({
   visible,
   onClose,
-  type = "post", // 'post' | 'booking' | 'event'
+  type = "booking", // 'booking' | 'event' | 'post'
   data = {},
-  onSecondaryAction,
 }) => {
-  const scale = useSharedValue(0.5);
+  // Smooth timing animation — zero bounce / no overshoot
+  const scale = useSharedValue(0.95);
   const opacity = useSharedValue(0);
-  const translateY = useSharedValue(50);
-
-  // Confetti/particles could be added here with more shared values
+  const translateY = useSharedValue(16);
 
   useEffect(() => {
     if (visible) {
-      // Trigger Haptics
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-      // Animate In
-      scale.value = withSpring(1, { damping: 12 });
-      opacity.value = withTiming(1, { duration: 300 });
-      translateY.value = withSpring(0, { damping: 12 });
+      scale.value = withTiming(1, {
+        duration: 250,
+        easing: Easing.out(Easing.cubic),
+      });
+      opacity.value = withTiming(1, {
+        duration: 200,
+        easing: Easing.out(Easing.cubic),
+      });
+      translateY.value = withTiming(0, {
+        duration: 250,
+        easing: Easing.out(Easing.cubic),
+      });
     } else {
-      // Reset
-      scale.value = 0.5;
+      scale.value = 0.95;
       opacity.value = 0;
-      translateY.value = 50;
+      translateY.value = 16;
     }
   }, [visible]);
 
-  const animatedStyle = useAnimatedStyle(() => ({
+  const animatedCardStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }, { translateY: translateY.value }],
     opacity: opacity.value,
   }));
 
-  const handleShare = async () => {
-    try {
-      const message =
-        type === "event"
-          ? `Check out this event: ${data.title} on SnooSpace!`
-          : `I just posted on SnooSpace! Check it out.`;
+  if (!visible) return null;
 
-      await Share.share({
-        message,
-      });
-    } catch (error) {
-      console.log(error);
+  // Text resolvers based on flow type
+  const getBadgeLabel = () => {
+    switch (type) {
+      case "booking":
+        return "BOOKING CONFIRMED";
+      case "event":
+        return "EVENT CREATED";
+      case "post":
+        return "POST PUBLISHED";
+      default:
+        return "SUCCESS";
     }
   };
 
-  const getSuccessMessage = () => {
+  const getTitle = () => {
     switch (type) {
-      case "post":
-        return "Post Published!";
       case "booking":
         return "Ticket Booked!";
       case "event":
         return "Event Created!";
+      case "post":
+        return "Post Published!";
       default:
-        return "Success!";
+        return "Confirmed!";
     }
   };
 
-  const getSubMessage = () => {
+  const getSubtitle = () => {
     switch (type) {
-      case "post":
-        return "Your community is going to love this.";
       case "booking":
         return "Get ready for an amazing experience.";
       case "event":
         return "Now, let's fill up those seats!";
+      case "post":
+        return "Your community is going to love this.";
       default:
         return "Action completed successfully.";
     }
   };
 
-  if (!visible) return null;
+  const eventTitle = data.title || "Grand Theft Auto Premier";
+  const ticketTier = data.ticketTier || "Standard Access";
+  const ticketCount = data.ticketCount || 1;
+  const orderId = data.orderId || "#GTA-9042-X";
 
   return (
     <Modal
@@ -110,61 +143,139 @@ const CelebrationModal = ({
       visible={visible}
       animationType="fade"
       statusBarTranslucent={true}
+      onRequestClose={onClose}
     >
       <View style={styles.overlay}>
-        <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+        {/* Dark blurred backdrop */}
+        <BlurView intensity={70} tint="dark" style={StyleSheet.absoluteFill} />
+        <View style={styles.darkDimmer} />
 
-        <Animated.View style={[styles.card, animatedStyle]}>
-          {/* Success Icon/Badge */}
-          <View style={styles.iconContainer}>
-            <LinearGradient
-              colors={["#4ADE80", "#22C55E"]}
-              style={styles.iconCircle}
+        {/* Modal Ticket Body */}
+        <Animated.View style={[styles.cardOuter, animatedCardStyle]}>
+          <View
+            style={[
+              styles.cardCanvas,
+              {
+                transform: [{ scale: SCALE_FACTOR }],
+              },
+            ]}
+          >
+            {/* Layer 1: SVG Ticket Silhouette, Clipped Header & Perforation */}
+            <Svg
+              width={TICKET_DESIGN_WIDTH}
+              height={TICKET_DESIGN_HEIGHT}
+              viewBox={`0 0 ${TICKET_DESIGN_WIDTH} ${TICKET_DESIGN_HEIGHT}`}
+              style={StyleSheet.absoluteFill}
             >
-              <Ionicons name="checkmark-sharp" size={40} color="#FFF" />
-            </LinearGradient>
-          </View>
+              <Defs>
+                <ClipPath id="ticketClip">
+                  <Path d={TICKET_PATH} />
+                </ClipPath>
+              </Defs>
 
-          {/* Ticket/Card Content */}
-          <View style={styles.content}>
-            <Text style={styles.title}>{getSuccessMessage()}</Text>
-            <Text style={styles.subtitle}>{getSubMessage()}</Text>
+              {/* White ticket background */}
+              <Path d={TICKET_PATH} fill="#FFFFFF" />
 
-            {/* Visual Flair / Ticket Stub look */}
-            <View style={styles.divider}>
-              <View style={[styles.notch, styles.notchLeft]} />
-              <View style={styles.dashedLine} />
-              <View style={[styles.notch, styles.notchRight]} />
+              {/* Elements clipped strictly inside the ticket perimeter */}
+              <G clipPath="url(#ticketClip)">
+                {/* Top Header Area */}
+                <Rect x="0" y="0" width="340" height="96" fill="#F8FAFC" />
+                <Line
+                  x1="0"
+                  y1="96"
+                  x2="340"
+                  y2="96"
+                  stroke="#E2E8F0"
+                  strokeWidth="1"
+                />
+
+                {/* Stub Perforation Line Between Side Cut Notches */}
+                <Line
+                  x1="30"
+                  y1="314"
+                  x2="310"
+                  y2="314"
+                  stroke="#CBD5E1"
+                  strokeWidth="1.8"
+                  strokeDasharray="5 5"
+                />
+              </G>
+            </Svg>
+
+            {/* Layer 2: UI Elements positioned accurately on top */}
+
+            {/* 1. Top Badge Pill (Clean Mint Tone, Centered Text, No Green Dot on 'B') */}
+            <View style={styles.badgePill}>
+              <Text style={styles.badgeLabel}>{getBadgeLabel()}</Text>
             </View>
 
-            {/* "What's Next" Section */}
-            <View style={styles.whatsNext}>
-              <Text style={styles.whatsNextTitle}>What's Next?</Text>
-
-              <TouchableOpacity
-                style={styles.primaryButton}
-                onPress={handleShare}
-              >
-                <LinearGradient
-                  colors={COLORS.primaryGradient || ["#00C6FF", "#0072FF"]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.primaryGradient}
-                >
-                  <Ionicons name="share-outline" size={20} color="#FFF" />
-                  <Text style={styles.primaryButtonText}>
-                    Share with Friends
-                  </Text>
-                </LinearGradient>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.secondaryButton}
-                onPress={onClose}
-              >
-                <Text style={styles.secondaryButtonText}>Done</Text>
-              </TouchableOpacity>
+            {/* 2. Success Check Icon (Lucide BadgeCheck in Soft Tinted Container) */}
+            <View style={styles.iconCircle}>
+              <BadgeCheck size={26} color="#059669" strokeWidth={2.2} />
             </View>
+
+            {/* 3. Main Headings */}
+            <View style={styles.headingArea}>
+              <Text style={styles.titleText}>{getTitle()}</Text>
+              <Text style={styles.subtitleText}>{getSubtitle()}</Text>
+            </View>
+
+            {/* 4. Mini Event Summary Card */}
+            <View style={styles.eventCard}>
+              {data.coverImage ? (
+                <Image
+                  source={{ uri: data.coverImage }}
+                  style={styles.eventThumbImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={styles.eventThumbPlaceholder}>
+                  <Ticket size={18} color="#475569" strokeWidth={2} />
+                </View>
+              )}
+
+              <View style={styles.eventCardTextContainer}>
+                <Text style={styles.eventTitle} numberOfLines={1}>
+                  {eventTitle}
+                </Text>
+                <Text style={styles.eventMeta} numberOfLines={1}>
+                  {ticketTier} • {ticketCount} Ticket{ticketCount > 1 ? "s" : ""}
+                </Text>
+              </View>
+            </View>
+
+            {/* 5. Barcode & Order Identifier Row */}
+            <View style={styles.barcodeRow}>
+              {/* Minimal Barcode Strip */}
+              <Svg width={78} height={24} viewBox="0 0 78 24">
+                <Line x1="4" y1="0" x2="4" y2="24" stroke="#0F172A" strokeWidth="2.5" />
+                <Line x1="10" y1="0" x2="10" y2="24" stroke="#0F172A" strokeWidth="1" />
+                <Line x1="15" y1="0" x2="15" y2="24" stroke="#0F172A" strokeWidth="3.5" />
+                <Line x1="22" y1="0" x2="22" y2="24" stroke="#0F172A" strokeWidth="1.5" />
+                <Line x1="28" y1="0" x2="28" y2="24" stroke="#0F172A" strokeWidth="2.5" />
+                <Line x1="36" y1="0" x2="36" y2="24" stroke="#0F172A" strokeWidth="4.5" />
+                <Line x1="45" y1="0" x2="45" y2="24" stroke="#0F172A" strokeWidth="1.5" />
+                <Line x1="51" y1="0" x2="51" y2="24" stroke="#0F172A" strokeWidth="3" />
+                <Line x1="58" y1="0" x2="58" y2="24" stroke="#0F172A" strokeWidth="1" />
+                <Line x1="64" y1="0" x2="64" y2="24" stroke="#0F172A" strokeWidth="3" />
+                <Line x1="72" y1="0" x2="72" y2="24" stroke="#0F172A" strokeWidth="2" />
+              </Svg>
+
+              {/* Order Identifier */}
+              <View style={styles.orderIdContainer}>
+                <Text style={styles.orderIdLabel}>ORDER ID</Text>
+                <Text style={styles.orderIdValue}>{orderId}</Text>
+              </View>
+            </View>
+
+            {/* 6. Bottom Action Button: Done */}
+            <TouchableOpacity
+              style={styles.doneButton}
+              onPress={onClose}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.doneButtonText}>Done</Text>
+            </TouchableOpacity>
           </View>
         </Animated.View>
       </View>
@@ -178,127 +289,186 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  card: {
-    width: width * 0.85,
-    backgroundColor: "#FFF",
-    borderRadius: 24,
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 10,
+  darkDimmer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(15, 23, 42, 0.4)",
+  },
+  cardOuter: {
+    width: CARD_WIDTH,
+    height: CARD_HEIGHT,
+    justifyContent: "center",
     alignItems: "center",
   },
-  iconContainer: {
-    marginTop: -30,
-    marginBottom: 10,
-    padding: 10,
-    backgroundColor: "#FFF",
-    borderRadius: 50,
+  cardCanvas: {
+    width: TICKET_DESIGN_WIDTH,
+    height: TICKET_DESIGN_HEIGHT,
+    position: "relative",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#0F172A",
+        shadowOffset: { width: 0, height: 14 },
+        shadowOpacity: 0.18,
+        shadowRadius: 18,
+      },
+      android: {
+        elevation: 12,
+      },
+    }),
   },
+
+  // 1. Top Badge Pill
+  badgePill: {
+    position: "absolute",
+    top: 44,
+    left: 90,
+    width: 160,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#D1FAE5",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 12,
+  },
+  badgeLabel: {
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 11,
+    letterSpacing: 1.2,
+    color: "#065F46",
+    textAlign: "center",
+    includeFontPadding: false,
+  },
+
+  // 2. Success Check Icon Container (Lucide BadgeCheck in Soft Tinted Container)
   iconCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    position: "absolute",
+    top: 94,
+    left: 146,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#ECFDF5",
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
   },
-  content: {
-    padding: 24,
+
+  // 3. Headings
+  headingArea: {
+    position: "absolute",
+    top: 148,
+    left: 20,
+    right: 20,
     alignItems: "center",
-    width: "100%",
   },
-  title: {
-    fontSize: 24,
-    fontWeight: "800",
-    color: "#1F2937",
-    marginBottom: 8,
+  titleText: {
+    fontFamily: "BasicCommercial-Bold",
+    fontSize: 21,
+    color: "#0F172A",
     textAlign: "center",
+    letterSpacing: -0.3,
   },
-  subtitle: {
-    fontSize: 16,
-    color: "#6B7280",
+  subtitleText: {
+    fontFamily: "Manrope-Regular",
+    fontSize: 13,
+    color: "#64748B",
     textAlign: "center",
-    marginBottom: 20,
-    paddingHorizontal: 10,
+    marginTop: 4,
   },
-  divider: {
-    flexDirection: "row",
-    alignItems: "center",
-    width: "116%", // Wider than container to push notches out
-    height: 30,
-    marginBottom: 20,
-    marginLeft: -20, // Center it (116 - 100 / 2ish) - adjusted mostly by visual feel or calc
-  },
-  notch: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: "rgba(0,0,0,0.5)", // Match blur/overlay roughly or exact
-    // Ideally this matches the background behind the modal.
-    // Since we use BlurView, we might just transparent or use a dark color.
-    // Let's use a dark gray to simulate the "cutout" look against the dark blur.
-    backgroundColor: "#333",
-  },
-  notchLeft: {
-    marginLeft: -10,
-  },
-  notchRight: {
-    marginRight: -10,
-  },
-  dashedLine: {
-    flex: 1,
-    height: 1,
+
+  // 4. Mini Event Summary Card
+  eventCard: {
+    position: "absolute",
+    top: 202,
+    left: 36,
+    width: 268,
+    height: 64,
+    borderRadius: 12,
+    backgroundColor: "#F8FAFC",
     borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderStyle: "dashed",
-    marginHorizontal: 10,
-  },
-  whatsNext: {
-    width: "100%",
-    alignItems: "center",
-    gap: 12,
-  },
-  whatsNextTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#9CA3AF",
-    marginBottom: 4,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
-  primaryButton: {
-    width: "100%",
-    height: 50,
-    borderRadius: 25,
-    overflow: "hidden",
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  primaryGradient: {
-    flex: 1,
+    borderColor: "#E2E8F0",
     flexDirection: "row",
     alignItems: "center",
+    paddingHorizontal: 12,
+  },
+  eventThumbImage: {
+    width: 38,
+    height: 38,
+    borderRadius: 8,
+    backgroundColor: "#E2E8F0",
+  },
+  eventThumbPlaceholder: {
+    width: 38,
+    height: 38,
+    borderRadius: 8,
+    backgroundColor: "#E2E8F0",
     justifyContent: "center",
-    gap: 8,
+    alignItems: "center",
   },
-  primaryButtonText: {
-    color: "#FFF",
-    fontSize: 16,
-    fontWeight: "700",
+  eventCardTextContainer: {
+    flex: 1,
+    marginLeft: 10,
+    justifyContent: "center",
   },
-  secondaryButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
+  eventTitle: {
+    fontFamily: "BasicCommercial-Bold",
+    fontSize: 14,
+    color: "#1E293B",
   },
-  secondaryButtonText: {
-    color: COLORS.textSecondary || "#6B7280",
-    fontSize: 16,
-    fontWeight: "600",
+  eventMeta: {
+    fontFamily: "Manrope-Regular",
+    fontSize: 12,
+    color: "#64748B",
+    marginTop: 2,
+  },
+
+  // 5. Barcode & Order ID
+  barcodeRow: {
+    position: "absolute",
+    top: 330,
+    left: 44,
+    width: 252,
+    height: 34,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  orderIdContainer: {
+    alignItems: "flex-end",
+    justifyContent: "center",
+  },
+  orderIdLabel: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 10,
+    letterSpacing: 0.6,
+    color: "#64748B",
+    textTransform: "uppercase",
+  },
+  orderIdValue: {
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 13,
+    letterSpacing: 1,
+    color: "#1E293B",
+    marginTop: 1,
+  },
+
+  // 6. Done Button
+  doneButton: {
+    position: "absolute",
+    top: 384,
+    left: 40,
+    width: 260,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: "#0F172A",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  doneButtonText: {
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 15,
+    letterSpacing: 0.3,
+    color: "#FFFFFF",
   },
 });
 
