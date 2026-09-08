@@ -47,7 +47,7 @@ import {
   releaseReservation,
 } from "../../api/events";
 import { createPaymentOrder, verifyPayment } from "../../api/payments";
-import { useRazorpay } from "@codearcade/expo-razorpay";
+import { useRazorpay } from "../../hooks/useRazorpay";
 import EventBus from "../../utils/EventBus";
 import CelebrationModal from "../../components/modals/CelebrationModal";
 import SnooLoader from "../../components/ui/SnooLoader";
@@ -396,11 +396,13 @@ export default function CheckoutScreen({ route, navigation }) {
           },
           onFailure: (rzpError) => {
             setIsLoading(false);
-            console.error("[Checkout] Razorpay error:", rzpError);
-            Alert.alert(
-              "Payment Failed",
-              rzpError?.description || "Payment could not be completed. Please try again."
-            );
+            console.error("[Checkout] Razorpay error:", rzpError?.description || rzpError?.message || rzpError);
+            const errorMessage =
+              rzpError?.description ||
+              rzpError?.message ||
+              (typeof rzpError === "string" ? rzpError : null) ||
+              "Payment could not be completed. Please try again.";
+            Alert.alert("Payment Failed", errorMessage);
           },
           onClose: () => {
             setIsLoading(false);
