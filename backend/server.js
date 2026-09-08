@@ -16,6 +16,7 @@ process.on("uncaughtException", (error) => {
 });
 
 const app = express();
+app.set('trust proxy', 1);
 app.use(cors());
 
 // ⚠️ Razorpay webhook MUST be registered before express.json()
@@ -115,7 +116,7 @@ io.on("connection", (socket) => {
 app.use("/", routes);
 
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ Server running on port ${PORT}`);
 });
 

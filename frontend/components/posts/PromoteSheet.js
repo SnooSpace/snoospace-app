@@ -478,10 +478,7 @@ const PromoteSheet = ({
     >
       <SwipeableModal.KeyboardAwareScrollView
         style={styles.scroll}
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: (Platform.OS === "ios" ? 34 : 20) + 20 },
-        ]}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
@@ -624,7 +621,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    height: Math.round(SCREEN_HEIGHT * 0.88),
     maxHeight: Math.round(SCREEN_HEIGHT * 0.88),
     overflow: "hidden",
   },
@@ -683,10 +679,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#F3F4F6",
   },
   scroll: {
-    flex: 1,
+    flexShrink: 1,
   },
   scrollContent: {
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 8,
     gap: 20,
   },
   section: {
@@ -765,11 +763,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingTop: 12,
+    paddingTop: 8,
     paddingBottom: Platform.OS === "ios" ? 40 : 28,
     backgroundColor: "#FFFFFF",
-    borderTopWidth: 1,
-    borderTopColor: "#F3F4F6",
   },
   submitBtn: {
     flex: 1,

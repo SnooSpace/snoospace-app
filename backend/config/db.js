@@ -5,21 +5,29 @@ let sharedPool = null;
 function createPool() {
   if (sharedPool) return sharedPool;
 
+  // Prefer DATABASE_URL (auto-injected by Railway Postgres / other managed providers).
+  // Falls back to discrete DB_* vars for local dev.
+  const connectionConfig = process.env.DATABASE_URL
+    ? {
+        connectionString: process.env.DATABASE_URL,
+        ssl: process.env.DB_SSL === 'false'
+          ? false
+          : { rejectUnauthorized: false }, // default true for managed DBs unless explicitly disabled
+      }
+    : {
+        user: process.env.DB_USER,
+        host: process.env.DB_HOST,
+        database: process.env.DB_NAME,
+        password: process.env.DB_PASS,
+        port: process.env.DB_PORT,
+        ssl: process.env.DB_SSL === 'true'
+          ? { rejectUnauthorized: false }
+          : false,
+      };
+
   const pool = new Pool({
-    user: process.env.DB_USER,
-    host: process.env.DB_HOST,
-    database: process.env.DB_NAME,
-    password: process.env.DB_PASS,
-    port: process.env.DB_PORT,
-    ssl: process.env.DB_SSL === 'true'
-      ? { rejectUnauthorized: false }
-      : false,
-    // ⚠️ EXPERIMENTAL — TEMPORARY FOR LOAD TESTING (raised from 20 to 50)
-    // Added 2026-08-24 to isolate whether pg.Pool max size is the binding 
-    // constraint on feed endpoint throughput under k6 load test.
-    // REVERT to max: 20 (or a deliberately chosen production value) before merging 
-    // or deploying this branch. See conversation/audit notes for context.
-    max: 50,
+    ...connectionConfig,
+    max: 20, // reverted from temporary load-testing value of 50 — see git history if you need to re-test
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000,
   });
@@ -107,11 +115,8 @@ async function ensureTables(pool) {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
       
-      -- Drop and recreate venues table to ensure correct schema
-      DROP TABLE IF EXISTS venues CASCADE;
-      
-      -- Venues table
-      CREATE TABLE venues (
+      -- Venues table (idempotent — no longer drops existing data on every boot)
+      CREATE TABLE IF NOT EXISTS venues (
         id BIGSERIAL PRIMARY KEY,
         name TEXT NOT NULL,
         address TEXT NOT NULL,

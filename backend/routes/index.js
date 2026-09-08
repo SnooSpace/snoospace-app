@@ -2,9 +2,11 @@ const express = require("express");
 const { authMiddleware } = require("../middleware/auth");
 const { rateLimitOtp } = require("../middleware/rateLimit");
 const { validateBody, normalizeEmail } = require("../middleware/validators");
+const multer = require("multer");
 const AuthController = require("../controllers/authController");
 const MemberController = require("../controllers/memberController");
 const CommunityController = require("../controllers/communityController");
+const CommunityVerificationController = require("../controllers/communityVerificationController");
 const SponsorController = require("../controllers/sponsorController");
 const VenueController = require("../controllers/venueController");
 const UsernameController = require("../controllers/usernameController");
@@ -716,6 +718,66 @@ router.get(
   authMiddleware,
   EventController.getCommunityRevenueReport,
 );
+
+// ── Community Two-Tier Verification ──────────────────────────────────────────
+const communityDocUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype === "application/pdf") {
+      cb(null, true);
+    } else {
+      cb(new Error("Only PDF documents are allowed"), false);
+    }
+  },
+});
+
+const handleCommunityDocUpload = (req, res, next) => {
+  communityDocUpload.single("document")(req, res, (err) => {
+    if (err) {
+      if (err.code === "LIMIT_FILE_SIZE") {
+        return res.status(400).json({ error: "file_too_large", message: "Document must be under 10MB." });
+      }
+      return res.status(400).json({ error: "invalid_document", message: err.message });
+    }
+    next();
+  });
+};
+
+router.get(
+  "/communities/verification/eligibility",
+  authMiddleware,
+  CommunityVerificationController.getVerificationEligibility,
+);
+router.post(
+  "/communities/verification/apply",
+  authMiddleware,
+  handleCommunityDocUpload,
+  CommunityVerificationController.applyVerification,
+);
+router.get(
+  "/communities/verification/status",
+  authMiddleware,
+  CommunityVerificationController.getVerificationStatus,
+);
+
+// ── Community Verification Admin Review (Protected) ──────────────────────────
+router.get(
+  "/communities/admin/verifications",
+  adminAuthMiddleware,
+  CommunityVerificationController.adminGetAll,
+);
+router.patch(
+  "/communities/admin/verifications/:id",
+  adminAuthMiddleware,
+  CommunityVerificationController.adminReview,
+);
+router.get(
+  "/communities/admin/verifications/:id/document",
+  adminAuthMiddleware,
+  CommunityVerificationController.adminGetDocumentUrl,
+);
+
 router.get(
   "/communities/:id/events/public",
   authMiddleware,
