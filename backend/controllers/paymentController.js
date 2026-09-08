@@ -25,7 +25,14 @@ const pool = createPool();
 // Creates a Razorpay order and returns order details to the frontend.
 // Frontend uses these details to open the Razorpay payment sheet.
 const createOrder = async (req, res) => {
-  const { eventId, totalAmountRupees } = req.body;
+  const {
+    eventId,
+    totalAmountRupees,
+    tickets,
+    promoCode,
+    discountAmount,
+    sessionId,
+  } = req.body;
   const userId = req.user?.id;
 
   if (!userId) {
@@ -107,6 +114,17 @@ const createOrder = async (req, res) => {
     });
 
     // Store order in our database so the webhook can look it up by order_id
+    // Full ticket/promo/session payload goes in a JSONB notes column so the
+    // webhook can fulfill line items later. Razorpay's own `notes` field only
+    // supports flat string key-value pairs, so we keep it minimal there.
+    const fullOrderContext = {
+      razorpay_notes: razorpayOrder.notes,
+      tickets: tickets || [],
+      promoCode: promoCode || null,
+      discountAmount: discountAmount || 0,
+      sessionId: sessionId || null,
+    };
+
     await pool.query(
       `INSERT INTO razorpay_orders (
          razorpay_order_id, user_id, event_id,
@@ -119,7 +137,7 @@ const createOrder = async (req, res) => {
         eventId,
         amountPaise,
         receipt,
-        JSON.stringify(razorpayOrder.notes),
+        JSON.stringify(fullOrderContext),
       ]
     );
 

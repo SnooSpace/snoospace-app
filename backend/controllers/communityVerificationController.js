@@ -365,14 +365,10 @@ async function adminReview(req, res) {
       [communityId]
     );
 
-    const io = req.app.locals.io;
-    if (io && freshComm.rows[0]) {
-      io.to(`community_${communityId}`).emit('community_verification_status_updated', {
-        status: updatedVer.status,
-        tier: freshComm.rows[0].community_verification_tier,
-        verification_status: freshComm.rows[0].verification_status,
-      });
-    }
+    // Note: Community sessions currently do not join a real-time socket room
+    // (register_user joins user_${id}, not community_${id}, and no community-specific
+    // socket room exists today). Verification status is queried on screen load/refresh
+    // via GET /communities/verification/status.
 
     return res.json({
       verification: updatedVer,

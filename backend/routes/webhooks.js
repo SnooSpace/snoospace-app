@@ -91,7 +91,14 @@ const handlePaymentCaptured = async (pool, payment, event) => {
     return;
   }
 
-  const { user_id, event_id } = orderResult.rows[0];
+  const { user_id, event_id, notes } = orderResult.rows[0];
+  // pg auto-parses JSONB columns into JS objects
+  // notes shape (set in paymentController.createOrder):
+  //   { razorpay_notes, tickets: [...], promoCode, discountAmount, sessionId }
+  const orderTickets   = notes?.tickets || [];
+  const orderSessionId = notes?.sessionId || null;
+  const orderPromoCode = notes?.promoCode || null;
+  const orderDiscount  = notes?.discountAmount || 0;
 
   // Insert or update the payment record
   // ON CONFLICT handles the case where a previous attempt already inserted a row
@@ -155,58 +162,130 @@ const handlePaymentCaptured = async (pool, payment, event) => {
   const parsedUserId  = parseInt(user_id);
   const parsedEventId = parseInt(event_id);
 
-  // ─── Create Event Registration ─────────────────────────────────────────────
+  // ─── Create Event Registration & Fulfill Tickets ───────────────────────────
   // This is the ONLY place we create registrations for paid events.
-  // eventController.registerForEvent will now block paid events (totalAmount > 0)
-  // from registering — all paid registrations flow through here.
-
-  const existingReg = await pool.query(
-    `SELECT id FROM event_registrations
-     WHERE event_id = $1 AND member_id = $2 AND registration_status != 'cancelled'`,
-    [parsedEventId, parsedUserId]
-  );
-
+  // Wrapped in a single atomic transaction with an idempotency guard.
   let registrationId;
+  let isNewRegistration = false;
 
-  if (existingReg.rows.length === 0) {
-    // Generate QR code hash for the ticket
-    const qrCodeHash = crypto.randomBytes(16).toString('hex').toUpperCase();
-    const amountRupees = payment.amount / 100;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
 
-    const regResult = await pool.query(
-      `INSERT INTO event_registrations
-         (event_id, member_id, registration_status, total_amount, qr_code_hash)
-       VALUES ($1, $2, 'registered', $3, $4)
-       RETURNING id`,
-      [parsedEventId, parsedUserId, amountRupees, qrCodeHash]
-    );
-    registrationId = regResult.rows[0].id;
-
-    console.log(
-      `[Razorpay] Created registration ${registrationId} for user ${parsedUserId}, event ${parsedEventId}`
-    );
-  } else {
-    registrationId = existingReg.rows[0].id;
-
-    // Ensure registration is in 'registered' status (may have been created speculatively)
-    await pool.query(
-      `UPDATE event_registrations
-       SET registration_status = 'registered', total_amount = $3
-       WHERE id = $1 AND member_id = $2`,
-      [registrationId, parsedUserId, payment.amount / 100]
+    const existingReg = await client.query(
+      `SELECT id FROM event_registrations
+       WHERE event_id = $1 AND member_id = $2 AND registration_status != 'cancelled'`,
+      [parsedEventId, parsedUserId]
     );
 
-    console.log(
-      `[Razorpay] Updated existing registration ${registrationId} to registered`
+    if (existingReg.rows.length === 0) {
+      // Generate QR code hash for the ticket
+      const qrCodeHash = crypto.randomBytes(16).toString('hex').toUpperCase();
+      const amountRupees = payment.amount / 100;
+
+      const regResult = await client.query(
+        `INSERT INTO event_registrations
+           (event_id, member_id, registration_status, total_amount,
+            promo_code, discount_amount, qr_code_hash)
+         VALUES ($1, $2, 'registered', $3, $4, $5, $6)
+         RETURNING id`,
+        [parsedEventId, parsedUserId, amountRupees, orderPromoCode, orderDiscount, qrCodeHash]
+      );
+      registrationId = regResult.rows[0].id;
+      isNewRegistration = true;
+
+      console.log(
+        `[Razorpay] Created registration ${registrationId} for user ${parsedUserId}, event ${parsedEventId}`
+      );
+    } else {
+      registrationId = existingReg.rows[0].id;
+
+      // Ensure registration is in 'registered' status (may have been created speculatively)
+      await client.query(
+        `UPDATE event_registrations
+         SET registration_status = 'registered', total_amount = $3
+         WHERE id = $1 AND member_id = $2`,
+        [registrationId, parsedUserId, payment.amount / 100]
+      );
+
+      console.log(
+        `[Razorpay] Updated existing registration ${registrationId} to registered (idempotent replay — skipping ticket/inventory writes)`
+      );
+    }
+
+    // Link registration back to the order for audit trail
+    await client.query(
+      `UPDATE razorpay_orders SET registration_id = $1, updated_at = NOW()
+       WHERE razorpay_order_id = $2`,
+      [registrationId, orderId]
     );
+
+    // ── Ticket line items, inventory, and reservation cleanup ──────────────
+    // Only run on first fulfillment of this order. If Razorpay retries the
+    // webhook, re-running these would double-insert tickets and double-increment sold_count.
+    if (isNewRegistration && orderTickets.length > 0) {
+      for (const ticket of orderTickets) {
+        const quantity   = parseInt(ticket.quantity, 10) || 1;
+        const unitPrice  = parseFloat(ticket.unitPrice) || 0;
+        const totalPrice = unitPrice * quantity;
+
+        await client.query(
+          `INSERT INTO registration_tickets
+             (registration_id, ticket_type_id, ticket_name, quantity, unit_price, total_price)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [registrationId, ticket.ticketTypeId || null, ticket.ticketName || 'Ticket', quantity, unitPrice, totalPrice]
+        );
+
+        if (ticket.ticketTypeId) {
+          await client.query(
+            `UPDATE ticket_types
+             SET sold_count = sold_count + $2, updated_at = NOW()
+             WHERE id = $1`,
+            [ticket.ticketTypeId, quantity]
+          );
+        }
+      }
+
+      console.log(
+        `[Razorpay] Inserted ${orderTickets.length} ticket line item(s) for registration ${registrationId}`
+      );
+    }
+
+    // Consume/clear the checkout-hold reservation now that payment succeeded.
+    if (isNewRegistration && orderSessionId) {
+      // 1. Decrement reserved_count on ticket_types (converting reserved -> sold)
+      const reservations = await client.query(
+        `SELECT ticket_type_id, quantity FROM ticket_reservations WHERE session_id = $1`,
+        [orderSessionId]
+      );
+
+      for (const reservation of reservations.rows) {
+        await client.query(
+          `UPDATE ticket_types
+           SET reserved_count = GREATEST(0, COALESCE(reserved_count, 0) - $1)
+           WHERE id = $2`,
+          [reservation.quantity, reservation.ticket_type_id]
+        );
+      }
+
+      // 2. Delete the reservation records
+      const releaseResult = await client.query(
+        `DELETE FROM ticket_reservations WHERE session_id = $1`,
+        [orderSessionId]
+      );
+      console.log(
+        `[Razorpay] Consumed ${releaseResult.rowCount} reservation row(s) for session ${orderSessionId}`
+      );
+    }
+
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[Razorpay] handlePaymentCaptured transaction failed, rolled back:', err.message, err.stack);
+    throw err;
+  } finally {
+    client.release();
   }
-
-  // Link registration back to the order for audit trail
-  await pool.query(
-    `UPDATE razorpay_orders SET registration_id = $1, updated_at = NOW()
-     WHERE razorpay_order_id = $2`,
-    [registrationId, orderId]
-  );
 
   // ─── Emit AQI Signal (event_rsvp) ─────────────────────────────────────────
   // paid_event_attended fires only after QR check-in (postEventAttendanceResolver).
@@ -241,6 +320,10 @@ const handlePaymentCaptured = async (pool, payment, event) => {
       const member = memberResult.rows[0];
       const evt = eventResult.rows[0];
 
+      const totalTicketCount = orderTickets.length > 0
+        ? orderTickets.reduce((sum, t) => sum + (parseInt(t.quantity, 10) || 1), 0)
+        : 1;
+
       // In-app notification to the community
       await notificationService.createSimpleNotification(pool, {
         recipientId: evt.community_id,
@@ -253,6 +336,7 @@ const handlePaymentCaptured = async (pool, payment, event) => {
           eventTitle: evt.title,
           memberName: member.name,
           actorName: member.name,
+          ticketCount: totalTicketCount,
           totalAmount: payment.amount / 100,
         },
       }).catch((err) => console.warn('[Razorpay] community notification failed:', err.message));
@@ -267,14 +351,23 @@ const handlePaymentCaptured = async (pool, payment, event) => {
         { type: 'event_registration', eventId: parsedEventId }
       ).catch((err) => console.warn('[Razorpay] community push failed:', err.message));
 
-      // Booking confirmation email to the member
+      // Booking confirmation email to the member with actual ticket line items
+      const confirmationTickets =
+        orderTickets.length > 0
+          ? orderTickets.map((t) => ({
+              ticketName: t.ticketName || 'Ticket',
+              quantity: parseInt(t.quantity, 10) || 1,
+              unitPrice: parseFloat(t.unitPrice) || payment.amount / 100,
+            }))
+          : [{ ticketName: 'Ticket', quantity: 1, unitPrice: payment.amount / 100 }];
+
       sendBookingConfirmationEmail({
         to: member.email,
         memberName: member.name,
         eventTitle: evt.title,
         eventDate: evt.start_datetime,
         eventLocation: evt.location_url || null,
-        tickets: [{ ticketName: 'Ticket', quantity: 1, unitPrice: payment.amount / 100 }],
+        tickets: confirmationTickets,
         qrCodeHash: null,  // QR hash will be fetched from event_registrations by member
         totalAmount: payment.amount / 100,
       }).catch((err) => console.warn('[Razorpay] confirmation email failed:', err.message));

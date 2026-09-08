@@ -47,7 +47,7 @@ import {
   releaseReservation,
 } from "../../api/events";
 import { createPaymentOrder, verifyPayment } from "../../api/payments";
-import RazorpayCheckout from "@codearcade/expo-razorpay";
+import { useRazorpay } from "@codearcade/expo-razorpay";
 import EventBus from "../../utils/EventBus";
 import CelebrationModal from "../../components/modals/CelebrationModal";
 import SnooLoader from "../../components/ui/SnooLoader";
@@ -69,6 +69,7 @@ export default function CheckoutScreen({ route, navigation }) {
   const { event, cartItems, totalAmount } = route.params;
   const { showToast } = useToast();
   const insets = useSafeAreaInsets();
+  const { openCheckout, RazorpayUI } = useRazorpay();
 
   // 10-minute countdown timer
   const [timeLeft, setTimeLeft] = useState(10 * 60);
@@ -305,8 +306,26 @@ export default function CheckoutScreen({ route, navigation }) {
     try {
       if (finalAmount > 0) {
         // ── PAID FLOW ──────────────────────────────────────────────────────
-        // Step 1: Create Razorpay order on backend
-        const order = await createPaymentOrder(event.id, finalAmount);
+        // Step 1: Create Razorpay order on backend with complete booking details
+        const tickets = cartItems.map((item) => ({
+          ticketTypeId: item.ticket.id,
+          quantity: item.quantity,
+          unitPrice: calculateEffectivePrice(
+            item.ticket,
+            event.pricing_rules,
+            item.quantity
+          ).effectivePrice,
+          ticketName: item.ticket.name,
+        }));
+
+        const order = await createPaymentOrder(
+          event.id,
+          finalAmount,
+          tickets,
+          appliedDiscount?.code || null,
+          discountAmount,
+          sessionId
+        );
 
         if (!order.success) {
           throw new Error(order.error || "Failed to create payment order");
@@ -323,7 +342,7 @@ export default function CheckoutScreen({ route, navigation }) {
           }
         } catch (_) { /* non-critical */ }
 
-        // Step 2: Open Razorpay payment sheet
+        // Step 2: Open Razorpay payment sheet via @codearcade/expo-razorpay hook
         const options = {
           description: `Ticket for ${order.eventTitle}`,
           currency: order.currency,
@@ -339,51 +358,55 @@ export default function CheckoutScreen({ route, navigation }) {
           theme: { color: COLORS.primary },
         };
 
-        let paymentData;
-        try {
-          paymentData = await RazorpayCheckout.open(options);
-          // paymentData = { razorpay_payment_id, razorpay_order_id, razorpay_signature }
-        } catch (rzpError) {
-          // User dismissed the sheet or payment was cancelled — not an app error
-          if (
-            rzpError?.code === "PAYMENT_CANCELLED" ||
-            rzpError?.description?.toLowerCase().includes("cancelled") ||
-            rzpError?.description?.toLowerCase().includes("dismissed")
-          ) {
-            showToast("Info", "Payment was cancelled");
-          } else {
+        // Note: openCheckout returns immediately; loading state is managed inside callbacks.
+        openCheckout(options, {
+          onSuccess: async (paymentData) => {
+            try {
+              // Step 3: Verify payment signature on backend
+              await verifyPayment(paymentData);
+
+              // Step 4: Payment received — registration will be confirmed by webhook
+              setIsConfirmed(true);
+
+              EventBus.emit("event-registration-updated", {
+                eventId: event.id,
+                isRegistered: true,
+              });
+              EventBus.emit("event-interest-updated", {
+                eventId: event.id,
+                isInterested: false,
+              });
+              if (event.community_id || event.organizer_id) {
+                EventBus.emit("event-registered", {
+                  communityId: event.community_id || event.organizer_id,
+                  eventId: event.id,
+                });
+              }
+
+              setShowCelebration(true);
+            } catch (vErr) {
+              console.error("[Checkout] Payment verification failed:", vErr);
+              Alert.alert(
+                "Verification Error",
+                "Payment received, but verification timed out. Please check your tickets under My Profile."
+              );
+            } finally {
+              setIsLoading(false);
+            }
+          },
+          onFailure: (rzpError) => {
+            setIsLoading(false);
             console.error("[Checkout] Razorpay error:", rzpError);
             Alert.alert(
               "Payment Failed",
               rzpError?.description || "Payment could not be completed. Please try again."
             );
-          }
-          return; // Do not mark as confirmed
-        }
-
-        // Step 3: Verify payment signature on backend
-        await verifyPayment(paymentData);
-
-        // Step 4: Payment received — registration will be confirmed by webhook
-        // Show optimistic success state. The webhook creates the event_registrations row.
-        setIsConfirmed(true);
-
-        EventBus.emit("event-registration-updated", {
-          eventId: event.id,
-          isRegistered: true,
+          },
+          onClose: () => {
+            setIsLoading(false);
+            showToast("Info", "Payment was cancelled");
+          },
         });
-        EventBus.emit("event-interest-updated", {
-          eventId: event.id,
-          isInterested: false,
-        });
-        if (event.community_id || event.organizer_id) {
-          EventBus.emit("event-registered", {
-            communityId: event.community_id || event.organizer_id,
-            eventId: event.id,
-          });
-        }
-
-        setShowCelebration(true);
 
       } else {
         // ── FREE FLOW (unchanged) ───────────────────────────────────────────
@@ -428,15 +451,15 @@ export default function CheckoutScreen({ route, navigation }) {
         } else {
           throw new Error(response.error || "Booking failed");
         }
+        setIsLoading(false);
       }
     } catch (error) {
+      setIsLoading(false);
       console.error("Booking error:", error);
       Alert.alert(
         "Booking Failed",
         error.message || "Something went wrong. Please try again."
       );
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -472,6 +495,7 @@ export default function CheckoutScreen({ route, navigation }) {
           type="booking"
           data={{ title: event?.title || "Event" }}
         />
+        {RazorpayUI}
         <DynamicStatusBar style="dark-content" />
 
         {/* Header */}

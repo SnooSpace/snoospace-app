@@ -35,9 +35,28 @@ import { apiPost, apiGet } from './client';
  *   prefill: { name, email, contact }
  * }>}
  */
-export async function createPaymentOrder(eventId, totalAmountRupees) {
+export async function createPaymentOrder(
+  eventId,
+  totalAmountRupees,
+  tickets,
+  promoCode,
+  discountAmount,
+  sessionId
+) {
   const token = await (await import('./auth')).getAuthToken();
-  return apiPost('/payments/create-order', { eventId, totalAmountRupees }, 15000, token);
+  return apiPost(
+    '/payments/create-order',
+    {
+      eventId,
+      totalAmountRupees,
+      tickets,
+      promoCode,
+      discountAmount,
+      sessionId,
+    },
+    15000,
+    token
+  );
 }
 
 /**
