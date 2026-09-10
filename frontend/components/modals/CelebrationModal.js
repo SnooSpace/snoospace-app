@@ -8,6 +8,7 @@ import {
   Dimensions,
   Image,
   Platform,
+  StatusBar,
 } from "react-native";
 import Animated, {
   useSharedValue,
@@ -65,6 +66,7 @@ const CelebrationModal = ({
 
   useEffect(() => {
     if (visible) {
+      StatusBar.setBarStyle("light-content", true);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       scale.value = withTiming(1, {
         duration: 250,
@@ -83,6 +85,10 @@ const CelebrationModal = ({
       opacity.value = 0;
       translateY.value = 16;
     }
+
+    return () => {
+      StatusBar.setBarStyle("dark-content", true);
+    };
   }, [visible]);
 
   const animatedCardStyle = useAnimatedStyle(() => ({
@@ -145,6 +151,12 @@ const CelebrationModal = ({
       statusBarTranslucent={true}
       onRequestClose={onClose}
     >
+      <StatusBar
+        barStyle="light-content"
+        translucent={true}
+        backgroundColor="transparent"
+        animated={true}
+      />
       <View style={styles.overlay}>
         {/* Dark blurred backdrop */}
         <BlurView intensity={70} tint="dark" style={StyleSheet.absoluteFill} />
@@ -351,6 +363,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 2,
     borderColor: "#FFFFFF",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#059669",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.16,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
 
   // 3. Headings

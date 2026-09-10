@@ -14,17 +14,16 @@ import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
-  ScrollView,
   TouchableOpacity,
   StyleSheet,
   StatusBar,
   TextInput,
   Alert,
   Image,
-  KeyboardAvoidingView,
   Platform,
   Keyboard,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import {
   ArrowLeft,
   Calendar,
@@ -32,11 +31,15 @@ import {
   Hourglass,
   Tag,
   QrCode,
+  Check,
   CircleCheck,
   TriangleAlert,
   ChevronRight,
   Info,
+  MapPin,
+  Ticket,
 } from "lucide-react-native";
+import Svg, { Line } from "react-native-svg";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS } from "../../constants/theme";
@@ -210,6 +213,7 @@ export default function CheckoutScreen({ route, navigation }) {
   };
 
   const handleApplyPromo = () => {
+    Keyboard.dismiss();
     const code = promoCode.toUpperCase().trim();
     if (!code) return;
 
@@ -339,11 +343,17 @@ export default function CheckoutScreen({ route, navigation }) {
         // Fetch current user info for prefill (best-effort)
         let prefillName = order.prefill?.name || "";
         let prefillEmail = order.prefill?.email || "";
+        let prefillContact = order.prefill?.contact || "";
         try {
           const activeAccount = await getActiveAccount();
           if (activeAccount) {
             prefillName = activeAccount.name || prefillName;
             prefillEmail = activeAccount.email || prefillEmail;
+            prefillContact =
+              activeAccount.phone ||
+              activeAccount.phone_number ||
+              activeAccount.mobile ||
+              prefillContact;
           }
         } catch (_) { /* non-critical */ }
 
@@ -358,9 +368,12 @@ export default function CheckoutScreen({ route, navigation }) {
           prefill: {
             name: prefillName,
             email: prefillEmail,
-            contact: "",            // phone not required
+            contact: prefillContact || "",
           },
-          theme: { color: COLORS.primary },
+          theme: { color: "#FFFFFF" },
+          modal: {
+            confirm_close: true,
+          },
         };
 
         // Note: openCheckout returns immediately; loading state is managed inside callbacks.
@@ -401,7 +414,7 @@ export default function CheckoutScreen({ route, navigation }) {
           },
           onFailure: (rzpError) => {
             setIsLoading(false);
-            console.error("[Checkout] Razorpay error:", rzpError?.description || rzpError?.message || rzpError);
+            console.warn("[Checkout] Razorpay error:", rzpError?.description || rzpError?.message || rzpError);
             const errorMessage =
               rzpError?.description ||
               rzpError?.message ||
@@ -483,59 +496,72 @@ export default function CheckoutScreen({ route, navigation }) {
   const displayDate = event.start_datetime || event.event_date;
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={{ flex: 1 }}
-    >
-      <View style={styles.container}>
-        {/* Reservation loading overlay */}
-        {isReserving && (
-          <View style={styles.reservingOverlay}>
-            <SnooLoader size="large" color={PRIMARY_COLOR} />
-            <Text style={styles.reservingText}>Reserving your tickets...</Text>
-          </View>
-        )}
-
-        <CelebrationModal
-          visible={showCelebration}
-          onClose={handleCelebrationClose}
-          type="booking"
-          data={{
-            title: event?.title || "Grand Theft Auto Premier",
-            coverImage: event?.cover_image_url,
-            ticketTier: cartItems?.[0]?.ticket?.name || "Standard Access",
-            ticketCount:
-              cartItems?.reduce((sum, item) => sum + (item.quantity || 1), 0) ||
-              1,
-            orderId: confirmedOrderId
-              ? `#${confirmedOrderId.replace(/^order_/, "").slice(-8).toUpperCase()}`
-              : "#GTA-9042-X",
-          }}
-        />
-        {RazorpayUI}
-        <DynamicStatusBar style="dark-content" />
-
-        {/* Header */}
-        <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
-          <TouchableOpacity onPress={handleGoBack} style={styles.backButton} activeOpacity={0.7}>
-            <ArrowLeft size={24} color={TEXT_COLOR} strokeWidth={2} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Review your booking</Text>
-          <View style={{ width: 36 }} />
+    <View style={styles.container}>
+      {/* Reservation loading overlay */}
+      {isReserving && (
+        <View style={styles.reservingOverlay}>
+          <SnooLoader size="large" color={PRIMARY_COLOR} />
+          <Text style={styles.reservingText}>Reserving your tickets...</Text>
         </View>
+      )}
 
-        {/* Timer Banner (Sleek Alerting Hue) */}
-        <View style={styles.timerBar}>
-          <Hourglass size={14} color={WARNING_COLOR} strokeWidth={2.5} style={{ marginRight: 6 }} />
-          <Text style={styles.timerText}>
-            Complete your booking in{" "}
-            <Text style={styles.timerHighlight}>{formatTime(timeLeft)}</Text> mins
-          </Text>
-        </View>
+      <CelebrationModal
+        visible={showCelebration}
+        onClose={handleCelebrationClose}
+        type="booking"
+        data={{
+          title: event?.title || "Grand Theft Auto Premier",
+          coverImage: event?.cover_image_url,
+          ticketTier: cartItems?.[0]?.ticket?.name || "Standard Access",
+          ticketCount:
+            cartItems?.reduce((sum, item) => sum + (item.quantity || 1), 0) ||
+            1,
+          orderId: confirmedOrderId
+            ? `#${confirmedOrderId.replace(/^order_/, "").slice(-8).toUpperCase()}`
+            : "#GTA-9042-X",
+        }}
+      />
+      {RazorpayUI}
+      <DynamicStatusBar style="dark-content" />
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          {/* Event Physical Stub Card */}
-          <View style={styles.eventCard}>
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
+        <TouchableOpacity onPress={handleGoBack} style={styles.backButton} activeOpacity={0.7}>
+          <ArrowLeft size={24} color={TEXT_COLOR} strokeWidth={2} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Review your booking</Text>
+        <View style={{ width: 36 }} />
+      </View>
+
+      {/* Timer Banner (Sleek Alerting Hue) */}
+      <View style={styles.timerBar}>
+        <Hourglass size={14} color={WARNING_COLOR} strokeWidth={2.5} style={{ marginRight: 6 }} />
+        <Text style={styles.timerText}>
+          Complete your booking in{" "}
+          <Text style={styles.timerHighlight}>{formatTime(timeLeft)}</Text> mins
+        </Text>
+      </View>
+
+      <KeyboardAwareScrollView
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        bottomOffset={60}
+      >
+        {/* Main Event Ticket Card */}
+        <View style={styles.eventTicketCard}>
+            {/* Top Ticket Header: Badge + Serial Identifier */}
+            <View style={styles.ticketTopRow}>
+              <View style={styles.ticketBadgePill}>
+                <Ticket size={12} color="#2563EB" strokeWidth={2.5} />
+                <Text style={styles.ticketBadgeText}>EVENT PASS</Text>
+              </View>
+              <Text style={styles.ticketSerialText}>
+                {event.id ? `#EVT-${event.id}` : "#TKT-9921"}
+              </Text>
+            </View>
+
             <View style={styles.eventRow}>
               {event.banner_carousel?.[0]?.url ? (
                 <Image
@@ -551,9 +577,12 @@ export default function CheckoutScreen({ route, navigation }) {
                 <Text style={styles.eventTitle} numberOfLines={2}>
                   {event.title}
                 </Text>
-                <Text style={styles.eventVenue} numberOfLines={1}>
-                  {event.location_url ? "Venue Event" : "Online Event"}
-                </Text>
+                <View style={styles.venueRow}>
+                  <MapPin size={12} color={MUTED_TEXT} strokeWidth={2} style={{ marginRight: 4 }} />
+                  <Text style={styles.eventVenue} numberOfLines={1}>
+                    {event.location_name || (event.location_url ? "Venue Event" : "Online Event")}
+                  </Text>
+                </View>
               </View>
             </View>
 
@@ -612,12 +641,35 @@ export default function CheckoutScreen({ route, navigation }) {
               );
             })}
 
-            {/* M-Ticket Dotted Stub Note */}
-            <View style={styles.ticketNote}>
-              <QrCode size={18} color={MUTED_TEXT} strokeWidth={2} />
-              <Text style={styles.ticketNoteText}>
-                M-Ticket: Entry using the QR code in your app
-              </Text>
+            {/* Ticket Cutout Divider with Notches & Dashed Perforation */}
+            <View style={styles.ticketCutoutDivider}>
+              <View style={styles.notchLeft} />
+              <View style={styles.cutoutLine} />
+              <View style={styles.notchRight} />
+            </View>
+
+            {/* Ticket Stub Footer: M-Ticket + Minimal Barcode */}
+            <View style={styles.ticketStubFooter}>
+              <View style={styles.ticketStubInfo}>
+                <QrCode size={16} color="#0F172A" strokeWidth={2} style={{ marginRight: 8 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.stubHeading}>M-TICKET</Text>
+                  <Text style={styles.stubSub}>Entry using QR code in your app</Text>
+                </View>
+              </View>
+              <View style={styles.stubBarcode}>
+                <Svg width={46} height={20} viewBox="0 0 46 20">
+                  <Line x1={2} y1={0} x2={2} y2={20} stroke="#475569" strokeWidth={1.5} />
+                  <Line x1={6} y1={0} x2={6} y2={20} stroke="#475569" strokeWidth={2.5} />
+                  <Line x1={11} y1={0} x2={11} y2={20} stroke="#475569" strokeWidth={1} />
+                  <Line x1={15} y1={0} x2={15} y2={20} stroke="#475569" strokeWidth={3} />
+                  <Line x1={21} y1={0} x2={21} y2={20} stroke="#475569" strokeWidth={1.5} />
+                  <Line x1={26} y1={0} x2={26} y2={20} stroke="#475569" strokeWidth={2.5} />
+                  <Line x1={32} y1={0} x2={32} y2={20} stroke="#475569" strokeWidth={1} />
+                  <Line x1={37} y1={0} x2={37} y2={20} stroke="#475569" strokeWidth={3} />
+                  <Line x1={43} y1={0} x2={43} y2={20} stroke="#475569" strokeWidth={1.5} />
+                </Svg>
+              </View>
             </View>
           </View>
 
@@ -642,21 +694,41 @@ export default function CheckoutScreen({ route, navigation }) {
                 placeholder="Enter promo code"
                 placeholderTextColor={MUTED_TEXT}
                 value={promoCode}
-                onChangeText={setPromoCode}
+                onChangeText={(text) => {
+                  setPromoCode(text);
+                  if (appliedDiscount && text.toUpperCase().trim() !== appliedDiscount.code) {
+                    setAppliedDiscount(null);
+                  }
+                }}
                 autoCapitalize="characters"
+                autoCorrect={false}
+                returnKeyType="done"
+                onSubmitEditing={handleApplyPromo}
               />
               <TouchableOpacity
                 style={styles.applyButtonWrapper}
                 onPress={handleApplyPromo}
+                disabled={!promoCode.trim() && !appliedDiscount}
                 activeOpacity={0.8}
               >
                 <LinearGradient
-                  colors={["#2563EB", "#1D4ED8"]} // Slightly different shade of royal blue
+                  colors={
+                    (promoCode.trim().length > 0 || appliedDiscount)
+                      ? ["#2563EB", "#1D4ED8"]
+                      : ["#E2E8F0", "#E2E8F0"]
+                  }
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                   style={styles.applyButtonGradient}
                 >
-                  <Text style={styles.applyButtonText}>Apply</Text>
+                  <Text
+                    style={[
+                      styles.applyButtonText,
+                      (!promoCode.trim() && !appliedDiscount) && styles.applyButtonTextDisabled,
+                    ]}
+                  >
+                    {appliedDiscount ? "Applied" : "Apply"}
+                  </Text>
                 </LinearGradient>
               </TouchableOpacity>
             </View>
@@ -715,41 +787,49 @@ export default function CheckoutScreen({ route, navigation }) {
             </View>
           </View>
 
-          <View style={{ height: 160 }} />
-        </ScrollView>
+        <View style={{ height: 20 }} />
+      </KeyboardAwareScrollView>
 
-        {/* Floating Bottom Panel CTA without solid background (hides when keyboard is active) */}
-        {!keyboardVisible && (
-          <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 16 }]}>
-            <TouchableOpacity
-              style={styles.confirmButtonWrapper}
-              onPress={handleConfirmBooking}
-              disabled={isConfirmed || isLoading}
-              activeOpacity={0.9}
+      {/* Docked Bottom Bar: Stays at the bottom, non-floating, seamless background */}
+      {!keyboardVisible && (
+        <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+          <TouchableOpacity
+            style={styles.confirmButtonWrapper}
+            onPress={handleConfirmBooking}
+            disabled={isConfirmed || isLoading}
+            activeOpacity={0.9}
+          >
+            <LinearGradient
+              colors={
+                isConfirmed ? ["#34C759", "#2FB350"] : COLORS.primaryGradient
+              }
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.confirmButtonGradient}
             >
-              <LinearGradient
-                colors={
-                  isConfirmed ? ["#34C759", "#2FB350"] : COLORS.primaryGradient
-                }
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.confirmButtonGradient}
-              >
-                {isLoading ? (
-                  <SnooLoader color="#FFFFFF" size="small" />
-                ) : (
+              {isLoading ? (
+                <SnooLoader color="#FFFFFF" size="small" />
+              ) : isConfirmed ? (
+                <View style={styles.confirmedButtonContent}>
                   <Text style={styles.confirmButtonText}>
-                    {isConfirmed
-                      ? (finalAmount > 0 ? "Payment Received ✓" : "Booking Confirmed ✓")
-                      : (finalAmount > 0 ? `Pay ₹${finalAmount.toLocaleString("en-IN")}` : "Confirm Booking")}
+                    {finalAmount > 0 ? "Payment Received" : "Booking Confirmed"}
                   </Text>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
-    </KeyboardAvoidingView>
+                  <View style={styles.confirmedCheckBadge}>
+                    <Check size={14} color="#FFFFFF" strokeWidth={3} />
+                  </View>
+                </View>
+              ) : (
+                <Text style={styles.confirmButtonText}>
+                  {finalAmount > 0
+                    ? `Pay ₹${finalAmount.toLocaleString("en-IN")}`
+                    : "Confirm Booking"}
+                </Text>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -811,24 +891,58 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
   },
-  eventCard: {
+  contentContainer: {
+    paddingBottom: 32,
+  },
+  eventTicketCard: {
     backgroundColor: CARD_BACKGROUND,
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 16,
     marginTop: 16,
     borderWidth: 1,
     borderColor: BORDER_COLOR,
+    overflow: "visible",
     ...Platform.select({
       ios: {
-        shadowColor: "#000000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.03,
-        shadowRadius: 8,
+        shadowColor: "#0F172A",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.05,
+        shadowRadius: 10,
       },
       android: {
         elevation: 2,
       },
     }),
+  },
+  ticketTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: BORDER_COLOR,
+  },
+  ticketBadgePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EFF6FF",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    gap: 4,
+  },
+  ticketBadgeText: {
+    fontSize: 10,
+    fontFamily: "Manrope-Bold",
+    color: "#2563EB",
+    letterSpacing: 0.6,
+  },
+  ticketSerialText: {
+    fontSize: 11,
+    fontFamily: "Manrope-Medium",
+    color: MUTED_TEXT,
+    letterSpacing: 0.5,
   },
   eventRow: {
     flexDirection: "row",
@@ -861,6 +975,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: "Manrope-Medium",
     color: MUTED_TEXT,
+  },
+  venueRow: {
+    flexDirection: "row",
+    alignItems: "center",
     marginTop: 3,
   },
   eventMeta: {
@@ -927,21 +1045,67 @@ const styles = StyleSheet.create({
     textDecorationLine: "line-through",
     marginTop: 2,
   },
-  ticketNote: {
+  ticketCutoutDivider: {
     flexDirection: "row",
     alignItems: "center",
+    height: 24,
+    marginHorizontal: -16,
     marginTop: 14,
-    paddingTop: 14,
-    borderTopWidth: 1,
-    borderTopColor: BORDER_COLOR,
-    borderStyle: "dashed",
-    gap: 8,
+    marginBottom: 10,
+    position: "relative",
   },
-  ticketNoteText: {
-    fontSize: 12,
+  notchLeft: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: BACKGROUND_COLOR,
+    borderWidth: 1,
+    borderColor: BORDER_COLOR,
+    marginLeft: -9,
+  },
+  notchRight: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: BACKGROUND_COLOR,
+    borderWidth: 1,
+    borderColor: BORDER_COLOR,
+    marginRight: -9,
+  },
+  cutoutLine: {
+    flex: 1,
+    height: 0,
+    borderTopWidth: 1.5,
+    borderTopColor: "#CBD5E1",
+    borderStyle: "dashed",
+    marginHorizontal: 8,
+  },
+  ticketStubFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: 2,
+  },
+  ticketStubInfo: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    marginRight: 10,
+  },
+  stubHeading: {
+    fontSize: 11,
+    fontFamily: "Manrope-Bold",
+    color: TEXT_COLOR,
+    letterSpacing: 0.6,
+  },
+  stubSub: {
+    fontSize: 11,
     fontFamily: "Manrope-Regular",
     color: MUTED_TEXT,
-    flex: 1,
+    marginTop: 1,
+  },
+  stubBarcode: {
+    opacity: 0.55,
   },
   sectionHeader: {
     marginTop: 24,
@@ -956,10 +1120,21 @@ const styles = StyleSheet.create({
   },
   offersCard: {
     backgroundColor: CARD_BACKGROUND,
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 16,
     borderWidth: 1,
     borderColor: BORDER_COLOR,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#0F172A",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.04,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   offerRow: {
     flexDirection: "row",
@@ -985,29 +1160,34 @@ const styles = StyleSheet.create({
   },
   promoInput: {
     flex: 1,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: BORDER_COLOR,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
     color: TEXT_COLOR,
     fontSize: 14,
     fontFamily: "Manrope-Medium",
   },
   applyButtonWrapper: {
-    borderRadius: 10,
+    borderRadius: 24,
     overflow: "hidden",
   },
   applyButtonGradient: {
-    paddingHorizontal: 20,
-    paddingVertical: 11,
-    borderRadius: 10,
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
   },
   applyButtonText: {
     color: "#FFFFFF",
     fontFamily: "Manrope-SemiBold",
     fontSize: 14,
+  },
+  applyButtonTextDisabled: {
+    color: "#94A3B8",
   },
   appliedPromo: {
     flexDirection: "row",
@@ -1022,10 +1202,21 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     backgroundColor: CARD_BACKGROUND,
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 16,
     borderWidth: 1,
     borderColor: BORDER_COLOR,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#0F172A",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.04,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   summaryRow: {
     flexDirection: "row",
@@ -1060,14 +1251,11 @@ const styles = StyleSheet.create({
     color: TEXT_COLOR,
   },
   bottomBar: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
     paddingHorizontal: 20,
-    paddingTop: 16,
-    backgroundColor: "transparent",
+    paddingTop: 12,
+    backgroundColor: BACKGROUND_COLOR,
     borderTopWidth: 0,
+    // No position:absolute — stays in normal flex flow at the bottom of the column
   },
   confirmButtonWrapper: {
     borderRadius: 24,
@@ -1094,5 +1282,19 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 16,
     fontFamily: "Manrope-SemiBold",
+  },
+  confirmedButtonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  confirmedCheckBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

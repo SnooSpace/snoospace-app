@@ -478,9 +478,32 @@ export default function YourEventsScreen({ navigation, route }) {
       }
     });
 
+    // Listen for registration updates from CheckoutScreen (paid & free flows).
+    // For paid events the Razorpay webhook creates the registration row
+    // asynchronously, so we delay the refetch to let it land in the DB.
+    let registrationTimer = null;
+    const unsubRegistration = EventBus.on("event-registration-updated", (payload) => {
+      if (payload?.isRegistered) {
+        // Optimistic: immediately remove from Interested so the user
+        // doesn't see stale data while the refetch is in-flight.
+        setInterestedEvents((prev) =>
+          prev.filter((e) => e.id !== payload.eventId),
+        );
+
+        // Delayed refetch — gives the webhook ~2 s to create the row
+        if (registrationTimer) clearTimeout(registrationTimer);
+        registrationTimer = setTimeout(() => {
+          loadEvents();
+          loadInterestedEvents();
+        }, 2000);
+      }
+    });
+
     return () => {
       task.cancel();
       if (unsubscribe) unsubscribe();
+      if (unsubRegistration) unsubRegistration();
+      if (registrationTimer) clearTimeout(registrationTimer);
     };
   }, [loadEvents, loadInterestedEvents]);
 

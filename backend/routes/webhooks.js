@@ -278,6 +278,14 @@ const handlePaymentCaptured = async (pool, payment, event) => {
       );
     }
 
+    // Remove from bookmarks (event_interests) if the user had marked interest.
+    // Mirrors the free-ticket flow in eventController.registerForEvent.
+    // DELETE on a non-existent row is a no-op — safe for webhook retries.
+    await client.query(
+      `DELETE FROM event_interests WHERE event_id = $1 AND member_id = $2`,
+      [parsedEventId, parsedUserId]
+    );
+
     await client.query('COMMIT');
   } catch (err) {
     await client.query('ROLLBACK');
