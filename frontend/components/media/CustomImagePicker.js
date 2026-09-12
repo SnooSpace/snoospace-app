@@ -103,11 +103,18 @@ export default function CustomImagePicker({
   const scrollOffsetRef = useRef(0);
   const debounceTimerRef = useRef(null);
 
-  // Requirement #3: Deterministic row layout for FlatList virtualization
+  // Fix #1: Decouple assets.length and pagination state from loadAssets dependency array
+  const assetsCountRef = useRef(0);
+  const hasNextPageRef = useRef(false);
+
+  // Requirement #3 / Bug A Fix:
+  // In multi-column FlatList, VirtualizedList indexes by ROW (index is already 0, 1, 2... for each row).
+  // Multiplying by index directly (offset: ROW_HEIGHT * index) fixes the 3x layout discrepancy that caused
+  // continuous content jumps during scrolling.
   const getItemLayout = useCallback(
     (_, index) => ({
       length: ROW_HEIGHT,
-      offset: ROW_HEIGHT * Math.floor(index / NUM_COLUMNS),
+      offset: ROW_HEIGHT * index,
       index,
     }),
     []
@@ -140,10 +147,12 @@ export default function CustomImagePicker({
     }
   }, []);
 
+  // Fix #1: Stop closing over assets.length. Read assetsCountRef and hasNextPageRef,
+  // and update length via functional setAssets(prev => ...) update.
   const loadAssets = useCallback(
     async (reset = false) => {
       if (isFetchingRef.current) return;
-      if (!reset && !hasNextPage && assets.length > 0) return;
+      if (!reset && !hasNextPageRef.current && assetsCountRef.current > 0) return;
 
       isFetchingRef.current = true;
       setLoading(true);
@@ -177,8 +186,13 @@ export default function CustomImagePicker({
         });
 
         afterRef.current = result.endCursor;
+        hasNextPageRef.current = result.hasNextPage;
         setHasNextPage(result.hasNextPage);
-        setAssets((prev) => (reset ? result.assets : [...prev, ...result.assets]));
+        setAssets((prev) => {
+          const next = reset ? result.assets : [...prev, ...result.assets];
+          assetsCountRef.current = next.length;
+          return next;
+        });
       } catch (e) {
         console.error("[CustomImagePicker] getAssetsAsync failed:", e?.message || e);
       } finally {
@@ -186,13 +200,18 @@ export default function CustomImagePicker({
         isFetchingRef.current = false;
       }
     },
-    [hasNextPage, assets.length, allowVideos, allowImages, selectedAlbum]
+    [allowVideos, allowImages, selectedAlbum]
   );
 
+  // Fix #3: Stable ref holders for callback execution without re-subscription churn
+  const loadAssetsRef = useRef(loadAssets);
+  loadAssetsRef.current = loadAssets;
+
+  const loadAlbumsRef = useRef(loadAlbums);
+  loadAlbumsRef.current = loadAlbums;
+
   // Requirement #2 & #3: Debounced refresh handler.
-  // If the user is near the top (<150px), auto-refresh seamlessly.
-  // If the user is scrolled deep into paginated results, do NOT disrupt their scroll position:
-  // show a non-disruptive "New photos available" pill and update album counts.
+  // Uses loadAssetsRef and loadAlbumsRef so callback identity remains 100% stable ([] deps).
   const debouncedRefresh = useCallback(() => {
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
@@ -200,44 +219,48 @@ export default function CustomImagePicker({
     debounceTimerRef.current = setTimeout(() => {
       if (scrollOffsetRef.current < 150) {
         setHasNewPhotos(false);
-        loadAssets(true);
+        loadAssetsRef.current(true);
       } else {
         setHasNewPhotos(true);
       }
-      loadAlbums();
+      loadAlbumsRef.current();
     }, 400);
-  }, [loadAssets, loadAlbums]);
+  }, []);
 
-  // Pull-to-refresh handler
+  // Pull-to-refresh handler (stable [] deps via refs)
   const handlePullToRefresh = useCallback(async () => {
     setRefreshing(true);
     setHasNewPhotos(false);
-    await Promise.all([loadAssets(true), loadAlbums()]);
+    await Promise.all([loadAssetsRef.current(true), loadAlbumsRef.current()]);
     setRefreshing(false);
-  }, [loadAssets, loadAlbums]);
+  }, []);
 
   // Tapping the "New photos available" pill smoothly scrolls to top and reloads
   const handleNewPhotosPress = useCallback(() => {
     setHasNewPhotos(false);
     flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
-    loadAssets(true);
-    loadAlbums();
-  }, [loadAssets, loadAlbums]);
+    loadAssetsRef.current(true);
+    loadAlbumsRef.current();
+  }, []);
 
-  // Requirement #1: Manual refresh fallback whenever modal becomes visible or album changes
+  // Fix #2: Effect ONLY fires on modal visibility toggle or explicit album change.
+  // It intentionally omits loadAssets/loadAlbums to prevent circular re-render loops.
   useEffect(() => {
     if (!visible) return;
     checkPermissions();
-    loadAlbums();
+    loadAlbumsRef.current();
     setSelectedAssets([]);
     setAssets([]);
+    assetsCountRef.current = 0;
     setHasNewPhotos(false);
     scrollOffsetRef.current = 0;
     afterRef.current = null;
-    loadAssets(true);
-  }, [visible, selectedAlbum, checkPermissions, loadAlbums, loadAssets]);
+    loadAssetsRef.current(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, selectedAlbum]);
 
-  // Requirement #1 & #2: Live sync via MediaLibrary.addListener + AppState foreground fallback
+  // Requirement #1 & #2: Live sync via MediaLibrary.addListener + AppState foreground fallback.
+  // Dependencies are stable references so this effect only subscribes on modal open and unmounts on modal close.
   useEffect(() => {
     if (!visible) return;
 
@@ -265,18 +288,17 @@ export default function CustomImagePicker({
   }, [visible, debouncedRefresh, checkPermissions]);
 
   // Presents the iOS limited photo picker sheet so user can add more photos
-  const handleManageLimitedAccess = async () => {
+  const handleManageLimitedAccess = useCallback(async () => {
     try {
       if (MediaLibrary.presentPermissionsPickerAsync) {
         await MediaLibrary.presentPermissionsPickerAsync();
-        // Trigger immediate manual reload after picker closes
-        loadAssets(true);
-        loadAlbums();
+        loadAssetsRef.current(true);
+        loadAlbumsRef.current();
       }
     } catch (e) {
       console.warn("[CustomImagePicker] presentPermissionsPickerAsync failed:", e);
     }
-  };
+  }, []);
 
   const isVideoTooLong = useCallback(
     (item) =>
@@ -415,6 +437,16 @@ export default function CustomImagePicker({
         <TouchableOpacity onPress={onClose} style={styles.headerBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <X size={22} color="#0A0A0A" strokeWidth={2} />
         </TouchableOpacity>
+        {permissionPrivilege === "limited" && (
+          <TouchableOpacity
+            onPress={handleManageLimitedAccess}
+            style={styles.manageBtn}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            activeOpacity={0.75}
+          >
+            <Text style={styles.manageBtnText}>Manage</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Tappable album title in center */}
@@ -560,19 +592,6 @@ export default function CustomImagePicker({
       <View style={styles.container}>
         {renderHeader()}
 
-        {/* Limited Photo Library management banner for iOS 14+ */}
-        {permissionPrivilege === "limited" && (
-          <TouchableOpacity
-            onPress={handleManageLimitedAccess}
-            style={styles.limitedBanner}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.limitedBannerText}>
-              Limited photo access • <Text style={styles.limitedBannerAction}>Manage</Text>
-            </Text>
-          </TouchableOpacity>
-        )}
-
         {/* Requirement #3: Non-disruptive floating pill when user is scrolled deep into gallery */}
         {hasNewPhotos && (
           <View
@@ -600,10 +619,10 @@ export default function CustomImagePicker({
           renderItem={renderItem}
           numColumns={NUM_COLUMNS}
           getItemLayout={getItemLayout}
-          windowSize={5}
-          maxToRenderPerBatch={18}
+          windowSize={11}
+          maxToRenderPerBatch={24}
           initialNumToRender={18}
-          updateCellsBatchingPeriod={50}
+          updateCellsBatchingPeriod={20}
           removeClippedSubviews={Platform.OS === "android"}
           onScroll={(e) => {
             scrollOffsetRef.current = e.nativeEvent.contentOffset.y;
@@ -653,7 +672,7 @@ export default function CustomImagePicker({
 // FIX: Replace standard React Native <Image> with <ExpoImage>.
 // 1. `recyclingKey` automatically discards/cancels in-flight decoding requests if the cell is recycled.
 // 2. `cachePolicy="memory-disk"` provides two-tier hardware-accelerated caching so scrolling back up never blanks.
-// 3. Omit priority="high" so expo-image prioritizes visible viewports over queued recycled requests.
+// 3. Omit transition and priority so expo-image displays cached assets with 0ms delay without opacity fade flashes.
 const StaticThumbnailImage = React.memo(
   ({ uri, id }) => (
     <ExpoImage
@@ -662,7 +681,6 @@ const StaticThumbnailImage = React.memo(
       contentFit="cover"
       recyclingKey={id || uri}
       cachePolicy="memory-disk"
-      transition={100}
     />
   ),
   (prev, next) => prev.id === next.id && prev.uri === next.uri
@@ -755,7 +773,20 @@ const styles = StyleSheet.create({
   },
   headerLeft: {
     flex: 1,
-    alignItems: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  manageBtn: {
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.06)",
+  },
+  manageBtnText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 12,
+    color: "#0A0A0A",
   },
   headerRight: {
     flex: 1,
@@ -817,6 +848,7 @@ const styles = StyleSheet.create({
     height: THUMB_SIZE,
     position: "relative",
     overflow: "hidden",
+    backgroundColor: "#F2F1ED", // Soft neutral placeholder tint prevents white flashes during decode
   },
   thumb: {
     width: THUMB_SIZE,
@@ -991,26 +1023,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "rgba(0,0,0,0.4)",
     marginTop: 1,
-  },
-
-  // ── Limited access banner (iOS 14+) ────────────────────────
-  limitedBanner: {
-    backgroundColor: "rgba(0,0,0,0.03)",
-    paddingVertical: 7,
-    paddingHorizontal: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(0,0,0,0.06)",
-  },
-  limitedBannerText: {
-    fontFamily: FONTS.medium,
-    fontSize: 12,
-    color: "rgba(0,0,0,0.6)",
-  },
-  limitedBannerAction: {
-    fontFamily: FONTS.semiBold,
-    color: COLORS.primary,
   },
 
   // ── Floating new photos banner ─────────────────────────────

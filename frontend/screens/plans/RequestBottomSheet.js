@@ -5,7 +5,6 @@ import {
   Platform, ActivityIndicator, Alert,
 } from 'react-native';
 import SwipeableModal from '../../components/modals/SwipeableModal';
-import { KeyboardStickyView } from 'react-native-keyboard-controller';
 import { Info } from 'lucide-react-native';
 import { COLORS, FONTS } from '../../constants/theme';
 import { getAuthToken } from '../../api/auth';
@@ -63,64 +62,55 @@ export default function RequestBottomSheet({
     <SwipeableModal
       visible={isVisible}
       onClose={handleClose}
-      sheetStyle={styles.keyboardView}
+      avoidKeyboard={true}
+      sheetStyle={styles.sheet}
       backdropColor="rgba(0,0,0,0.5)"
     >
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <KeyboardStickyView style={styles.keyboardView}>
-          <View style={styles.sheet}>
-            <View style={styles.handle} />
-            <Text style={styles.title}>Request to join</Text>
-            <Text style={styles.subtitle} numberOfLines={1}>{planTitle}</Text>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <View style={styles.content}>
+          <View style={styles.handle} />
+          <Text style={styles.title}>Request to join</Text>
+          <Text style={styles.subtitle} numberOfLines={1}>{planTitle}</Text>
 
-            <TextInput
-              style={styles.noteInput}
-              placeholder="Add a note to the host (optional)"
-              placeholderTextColor={COLORS.textMuted}
-              multiline
-              numberOfLines={3}
-              maxLength={200}
-              value={note}
-              onChangeText={setNote}
-              textAlignVertical="top"
-            />
+          <TextInput
+            style={styles.noteInput}
+            placeholder="Add a note to the host (optional)"
+            placeholderTextColor={COLORS.textMuted}
+            multiline
+            numberOfLines={3}
+            maxLength={200}
+            value={note}
+            onChangeText={setNote}
+            textAlignVertical="top"
+          />
 
-            <View style={styles.infoRow}>
-              <Info size={14} color={COLORS.textMuted} strokeWidth={1.8} />
-              <Text style={styles.infoText}>
-                The host will review your profile before approving.{'\n'}
-                Exact meetup details are shared only after approval.{'\n'}
-                <Text style={styles.infoDisclosure}>
-                  If accepted, your join date, events count, and interests become visible to other approved attendees of this plan.
-                </Text>
+          <View style={styles.infoRow}>
+            <Info size={14} color={COLORS.textMuted} strokeWidth={1.8} />
+            <Text style={styles.infoText}>
+              The host will review your profile before approving.{'\n'}
+              Exact meetup details are shared only after approval.{'\n'}
+              <Text style={styles.infoDisclosure}>
+                If accepted, your join date, events count, and interests become visible to other approved attendees of this plan.
               </Text>
-            </View>
-
-            <TouchableOpacity
-              style={[styles.sendBtn, loading && styles.sendBtnDisabled]}
-              onPress={handleSend}
-              disabled={loading}
-            >
-              {loading
-                ? <ActivityIndicator color="#FFF" />
-                : <Text style={styles.sendBtnText}>Send request</Text>}
-            </TouchableOpacity>
+            </Text>
           </View>
-        </KeyboardStickyView>
+
+          <TouchableOpacity
+            style={[styles.sendBtn, loading && styles.sendBtnDisabled]}
+            onPress={handleSend}
+            disabled={loading}
+          >
+            {loading
+              ? <ActivityIndicator color="#FFF" />
+              : <Text style={styles.sendBtnText}>Send</Text>}
+          </TouchableOpacity>
+        </View>
       </TouchableWithoutFeedback>
     </SwipeableModal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  keyboardView: {
-    width: '100%',
-  },
   sheet: {
     backgroundColor: COLORS.surface,
     borderTopLeftRadius: 24,
@@ -128,6 +118,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: Platform.OS === 'ios' ? 34 : 24,
+  },
+  content: {
+    width: '100%',
   },
   handle: {
     width: 40,

@@ -1,23 +1,50 @@
-import React, { useState, useEffect, useCallback, Profiler } from 'react';
-
-const onRenderProfiler = (id, phase, actualDuration) => {
-  console.log(`[PERF-RENDER] ${id} - Phase: ${phase}, Duration: ${actualDuration.toFixed(2)}ms`);
-};
+import React, { useState, useEffect, useCallback, useRef, Profiler } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ScrollView,
-  Share, Pressable, Dimensions, Linking, Platform, Alert, Modal,
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Pressable,
+  Dimensions,
+  Linking,
+  Platform,
+  Alert,
+  Modal,
+  Animated,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  ArrowLeft, MapPin, Clock, Users, Lock, Calendar, Star,
-  Heart, MessageCircle, ChartNoAxesCombined, Send, Pencil, MoreHorizontal, MoveRight, Trash2,
+  ArrowLeft,
+  Share as ShareIcon,
+  MapPin,
+  Clock,
+  Users,
+  Lock,
+  Calendar,
+  Star,
+  Heart,
+  MessageCircle,
+  ChartNoAxesCombined,
+  Send,
+  Pencil,
+  MoreHorizontal,
+  MoveRight,
+  Trash2,
+  AlertCircle,
 } from 'lucide-react-native';
+
 import VerifiedBadge from '../../components/badges/VerifiedBadge';
-import { COLORS, FONTS, SHADOWS } from '../../constants/theme';
+import { COLORS } from '../../constants/theme';
 import { getAuthToken, getActiveAccount } from '../../api/auth';
 import {
-  getPlanById, recordView, likePlan, unlikePlan, cancelPlan, getApprovedAttendees,
+  getPlanById,
+  recordView,
+  likePlan,
+  unlikePlan,
+  cancelPlan,
+  getApprovedAttendees,
 } from '../../api/plans';
 import RequestBottomSheet from './RequestBottomSheet';
 import CommentsModal from '../../components/modals/CommentsModal';
@@ -28,16 +55,26 @@ import ReportSheet from '../../components/modals/ReportSheet';
 import SwipeableModal from '../../components/modals/SwipeableModal';
 import ShareModal from '../../components/modals/ShareModal';
 import CustomConfirmDialog from '../../components/ui/CustomConfirmDialog';
+import DynamicStatusBar from '../../components/navigation/DynamicStatusBar';
 import EventBus from '../../utils/EventBus';
+import { getGradientForName, getInitials } from '../../utils/AvatarGenerator';
 
-const CARD_PADDING = 16;
-const SCREEN_WIDTH = Dimensions.get('window').width;
-// Card width accounts for scrollContent padding: 16px each side
-const CARD_WIDTH = SCREEN_WIDTH - 32;
+const onRenderProfiler = (id, phase, actualDuration) => {
+  console.log(`[PERF-RENDER] ${id} - Phase: ${phase}, Duration: ${actualDuration.toFixed(2)}ms`);
+};
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const BANNER_HEIGHT = Math.round(SCREEN_HEIGHT * 0.40);
+
+const PRIMARY_COLOR = COLORS.primary;
+const TEXT_COLOR = '#1F2937';
+const MUTED_TEXT = '#6B7280';
+const BACKGROUND_COLOR = '#F9FAFB';
+const CARD_BACKGROUND = '#FFFFFF';
+const BORDER_COLOR = '#E5E7EB';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-// Matches OpenPlanCard PILL_COLORS — all 16 activity types
 const ACTIVITY_COLORS = {
   sports:         { bg: '#FFF3E0', text: '#E65100' },
   movies:         { bg: '#F3E5F5', text: '#6A1B9A' },
@@ -113,15 +150,16 @@ const COST_LABELS = {
 
 const REQUEST_BUTTON = {
   null:      { label: 'Request to join',       bg: '#2962FF', textColor: '#FFFFFF', disabled: false },
-  pending:   { label: 'Requested · Pending',   bg: '#F5F5F5', textColor: '#6B7280', disabled: true  },
+  pending:   { label: 'Requested · Pending',   bg: '#F3F4F6', textColor: '#6B7280', disabled: true  },
   approved:  { label: "Approved — You're in!", bg: '#E8F5E9', textColor: '#2E7D32', disabled: true  },
-  declined:  { label: 'Request declined',      bg: '#F5F5F5', textColor: '#9E9E9E', disabled: true  },
+  declined:  { label: 'Request declined',      bg: '#F3F4F6', textColor: '#9E9E9E', disabled: true  },
   withdrawn: { label: 'Request to join',       bg: '#2962FF', textColor: '#FFFFFF', disabled: false },
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatScheduled(iso) {
+  if (!iso) return '';
   const d = new Date(iso);
   const now = new Date();
   const time = d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
@@ -138,7 +176,11 @@ function formatCount(n) {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function PlanDetailScreen({ navigation, route }) {
-  const { planId, openComments } = route.params;
+  const { planId, openComments } = route.params || {};
+  const insets = useSafeAreaInsets();
+  const scrollViewRef = useRef(null);
+  const scrollY = useRef(new Animated.Value(0)).current;
+
   const [plan, setPlan] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isLiked, setIsLiked] = useState(false);
@@ -148,37 +190,57 @@ export default function PlanDetailScreen({ navigation, route }) {
   const [editSheetOpen, setEditSheetOpen] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [reportSheetVisible, setReportSheetVisible] = useState(false);
+  const [hostMenuVisible, setHostMenuVisible] = useState(false);
   const [sharedCommSheetOpen, setSharedCommSheetOpen] = useState(false);
   const [shareModalVisible, setShareModalVisible] = useState(false);
-  const [hostMenuVisible, setHostMenuVisible] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
   const [deleteConfirmMessage, setDeleteConfirmMessage] = useState('');
+  const [deleting, setDeleting] = useState(false);
   const [attendees, setAttendees] = useState([]);
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+
+  // Pinned Header Interpolations matching EventDetailsScreen
+  const headerBgOpacity = scrollY.interpolate({
+    inputRange: [0, 50],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
+
+  const headerTitleOpacity = scrollY.interpolate({
+    inputRange: [20, 50],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
+
+  // ─── Data fetching ─────────────────────────────────────────────────────────
 
   const loadPlan = useCallback(async () => {
     try {
       setLoading(true);
       const [token, account] = await Promise.all([
         getAuthToken(),
-        getActiveAccount(),
+        getActiveAccount().catch(() => null),
       ]);
-      if (account?.id) setCurrentUserId(account.id);
+      if (account?.id) {
+        setCurrentUserId(account.id);
+      }
       const data = await getPlanById(planId, token);
-      setPlan(data.plan);
-      setLikeCount(data.plan.like_count ?? 0);
-      setIsLiked(data.plan.is_liked === true);
+      const actualPlan = data?.plan || data;
+      setPlan(actualPlan);
+      setIsLiked(actualPlan?.is_liked === true);
+      setLikeCount(actualPlan?.like_count ?? 0);
+
       recordView(planId, token)
         .then((res) => {
           if (res?.is_new) {
             const updatedCount =
               res?.view_count !== undefined
                 ? res.view_count
-                : (data.plan.view_count || 0) + 1;
+                : (actualPlan?.view_count || 0) + 1;
             setPlan((prev) =>
-              prev ? { ...prev, view_count: updatedCount } : prev,
+              prev ? { ...prev, view_count: updatedCount } : prev
             );
-            EventBus.emit("plan-view-updated", {
+            EventBus.emit('plan-view-updated', {
               planId,
               viewCount: updatedCount,
             });
@@ -186,26 +248,28 @@ export default function PlanDetailScreen({ navigation, route }) {
         })
         .catch(() => {});
     } catch (err) {
-      console.error('[PlanDetailScreen]', err.message);
+      console.error('[PlanDetailScreen]', err?.message || err);
     } finally {
       setLoading(false);
     }
   }, [planId]);
 
   useEffect(() => {
+    loadPlan();
+  }, [loadPlan]);
+
+  // Sync real-time view updates
+  useEffect(() => {
     if (!planId) return;
-    const unsubscribe = EventBus.on("plan-view-updated", (payload) => {
+    const unsubscribe = EventBus.on('plan-view-updated', (payload) => {
       if (payload?.planId === planId || payload?.postId === planId) {
         setPlan((prev) =>
           prev
             ? {
                 ...prev,
-                view_count:
-                  payload.viewCount !== undefined
-                    ? Math.max(prev.view_count || 0, payload.viewCount)
-                    : (prev.view_count || 0) + 1,
+                view_count: payload.viewCount ?? prev.view_count,
               }
-            : prev,
+            : prev
         );
       }
     });
@@ -214,36 +278,14 @@ export default function PlanDetailScreen({ navigation, route }) {
     };
   }, [planId]);
 
+  // Fetch approved attendees only when user is host or approved attendee
   useEffect(() => {
-    const unsubStart = navigation.addListener('transitionStart', (e) => {
-      console.log(`[PERF-NAV] PlanDetailScreen transitionStart at: ${performance.now().toFixed(2)}ms, closing: ${e?.data?.closing}`);
-    });
-    const unsubEnd = navigation.addListener('transitionEnd', (e) => {
-      console.log(`[PERF-NAV] PlanDetailScreen transitionEnd at: ${performance.now().toFixed(2)}ms, closing: ${e?.data?.closing}`);
-    });
-    return () => {
-      unsubStart();
-      unsubEnd();
-    };
-  }, [navigation]);
+    if (!plan) return;
+    const isOwnerOrApproved =
+      (currentUserId != null && String(plan.created_by) === String(currentUserId)) ||
+      plan.my_request_status === 'approved';
+    if (!isOwnerOrApproved) return;
 
-  useEffect(() => {
-    loadPlan();
-    const unsubscribe = navigation.addListener('focus', () => {
-      loadPlan();
-    });
-    return () => {
-      unsubscribe();
-    };
-  }, [loadPlan, navigation]);
-
-  // Load the approved-attendee roster once the plan is known and the viewer
-  // is the host or an approved attendee. Runs whenever plan or currentUserId changes.
-  useEffect(() => {
-    if (!plan || !currentUserId) return;
-    const viewerIsOwner = String(plan.created_by) === String(currentUserId);
-    const viewerIsApproved = plan.my_request_status === 'approved';
-    if (!viewerIsOwner && !viewerIsApproved) return;
     (async () => {
       try {
         const token = await getAuthToken();
@@ -253,18 +295,12 @@ export default function PlanDetailScreen({ navigation, route }) {
         // Non-fatal — attendees section just stays empty
       }
     })();
-  }, [plan, currentUserId]);
-
-  useEffect(() => {
-    return () => {
-      console.log(`[PERF-NAV] PlanDetailScreen unmounted at: ${performance.now().toFixed(2)}ms`);
-    };
-  }, []);
+  }, [plan?.id, plan?.created_by, plan?.my_request_status, currentUserId]);
 
   const handleLike = useCallback(async () => {
     const prev = { isLiked, likeCount };
-    setIsLiked(v => !v);
-    setLikeCount(v => isLiked ? v - 1 : v + 1);
+    setIsLiked((v) => !v);
+    setLikeCount((v) => (isLiked ? v - 1 : v + 1));
     try {
       const token = await getAuthToken();
       if (isLiked) await unlikePlan(planId, token);
@@ -282,9 +318,10 @@ export default function PlanDetailScreen({ navigation, route }) {
   const handleDeletePlan = useCallback(() => {
     if (!plan) return;
     const pendingCount = plan.pending_count ?? 0;
-    const warningMsg = pendingCount > 0
-      ? `${pendingCount} pending request${pendingCount > 1 ? 's' : ''} will be notified that the plan was removed. This cannot be undone.`
-      : 'This plan will be permanently deleted. This cannot be undone.';
+    const warningMsg =
+      pendingCount > 0
+        ? `${pendingCount} pending request${pendingCount > 1 ? 's' : ''} will be notified that the plan was removed. This cannot be undone.`
+        : 'This plan will be permanently deleted. This cannot be undone.';
 
     setDeleteConfirmMessage(warningMsg);
     setDeleteConfirmVisible(true);
@@ -327,22 +364,25 @@ export default function PlanDetailScreen({ navigation, route }) {
     }
   }, [plan?.location_private]);
 
-  // ─── Loading / error states ────────────────────────────────────────────────
+  // ─── Loading / Error states ────────────────────────────────────────────────
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <SnooLoader size="large" color={COLORS.primary} />
+      <View style={[styles.container, styles.centered]}>
+        <DynamicStatusBar style="dark-content" />
+        <SnooLoader size="large" color={PRIMARY_COLOR} />
       </View>
     );
   }
 
   if (!plan) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={[styles.container, styles.centered]}>
+        <DynamicStatusBar style="dark-content" />
+        <AlertCircle size={48} color={MUTED_TEXT} />
         <Text style={styles.errorText}>Plan not found</Text>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.retryBtn}>
-          <Text style={styles.retryText}>Go back</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.retryButton}>
+          <Text style={styles.retryButtonText}>Go Back</Text>
         </TouchableOpacity>
       </View>
     );
@@ -351,16 +391,15 @@ export default function PlanDetailScreen({ navigation, route }) {
   // ─── Derived values ────────────────────────────────────────────────────────
 
   const isOwner = currentUserId != null && String(plan.created_by) === String(currentUserId);
-  const isPastDeadline = new Date(plan.scheduled_at) < new Date();
-  // Allow deleting plans of all statuses (including cancelled) as long as no one was accepted.
+  const isPastDeadline = plan.scheduled_at ? new Date(plan.scheduled_at) < new Date() : false;
   const canDelete = (plan.accepted_count ?? 0) === 0;
-  // Show greyed-out delete when people have joined (accepted_count > 0)
   const showDisabledDelete = !canDelete && (plan.accepted_count ?? 0) > 0;
   const isApproved = plan.my_request_status === 'approved';
   const showPrivateLocation = isOwner || isApproved;
 
-  const activityKey = plan.activity_type in ACTIVITY_COLORS ? plan.activity_type : 'other';
-  const activityStyle = ACTIVITY_COLORS[activityKey];
+  const activityKey =
+    plan.activity_type && plan.activity_type in ACTIVITY_COLORS ? plan.activity_type : 'other';
+  const activityStyle = ACTIVITY_COLORS[activityKey] || ACTIVITY_COLORS.other;
   const ACTIVITY_LABELS = {
     sports: 'Sports', movies: 'Movies', bar: 'Bar', food: 'Food',
     cafe: 'Cafe', yoga: 'Yoga', gym: 'Gym', walk: 'Walk',
@@ -373,9 +412,13 @@ export default function PlanDetailScreen({ navigation, route }) {
     indoorgames: 'Indoor Games', indoor_games: 'Indoor Games',
     pilates: 'Pilates', swimming: 'Swimming',
   };
-  const activityLabel = plan.activity_type === 'other'
-    ? (plan.custom_activity_label || 'Other')
-    : (ACTIVITY_LABELS[plan.activity_type] || plan.activity_type.charAt(0).toUpperCase() + plan.activity_type.slice(1));
+  const activityLabel =
+    !plan.activity_type || plan.activity_type === 'other'
+      ? plan.custom_activity_label || 'Other'
+      : ACTIVITY_LABELS[plan.activity_type] ||
+        (typeof plan.activity_type === 'string'
+          ? plan.activity_type.charAt(0).toUpperCase() + plan.activity_type.slice(1)
+          : 'Other');
 
   const costCfg = COST_LABELS[plan.cost_type] || COST_LABELS.free;
   let priceText = null;
@@ -385,331 +428,478 @@ export default function PlanDetailScreen({ navigation, route }) {
     priceText = `₹${Math.round(plan.cost_amount_paise / 100)}`;
   }
 
-  const costPillLabel = plan.cost_type === 'entry_fee'
-    ? 'Entry fee'
-    : plan.cost_type === 'split'
-      ? 'We split'
-      : costCfg.label;
+  const costPillLabel =
+    plan.cost_type === 'entry_fee'
+      ? 'Entry fee'
+      : plan.cost_type === 'split'
+        ? 'We split'
+        : costCfg.label;
 
   const reqStatus = plan.my_request_status;
   const btnCfg = REQUEST_BUTTON[reqStatus] || REQUEST_BUTTON['null'];
 
-  const spotsLeft = plan.max_accepted - (plan.accepted_count ?? 0);
+  const spotsLeft = Math.max(0, (plan.max_accepted || 1) - (plan.accepted_count ?? 0));
   const progress = Math.min(1, (plan.accepted_count ?? 0) / (plan.max_accepted || 1));
 
   const genderPref = plan.gender_preference;
-  const showGenderBadge = genderPref && genderPref !== 'all';
-  const genderBadgeStyle = genderPref === 'Female'
-    ? { bg: '#FCE4EC', text: '#C2185B', label: 'Women only' }
-    : { bg: '#E3F2FD', text: '#1565C0', label: 'Men only' };
+  const showGenderBadge = Boolean(genderPref && genderPref !== 'all');
+  const genderBadgeStyle =
+    genderPref === 'Female'
+      ? { bg: '#FCE4EC', text: '#C2185B', label: 'Women only' }
+      : { bg: '#E3F2FD', text: '#1565C0', label: 'Men only' };
+
+  let publicLoc = plan.location_public;
+  if (publicLoc && publicLoc.toLowerCase() === 'current location') {
+    publicLoc = 'Location TBD';
+    if (plan.location_private) {
+      try {
+        const parsed = JSON.parse(plan.location_private);
+        publicLoc = parsed.short_address || parsed.city || parsed.address || 'Location TBD';
+        if (publicLoc.toLowerCase() === 'current location') {
+          publicLoc = 'Location TBD';
+        }
+      } catch {}
+    }
+  }
+
+  let privateLocationLabel = plan.location_private || 'View Location';
+  if (plan.location_private) {
+    try {
+      const parsed = JSON.parse(plan.location_private);
+      const name = (parsed.name || '').trim();
+      const address = (parsed.address || '').trim();
+      const shortAddress = (parsed.short_address || '').trim();
+      if (name && name.toLowerCase() !== 'current location') {
+        privateLocationLabel = name;
+      } else if (address) {
+        privateLocationLabel = address;
+      } else if (shortAddress) {
+        privateLocationLabel = shortAddress;
+      }
+    } catch {}
+  }
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
     <Profiler id="PlanDetailScreen" onRender={onRenderProfiler}>
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => {
-              console.log(`[PERF-NAV] PlanDetailScreen Back pressed at: ${performance.now().toFixed(2)}ms`);
-              console.log(`[PERF-NAV] PlanDetailScreen navigation.goBack() called at: ${performance.now().toFixed(2)}ms`);
-              navigation.goBack();
-            }}
-            hitSlop={12}
-          >
-          <ArrowLeft size={24} color={COLORS.textPrimary} strokeWidth={2} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>Open Plans</Text>
-        {isOwner ? (
-          <TouchableOpacity onPress={() => setHostMenuVisible(true)} hitSlop={12}>
-            <MoreHorizontal size={22} color={COLORS.primary} strokeWidth={2} />
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity onPress={() => setReportSheetVisible(true)} hitSlop={12}>
-            <MoreHorizontal size={22} color="#94A3B8" strokeWidth={2} />
-          </TouchableOpacity>
-        )}
-      </View>
-
+      <DynamicStatusBar style="dark-content" />
       <View style={styles.container}>
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
+        {/* 🌟 Fixed Pinned Header System with Scrim (matching EventDetailsScreen) */}
+        <View
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: insets.top + (Platform.OS === 'ios' ? 44 : 56),
+            zIndex: 1001,
+            pointerEvents: 'box-none',
+          }}
         >
-          {/* Card */}
-          <View style={styles.card}>
+          {/* Header Background (fades in on scroll) */}
+          <Animated.View
+            style={[
+              StyleSheet.absoluteFill,
+              {
+                backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                opacity: headerBgOpacity,
+                elevation: scrollY.interpolate({
+                  inputRange: [0, 50],
+                  outputRange: [0, 4],
+                  extrapolate: 'clamp',
+                }),
+              },
+            ]}
+          />
 
-            {/* Banner — custom image or activity-type preset */}
-            <View style={styles.bannerContainer}>
-              {plan.banner_image_url ? (
-                <Image
-                  source={{ uri: plan.banner_image_url }}
-                  style={styles.bannerImage}
-                  contentFit="cover"
-                  cachePolicy="memory-disk"
-                />
+          {/* Centered Title Layer */}
+          <View
+            style={[
+              StyleSheet.absoluteFill,
+              {
+                paddingTop: insets.top,
+                justifyContent: 'center',
+                alignItems: 'center',
+              },
+            ]}
+            pointerEvents="none"
+          >
+            <Animated.Text
+              style={[styles.headerTitle, { opacity: headerTitleOpacity }]}
+              numberOfLines={1}
+            >
+              {plan.title || ''}
+            </Animated.Text>
+          </View>
+
+          {/* Buttons Layer (Floating on top of scrim) */}
+          <View
+            style={[
+              styles.floatingHeader,
+              {
+                paddingTop: insets.top,
+                height: '100%',
+              },
+            ]}
+          >
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={() => navigation.goBack()}
+              activeOpacity={0.8}
+            >
+              <ArrowLeft size={22} color="#1D1D1F" strokeWidth={2} />
+            </TouchableOpacity>
+
+            <View style={styles.headerRight}>
+              <TouchableOpacity
+                style={styles.headerButton}
+                onPress={handleShare}
+                activeOpacity={0.8}
+              >
+                <ShareIcon size={20} color="#1D1D1F" strokeWidth={2} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.headerButton, { marginLeft: 8 }]}
+                onPress={() => (isOwner ? setHostMenuVisible(true) : setReportSheetVisible(true))}
+                activeOpacity={0.8}
+              >
+                <MoreHorizontal size={20} color="#1D1D1F" strokeWidth={2} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
+        {/* Scrollable Content */}
+        <Animated.ScrollView
+          ref={scrollViewRef}
+          style={styles.scrollView}
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+          onScroll={Animated.event(
+            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+            { useNativeDriver: true }
+          )}
+          scrollEventThrottle={16}
+        >
+          {/* 1️⃣ Hero Banner Section (Full width, edge-to-edge) */}
+          <View style={styles.bannerContainer}>
+            {plan.banner_image_url ? (
+              <Image
+                source={{ uri: plan.banner_image_url }}
+                style={styles.bannerImage}
+                contentFit="cover"
+                cachePolicy="memory-disk"
+              />
+            ) : (
+              <PlanCropImage
+                activityType={plan.activity_type}
+                containerW={SCREEN_WIDTH}
+                height={BANNER_HEIGHT}
+              />
+            )}
+
+            {/* Top dark gradient overlay for header buttons legibility */}
+            <LinearGradient
+              colors={['rgba(0,0,0,0.5)', 'transparent']}
+              locations={[0, 0.4]}
+              style={StyleSheet.absoluteFillObject}
+            />
+
+            {/* Bottom subtle shadow gradient */}
+            <LinearGradient
+              colors={['transparent', 'rgba(0,0,0,0.3)']}
+              locations={[0.7, 1]}
+              style={StyleSheet.absoluteFillObject}
+            />
+          </View>
+
+          {/* 2️⃣ Sticky Action Section (Hero Information & Action) */}
+          <View style={styles.stickyActionContainer}>
+            {/* Plan Title */}
+            <Text style={styles.planTitle} numberOfLines={3}>
+              {plan.title || ''}
+            </Text>
+
+            {/* Scheduled Date & Time */}
+            {plan.scheduled_at ? (
+              <View style={styles.metaRowItem}>
+                <Calendar size={16} color={MUTED_TEXT} strokeWidth={2} />
+                <Text style={styles.metaRowText}>
+                  {formatScheduled(plan.scheduled_at)}
+                </Text>
+              </View>
+            ) : null}
+
+            {/* Location Section */}
+            {publicLoc ? (
+              <View style={styles.metaRowItem}>
+                <MapPin size={16} color={MUTED_TEXT} strokeWidth={2} />
+                <Text style={styles.metaRowText} numberOfLines={1}>
+                  {publicLoc}
+                </Text>
+              </View>
+            ) : null}
+
+            {/* Private Location link or Locked Notice */}
+            {showPrivateLocation ? (
+              plan.location_private ? (
+                <TouchableOpacity
+                  onPress={handleOpenMap}
+                  style={styles.mapLinkRow}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.mapLinkText}>
+                    {isOwner ? 'View location on map' : privateLocationLabel}
+                  </Text>
+                  <MoveRight size={15} color={PRIMARY_COLOR} strokeWidth={2.5} />
+                  {isOwner ? (
+                    <View style={styles.hiddenTag}>
+                      <Text style={styles.hiddenTagText}>Hidden for others</Text>
+                    </View>
+                  ) : null}
+                </TouchableOpacity>
               ) : (
-                <PlanCropImage
-                  activityType={plan.activity_type}
-                  containerW={CARD_WIDTH}
-                  height={240}
-                />
-              )}
-              {/* Activity & Gender overlays — bottom-left */}
-              <View style={styles.bannerOverlaysBottomLeft}>
-                <View style={[styles.activityPillOverlay, { backgroundColor: activityStyle.bg }]}>
-                  <Text style={[styles.activityPillText, { color: activityStyle.text }]}>
-                    {`${ACTIVITY_EMOJIS[activityKey] || ACTIVITY_EMOJIS.other} ${activityLabel}`}
+                <View style={{ marginBottom: 12 }} />
+              )
+            ) : (
+              <View style={styles.lockedLocationRow}>
+                <Lock size={12} color={MUTED_TEXT} strokeWidth={2} />
+                <Text style={styles.lockedLocationText}>
+                  Exact location shared after host approves
+                </Text>
+              </View>
+            )}
+
+            {/* Badges Row (Activity, Gender, Cost) */}
+            <View style={styles.badgesRow}>
+              {/* Activity badge */}
+              <View style={[styles.badgeChip, { backgroundColor: activityStyle.bg }]}>
+                <Text style={[styles.badgeChipText, { color: activityStyle.text }]}>
+                  {`${ACTIVITY_EMOJIS[activityKey] || ACTIVITY_EMOJIS.other} ${activityLabel}`}
+                </Text>
+              </View>
+
+              {/* Gender badge */}
+              {showGenderBadge ? (
+                <View style={[styles.badgeChip, { backgroundColor: genderBadgeStyle.bg }]}>
+                  <Text style={[styles.badgeChipText, { color: genderBadgeStyle.text }]}>
+                    {genderBadgeStyle.label}
                   </Text>
                 </View>
-                {showGenderBadge && (
-                  <View style={[styles.genderPillOverlay, { backgroundColor: genderBadgeStyle.bg }]}>
-                    <Text style={[styles.genderPillText, { color: genderBadgeStyle.text }]}>
-                      {genderBadgeStyle.label}
-                    </Text>
-                  </View>
-                )}
+              ) : null}
+
+              {/* Cost badge */}
+              <View style={[styles.badgeChip, { backgroundColor: costCfg.bg }]}>
+                <Text style={[styles.badgeChipText, { color: costCfg.text }]}>
+                  {costPillLabel}
+                </Text>
               </View>
             </View>
 
-            {/* Main Row: Left Info Column + Right Cost Container */}
-            <View style={styles.topInfoRow}>
-              {/* Left Column: Title + Host details */}
-              <View style={styles.leftInfoCol}>
-                <Text style={styles.title} numberOfLines={2}>{plan.title}</Text>
+            {/* Action Bar (Price/Spots on left, CTA on right) */}
+            <View style={styles.stickyActionContent}>
+              <View style={styles.stickyPriceContainer}>
+                <Text style={styles.stickyPriceLabel}>
+                  {plan.cost_type !== 'free' && priceText ? 'Cost' : 'Spots'}
+                </Text>
+                <Text style={styles.stickyPriceValue}>
+                  {plan.cost_type !== 'free' && priceText
+                    ? priceText
+                    : `${spotsLeft} spot${spotsLeft === 1 ? '' : 's'} left`}
+                </Text>
+              </View>
 
-                {/* Host row — inline with avatar */}
+              {isOwner ? (
                 <TouchableOpacity
-                  style={styles.hostRowInline}
-                  onPress={() => {
-                    if (plan.created_by) {
-                      navigation.navigate("MemberPublicProfile", { memberId: plan.created_by });
-                    }
-                  }}
+                  style={styles.stickyActionButton}
+                  onPress={() => navigation.navigate('HostRequests', { planId: plan.id, planTitle: plan.title })}
+                  activeOpacity={0.85}
+                >
+                  <Users size={16} color="#FFFFFF" strokeWidth={2} style={{ marginRight: 8 }} />
+                  <Text style={styles.stickyActionButtonText}>Manage Requests</Text>
+                  {plan.pending_count > 0 ? (
+                    <View style={styles.pendingBadge}>
+                      <Text style={styles.pendingBadgeText}>{plan.pending_count}</Text>
+                    </View>
+                  ) : null}
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={[
+                    styles.stickyActionButton,
+                    { backgroundColor: btnCfg.bg },
+                    btnCfg.disabled ? styles.stickyActionButtonDisabled : null,
+                  ]}
+                  onPress={() => !btnCfg.disabled && setRequestSheetOpen(true)}
+                  disabled={btnCfg.disabled}
+                  activeOpacity={btnCfg.disabled ? 1 : 0.85}
+                >
+                  <Text style={[styles.stickyActionButtonText, { color: btnCfg.textColor }]}>
+                    {btnCfg.label}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
+          {/* 3️⃣ Content Container */}
+          <View style={styles.contentContainer}>
+            {/* About Plan Section */}
+            {plan.description ? (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>About Plan</Text>
+                <Text
+                  style={styles.description}
+                  numberOfLines={descriptionExpanded ? undefined : 4}
+                >
+                  {plan.description}
+                </Text>
+                {plan.description.length > 180 ? (
+                  <TouchableOpacity onPress={() => setDescriptionExpanded(!descriptionExpanded)}>
+                    <Text style={styles.readMore}>
+                      {descriptionExpanded ? 'Show less' : 'Read more'} ›
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            ) : null}
+
+            {/* Capacity & Shared Communities Section */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Plan Capacity</Text>
+              <View style={styles.capacityCard}>
+                <View style={styles.capacityHeader}>
+                  <View style={styles.capacityIconWrap}>
+                    <Users size={18} color={PRIMARY_COLOR} strokeWidth={2} />
+                  </View>
+                  <View style={styles.capacityCol}>
+                    <Text style={styles.capacityTitle}>
+                      {plan.accepted_count ?? 0} of {plan.max_accepted} spots filled
+                    </Text>
+                    <Text style={styles.capacitySub}>
+                      {spotsLeft > 0 ? `${spotsLeft} spots available` : 'This plan is currently full'}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.progressBarTrack}>
+                  <View style={[styles.progressBarFill, { width: `${Math.min(100, Math.round(progress * 100))}%` }]} />
+                </View>
+              </View>
+
+              {/* Shared Communities CTA */}
+              {!isOwner && plan.shared_communities?.length > 0 ? (
+                <TouchableOpacity
+                  style={styles.sharedCommCard}
+                  onPress={() => setSharedCommSheetOpen(true)}
                   activeOpacity={0.7}
                 >
+                  <View style={styles.sharedCommLeft}>
+                    <View style={styles.sharedCommIconWrap}>
+                      <Users size={16} color="#6366F1" strokeWidth={2.2} />
+                    </View>
+                    <Text style={styles.sharedCommText}>
+                      {plan.shared_communities.length === 1
+                        ? '1 shared community'
+                        : `${plan.shared_communities.length} shared communities`}
+                    </Text>
+                  </View>
+                  <MoveRight size={16} color="#6366F1" strokeWidth={2} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+
+            {/* Hosted By Section (Premium Host Card matching EventDetailsScreen) */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Hosted By</Text>
+              <TouchableOpacity
+                style={styles.hostCardPremium}
+                onPress={() => {
+                  if (plan.created_by) {
+                    navigation.navigate('MemberPublicProfile', { memberId: plan.created_by });
+                  }
+                }}
+                activeOpacity={0.8}
+              >
+                <View style={styles.hostCardInner}>
                   {plan.host_profile?.profile_photo_url ? (
                     <Image
                       source={{ uri: plan.host_profile.profile_photo_url }}
-                      style={styles.hostAvatar}
+                      style={styles.hostAvatarPremium}
                       cachePolicy="memory-disk"
                     />
                   ) : (
-                    <View style={styles.hostAvatarFallback}>
-                      <Text style={styles.hostInitial}>
-                        {(plan.host_profile?.name || '?')[0].toUpperCase()}
+                    <LinearGradient
+                      colors={getGradientForName(plan.host_profile?.name || 'Host')}
+                      style={styles.hostAvatarPremium}
+                    >
+                      <Text style={styles.hostInitials}>
+                        {getInitials(plan.host_profile?.name || 'Host')}
                       </Text>
-                    </View>
+                    </LinearGradient>
                   )}
-                  <Text style={styles.hostedByText}>
-                    Hosted by{' '}
-                    <Text style={styles.hostNameBold}>{plan.host_profile?.name || 'Someone'}</Text>
-                  </Text>
-                  <VerifiedBadge tier={plan.host_profile?.verification_tier} size={14} style={{ marginLeft: 4 }} />
-                </TouchableOpacity>
-              </View>
-
-              {/* Right Cost Column */}
-              <View style={styles.costContainer}>
-                <View style={[styles.costPill, { backgroundColor: costCfg.bg }]}>
-                  <Text style={[styles.pillText, { color: costCfg.text }]}>{costPillLabel}</Text>
-                </View>
-                {priceText ? (
-                  <Text style={styles.costPriceBelow}>{priceText}</Text>
-                ) : null}
-              </View>
-            </View>
-
-            {/* Description — only shown when present */}
-            {!!plan.description && (
-              <Text style={styles.descriptionText}>{plan.description}</Text>
-            )}
-
-            {/* Host trust stats — always visible to all plan viewers */}
-            {plan.host_profile?.member_since && (
-              <View style={styles.hostStatsCard}>
-                <Text style={styles.hostStatsTitle}>
-                  About {plan.host_profile.name?.split(' ')[0] || plan.host_profile.name}
-                </Text>
-                <View style={styles.hostStatsRow}>
-                  <View style={styles.hostStatItem}>
-                    <Calendar size={12} color={COLORS.textMuted} strokeWidth={2} />
-                    <Text style={styles.hostStatText}>Member since {plan.host_profile.member_since}</Text>
-                  </View>
-                  <View style={styles.hostStatItem}>
-                    <Users size={12} color={COLORS.textMuted} strokeWidth={2} />
-                    <Text style={styles.hostStatText}>{plan.host_profile.events_joined_count ?? 0} events joined</Text>
-                  </View>
-                </View>
-                {plan.host_profile.activity_level && (
-                  <View style={styles.hostStatsBottomRow}>
-                    <View style={[styles.activityLevelPill, styles[`activityLevel_${plan.host_profile.activity_level.replace(' ', '_')}`]]}>
-                      <Star size={10} color="#92400E" strokeWidth={2} />
-                      <Text style={styles.activityLevelText}>{plan.host_profile.activity_level}</Text>
+                  <View style={styles.hostInfoPremium}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Text style={styles.hostNamePremium} numberOfLines={1}>
+                        {plan.host_profile?.name || 'Host'}
+                      </Text>
+                      <VerifiedBadge
+                        tier={plan.host_profile?.verification_tier}
+                        size={14}
+                        style={{ marginLeft: 6 }}
+                      />
                     </View>
-                    {plan.host_profile.top_interests?.length > 0 && (
-                      <View style={styles.interestChipRow}>
-                        {plan.host_profile.top_interests.map((interest, idx) => (
-                          <View key={idx} style={styles.interestChip}>
-                            <Text style={styles.interestChipText}>{interest}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    )}
-                  </View>
-                )}
-              </View>
-            )}
-
-            {/* Time & location — inline */}
-            <View style={styles.metaRow}>
-              <View style={styles.metaItem}>
-                <Clock size={13} color={COLORS.textSecondary} strokeWidth={2} />
-                <Text style={styles.metaText}>{formatScheduled(plan.scheduled_at)}</Text>
-              </View>
-              {(() => {
-                let publicLoc = plan.location_public;
-                if (publicLoc && publicLoc.toLowerCase() === 'current location') {
-                  publicLoc = 'Location TBD';
-                  if (plan.location_private) {
-                    try {
-                      const parsed = JSON.parse(plan.location_private);
-                      publicLoc = parsed.short_address || parsed.city || parsed.address || 'Location TBD';
-                      if (publicLoc.toLowerCase() === 'current location') {
-                        publicLoc = 'Location TBD';
-                      }
-                    } catch {}
-                  }
-                }
-                if (!publicLoc) return null;
-                return (
-                  <View style={[styles.metaItem, { marginLeft: 14 }]}>
-                    <MapPin size={13} color={COLORS.textSecondary} strokeWidth={2} />
-                    <Text style={styles.metaText} numberOfLines={1}>{publicLoc}</Text>
-                  </View>
-                );
-              })()}
-            </View>
-
-            {/* Private location & Locked pill */}
-            {(() => {
-              if (showPrivateLocation) {
-                if (!plan.location_private) return null;
-                
-                let locLabel = plan.location_private;
-                try {
-                  const parsed = JSON.parse(plan.location_private);
-                  const name = (parsed.name || '').trim();
-                  const address = (parsed.address || '').trim();
-                  const shortAddress = (parsed.short_address || '').trim();
-                  
-                  if (name && name.toLowerCase() !== 'current location') {
-                    locLabel = name;
-                  } else if (address) {
-                    locLabel = address;
-                  } else if (shortAddress) {
-                    locLabel = shortAddress;
-                  } else {
-                    locLabel = name || plan.location_private;
-                  }
-                } catch {}
-
-                const displayLabel = isOwner ? 'View Location' : locLabel;
-
-                return (
-                  <TouchableOpacity
-                    style={styles.privateLocationBox}
-                    onPress={handleOpenMap}
-                    activeOpacity={0.7}
-                  >
-                    <Lock size={13} color="#2962FF" strokeWidth={2} />
-                    <Text style={styles.privateLocationText}>{displayLabel}</Text>
-                    {isOwner ? (
-                      <>
-                        <MoveRight size={13} color="#2962FF" strokeWidth={2} style={{ marginLeft: 4 }} />
-                        <View style={styles.locationHiddenTag}>
-                          <Text style={styles.locationHiddenTagText}>Hidden for others</Text>
-                        </View>
-                      </>
-                    ) : null}
-                  </TouchableOpacity>
-                );
-              } else {
-                // Non-approved user: show the locked pill in place of location
-                return (
-                  <View style={[styles.privateLocationBox, styles.privateLocationLocked]}>
-                    <Lock size={13} color="#6B7280" strokeWidth={2} />
-                    <Text style={styles.privateLocationTextLocked}>
-                      Exact location shared after host approves
+                    <Text style={styles.hostStatsPremium}>
+                      {plan.host_profile?.member_since ? `Member since ${plan.host_profile.member_since}` : 'Member'}
+                      {plan.host_profile?.events_joined_count != null ? ` • ${plan.host_profile.events_joined_count} events joined` : ''}
                     </Text>
                   </View>
-                );
-              }
-            })()}
+                </View>
 
-            {/* Redesigned Acceptance & Shared Communities Section */}
-            {(() => {
-              const hasShared = !isOwner && plan.shared_communities?.length > 0;
-              
-              if (hasShared) {
-                const count = plan.shared_communities.length;
-                const communityLabel = count === 1 ? '1 shared community' : `${count} shared communities`;
-                
-                return (
-                  <View style={styles.compactAcceptanceRowSplit}>
-                    <View style={styles.compactAcceptanceCardHalf}>
-                      <Users size={16} color={COLORS.primary} strokeWidth={2.2} />
-                      <Text style={styles.compactAcceptanceText} numberOfLines={1}>
-                        <Text style={styles.compactAcceptanceBold}>{plan.accepted_count ?? 0}/{plan.max_accepted}</Text> filled
-                      </Text>
-                    </View>
-                    
+                {/* Host Trust Stats: Activity Level + Top Interests */}
+                {plan.host_profile?.activity_level || (plan.host_profile?.top_interests && plan.host_profile.top_interests.length > 0) ? (
+                  <View style={styles.hostTrustStatsRow}>
+                    {plan.host_profile?.activity_level ? (
+                      <View style={[styles.activityLevelPill, styles[`activityLevel_${plan.host_profile.activity_level.replace(' ', '_')}`]]}>
+                        <Star size={11} color="#92400E" strokeWidth={2} />
+                        <Text style={styles.activityLevelText}>{plan.host_profile.activity_level}</Text>
+                      </View>
+                    ) : null}
+                    {plan.host_profile?.top_interests?.map((interest, idx) => (
+                      <View key={idx} style={styles.interestChip}>
+                        <Text style={styles.interestChipText}>{interest}</Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+
+                <View style={styles.hostCtaRow}>
+                  <Text style={styles.hostCtaText}>View Profile</Text>
+                  <MoveRight size={16} color={PRIMARY_COLOR} strokeWidth={2.5} />
+                </View>
+              </TouchableOpacity>
+            </View>
+
+            {/* Who's Coming Section (Approved Attendees) */}
+            {(isOwner || isApproved) && attendees && attendees.length > 0 ? (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>
+                  Who's Coming ({attendees.length})
+                </Text>
+                <View style={styles.attendeesList}>
+                  {attendees.map((attendee) => (
                     <TouchableOpacity
-                      style={styles.compactAcceptanceCardHalf}
-                      onPress={() => setSharedCommSheetOpen(true)}
+                      key={attendee.id || attendee.member_id}
+                      style={styles.attendeeCard}
+                      onPress={() => {
+                        if (attendee.id || attendee.member_id) {
+                          navigation.navigate('MemberPublicProfile', {
+                            memberId: attendee.member_id || attendee.id,
+                          });
+                        }
+                      }}
                       activeOpacity={0.7}
                     >
-                      <Users size={16} color="#6366F1" strokeWidth={2.2} />
-                      <Text style={[styles.compactAcceptanceText, { color: '#4F46E5' }]} numberOfLines={1}>
-                        {communityLabel}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                );
-              }
-
-              // Default full-width row for host or when no shared communities exist
-              return (
-                <View style={styles.compactAcceptanceRow}>
-                  <View style={styles.compactAcceptanceLeft}>
-                    <Users size={16} color={COLORS.primary} strokeWidth={2.2} />
-                    <Text style={styles.compactAcceptanceText}>
-                      <Text style={styles.compactAcceptanceBold}>{plan.accepted_count ?? 0} / {plan.max_accepted}</Text> spots filled
-                    </Text>
-                  </View>
-                  {isOwner && plan.pending_count > 0 && (
-                    <View style={styles.pendingBadgeInline}>
-                      <View style={styles.pendingBadgeDot} />
-                      <Text style={styles.pendingBadgeText}>{plan.pending_count} pending</Text>
-                    </View>
-                  )}
-                </View>
-              );
-            })()}
-
-            {/* Divider */}
-            <View style={styles.divider} />
-
-            {/* Approved attendee roster — visible only to host and approved attendees */}
-            {(isOwner || isApproved) && attendees.length > 0 && (
-              <View style={styles.attendeesSection}>
-                <Text style={styles.attendeesSectionLabel}>WHO'S COMING</Text>
-                {attendees.map((attendee) => (
-                  <View key={attendee.id} style={styles.attendeeCard}>
-                    <View style={styles.attendeeAvatarCol}>
                       {attendee.profile_photo_url ? (
                         <Image
                           source={{ uri: attendee.profile_photo_url }}
@@ -717,314 +907,279 @@ export default function PlanDetailScreen({ navigation, route }) {
                           cachePolicy="memory-disk"
                         />
                       ) : (
-                        <View style={styles.attendeeAvatarFallback}>
-                          <Text style={styles.attendeeAvatarInitial}>
-                            {(attendee.name || '?')[0].toUpperCase()}
+                        <LinearGradient
+                          colors={getGradientForName(attendee.name || 'A')}
+                          style={styles.attendeeAvatar}
+                        >
+                          <Text style={styles.attendeeInitials}>
+                            {getInitials(attendee.name || 'A')}
                           </Text>
-                        </View>
+                        </LinearGradient>
                       )}
-                    </View>
-                    <View style={styles.attendeeInfo}>
-                      <View style={styles.attendeeNameRow}>
-                        <Text style={styles.attendeeName} numberOfLines={1}>{attendee.name}</Text>
-                        <VerifiedBadge tier={attendee.verification_tier} size={13} style={{ marginLeft: 4 }} />
-                      </View>
-                      <View style={styles.attendeeMetaRow}>
-                        <Text style={styles.attendeeMetaText}>Since {attendee.member_since}</Text>
-                        <Text style={styles.attendeeMetaDot}>·</Text>
-                        <Text style={styles.attendeeMetaText}>{attendee.events_joined_count ?? 0} events</Text>
-                      </View>
-                      <View style={styles.attendeeBottomRow}>
-                        <View style={[styles.attendeeActivityPill, styles[`activityLevel_${attendee.activity_level?.replace(' ', '_')}`]]}>
-                          <Text style={styles.attendeeActivityText}>{attendee.activity_level}</Text>
+                      <View style={styles.attendeeInfo}>
+                        <View style={styles.attendeeNameRow}>
+                          <Text style={styles.attendeeName} numberOfLines={1}>
+                            {attendee.name || 'Member'}
+                          </Text>
+                          <VerifiedBadge
+                            tier={attendee.verification_tier}
+                            size={13}
+                            style={{ marginLeft: 4 }}
+                          />
                         </View>
-                        {attendee.top_interests?.slice(0, 2).map((interest, idx) => (
-                          <View key={idx} style={styles.attendeeInterestChip}>
-                            <Text style={styles.attendeeInterestText}>{interest}</Text>
-                          </View>
-                        ))}
+                        <Text style={styles.attendeeMetaText}>
+                          Since {attendee.member_since} • {attendee.events_joined_count ?? 0} events
+                        </Text>
+                        <View style={styles.attendeeBottomRow}>
+                          {attendee.activity_level ? (
+                            <View style={[styles.attendeeActivityPill, styles[`activityLevel_${attendee.activity_level?.replace(' ', '_')}`]]}>
+                              <Text style={styles.attendeeActivityText}>{attendee.activity_level}</Text>
+                            </View>
+                          ) : null}
+                          {attendee.top_interests?.slice(0, 2).map((interest, idx) => (
+                            <View key={idx} style={styles.attendeeInterestChip}>
+                              <Text style={styles.attendeeInterestText}>{interest}</Text>
+                            </View>
+                          ))}
+                        </View>
                       </View>
-                    </View>
-                  </View>
-                ))}
+                      <MoveRight size={14} color={MUTED_TEXT} strokeWidth={2} />
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
-            )}
+            ) : null}
 
-            {/* Engagement row */}
-            <View style={styles.engagementRow}>
-              {/* Like */}
+            {/* Engagement Row */}
+            <View style={styles.engagementCard}>
               <Pressable onPress={handleLike} style={styles.engItem}>
                 <Heart
                   size={22}
-                  color={isLiked ? COLORS.error : '#5e8d9b'}
+                  color={isLiked ? COLORS.error : '#6B7280'}
                   fill={isLiked ? COLORS.error : 'transparent'}
                   strokeWidth={2}
                 />
-                <Text style={[styles.engCount, isLiked && { color: COLORS.error }]}>
+                <Text style={[styles.engCount, isLiked ? { color: COLORS.error } : null]}>
                   {formatCount(likeCount)}
                 </Text>
               </Pressable>
 
-              {/* Comment */}
               <Pressable onPress={() => setCommentsModalVisible(true)} style={styles.engItem}>
-                <MessageCircle size={22} color="#5e8d9b" strokeWidth={2} />
+                <MessageCircle size={22} color="#6B7280" strokeWidth={2} />
                 <Text style={styles.engCount}>{formatCount(plan.comment_count)}</Text>
               </Pressable>
 
-              {/* Views */}
               <View style={styles.engItem}>
-                <ChartNoAxesCombined size={22} color="#5e8d9b" strokeWidth={2} />
+                <ChartNoAxesCombined size={22} color="#6B7280" strokeWidth={2} />
                 <Text style={styles.engCount}>{formatCount(plan.view_count)}</Text>
               </View>
 
-              {/* Share */}
               <Pressable onPress={handleShare} style={styles.engItem}>
-                <Send size={22} color="#5e8d9b" strokeWidth={2} />
+                <Send size={22} color="#6B7280" strokeWidth={2} />
               </Pressable>
             </View>
 
-            {/* Host: manage requests button */}
-            {isOwner && (
-              <TouchableOpacity
-                style={styles.manageBtn}
-                onPress={() => navigation.navigate('HostRequests', { planId: plan.id, planTitle: plan.title })}
-              >
-                <Users size={16} color="#FFFFFF" strokeWidth={2} />
-                <Text style={styles.manageBtnText}>Manage requests</Text>
-                {plan.pending_count > 0 && (
-                  <View style={styles.manageBadge}>
-                    <Text style={styles.manageBadgeText}>{plan.pending_count}</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            )}
-
-            {/* Request to join button — non-hosts only */}
-            {!isOwner && (
-              <TouchableOpacity
-                style={[styles.requestBtn, { backgroundColor: btnCfg.bg }, btnCfg.disabled && { opacity: 0.85 }]}
-                onPress={() => !btnCfg.disabled && setRequestSheetOpen(true)}
-                disabled={btnCfg.disabled}
-                activeOpacity={btnCfg.disabled ? 1 : 0.85}
-              >
-                <Text style={[styles.requestBtnText, { color: btnCfg.textColor }]}>{btnCfg.label}</Text>
-              </TouchableOpacity>
-            )}
-
-            {/* Fine print removed (relocated to locked location pill) */}
-
+            <View style={{ height: 60 }} />
           </View>
+        </Animated.ScrollView>
 
-          <View style={{ height: 40 }} />
-        </ScrollView>
-      </View>
+        {/* ─── Modals & Bottom Sheets ────────────────────────────────────── */}
 
-      <RequestBottomSheet
-        isVisible={requestSheetOpen}
-        planId={plan.id}
-        planTitle={plan.title}
-        onClose={() => setRequestSheetOpen(false)}
-        onRequested={() => {
-          setPlan(p => ({ ...p, my_request_status: 'pending' }));
-          setRequestSheetOpen(false);
-        }}
-      />
-
-      <CommentsModal
-        visible={commentsModalVisible}
-        postId={plan.id}
-        onClose={() => setCommentsModalVisible(false)}
-        baseRoute="/plans"
-        replyBaseRoute="/comments"
-        navigation={navigation}
-        onCommentCountChange={(newCount) => {
-          setPlan(p => ({ ...p, comment_count: newCount }));
-        }}
-      />
-
-      <EditPlanBottomSheet
-        visible={editSheetOpen}
-        onClose={() => setEditSheetOpen(false)}
-        plan={plan}
-        navigation={navigation}
-        onPlanUpdated={(updatedPlan) => {
-          setPlan(p => ({ ...p, ...updatedPlan }));
-          setEditSheetOpen(false);
-        }}
-        onPlanCancelled={() => {
-          setEditSheetOpen(false);
-          navigation.goBack();
-        }}
-      />
-
-      <ReportSheet
-        visible={reportSheetVisible}
-        onClose={() => setReportSheetVisible(false)}
-        type="open_plan"
-        targetId={plan.id}
-        targetName={plan.title}
-      />
-
-      <SwipeableModal
-        visible={sharedCommSheetOpen}
-        onClose={() => setSharedCommSheetOpen(false)}
-        sheetStyle={styles.commSheet}
-        header={
-          <View>
-            <View style={styles.commSheetHandle} />
-            <Text style={styles.commSheetTitle}>Shared Communities</Text>
-          </View>
-        }
-      >
-        <SwipeableModal.ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.commSheetList}>
-          {plan?.shared_communities?.map((comm) => (
-            <TouchableOpacity
-              key={comm.id}
-              style={styles.commItem}
-              onPress={() => {
-                setSharedCommSheetOpen(false);
-                navigation.navigate('CommunityPublicProfile', { communityId: comm.id, communityName: comm.name });
-              }}
-              activeOpacity={0.7}
-            >
-              <View style={styles.commAvatarContainer}>
-                {comm.logo_url ? (
-                  <Image source={{ uri: comm.logo_url }} style={styles.commAvatar} cachePolicy="memory-disk" />
-                ) : (
-                  <View style={styles.commAvatarFallback}>
-                    <Users size={16} color="#4F46E5" />
-                  </View>
-                )}
-              </View>
-              <View style={styles.commInfo}>
-                <Text style={styles.commName}>{comm.name}</Text>
-                <Text style={styles.commSub}>Tap to view community</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </SwipeableModal.ScrollView>
-      </SwipeableModal>
-
-      <ShareModal
-        visible={shareModalVisible}
-        onClose={() => setShareModalVisible(false)}
-        post={plan}
-      />
-
-      {/* Host action menu — plain Modal to avoid overflow:hidden clipping */}
-      <Modal
-        transparent
-        visible={hostMenuVisible}
-        animationType="fade"
-        onRequestClose={() => setHostMenuVisible(false)}
-        statusBarTranslucent
-      >
-        {/* Backdrop */}
-        <Pressable
-          style={styles.hostMenuOverlay}
-          onPress={() => setHostMenuVisible(false)}
+        <RequestBottomSheet
+          isVisible={requestSheetOpen}
+          planId={plan.id}
+          planTitle={plan.title}
+          onClose={() => setRequestSheetOpen(false)}
+          onRequested={() => {
+            setPlan((p) => ({ ...p, my_request_status: 'pending' }));
+            setRequestSheetOpen(false);
+          }}
         />
 
-        {/* Sheet container */}
-        <View
-          style={styles.hostMenuSheet}
-        >
-          <View style={styles.hostMenuHandle} />
-          <Text style={styles.hostMenuTitle}>Plan Options</Text>
+        <CommentsModal
+          visible={commentsModalVisible}
+          postId={plan.id}
+          onClose={() => setCommentsModalVisible(false)}
+          baseRoute="/plans"
+          replyBaseRoute="/comments"
+          navigation={navigation}
+          onCommentCountChange={(newCount) => {
+            setPlan((p) => ({ ...p, comment_count: newCount }));
+          }}
+        />
 
-          <View style={styles.hostMenuList}>
-            {/* Edit Plan — hidden when past scheduled time */}
-            {!isPastDeadline ? (
+        <EditPlanBottomSheet
+          visible={editSheetOpen}
+          onClose={() => setEditSheetOpen(false)}
+          plan={plan}
+          navigation={navigation}
+          onPlanUpdated={(updatedPlan) => {
+            setPlan((p) => ({ ...p, ...updatedPlan }));
+            setEditSheetOpen(false);
+          }}
+          onPlanCancelled={() => {
+            setEditSheetOpen(false);
+            navigation.goBack();
+          }}
+        />
+
+        <ReportSheet
+          visible={reportSheetVisible}
+          onClose={() => setReportSheetVisible(false)}
+          type="open_plan"
+          targetId={plan.id}
+          targetName={plan.title}
+        />
+
+        <SwipeableModal
+          visible={sharedCommSheetOpen}
+          onClose={() => setSharedCommSheetOpen(false)}
+          sheetStyle={styles.commSheet}
+          header={
+            <View>
+              <View style={styles.commSheetHandle} />
+              <Text style={styles.commSheetTitle}>Shared Communities</Text>
+            </View>
+          }
+        >
+          <SwipeableModal.ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.commSheetList}>
+            {plan?.shared_communities?.map((comm) => (
               <TouchableOpacity
-                style={styles.hostMenuRow}
+                key={comm.id}
+                style={styles.commItem}
                 onPress={() => {
-                  setHostMenuVisible(false);
-                  setEditSheetOpen(true);
+                  setSharedCommSheetOpen(false);
+                  navigation.navigate('CommunityPublicProfile', { communityId: comm.id, communityName: comm.name });
                 }}
                 activeOpacity={0.7}
               >
-                <View style={styles.hostMenuIconWrap}>
-                  <Pencil size={18} color={COLORS.primary} strokeWidth={2} />
+                <View style={styles.commAvatarContainer}>
+                  {comm.logo_url ? (
+                    <Image source={{ uri: comm.logo_url }} style={styles.commAvatar} cachePolicy="memory-disk" />
+                  ) : (
+                    <View style={styles.commAvatarFallback}>
+                      <Users size={16} color="#4F46E5" />
+                    </View>
+                  )}
                 </View>
-                <View style={styles.hostMenuRowText}>
-                  <Text style={styles.hostMenuLabel}>Edit Plan</Text>
-                  <Text style={styles.hostMenuSub}>Update details, time or location</Text>
-                </View>
-              </TouchableOpacity>
-            ) : (
-              <View style={[styles.hostMenuRow, styles.hostMenuRowDisabled]}>
-                <View style={[styles.hostMenuIconWrap, { backgroundColor: '#F3F4F6' }]}>
-                  <Pencil size={18} color="#D1D5DB" strokeWidth={2} />
-                </View>
-                <View style={styles.hostMenuRowText}>
-                  <Text style={[styles.hostMenuLabel, { color: '#9CA3AF' }]}>Edit Plan</Text>
-                  <Text style={styles.hostMenuSub}>Cannot edit — plan time has passed</Text>
-                </View>
-              </View>
-            )}
-
-            {/* Delete Plan */}
-            {canDelete && (
-              <TouchableOpacity
-                style={[styles.hostMenuRow, { opacity: deleting ? 0.5 : 1 }]}
-                onPress={handleDeletePlan}
-                activeOpacity={0.7}
-                disabled={deleting}
-              >
-                <View style={[styles.hostMenuIconWrap, { backgroundColor: '#FEF2F2' }]}>
-                  <Trash2 size={18} color="#EF4444" strokeWidth={2} />
-                </View>
-                <View style={styles.hostMenuRowText}>
-                  <Text style={[styles.hostMenuLabel, { color: '#DC2626' }]}>Delete Plan</Text>
-                  <Text style={styles.hostMenuSub}>
-                    {(plan.pending_count ?? 0) > 0
-                      ? `${plan.pending_count} pending request${plan.pending_count > 1 ? 's' : ''} will be notified`
-                      : 'Permanently remove this plan'}
-                  </Text>
+                <View style={styles.commInfo}>
+                  <Text style={styles.commName}>{comm.name}</Text>
+                  <Text style={styles.commSub}>Tap to view community</Text>
                 </View>
               </TouchableOpacity>
-            )}
+            ))}
+          </SwipeableModal.ScrollView>
+        </SwipeableModal>
 
-            {showDisabledDelete && (
-              <View style={[styles.hostMenuRow, styles.hostMenuRowDisabled]}>
-                <View style={[styles.hostMenuIconWrap, { backgroundColor: '#F3F4F6' }]}>
-                  <Trash2 size={18} color="#D1D5DB" strokeWidth={2} />
+        <ShareModal
+          visible={shareModalVisible}
+          onClose={() => setShareModalVisible(false)}
+          post={plan}
+        />
+
+        {/* Host action menu */}
+        <Modal
+          transparent
+          visible={hostMenuVisible}
+          animationType="fade"
+          onRequestClose={() => setHostMenuVisible(false)}
+          statusBarTranslucent
+        >
+          <Pressable style={styles.hostMenuOverlay} onPress={() => setHostMenuVisible(false)} />
+          <View style={styles.hostMenuSheet}>
+            <View style={styles.hostMenuHandle} />
+            <Text style={styles.hostMenuTitle}>Plan Options</Text>
+
+            <View style={styles.hostMenuList}>
+              {!isPastDeadline ? (
+                <TouchableOpacity
+                  style={styles.hostMenuRow}
+                  onPress={() => {
+                    setHostMenuVisible(false);
+                    setEditSheetOpen(true);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.hostMenuIconWrap}>
+                    <Pencil size={18} color={PRIMARY_COLOR} strokeWidth={2} />
+                  </View>
+                  <View style={styles.hostMenuRowText}>
+                    <Text style={styles.hostMenuLabel}>Edit Plan</Text>
+                    <Text style={styles.hostMenuSub}>Update details, time or location</Text>
+                  </View>
+                </TouchableOpacity>
+              ) : (
+                <View style={[styles.hostMenuRow, { opacity: 0.45 }]}>
+                  <View style={[styles.hostMenuIconWrap, { backgroundColor: '#F3F4F6' }]}>
+                    <Pencil size={18} color="#D1D5DB" strokeWidth={2} />
+                  </View>
+                  <View style={styles.hostMenuRowText}>
+                    <Text style={[styles.hostMenuLabel, { color: '#9CA3AF' }]}>Edit Plan</Text>
+                    <Text style={styles.hostMenuSub}>Cannot edit after scheduled time</Text>
+                  </View>
                 </View>
-                <View style={styles.hostMenuRowText}>
-                  <Text style={[styles.hostMenuLabel, { color: '#9CA3AF' }]}>Delete Plan</Text>
-                  <Text style={styles.hostMenuSub}>Cannot delete — people have joined</Text>
+              )}
+
+              {canDelete ? (
+                <TouchableOpacity
+                  style={styles.hostMenuRow}
+                  onPress={handleDeletePlan}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.hostMenuIconWrap, { backgroundColor: '#FEE2E2' }]}>
+                    <Trash2 size={18} color="#EF4444" strokeWidth={2} />
+                  </View>
+                  <View style={styles.hostMenuRowText}>
+                    <Text style={[styles.hostMenuLabel, { color: '#EF4444' }]}>Delete Plan</Text>
+                    <Text style={styles.hostMenuSub}>
+                      {(plan.pending_count ?? 0) > 0
+                        ? `${plan.pending_count} pending request${plan.pending_count > 1 ? 's' : ''} will be notified`
+                        : 'Permanently remove this plan'}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ) : null}
+
+              {showDisabledDelete ? (
+                <View style={[styles.hostMenuRow, styles.hostMenuRowDisabled]}>
+                  <View style={[styles.hostMenuIconWrap, { backgroundColor: '#F3F4F6' }]}>
+                    <Trash2 size={18} color="#D1D5DB" strokeWidth={2} />
+                  </View>
+                  <View style={styles.hostMenuRowText}>
+                    <Text style={[styles.hostMenuLabel, { color: '#9CA3AF' }]}>Delete Plan</Text>
+                    <Text style={styles.hostMenuSub}>Cannot delete — people have joined</Text>
+                  </View>
                 </View>
-              </View>
-            )}
+              ) : null}
+            </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
 
-      <CustomConfirmDialog
-        visible={deleteConfirmVisible}
-        title="Delete Plan"
-        message={deleteConfirmMessage}
-        onCancel={() => setDeleteConfirmVisible(false)}
-        onConfirm={async () => {
-          setDeleteConfirmVisible(false);
-          setDeleting(true);
-          try {
-            const token = await getAuthToken();
-            await cancelPlan(plan.id, token);
-            navigation.goBack();
-          } catch (err) {
-            const errorCode = err?.response?.data?.error || err?.error;
-            if (errorCode === 'plan_has_accepted_attendees') {
-              Alert.alert('Cannot Delete', 'People have already joined this plan. You can close it instead.');
-            } else {
-              Alert.alert('Error', err?.message || 'Could not delete plan. Please try again.');
+        <CustomConfirmDialog
+          visible={deleteConfirmVisible}
+          title="Delete Plan"
+          message={deleteConfirmMessage}
+          onCancel={() => setDeleteConfirmVisible(false)}
+          onConfirm={async () => {
+            setDeleteConfirmVisible(false);
+            setDeleting(true);
+            try {
+              const token = await getAuthToken();
+              await cancelPlan(plan.id, token);
+              navigation.goBack();
+            } catch (err) {
+              const errorCode = err?.response?.data?.error || err?.error;
+              if (errorCode === 'plan_has_accepted_attendees') {
+                Alert.alert('Cannot Delete', 'People have already joined this plan. You can close it instead.');
+              } else {
+                Alert.alert('Error', err?.message || 'Could not delete plan. Please try again.');
+              }
+            } finally {
+              setDeleting(false);
             }
-          } finally {
-            setDeleting(false);
-          }
-        }}
-      />
-      </SafeAreaView>
+          }}
+        />
+      </View>
     </Profiler>
   );
 }
@@ -1032,689 +1187,661 @@ export default function PlanDetailScreen({ navigation, route }) {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.surface },
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
-  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F9FAFB' },
-  errorText: { fontFamily: FONTS.regular, fontSize: 16, color: COLORS.textSecondary },
-  retryBtn: { marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: COLORS.primary, borderRadius: 12 },
-  retryText: { fontFamily: FONTS.semiBold, fontSize: 14, color: '#FFF' },
-
-  // Header
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 12, backgroundColor: COLORS.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.border,
+  container: {
+    flex: 1,
+    backgroundColor: BACKGROUND_COLOR,
   },
-  headerTitle: { fontFamily: FONTS.semiBold, fontSize: 17, color: COLORS.textPrimary, flex: 1, textAlign: 'center' },
+  centered: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  errorText: {
+    fontFamily: 'Manrope-Medium',
+    fontSize: 16,
+    color: MUTED_TEXT,
+    marginTop: 12,
+  },
+  retryButton: {
+    marginTop: 20,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    backgroundColor: PRIMARY_COLOR,
+    borderRadius: 20,
+  },
+  retryButtonText: {
+    fontFamily: 'Manrope-SemiBold',
+    fontSize: 14,
+    color: '#FFFFFF',
+  },
+
+  // 🌟 Pinned Floating Header (matching EventDetailsScreen)
+  floatingHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
+  headerButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 5,
+    elevation: 5,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontFamily: 'Manrope-SemiBold',
+    color: TEXT_COLOR,
+    textAlign: 'center',
+    paddingHorizontal: 80,
+  },
 
   // Scroll
-  scroll: { flex: 1 },
-  scrollContent: { padding: 16 },
-
-  // Card — matches OpenPlanCard exactly
-  card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 18,
-    padding: CARD_PADDING,
-    paddingTop: 0,
-    ...SHADOWS.md,
-    overflow: 'hidden',
-  },
-
-  // Banner section at top of card
-  bannerContainer: {
-    marginHorizontal: -CARD_PADDING,
-    marginBottom: 10,
-    overflow: 'hidden',
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
-    position: 'relative',
-  },
-  bannerImage: {
-    width: '100%',
-    height: 240,
-  },
-  bannerOverlaysBottomLeft: {
-    position: 'absolute',
-    bottom: 12,
-    left: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    zIndex: 10,
-  },
-  activityPillOverlay: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-  },
-  activityPillText: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 12,
-  },
-  genderPillOverlay: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-  },
-  genderPillText: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 12,
-  },
-
-  // Combined Info Row (Title + Host on left, Cost on right)
-  topInfoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginTop: 10,
-    marginBottom: 10,
-    gap: 16,
-  },
-  leftInfoCol: {
+  scrollView: {
     flex: 1,
   },
-  title: {
-    fontFamily: FONTS.primary,
-    fontSize: 17,
-    color: COLORS.textPrimary,
-    lineHeight: 23,
+
+  // Hero Banner Section
+  bannerContainer: {
+    width: SCREEN_WIDTH,
+    height: BANNER_HEIGHT,
+    position: 'relative',
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    overflow: 'hidden',
+    backgroundColor: '#0F172A',
   },
-  hostRowInline: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  costContainer: {
-    alignItems: 'flex-end',
-    flexShrink: 0,
-  },
-  costPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-  },
-  pillText: {
-    fontFamily: FONTS.medium,
-    fontSize: 12,
-  },
-  costPriceBelow: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 14,
-    color: COLORS.textPrimary,
-    marginTop: 2,
-  },
-  hostAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    borderWidth: 2.5,
-    borderColor: COLORS.primary,
-    marginRight: 8,
-  },
-  hostAvatarFallback: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#EEF2FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 8,
-    borderWidth: 2.5,
-    borderColor: COLORS.primary,
-  },
-  hostInitial: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 13,
-    color: COLORS.primary,
-  },
-  hostedByText: {
-    fontFamily: FONTS.regular,
-    fontSize: 13,
-    color: COLORS.textSecondary,
-  },
-  hostNameBold: {
-    fontFamily: FONTS.semiBold,
-    color: COLORS.textPrimary,
+  bannerImage: {
+    width: SCREEN_WIDTH,
+    height: BANNER_HEIGHT,
   },
 
-  // Plan description
-  descriptionText: {
-    fontFamily: FONTS.regular,
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    lineHeight: 20,
-    marginTop: 10,
-    marginBottom: 2,
+  // Sticky Action Section (Hero Information & Action)
+  stickyActionContainer: {
+    backgroundColor: CARD_BACKGROUND,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    marginTop: -24,
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 20,
+    zIndex: 20,
   },
-
-  // Divider
-  divider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: COLORS.border,
-    marginVertical: 10,
+  planTitle: {
+    fontFamily: 'BasicCommercial-Bold',
+    fontSize: 26,
+    color: TEXT_COLOR,
+    marginBottom: 16,
+    lineHeight: 32,
   },
-
-  // Meta row — time + location inline
-  metaRow: {
+  metaRowItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
-    flexWrap: 'wrap',
+    marginBottom: 10,
   },
-  metaItem: {
+  metaRowText: {
+    fontFamily: 'Manrope-Medium',
+    fontSize: 15,
+    color: MUTED_TEXT,
+    marginLeft: 8,
+    flex: 1,
+  },
+  mapLinkRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    marginLeft: 24,
+    marginBottom: 16,
   },
-  metaText: {
-    fontFamily: FONTS.medium,
+  mapLinkText: {
+    fontFamily: 'Manrope-SemiBold',
     fontSize: 13,
-    color: COLORS.textSecondary,
+    color: PRIMARY_COLOR,
+    marginRight: 6,
   },
-
-  // Private location
-  privateLocationBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#EEF2FF',
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 8,
-  },
-  privateLocationText: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 13,
-    color: '#2962FF',
-  },
-  locationHiddenTag: {
-    backgroundColor: '#F3E8FF',
-    paddingHorizontal: 6,
+  hiddenTag: {
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 6,
-    marginLeft: 'auto',
+    marginLeft: 8,
   },
-  locationHiddenTagText: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 9,
-    color: '#7E22CE',
-    textTransform: 'uppercase',
+  hiddenTagText: {
+    fontFamily: 'Manrope-Medium',
+    fontSize: 11,
+    color: '#2563EB',
   },
-  privateLocationLocked: {
-    backgroundColor: '#F3F4F6',
+  lockedLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 24,
+    marginBottom: 16,
   },
-  privateLocationTextLocked: {
-    fontFamily: FONTS.medium,
-    fontSize: 13,
-    color: '#6B7280',
+  lockedLocationText: {
+    fontFamily: 'Manrope-Regular',
+    fontSize: 12,
+    color: MUTED_TEXT,
+    marginLeft: 6,
   },
 
-  // Acceptance (Redesigned compact styles)
-  compactAcceptanceRow: {
+  // Badges
+  badgesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 20,
+  },
+  badgeChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  badgeChipText: {
+    fontFamily: 'Manrope-SemiBold',
+    fontSize: 12,
+  },
+
+  // Action Container
+  stickyActionContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  stickyPriceContainer: {
+    flexDirection: 'column',
+  },
+  stickyPriceLabel: {
+    fontFamily: 'Manrope-Medium',
+    fontSize: 13,
+    color: MUTED_TEXT,
+  },
+  stickyPriceValue: {
+    fontFamily: 'Manrope-SemiBold',
+    fontSize: 20,
+    color: TEXT_COLOR,
+    marginTop: 2,
+  },
+  stickyActionButton: {
+    backgroundColor: PRIMARY_COLOR,
+    height: 48,
+    borderRadius: 16,
+    paddingHorizontal: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flex: 1,
+    marginLeft: 20,
+    flexDirection: 'row',
+  },
+  stickyActionButtonDisabled: {
+    opacity: 0.85,
+  },
+  stickyActionButtonText: {
+    fontFamily: 'Manrope-SemiBold',
+    fontSize: 15,
+    color: '#FFFFFF',
+  },
+  pendingBadge: {
+    backgroundColor: '#EF4444',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+    paddingHorizontal: 6,
+  },
+  pendingBadgeText: {
+    fontFamily: 'Manrope-SemiBold',
+    fontSize: 11,
+    color: '#FFFFFF',
+  },
+
+  // Content Container
+  contentContainer: {
+    paddingHorizontal: 20,
+    marginTop: 16,
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontFamily: 'BasicCommercial-Bold',
+    fontSize: 18,
+    color: TEXT_COLOR,
+    marginBottom: 12,
+  },
+  description: {
+    fontFamily: 'Manrope-Regular',
+    fontSize: 15,
+    lineHeight: 23,
+    color: MUTED_TEXT,
+  },
+  readMore: {
+    fontFamily: 'Manrope-SemiBold',
+    color: PRIMARY_COLOR,
+    marginTop: 6,
+    fontSize: 14,
+  },
+
+  // Capacity Card
+  capacityCard: {
+    backgroundColor: CARD_BACKGROUND,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  capacityHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  capacityIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(41, 98, 255, 0.08)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  capacityCol: {
+    flex: 1,
+  },
+  capacityTitle: {
+    fontFamily: 'Manrope-SemiBold',
+    fontSize: 15,
+    color: TEXT_COLOR,
+  },
+  capacitySub: {
+    fontFamily: 'Manrope-Regular',
+    fontSize: 13,
+    color: MUTED_TEXT,
+    marginTop: 2,
+  },
+  progressBarTrack: {
+    height: 6,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: PRIMARY_COLOR,
+    borderRadius: 3,
+  },
+
+  // Shared Communities Card
+  sharedCommCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 12,
+    backgroundColor: '#EEF2FF',
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginTop: 12,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: 'rgba(99, 102, 241, 0.2)',
   },
-  compactAcceptanceLeft: {
+  sharedCommLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
   },
-  compactAcceptanceText: {
-    fontFamily: FONTS.medium,
+  sharedCommIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#E0E7FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  sharedCommText: {
+    fontFamily: 'Manrope-SemiBold',
+    fontSize: 14,
+    color: '#4F46E5',
+  },
+
+  // Host Card (Premium matching EventDetailsScreen)
+  hostCardPremium: {
+    backgroundColor: CARD_BACKGROUND,
+    borderRadius: 20,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  hostCardInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  hostAvatarPremium: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+  },
+  hostInitials: {
+    fontFamily: 'BasicCommercial-Bold',
+    fontSize: 18,
+    color: '#FFFFFF',
+  },
+  hostInfoPremium: {
+    flex: 1,
+  },
+  hostNamePremium: {
+    fontFamily: 'BasicCommercial-Bold',
+    fontSize: 16,
+    color: TEXT_COLOR,
+  },
+  hostStatsPremium: {
+    fontFamily: 'Manrope-Medium',
     fontSize: 13,
-    color: COLORS.textSecondary,
+    color: MUTED_TEXT,
+    marginTop: 3,
   },
-  compactAcceptanceBold: {
-    fontFamily: FONTS.bold,
-    color: COLORS.textPrimary,
-  },
-  pendingBadgeInline: {
+  hostTrustStatsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFF7ED',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 14,
+  },
+  activityLevelPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
     gap: 4,
-    borderWidth: 0.5,
-    borderColor: '#FFEDD5',
   },
-  pendingBadgeDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#EA580C',
-  },
-  pendingBadgeText: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 11,
-    color: '#C2410C',
-  },
-
-  // Shared community pill
-  sharedPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: '#EEF2FF',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-    alignSelf: 'flex-start',
-    marginBottom: 4,
-  },
-  sharedText: {
-    fontFamily: FONTS.medium,
-    fontSize: 12,
-    color: COLORS.textSecondary,
-  },
-
-  // Engagement row
-  engagementRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-    paddingHorizontal: 4,
-  },
-  engItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 36,
-    minWidth: 36,
-  },
-  engCount: {
-    fontFamily: FONTS.medium,
-    fontSize: 13,
-    color: '#9CA3AF',
-    marginLeft: 6,
-  },
-  likedCount: {
-    color: '#E53E3E',
-  },
-
-  // Manage button (host)
-  manageBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: COLORS.primary,
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginBottom: 8,
-  },
-  manageBtnText: { fontFamily: FONTS.semiBold, fontSize: 15, color: '#FFF', flex: 1 },
-  manageBadge: {
-    backgroundColor: '#FFF',
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  manageBadgeText: { fontFamily: FONTS.semiBold, fontSize: 12, color: COLORS.primary },
-  costPriceBelow: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 14,
-    color: COLORS.textPrimary,
-    marginTop: 4,
-  },
-
-  // Request button
-  requestBtn: {
-    height: 46,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-  },
-  requestBtnText: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 15,
-  },
-
-  // Fine print
-  finePrint: {
-    fontFamily: FONTS.regular,
-    fontSize: 11,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-  },
-  compactAcceptanceRowSplit: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 12,
-  },
-  compactAcceptanceCardHalf: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-  },
-  commSheet: {
-    backgroundColor: COLORS.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: Dimensions.get('window').height * 0.7,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
-  },
-  commSheetHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: COLORS.border,
-    alignSelf: 'center',
-    marginBottom: 16,
-  },
-  commSheetTitle: {
-    fontFamily: FONTS.primary,
-    fontSize: 20,
-    color: COLORS.textPrimary,
-    marginBottom: 16,
-  },
-  commSheetList: {
-    paddingBottom: 20,
-  },
-  commItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: COLORS.border,
-    gap: 12,
-  },
-  commAvatarContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    overflow: 'hidden',
-    backgroundColor: '#EEF2FF',
-  },
-  commAvatar: {
-    width: '100%',
-    height: '100%',
-  },
-  commAvatarFallback: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  commInfo: {
-    flex: 1,
-  },
-  commName: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 15,
-    color: COLORS.textPrimary,
-  },
-  commSub: {
-    fontFamily: FONTS.medium,
-    fontSize: 12,
-    color: COLORS.textMuted,
-    marginTop: 2,
-  },
-  // Host action menu styles
-  hostMenuOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-  },
-  hostMenuHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: COLORS.border,
-    alignSelf: 'center',
-    marginBottom: 16,
-  },
-  hostMenuSheet: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: COLORS.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 28,
-  },
-  hostMenuTitle: {
-    fontFamily: FONTS.primary,
-    fontSize: 18,
-    color: COLORS.textPrimary,
-    marginBottom: 16,
-  },
-  hostMenuList: {
-    gap: 8,
-    paddingBottom: 8,
-  },
-  hostMenuRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    padding: 14,
-    borderRadius: 14,
-    backgroundColor: '#FAFAFA',
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-  },
-  hostMenuRowDisabled: {
-    opacity: 0.55,
-  },
-  hostMenuIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: '#EEF2FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  hostMenuRowText: {
-    flex: 1,
-  },
-  hostMenuLabel: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 15,
-    color: COLORS.textPrimary,
-  },
-  hostMenuSub: {
-    fontFamily: FONTS.regular,
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    marginTop: 2,
-  },
-
-  // ── Host trust stats card ──────────────────────────────────────────────────
-  hostStatsCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 12,
-    marginTop: 10,
-    marginBottom: 4,
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-    gap: 8,
-  },
-  hostStatsTitle: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    letterSpacing: 0.3,
-  },
-  hostStatsRow: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  hostStatItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  hostStatText: {
-    fontFamily: FONTS.medium,
-    fontSize: 12,
-    color: COLORS.textSecondary,
-  },
-  hostStatsBottomRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-
-  // ── Activity Level tier pills (shared by host card + attendee cards) ────────
-  activityLevelPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 999,
-  },
-  // Override tints per tier
-  'activityLevel_New':        { backgroundColor: '#F0FDF4' },
-  'activityLevel_Low':        { backgroundColor: '#F3F4F6' },
-  'activityLevel_Active':     { backgroundColor: '#EEF2FF' },
-  'activityLevel_Very_Active':{ backgroundColor: '#FEF3C7' },
+  activityLevel_New_Member: { backgroundColor: '#F3F4F6' },
+  activityLevel_Rising:     { backgroundColor: '#EFF6FF' },
+  activityLevel_Active:     { backgroundColor: '#ECFDF5' },
+  activityLevel_Super_Active:{ backgroundColor: '#FEF3C7' },
   activityLevelText: {
-    fontFamily: FONTS.semiBold,
+    fontFamily: 'Manrope-SemiBold',
     fontSize: 11,
-    color: '#92400E',
-  },
-
-  // ── Interest chips ───────────────────────────────────────────────────────────
-  interestChipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 5,
+    color: '#374151',
   },
   interestChip: {
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#F3F4F6',
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 999,
+    borderRadius: 6,
   },
   interestChipText: {
-    fontFamily: FONTS.medium,
+    fontFamily: 'Manrope-Medium',
     fontSize: 11,
-    color: '#1D4ED8',
+    color: '#4B5563',
+  },
+  hostCtaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  hostCtaText: {
+    fontFamily: 'Manrope-SemiBold',
+    fontSize: 14,
+    color: PRIMARY_COLOR,
+    marginRight: 4,
   },
 
-  // ── Approved attendees roster ────────────────────────────────────────────────
-  attendeesSection: {
-    marginBottom: 12,
-  },
-  attendeesSectionLabel: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 10,
-    color: COLORS.textMuted,
-    letterSpacing: 0.8,
-    marginBottom: 8,
+  // Attendees Section
+  attendeesList: {
+    gap: 10,
   },
   attendeeCard: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#F1F5F9',
-  },
-  attendeeAvatarCol: {},
-  attendeeAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#EEF2FF',
-  },
-  attendeeAvatarFallback: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#EEF2FF',
     alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: CARD_BACKGROUND,
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
   },
-  attendeeAvatarInitial: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 14,
-    color: COLORS.primary,
+  attendeeAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  attendeeInitials: {
+    fontFamily: 'BasicCommercial-Bold',
+    fontSize: 15,
+    color: '#FFFFFF',
   },
   attendeeInfo: {
     flex: 1,
-    gap: 3,
   },
   attendeeNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   attendeeName: {
-    fontFamily: FONTS.semiBold,
+    fontFamily: 'Manrope-SemiBold',
     fontSize: 14,
-    color: COLORS.textPrimary,
-  },
-  attendeeMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
+    color: TEXT_COLOR,
   },
   attendeeMetaText: {
-    fontFamily: FONTS.regular,
+    fontFamily: 'Manrope-Regular',
     fontSize: 12,
-    color: COLORS.textSecondary,
-  },
-  attendeeMetaDot: {
-    fontFamily: FONTS.regular,
-    fontSize: 12,
-    color: COLORS.textMuted,
+    color: MUTED_TEXT,
+    marginTop: 2,
   },
   attendeeBottomRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     flexWrap: 'wrap',
-    gap: 5,
-    marginTop: 2,
+    gap: 4,
+    marginTop: 6,
   },
   attendeeActivityPill: {
-    paddingHorizontal: 7,
+    paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 999,
-    backgroundColor: '#F3F4F6',
+    borderRadius: 6,
   },
   attendeeActivityText: {
-    fontFamily: FONTS.semiBold,
+    fontFamily: 'Manrope-Medium',
+    fontSize: 10,
+    color: '#374151',
+  },
+  attendeeInterestChip: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 5,
+  },
+  attendeeInterestText: {
+    fontFamily: 'Manrope-Medium',
     fontSize: 10,
     color: '#4B5563',
   },
-  attendeeInterestChip: {
-    backgroundColor: '#EFF6FF',
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 999,
+
+  // Engagement Row
+  engagementCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    backgroundColor: CARD_BACKGROUND,
+    paddingVertical: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
   },
-  attendeeInterestText: {
-    fontFamily: FONTS.medium,
-    fontSize: 10,
-    color: '#1D4ED8',
+  engItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+  },
+  engCount: {
+    fontFamily: 'Manrope-Medium',
+    fontSize: 13,
+    color: '#6B7280',
+  },
+
+  // Shared Communities Modal Sheet
+  commSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+    maxHeight: '70%',
+  },
+  commSheetHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#E5E7EB',
+    alignSelf: 'center',
+    marginTop: 12,
+    marginBottom: 16,
+  },
+  commSheetTitle: {
+    fontFamily: 'BasicCommercial-Bold',
+    fontSize: 18,
+    color: TEXT_COLOR,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  commSheetList: {
+    gap: 12,
+    paddingBottom: 20,
+  },
+  commItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: '#F9FAFB',
+  },
+  commAvatarContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginRight: 12,
+  },
+  commAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  commAvatarFallback: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#EEF2FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  commInfo: {
+    flex: 1,
+  },
+  commName: {
+    fontFamily: 'Manrope-SemiBold',
+    fontSize: 14,
+    color: TEXT_COLOR,
+  },
+  commSub: {
+    fontFamily: 'Manrope-Regular',
+    fontSize: 12,
+    color: MUTED_TEXT,
+    marginTop: 2,
+  },
+
+  // Host Action Menu Modal
+  hostMenuOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+  },
+  hostMenuSheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingBottom: 36,
+  },
+  hostMenuHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#E5E7EB',
+    alignSelf: 'center',
+    marginTop: 12,
+    marginBottom: 16,
+  },
+  hostMenuTitle: {
+    fontFamily: 'BasicCommercial-Bold',
+    fontSize: 18,
+    color: TEXT_COLOR,
+    marginBottom: 16,
+  },
+  hostMenuList: {
+    gap: 12,
+  },
+  hostMenuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  hostMenuRowDisabled: {
+    opacity: 0.5,
+  },
+  hostMenuIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: 'rgba(41, 98, 255, 0.08)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+  },
+  hostMenuRowText: {
+    flex: 1,
+  },
+  hostMenuLabel: {
+    fontFamily: 'Manrope-SemiBold',
+    fontSize: 15,
+    color: TEXT_COLOR,
+  },
+  hostMenuSub: {
+    fontFamily: 'Manrope-Regular',
+    fontSize: 12,
+    color: MUTED_TEXT,
+    marginTop: 2,
   },
 });

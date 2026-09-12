@@ -297,7 +297,7 @@ function ShareModal({ visible, onClose, post }) {
               ]}
             >
               <Text style={[styles.userAvatarText, isRestricted && styles.restrictedAvatarText]}>
-                {displayName.charAt(0).toUpperCase()}
+                {(displayName || 'U').charAt(0).toUpperCase()}
               </Text>
             </View>
           )}
