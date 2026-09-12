@@ -5,7 +5,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   FlatList,
-  Image,
   Modal,
   Dimensions,
   ActivityIndicator,
@@ -14,16 +13,24 @@ import {
   Animated,
   ScrollView,
   Pressable,
+  AppState,
+  RefreshControl,
 } from "react-native";
+import { Image as ExpoImage } from "expo-image";
 import * as MediaLibrary from "expo-media-library";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { X, ChevronDown, Check, Image as ImageIcon, Video, Clock, Grid2x2 } from "lucide-react-native";
+import { X, ChevronDown, Check, Image as ImageIcon, Video, Clock, Grid2x2, ArrowUp } from "lucide-react-native";
 import { COLORS, FONTS } from "../../constants/theme";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const NUM_COLUMNS = 3;
 const GAP = 2;
 const THUMB_SIZE = Math.floor((SCREEN_WIDTH - GAP * (NUM_COLUMNS - 1)) / NUM_COLUMNS);
+
+// Requirement #3: Verify getItemLayout math against actual renderItem and styles.thumb values.
+// In styles.row: { gap: GAP, marginBottom: GAP }.
+// Each row occupies exactly THUMB_SIZE height + GAP bottom margin.
+const ROW_HEIGHT = THUMB_SIZE + GAP;
 
 // Special album IDs that are not real MediaLibrary albums
 const RECENTS_ID = "__recents__";
@@ -84,22 +91,39 @@ export default function CustomImagePicker({
   const dropdownAnim = useRef(new Animated.Value(0)).current;
   const overlayAnim = useRef(new Animated.Value(0)).current;
 
-  // Load albums when modal becomes visible
-  useEffect(() => {
-    if (!visible) return;
-    loadAlbums();
-  }, [visible]);
+  // Requirement #1: Permission mode tracking ('all' | 'limited' | 'none')
+  const [permissionPrivilege, setPermissionPrivilege] = useState(null);
 
-  // Load first page when modal becomes visible or album changes
-  useEffect(() => {
-    if (!visible) return;
-    setSelectedAssets([]);
-    setAssets([]);
-    afterRef.current = null;
-    loadAssets(true);
-  }, [visible, selectedAlbum]);
+  // Requirement #3: Non-disruptive refresh state for deep scroll positions
+  const [hasNewPhotos, setHasNewPhotos] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const loadAlbums = async () => {
+  // Requirement #2 & #3: Scroll and debounce references
+  const flatListRef = useRef(null);
+  const scrollOffsetRef = useRef(0);
+  const debounceTimerRef = useRef(null);
+
+  // Requirement #3: Deterministic row layout for FlatList virtualization
+  const getItemLayout = useCallback(
+    (_, index) => ({
+      length: ROW_HEIGHT,
+      offset: ROW_HEIGHT * Math.floor(index / NUM_COLUMNS),
+      index,
+    }),
+    []
+  );
+
+  // Check current permission access privileges (handles iOS Limited Photo Library vs Full)
+  const checkPermissions = useCallback(async () => {
+    try {
+      const perms = await MediaLibrary.getPermissionsAsync();
+      setPermissionPrivilege(perms.accessPrivileges || (perms.granted ? "all" : "none"));
+    } catch (e) {
+      console.warn("[CustomImagePicker] Failed to query media permissions:", e);
+    }
+  }, []);
+
+  const loadAlbums = useCallback(async () => {
     try {
       const fetchedAlbums = await MediaLibrary.getAlbumsAsync({
         includeSmartAlbums: true,
@@ -114,7 +138,7 @@ export default function CustomImagePicker({
     } catch (e) {
       console.error("[CustomImagePicker] getAlbumsAsync failed:", e?.message || e);
     }
-  };
+  }, []);
 
   const loadAssets = useCallback(
     async (reset = false) => {
@@ -164,6 +188,95 @@ export default function CustomImagePicker({
     },
     [hasNextPage, assets.length, allowVideos, allowImages, selectedAlbum]
   );
+
+  // Requirement #2 & #3: Debounced refresh handler.
+  // If the user is near the top (<150px), auto-refresh seamlessly.
+  // If the user is scrolled deep into paginated results, do NOT disrupt their scroll position:
+  // show a non-disruptive "New photos available" pill and update album counts.
+  const debouncedRefresh = useCallback(() => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    debounceTimerRef.current = setTimeout(() => {
+      if (scrollOffsetRef.current < 150) {
+        setHasNewPhotos(false);
+        loadAssets(true);
+      } else {
+        setHasNewPhotos(true);
+      }
+      loadAlbums();
+    }, 400);
+  }, [loadAssets, loadAlbums]);
+
+  // Pull-to-refresh handler
+  const handlePullToRefresh = useCallback(async () => {
+    setRefreshing(true);
+    setHasNewPhotos(false);
+    await Promise.all([loadAssets(true), loadAlbums()]);
+    setRefreshing(false);
+  }, [loadAssets, loadAlbums]);
+
+  // Tapping the "New photos available" pill smoothly scrolls to top and reloads
+  const handleNewPhotosPress = useCallback(() => {
+    setHasNewPhotos(false);
+    flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+    loadAssets(true);
+    loadAlbums();
+  }, [loadAssets, loadAlbums]);
+
+  // Requirement #1: Manual refresh fallback whenever modal becomes visible or album changes
+  useEffect(() => {
+    if (!visible) return;
+    checkPermissions();
+    loadAlbums();
+    setSelectedAssets([]);
+    setAssets([]);
+    setHasNewPhotos(false);
+    scrollOffsetRef.current = 0;
+    afterRef.current = null;
+    loadAssets(true);
+  }, [visible, selectedAlbum, checkPermissions, loadAlbums, loadAssets]);
+
+  // Requirement #1 & #2: Live sync via MediaLibrary.addListener + AppState foreground fallback
+  useEffect(() => {
+    if (!visible) return;
+
+    // 1. Subscribe to system media library change notifications
+    const librarySub = MediaLibrary.addListener(() => {
+      debouncedRefresh();
+    });
+
+    // 2. Fallback on app foreground: critical for iOS Limited Photo access where
+    // out-of-app edits/selections in system settings might not trigger granular events.
+    const appStateSub = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") {
+        checkPermissions();
+        debouncedRefresh();
+      }
+    });
+
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      librarySub?.remove();
+      appStateSub?.remove();
+    };
+  }, [visible, debouncedRefresh, checkPermissions]);
+
+  // Presents the iOS limited photo picker sheet so user can add more photos
+  const handleManageLimitedAccess = async () => {
+    try {
+      if (MediaLibrary.presentPermissionsPickerAsync) {
+        await MediaLibrary.presentPermissionsPickerAsync();
+        // Trigger immediate manual reload after picker closes
+        loadAssets(true);
+        loadAlbums();
+      }
+    } catch (e) {
+      console.warn("[CustomImagePicker] presentPermissionsPickerAsync failed:", e);
+    }
+  };
 
   const isVideoTooLong = useCallback(
     (item) =>
@@ -447,22 +560,73 @@ export default function CustomImagePicker({
       <View style={styles.container}>
         {renderHeader()}
 
+        {/* Limited Photo Library management banner for iOS 14+ */}
+        {permissionPrivilege === "limited" && (
+          <TouchableOpacity
+            onPress={handleManageLimitedAccess}
+            style={styles.limitedBanner}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.limitedBannerText}>
+              Limited photo access • <Text style={styles.limitedBannerAction}>Manage</Text>
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Requirement #3: Non-disruptive floating pill when user is scrolled deep into gallery */}
+        {hasNewPhotos && (
+          <View
+            style={[
+              styles.floatingPillContainer,
+              { top: insets.top + (Platform.OS === "android" ? 8 : 0) + 54 },
+            ]}
+            pointerEvents="box-none"
+          >
+            <TouchableOpacity
+              onPress={handleNewPhotosPress}
+              style={styles.floatingPill}
+              activeOpacity={0.85}
+            >
+              <ArrowUp size={15} color="#FFFFFF" strokeWidth={2.2} />
+              <Text style={styles.floatingPillText}>New photos available</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         <FlatList
+          ref={flatListRef}
           data={assets}
           keyExtractor={keyExtractor}
           renderItem={renderItem}
           numColumns={NUM_COLUMNS}
+          getItemLayout={getItemLayout}
+          windowSize={5}
+          maxToRenderPerBatch={18}
+          initialNumToRender={18}
+          updateCellsBatchingPeriod={50}
+          removeClippedSubviews={Platform.OS === "android"}
+          onScroll={(e) => {
+            scrollOffsetRef.current = e.nativeEvent.contentOffset.y;
+          }}
+          scrollEventThrottle={16}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handlePullToRefresh}
+              tintColor="#0A0A0A"
+              colors={["#0A0A0A"]}
+            />
+          }
           contentContainerStyle={[
             styles.grid,
             { paddingBottom: insets.bottom + 16 },
           ]}
           columnWrapperStyle={styles.row}
           onEndReached={() => loadAssets(false)}
-          onEndReachedThreshold={0.4}
+          onEndReachedThreshold={0.5}
           ListEmptyComponent={renderEmpty}
           ListFooterComponent={renderFooter}
           extraData={selectedAssets}
-          removeClippedSubviews={false}
         />
 
         {/* Bottom selection count bar */}
@@ -486,13 +650,23 @@ export default function CustomImagePicker({
   );
 }
 
-const StaticThumbnailImage = React.memo(({ uri }) => (
-  <Image
-    source={{ uri }}
-    style={styles.thumb}
-    resizeMode="cover"
-  />
-), (prev, next) => prev.uri === next.uri);
+// FIX: Replace standard React Native <Image> with <ExpoImage>.
+// 1. `recyclingKey` automatically discards/cancels in-flight decoding requests if the cell is recycled.
+// 2. `cachePolicy="memory-disk"` provides two-tier hardware-accelerated caching so scrolling back up never blanks.
+// 3. Omit priority="high" so expo-image prioritizes visible viewports over queued recycled requests.
+const StaticThumbnailImage = React.memo(
+  ({ uri, id }) => (
+    <ExpoImage
+      source={{ uri }}
+      style={styles.thumb}
+      contentFit="cover"
+      recyclingKey={id || uri}
+      cachePolicy="memory-disk"
+      transition={100}
+    />
+  ),
+  (prev, next) => prev.id === next.id && prev.uri === next.uri
+);
 
 const ImagePickerThumbnail = React.memo(({
   item,
@@ -516,7 +690,7 @@ const ImagePickerThumbnail = React.memo(({
       onPress={handlePress}
       style={styles.thumbWrapper}
     >
-      <StaticThumbnailImage uri={item.uri} />
+      <StaticThumbnailImage uri={item.uri} id={item.id} />
 
       {/* Grey-out overlay for too-long videos or max reached */}
       {tooLong && <View style={styles.tooLongOverlay} />}
@@ -631,7 +805,8 @@ const styles = StyleSheet.create({
 
   // ── Grid ─────────────────────────────────────────────────
   grid: {
-    gap: GAP,
+    // Note: Vertical row spacing is handled strictly by styles.row.marginBottom (GAP).
+    // Omit container gap here so FlatList row offsets match getItemLayout (ROW_HEIGHT = THUMB_SIZE + GAP).
   },
   row: {
     gap: GAP,
@@ -816,5 +991,54 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "rgba(0,0,0,0.4)",
     marginTop: 1,
+  },
+
+  // ── Limited access banner (iOS 14+) ────────────────────────
+  limitedBanner: {
+    backgroundColor: "rgba(0,0,0,0.03)",
+    paddingVertical: 7,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0,0,0,0.06)",
+  },
+  limitedBannerText: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: "rgba(0,0,0,0.6)",
+  },
+  limitedBannerAction: {
+    fontFamily: FONTS.semiBold,
+    color: COLORS.primary,
+  },
+
+  // ── Floating new photos banner ─────────────────────────────
+  floatingPillContainer: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    zIndex: 15,
+  },
+  floatingPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#0A0A0A",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  floatingPillText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 13,
+    color: "#FFFFFF",
+    letterSpacing: 0.2,
   },
 });

@@ -2,7 +2,7 @@
  * TicketSelectionScreen - Choose tickets for an event
  * Shows list of ticket types with Add/quantity controls
  * Dynamic bottom bar with cart total and Checkout button
- * Filters tickets by user's gender (from profile)
+ * Dynamic vibrant ticket themes, distinct SVG cutouts, and robust gender-restriction handling
  */
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
@@ -13,6 +13,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   Platform,
+  Alert,
 } from "react-native";
 import {
   ArrowLeft,
@@ -23,6 +24,16 @@ import {
   ChevronRight,
   AlertCircle,
   Users,
+  User,
+  Crown,
+  Video,
+  Ticket,
+  Zap,
+  Sparkles,
+  GraduationCap,
+  Lock,
+  ShieldAlert,
+  TriangleAlert,
 } from "lucide-react-native";
 import Svg, {
   Path,
@@ -30,7 +41,6 @@ import Svg, {
   LinearGradient as SvgLinearGradient,
   Stop,
   Line,
-  Rect,
 } from "react-native-svg";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -39,6 +49,11 @@ import { getActiveAccount, getAuthToken } from "../../api/auth";
 import { calculateEffectivePrice } from "../../utils/pricingUtils";
 import { apiGet } from "../../api/client";
 import DynamicStatusBar from "../../components/navigation/DynamicStatusBar";
+import {
+  TICKET_SHAPES,
+  resolveEventTicketThemes,
+  SEMANTIC_THEMES,
+} from "../../utils/ticketVisuals";
 
 // Premium Theme Colors
 const BACKGROUND_COLOR = "#F8F9FA";
@@ -47,6 +62,19 @@ const TEXT_COLOR = "#1E293B"; // Slate-800 matching the SVG design
 const MUTED_TEXT = "#475569"; // Slate-600 matching SVG descriptions
 const BORDER_COLOR = "#F2F2F7";
 const PRIMARY_COLOR = COLORS.primary;
+
+// Lucide Icon mapping for semantic categories
+const ICON_MAP = {
+  Crown,
+  Video,
+  Ticket,
+  Zap,
+  Users,
+  User,
+  Sparkles,
+  GraduationCap,
+  Lock,
+};
 
 // Static Helper Functions (Extracted outside components to prevent redeclaration on every render)
 const formatDate = (dateStr) => {
@@ -69,62 +97,6 @@ const formatTime = (dateStr) => {
   });
 };
 
-const getTicketTheme = (ticket) => {
-  const restriction = (ticket?.gender_restriction || "all").toLowerCase().trim();
-  const visibility = (ticket?.visibility || "public").toLowerCase().trim();
-
-  // 1. Men Pass (matches event creation "Men Pass" access option)
-  if (restriction === "male") {
-    return {
-      type: "male",
-      color: "#0284C7", // Electric Sky/Azure-600
-      borderColorStart: "#38BDF8", // Sky-400
-      borderColorEnd: "#0284C7", // Sky-600
-      bgColorStart: "#FFFFFF",
-      bgColorEnd: "#F0F9FF", // Sky-50
-      tag: "Men Pass",
-    };
-  }
-
-  // 2. Women Pass (matches event creation "Women Pass" access option)
-  if (restriction === "female") {
-    return {
-      type: "female",
-      color: "#E11D48", // Vivid Rose-600
-      borderColorStart: "#FB7185", // Rose-400
-      borderColorEnd: "#E11D48", // Rose-600
-      bgColorStart: "#FFFFFF",
-      bgColorEnd: "#FFF1F2", // Rose-50
-      tag: "Women Pass",
-    };
-  }
-
-  // 3. Invite Only (matches event creation "Invite Only" visibility option)
-  if (visibility === "invite_only") {
-    return {
-      type: "invite_only",
-      color: "#7C3AED", // Vibrant Royal Violet
-      borderColorStart: "#A78BFA", // Violet-400
-      borderColorEnd: "#7C3AED", // Violet-600
-      bgColorStart: "#FFFFFF",
-      bgColorEnd: "#F5F3FF", // Violet-50
-      tag: "Invite Only",
-    };
-  }
-
-  // 4. Standard / Open to All (no restriction chosen)
-  // No fake "General Admission" tag! No hardcoded watermarks!
-  return {
-    type: "standard",
-    color: "#059669", // Vibrant Emerald Green-600
-    borderColorStart: "#10B981", // Emerald-500
-    borderColorEnd: "#059669", // Emerald-600
-    bgColorStart: "#FFFFFF",
-    bgColorEnd: "#F0FDF4", // Emerald-50
-    tag: null,
-  };
-};
-
 // Memoized TicketCard Subcomponent
 const TicketCard = React.memo(({
   ticket,
@@ -139,6 +111,7 @@ const TicketCard = React.memo(({
   pricingRules,
   onAdd,
   onRemove,
+  onLockedPress,
 }) => {
   const gradId = `grad-${ticket.id || index}`;
   const borderId = `border-${ticket.id || index}`;
@@ -151,14 +124,21 @@ const TicketCard = React.memo(({
     onRemove(ticket);
   }, [onRemove, ticket]);
 
+  const handleLockedPress = useCallback(() => {
+    onLockedPress?.(ticket);
+  }, [onLockedPress, ticket]);
+
+  const shape = TICKET_SHAPES[theme?.shapeVariant] || TICKET_SHAPES.classic;
+  const IconComponent = theme?.iconName ? ICON_MAP[theme.iconName] : null;
+
   return (
     <View
       style={[
         styles.ticketCard,
-        isSoldOut && styles.ticketCardDisabled,
+        (isSoldOut || ticket.isLocked) && styles.ticketCardDisabled,
       ]}
     >
-      {/* SVG Background - Clean, minimalist light-theme ticket vector drawing */}
+      {/* SVG Background - Dynamic Clean Ticket Vector with Distinct Cutout Shape */}
       <Svg
         viewBox="0 0 600 240"
         style={StyleSheet.absoluteFillObject}
@@ -176,35 +156,56 @@ const TicketCard = React.memo(({
           </SvgLinearGradient>
         </Defs>
 
-        {/* Unified clean ticket shape with smooth corner notches */}
+        {/* Dynamic ticket shape based on category and allocation */}
         <Path
-          d="M 20,0 L 440,0 a 20,20 0 0,0 40,0 L 580,0 q 20,0 20,20 L 600,100 a 20,20 0 0,0 0,40 L 600,220 q 0,20 -20,20 L 480,240 a 20,20 0 0,0 -40,0 L 20,240 q -20,0 -20,-20 L 0,140 a 20,20 0 0,0 0,-40 L 0,20 q 0,-20 20,-20 Z"
+          d={shape.path}
           fill={`url(#${gradId})`}
           stroke={`url(#${borderId})`}
           strokeWidth={2.5}
         />
 
-        {/* Perforation vertical dashed line */}
+        {/* Perforation vertical line with shape-matched dash style */}
         <Line
           x1="460"
-          y1={20}
+          y1={16}
           x2="460"
-          y2={220}
+          y2={224}
           stroke={theme.borderColorEnd}
           strokeWidth={2}
-          strokeDasharray="5 5"
-          opacity={0.55}
+          strokeDasharray={shape.dashArray}
+          strokeLinecap={shape.dashCap}
+          opacity={0.6}
         />
       </Svg>
 
-      {/* Content Overlay Layout - Fully aligned with the SVG division ratios */}
+      {/* Content Overlay Layout */}
       <View style={styles.cardContent}>
         {/* Left Section (Main Info) */}
         <View style={styles.leftStub}>
           {theme.tag ? (
-            <Text style={[styles.headerTag, { color: theme.color }]}>
-              {theme.tag.toUpperCase()}
-            </Text>
+            <View
+              style={[
+                styles.headerTagPill,
+                { backgroundColor: theme.tagBg || "rgba(0,0,0,0.05)" },
+              ]}
+            >
+              {IconComponent && (
+                <IconComponent
+                  size={11}
+                  color={theme.tagColor || theme.color}
+                  strokeWidth={2.4}
+                  style={{ marginRight: 4 }}
+                />
+              )}
+              <Text
+                style={[
+                  styles.headerTagText,
+                  { color: theme.tagColor || theme.color },
+                ]}
+              >
+                {theme.tag.toUpperCase()}
+              </Text>
+            </View>
           ) : null}
           
           <Text style={styles.ticketTitle} numberOfLines={1}>
@@ -218,6 +219,14 @@ const TicketCard = React.memo(({
               {formatDate(displayDate)}  •  {formatTime(displayDate)}
             </Text>
           </View>
+
+          {/* Gender restriction lock reason if locked */}
+          {ticket.isLocked && ticket.lockReason ? (
+            <View style={styles.genderLockRow}>
+              <ShieldAlert size={12} color="#EA580C" strokeWidth={2.2} />
+              <Text style={styles.genderLockText}>{ticket.lockReason}</Text>
+            </View>
+          ) : null}
 
           {/* Stock counter warning */}
           {ticket.total_quantity && available > 0 && available <= 10 && (
@@ -259,7 +268,7 @@ const TicketCard = React.memo(({
         <View style={styles.rightStub}>
           {/* Pricing and Action controls */}
           <View style={styles.foregroundStub}>
-            {/* Dedicated Price Container - Fixed vertical bounds so position is frozen */}
+            {/* Dedicated Price Container */}
             <View style={styles.priceContainer}>
               {(() => {
                 const pricing = calculateEffectivePrice(
@@ -311,9 +320,18 @@ const TicketCard = React.memo(({
               })()}
             </View>
 
-            {/* Dedicated Action Container - Exactly 34px height to lock vertical center */}
+            {/* Dedicated Action Container */}
             <View style={styles.actionContainer}>
-              {!isSoldOut ? (
+              {ticket.isLocked ? (
+                <TouchableOpacity
+                  style={[styles.lockedBadge, { borderColor: theme.borderColorStart }]}
+                  onPress={handleLockedPress}
+                  activeOpacity={0.7}
+                >
+                  <Lock size={12} color={theme.color} strokeWidth={2.4} style={{ marginRight: 3 }} />
+                  <Text style={[styles.lockedBadgeText, { color: theme.color }]}>Locked</Text>
+                </TouchableOpacity>
+              ) : !isSoldOut ? (
                 qty === 0 ? (
                   <TouchableOpacity
                     style={[styles.addButton, { backgroundColor: theme.color }]}
@@ -373,7 +391,7 @@ export default function TicketSelectionScreen({ route, navigation }) {
   const [accountType, setAccountType] = useState(null);
   const [genderLoading, setGenderLoading] = useState(true);
 
-  // Load user's gender by calling the actual member profile API
+  // Load user's gender by calling the member profile API
   useEffect(() => {
     const loadUserGender = async () => {
       try {
@@ -390,7 +408,6 @@ export default function TicketSelectionScreen({ route, navigation }) {
         const token = await getAuthToken();
         const profile = await apiGet("/members/profile", 10000, token);
         const gender = profile?.profile?.gender || null;
-        console.log("[TicketSelection] Loaded user gender:", gender);
         setUserGender(gender);
       } catch (error) {
         console.log("[TicketSelection] Could not load user gender:", error);
@@ -402,20 +419,83 @@ export default function TicketSelectionScreen({ route, navigation }) {
     loadUserGender();
   }, []);
 
-  // Filter tickets by user's gender (CASE-INSENSITIVE COMPARISON)
-  const filteredTickets = useMemo(() => {
-    if (!event.ticket_types) return [];
+  // Check if event has gender-restricted tickets
+  const hasGenderRestrictedTickets = useMemo(() => {
+    if (!event?.ticket_types) return false;
+    return event.ticket_types.some((t) => {
+      const r = (t.gender_restriction || "all").toLowerCase().trim();
+      return r === "male" || r === "female";
+    });
+  }, [event?.ticket_types]);
+
+  // Is user's profile gender missing when event requires it?
+  const isProfileGenderMissing = !genderLoading && accountType === "member" && !userGender && hasGenderRestrictedTickets;
+
+  // Resolve themes for all tickets in the event using the 2-pass allocation engine
+  const ticketThemes = useMemo(() => {
+    return resolveEventTicketThemes(event?.ticket_types || []);
+  }, [event?.ticket_types]);
+
+  // Filter and prepare displayed tickets with eligibility status
+  const displayedTickets = useMemo(() => {
+    if (!event?.ticket_types) return [];
     if (genderLoading) return [];
 
-    return event.ticket_types.filter((ticket) => {
-      const restriction = (ticket.gender_restriction || "all").toLowerCase().trim();
-      if (restriction === "all") return true;
-      if (accountType && accountType !== "member") return false;
-      
-      const memberGender = (userGender || "").toLowerCase().trim();
-      return restriction === memberGender;
-    });
-  }, [event.ticket_types, userGender, accountType, genderLoading]);
+    const memberGender = (userGender || "").toLowerCase().trim();
+
+    return event.ticket_types
+      .map((ticket) => {
+        const key = ticket.id?.toString() || ticket.name;
+        const theme = ticketThemes[key] || SEMANTIC_THEMES.general;
+        const restriction = (ticket.gender_restriction || "all").toLowerCase().trim();
+
+        let isLocked = false;
+        let lockReason = null;
+
+        if (restriction !== "all") {
+          if (accountType && accountType !== "member") {
+            isLocked = true;
+            lockReason = "Member accounts only";
+          } else if (!memberGender) {
+            isLocked = true;
+            lockReason = "Profile gender needed";
+          } else if (restriction !== memberGender) {
+            isLocked = true;
+            lockReason = restriction === "male" ? "Men only" : "Women only";
+          }
+        }
+
+        return {
+          ...ticket,
+          theme,
+          isLocked,
+          lockReason,
+        };
+      })
+      .filter((ticket) => {
+        const restriction = (ticket.gender_restriction || "all").toLowerCase().trim();
+        // Unrestricted passes are always visible
+        if (restriction === "all") return true;
+
+        // If user has no gender set in profile, do NOT hide them silently!
+        // Show them with locked status so the user knows they exist and can update profile.
+        if (!memberGender) return true;
+
+        // Non-member accounts: show so organizers/communities can preview tiers
+        if (accountType && accountType !== "member") return true;
+
+        // If gender matches, show
+        if (restriction === memberGender) return true;
+
+        // If ticket is for opposite gender, only show locked if ALL tickets in the event are for the other gender
+        const hasMatchingTickets = event.ticket_types.some((t) => {
+          const r = (t.gender_restriction || "all").toLowerCase().trim();
+          return r === "all" || r === memberGender;
+        });
+
+        return !hasMatchingTickets;
+      });
+  }, [event?.ticket_types, ticketThemes, userGender, accountType, genderLoading]);
 
   // Calculate cart totals using effective prices
   const { totalItems, totalAmount } = useMemo(() => {
@@ -424,7 +504,7 @@ export default function TicketSelectionScreen({ route, navigation }) {
 
     Object.entries(cart).forEach(([ticketId, qty]) => {
       if (qty > 0) {
-        const ticket = filteredTickets.find(
+        const ticket = displayedTickets.find(
           (t) => t.id?.toString() === ticketId || t.name === ticketId
         );
         if (ticket) {
@@ -436,10 +516,11 @@ export default function TicketSelectionScreen({ route, navigation }) {
     });
 
     return { totalItems: items, totalAmount: amount };
-  }, [cart, filteredTickets, event.pricing_rules]);
+  }, [cart, displayedTickets, event.pricing_rules]);
 
-  // Stable handlers with empty dependency arrays (functional state updates)
+  // Stable handlers
   const handleAdd = useCallback((ticket) => {
+    if (ticket.isLocked) return;
     const key = ticket.id?.toString() || ticket.name;
     setCart((prev) => {
       const currentQty = prev[key] || 0;
@@ -469,11 +550,37 @@ export default function TicketSelectionScreen({ route, navigation }) {
     });
   }, []);
 
+  const handleLockedPress = useCallback((ticket) => {
+    if (ticket.lockReason === "Profile gender needed") {
+      Alert.alert(
+        "Profile Gender Needed",
+        `To purchase "${ticket.name}", please update your gender in your Profile Settings.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Edit Profile",
+            onPress: () => navigation.navigate("EditProfile"),
+          },
+        ]
+      );
+    } else if (ticket.lockReason === "Member accounts only") {
+      Alert.alert(
+        "Member Pass",
+        `"${ticket.name}" can only be purchased by individual member accounts.`
+      );
+    } else {
+      Alert.alert(
+        "Pass Restricted",
+        `"${ticket.name}" is restricted: ${ticket.lockReason}.`
+      );
+    }
+  }, [navigation]);
+
   const handleCheckout = useCallback(() => {
     const cartItems = Object.entries(cart)
       .filter(([_, qty]) => qty > 0)
       .map(([ticketId, qty]) => {
-        const ticket = event.ticket_types.find(
+        const ticket = displayedTickets.find(
           (t) => t.id?.toString() === ticketId || t.name === ticketId
         );
         return { ticket, quantity: qty };
@@ -484,7 +591,7 @@ export default function TicketSelectionScreen({ route, navigation }) {
       cartItems,
       totalAmount,
     });
-  }, [cart, event, totalAmount, navigation]);
+  }, [cart, displayedTickets, event, totalAmount, navigation]);
 
   const handleBack = useCallback(() => {
     navigation.goBack();
@@ -494,10 +601,10 @@ export default function TicketSelectionScreen({ route, navigation }) {
 
   return (
     <View style={styles.container}>
-      {/* Dynamic Status Bar for seamless white header background flow above navigation area */}
+      {/* Dynamic Status Bar */}
       <DynamicStatusBar style="dark-content" />
 
-      {/* Premium Navigation Header */}
+      {/* Navigation Header */}
       <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
         <TouchableOpacity
           onPress={handleBack}
@@ -520,7 +627,28 @@ export default function TicketSelectionScreen({ route, navigation }) {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Section Title - Authority Rule: BasicCommercialBlack used once */}
         <Text style={styles.sectionTitle}>Choose tickets</Text>
+
+        {/* Profile Gender Missing Informative Banner */}
+        {isProfileGenderMissing && (
+          <TouchableOpacity
+            style={styles.genderWarningCard}
+            onPress={() => navigation.navigate("EditProfile")}
+            activeOpacity={0.85}
+          >
+            <View style={styles.genderWarningIconWrap}>
+              <TriangleAlert size={18} color="#D97706" strokeWidth={2.2} />
+            </View>
+            <View style={styles.genderWarningTextWrap}>
+              <Text style={styles.genderWarningTitle}>Profile Gender Needed</Text>
+              <Text style={styles.genderWarningDesc}>
+                Some passes for this event require gender verification. Tap to update your profile.
+              </Text>
+            </View>
+            <ChevronRight size={16} color="#D97706" strokeWidth={2.2} />
+          </TouchableOpacity>
+        )}
 
         {/* Loading state */}
         {genderLoading && (
@@ -531,7 +659,7 @@ export default function TicketSelectionScreen({ route, navigation }) {
         )}
 
         {/* No eligible tickets */}
-        {!genderLoading && filteredTickets.length === 0 && (
+        {!genderLoading && displayedTickets.length === 0 && (
           <View style={styles.emptyContainer}>
             <AlertCircle size={40} color={MUTED_TEXT} strokeWidth={2} />
             <Text style={styles.emptyTitle}>No tickets available</Text>
@@ -543,7 +671,7 @@ export default function TicketSelectionScreen({ route, navigation }) {
           </View>
         )}
 
-        {filteredTickets.map((ticket, index) => {
+        {displayedTickets.map((ticket, index) => {
           const key = ticket.id?.toString() || ticket.name;
           const qty = cart[key] || 0;
           const available = ticket.total_quantity
@@ -553,7 +681,7 @@ export default function TicketSelectionScreen({ route, navigation }) {
           const price = parseFloat(ticket.base_price) || 0;
           const maxAllowed = Math.min(ticket.max_per_order || 10, available);
           const addDisabled = qty >= maxAllowed;
-          const theme = getTicketTheme(ticket);
+          const theme = ticket.theme;
 
           return (
             <TicketCard
@@ -570,6 +698,7 @@ export default function TicketSelectionScreen({ route, navigation }) {
               pricingRules={event.pricing_rules}
               onAdd={handleAdd}
               onRemove={handleRemove}
+              onLockedPress={handleLockedPress}
             />
           );
         })}
@@ -653,11 +782,45 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 22,
-    fontFamily: "BasicCommercial-Bold",
+    fontFamily: "BasicCommercial-Black",
     color: TEXT_COLOR,
     marginTop: 24,
     marginBottom: 16,
     letterSpacing: -0.3,
+  },
+  genderWarningCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFBEB",
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    gap: 10,
+  },
+  genderWarningIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(217, 119, 6, 0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  genderWarningTextWrap: {
+    flex: 1,
+  },
+  genderWarningTitle: {
+    fontSize: 13,
+    fontFamily: "Manrope-SemiBold",
+    color: "#92400E",
+    marginBottom: 2,
+  },
+  genderWarningDesc: {
+    fontSize: 11.5,
+    fontFamily: "Manrope-Regular",
+    color: "#B45309",
+    lineHeight: 15,
   },
   ticketCard: {
     flexDirection: "row",
@@ -666,7 +829,7 @@ const styles = StyleSheet.create({
     position: "relative",
     backgroundColor: "transparent",
     borderWidth: 0,
-    overflow: "visible", // for drop shadow to render fully
+    overflow: "visible",
     ...Platform.select({
       ios: {
         shadowColor: "#000000",
@@ -674,10 +837,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.08,
         shadowRadius: 12,
       },
-      android: {
-        // No elevation on Android: elevation forces an opaque rectangular background,
-        // which produces a solid white background behind the SVG cutouts/notches.
-      },
+      android: {},
     }),
   },
   ticketCardDisabled: {
@@ -698,11 +858,19 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     justifyContent: "center",
   },
-  headerTag: {
+  headerTagPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    alignSelf: "flex-start",
+    marginBottom: 6,
+  },
+  headerTagText: {
     fontSize: 10,
     fontFamily: "Manrope-Bold",
-    letterSpacing: 1.5,
-    marginBottom: 6,
+    letterSpacing: 1,
   },
   ticketTitle: {
     fontSize: 18,
@@ -725,6 +893,17 @@ const styles = StyleSheet.create({
     fontFamily: "Manrope-Medium",
     color: TEXT_COLOR,
   },
+  genderLockRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+    gap: 4,
+  },
+  genderLockText: {
+    fontSize: 11,
+    color: "#EA580C",
+    fontFamily: "Manrope-Medium",
+  },
   rightStub: {
     flex: 1.4, // matches SVG split ratio (140/600)
     justifyContent: "center",
@@ -733,7 +912,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 6,
   },
-
   foregroundStub: {
     zIndex: 2,
     alignItems: "center",
@@ -759,11 +937,11 @@ const styles = StyleSheet.create({
   ticketPriceDiscounted: {
     fontSize: 20,
     fontFamily: "BasicCommercial-Bold",
-    color: "#EA580C", // Vibrant warm amber-orange
+    color: "#EA580C",
     lineHeight: 22,
   },
   ticketPriceGroup: {
-    color: "#7C3AED", // Vibrant violet for Group discount
+    color: "#7C3AED",
   },
   ticketPriceOriginal: {
     fontSize: 11.5,
@@ -774,9 +952,9 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   discountBadge: {
-    backgroundColor: "#FEF08A", // Sunshine Yellow-200
+    backgroundColor: "#FEF08A",
     borderWidth: 1,
-    borderColor: "#FACC15", // Warm Golden Border (Yellow-400)
+    borderColor: "#FACC15",
     paddingHorizontal: 6,
     paddingVertical: 1.5,
     borderRadius: 5,
@@ -785,16 +963,16 @@ const styles = StyleSheet.create({
   discountBadgeText: {
     fontSize: 9.5,
     fontFamily: "Manrope-Bold",
-    color: "#854D0E", // High-contrast Deep Amber (Yellow-800)
+    color: "#854D0E",
     letterSpacing: 0.2,
   },
   groupDiscountBadge: {
-    backgroundColor: "#EDE9FE", // Crisp Violet-100
-    borderColor: "#C4B5FD", // Violet-300
+    backgroundColor: "#EDE9FE",
+    borderColor: "#C4B5FD",
     borderWidth: 1,
   },
   groupDiscountBadgeText: {
-    color: "#6D28D9", // Deep Violet-700
+    color: "#6D28D9",
   },
   bulkOfferRow: {
     flexDirection: "row",
@@ -835,6 +1013,20 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     color: "#FFFFFF",
     includeFontPadding: false,
+  },
+  lockedBadge: {
+    height: 34,
+    width: 78,
+    borderRadius: 17,
+    borderWidth: 1.5,
+    backgroundColor: "rgba(0,0,0,0.03)",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  lockedBadgeText: {
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 12,
   },
   quantityControl: {
     height: 34,
@@ -901,7 +1093,7 @@ const styles = StyleSheet.create({
   },
   descLine: {
     fontSize: 12.5,
-    fontFamily: "Manrope-Medium",
+    fontFamily: "Manrope-Regular",
     color: MUTED_TEXT,
     lineHeight: 16,
   },
@@ -1001,7 +1193,7 @@ const styles = StyleSheet.create({
   },
   emptySubtitle: {
     fontSize: 14,
-    fontFamily: "Manrope-Medium",
+    fontFamily: "Manrope-Regular",
     color: MUTED_TEXT,
     textAlign: "center",
     lineHeight: 20,

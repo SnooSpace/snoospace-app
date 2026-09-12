@@ -507,6 +507,22 @@ export default function YourEventsScreen({ navigation, route }) {
     };
   }, [loadEvents, loadInterestedEvents]);
 
+  // Refetch when the screen regains focus (e.g. returning from
+  // Checkout via a different navigation path, or switching tabs).
+  // Skip the first focus since the mount effect already loads data.
+  useEffect(() => {
+    let isFirstFocus = true;
+    const unsubFocus = navigation.addListener("focus", () => {
+      if (isFirstFocus) {
+        isFirstFocus = false;
+        return;
+      }
+      loadEvents();
+      loadInterestedEvents();
+    });
+    return unsubFocus;
+  }, [navigation, loadEvents, loadInterestedEvents]);
+
   const getFilteredEvents = () => {
     const now = new Date();
     const interestedIds = new Set(interestedEvents.map((e) => e.id));

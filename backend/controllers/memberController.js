@@ -1105,40 +1105,73 @@ async function patchProfile(req, res) {
       );
 
       // ── Anti-cheat Synchronous Re-verification Hook ───────────────────────
-      // If a verified member removes or replaces any verified reference photo,
-      // revoke verification immediately before returning response.
+      // ONLY applies to Discover verification (tier 'selfie_verified' or 'id_verified')
+      // where reference photos come from public discover_photos.
+      // Plans verification (tier 'plans_verified') uses a private manual reference photo,
+      // which is NEVER part of discover_photos and must NEVER be revoked by editing profile photos.
       const memberAuthRes = await pool.query(
         `SELECT is_verified, verified_reference_photos, verification_tier FROM members WHERE id = $1`,
         [userId]
       );
       if (memberAuthRes.rows.length > 0) {
-        const { is_verified, verified_reference_photos } = memberAuthRes.rows[0];
+        const { is_verified, verified_reference_photos, verification_tier } = memberAuthRes.rows[0];
+        const isDiscoverVerified = verification_tier === 'selfie_verified' || verification_tier === 'id_verified';
         const verifiedRefs = Array.isArray(verified_reference_photos) ? verified_reference_photos : [];
 
-        const hasRemovedRefPhoto = is_verified && verifiedRefs.length > 0 && (
+        const hasRemovedRefPhoto = is_verified && isDiscoverVerified && verifiedRefs.length > 0 && (
           removedUrls.some((url) => verifiedRefs.includes(url)) ||
           verifiedRefs.some((ref) => !savedPhotos.includes(ref))
         );
 
         if (hasRemovedRefPhoto) {
+          // Invalidate the discover verification row in user_verifications
+          await pool.query(
+            `UPDATE user_verifications
+             SET status = 'rejected',
+                 rejection_reason = 'Reference photo was removed from profile photos.',
+                 reviewed_at = NOW()
+             WHERE user_id = $1 AND scope = 'discover' AND status = 'approved'`,
+            [userId]
+          );
+
+          // Clear verified_reference_photos on member
+          await pool.query(
+            `UPDATE members
+             SET verified_reference_photos = NULL
+             WHERE id = $1`,
+            [userId]
+          );
+
+          // Check if user still has an approved Plans verification
+          const checkPlans = await pool.query(
+            `SELECT 1 FROM user_verifications WHERE user_id = $1 AND scope = 'plans' AND status = 'approved' LIMIT 1`,
+            [userId]
+          );
+          const hasApprovedPlans = checkPlans.rows.length > 0;
+
+          const newTier = hasApprovedPlans
+            ? 'plans_verified'
+            : (verification_tier === 'id_verified' ? 'id_verified' : 'none');
+          const newVerified = newTier !== 'none';
+
           const resetRes = await pool.query(
             `UPDATE members
-             SET is_verified = FALSE,
-                 verified_at = NULL,
-                 verified_reference_photos = NULL,
-                 verification_tier = CASE WHEN verification_tier = 'id_verified' THEN 'id_verified' ELSE 'none' END
+             SET is_verified = $2,
+                 verified_at = CASE WHEN $2 THEN verified_at ELSE NULL END,
+                 verification_tier = $3
              WHERE id = $1
-             RETURNING verification_tier`,
-            [userId]
+             RETURNING verification_tier, is_verified`,
+            [userId, newVerified, newTier]
           );
           const freshTier = resetRes.rows[0]?.verification_tier || 'none';
 
           const io = req.app.locals.io;
           if (io) {
             io.to(`user_${userId}`).emit('verification_status_updated', {
-              status: 'unverified',
+              status: newVerified ? 'approved' : 'unverified',
               tier: freshTier,
               reason: 'reference_photo_changed',
+              scope: 'discover',
             });
           }
         }

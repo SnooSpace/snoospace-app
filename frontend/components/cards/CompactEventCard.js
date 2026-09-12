@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { Image } from 'expo-image';
-import { Clock, MapPin, Calendar, CheckCircle2, Video, Bookmark, Layers } from 'lucide-react-native';
+import { Clock, MapPin, Calendar, CheckCircle2, Video, Bookmark, Layers, Plus } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, FONTS, SHADOWS } from '../../constants/theme';
 import { formatPrice } from '../../utils/pricingUtils';
 import { getOptimizedImageUrl } from '../../utils/imageUtils';
 import { getEventModeDetails } from '../../utils/eventStateUtils';
+import { getGradientForName, getInitials } from '../../utils/AvatarGenerator';
 
 function parseEventDate(dateString, formattedDate) {
   if (formattedDate) {
@@ -81,6 +82,20 @@ function getEventPriceLabel(event) {
   return `${formattedPrice} onwards`;
 }
 
+function getAvatarPhoto(avatar) {
+  if (!avatar) return null;
+  if (typeof avatar === 'string' && /^https?:\/\//.test(avatar)) return avatar;
+  const url = avatar.profile_photo_url || avatar.avatar_url || avatar.photo_url || avatar.image_url || avatar.photo || avatar.avatar;
+  if (url && typeof url === 'string' && /^https?:\/\//.test(url)) return url;
+  return null;
+}
+
+function getAvatarName(avatar, index) {
+  if (!avatar) return `User ${index + 1}`;
+  if (typeof avatar === 'string') return 'U';
+  return avatar.name || avatar.full_name || avatar.username || `User ${index + 1}`;
+}
+
 export default function CompactEventCard({
   event,
   onPress,
@@ -100,6 +115,37 @@ export default function CompactEventCard({
   const priceLabel = getEventPriceLabel(event);
   const { displayText: locationText, iconName } = getEventModeDetails(event);
   const isFree = priceLabel === 'Free';
+
+  let parsedAvatars = [];
+  if (Array.isArray(event.attendee_avatars)) {
+    parsedAvatars = event.attendee_avatars;
+  } else if (typeof event.attendee_avatars === 'string') {
+    try {
+      parsedAvatars = JSON.parse(event.attendee_avatars);
+    } catch (_) {
+      parsedAvatars = [];
+    }
+  } else if (Array.isArray(event.attendees)) {
+    parsedAvatars = event.attendees;
+  } else if (Array.isArray(event.attendeeAvatars)) {
+    parsedAvatars = event.attendeeAvatars;
+  }
+
+  const rawAttendeeCount = Number(
+    event.attendee_count ??
+    event.attendeeCount ??
+    event.attendees_count ??
+    event.current_attendees ??
+    (Array.isArray(event.attendees) ? event.attendees.length : 0) ??
+    (Array.isArray(parsedAvatars) ? parsedAvatars.length : 0)
+  ) || 0;
+
+  const attendeeCount = Math.max(rawAttendeeCount, parsedAvatars.length);
+  const maxAvatars = 3;
+  const shownCount = parsedAvatars.length > 0
+    ? Math.min(parsedAvatars.length, maxAvatars)
+    : Math.min(attendeeCount, maxAvatars);
+  const remainingCount = attendeeCount > maxAvatars ? attendeeCount - maxAvatars : 0;
 
   // Comprehensive image fallback checking all known SnooSpace event image fields
   const rawImageUrl =
@@ -250,13 +296,67 @@ export default function CompactEventCard({
               </Text>
             </View>
 
-            {event.category || event.categoryName ? (
+            {attendeeCount > 0 ? (
+              <View style={styles.attendeesContainer}>
+                <View style={styles.avatarStack}>
+                  {parsedAvatars.length > 0 ? (
+                    parsedAvatars.slice(0, 3).map((avatar, idx) => {
+                      const photoUrl = getAvatarPhoto(avatar);
+                      const name = getAvatarName(avatar, idx);
+                      const zIndex = 3 - idx;
+                      const marginLeft = idx > 0 ? -5 : 0;
+                      if (photoUrl) {
+                        return (
+                          <Image
+                            key={`attendee-avatar-${idx}`}
+                            source={{ uri: getOptimizedImageUrl(photoUrl, { width: 36 }) }}
+                            style={[styles.attendeeAvatar, { marginLeft, zIndex }]}
+                            contentFit="cover"
+                          />
+                        );
+                      }
+                      return (
+                        <LinearGradient
+                          key={`attendee-avatar-${idx}`}
+                          colors={getGradientForName(name)}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                          style={[styles.attendeeAvatar, styles.avatarGradient, { marginLeft, zIndex }]}
+                        >
+                          <Text style={styles.avatarInitials}>{getInitials(name)}</Text>
+                        </LinearGradient>
+                      );
+                    })
+                  ) : (
+                    Array.from({ length: shownCount }).map((_, idx) => {
+                      const zIndex = 3 - idx;
+                      const marginLeft = idx > 0 ? -5 : 0;
+                      const gradientColors = getGradientForName(String(idx + (event.id || 1)));
+                      return (
+                        <LinearGradient
+                          key={`attendee-ph-${idx}`}
+                          colors={gradientColors}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                          style={[styles.attendeeAvatar, styles.avatarGradient, { marginLeft, zIndex }]}
+                        >
+                          <Text style={styles.avatarInitials}>•</Text>
+                        </LinearGradient>
+                      );
+                    })
+                  )}
+                </View>
+
+                {remainingCount > 0 && (
+                  <View style={styles.moreAttendeesBadge}>
+                    <Plus size={8} color="#475569" strokeWidth={2.6} />
+                    <Text style={styles.moreAttendeesText}>{remainingCount}</Text>
+                  </View>
+                )}
+              </View>
+            ) : (event.category || event.categoryName) ? (
               <Text style={styles.categoryText} numberOfLines={1}>
                 {event.category || event.categoryName}
-              </Text>
-            ) : (event.attendee_count > 0 || event.attendeeCount > 0) ? (
-              <Text style={styles.categoryText} numberOfLines={1}>
-                {`${event.attendee_count || event.attendeeCount} going`}
               </Text>
             ) : null}
           </View>
@@ -434,7 +534,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ECFDF5',
   },
   pricePillPaid: {
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#0F172A',
   },
   pricePillText: {
     fontFamily: FONTS.semiBold,
@@ -444,12 +544,51 @@ const styles = StyleSheet.create({
     color: '#059669',
   },
   pricePillTextPaid: {
-    color: '#2563EB',
+    color: '#F1F5F9',
   },
   categoryText: {
     fontFamily: FONTS.medium,
     fontSize: 9.5,
     color: COLORS.textMuted,
     maxWidth: '45%',
+  },
+  attendeesContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    flexShrink: 1,
+  },
+  avatarStack: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  attendeeAvatar: {
+    width: 19,
+    height: 19,
+    borderRadius: 9.5,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
+  avatarGradient: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarInitials: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 8,
+    color: '#FFFFFF',
+    lineHeight: 10,
+  },
+  moreAttendeesBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 3,
+    gap: 0.5,
+  },
+  moreAttendeesText: {
+    fontFamily: FONTS.medium,
+    fontSize: 10,
+    color: '#475569',
+    lineHeight: 12,
   },
 });

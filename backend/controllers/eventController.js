@@ -3488,7 +3488,7 @@ const getInterestedEvents = async (req, res) => {
           SELECT 1 FROM ticket_types tt WHERE tt.event_id = e.id AND tt.is_active = true OFFSET 1 LIMIT 1
         ) AS has_multiple_tickets,
         COALESCE(
-          (SELECT COUNT(*) FROM event_registrations WHERE event_id = e.id AND registration_status = 'registered'),
+          (SELECT COUNT(*) FROM event_registrations WHERE event_id = e.id AND registration_status IN ('registered', 'attended', 'confirmed')),
           0
         ) AS attendee_count,
         (
@@ -3508,6 +3508,11 @@ const getInterestedEvents = async (req, res) => {
       WHERE ei.member_id = $1
         AND e.is_published = true
         AND (e.is_cancelled = false OR e.is_cancelled IS NULL)
+        AND NOT EXISTS (
+          SELECT 1 FROM event_registrations er
+          WHERE er.event_id = e.id AND er.member_id = $1
+            AND er.registration_status IN ('registered', 'attended', 'confirmed')
+        )
       ORDER BY e.start_datetime ASC
     `;
 

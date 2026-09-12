@@ -146,7 +146,9 @@ async function submitVerification(req, res) {
             [matchResult.distance, matchResult.matchedPhotoUrl, verId]
           );
 
-          if (matchResult.referencePhotoUrls && matchResult.referencePhotoUrls.length > 0) {
+          // Only store verified_reference_photos for discover scope (which uses public discover_photos).
+          // Plans scope uses a private manual reference selfie, which must not be tracked in discover photo refs.
+          if (scope === 'discover' && matchResult.referencePhotoUrls && matchResult.referencePhotoUrls.length > 0) {
             await pool.query(
               `UPDATE members
                SET verified_reference_photos = $1

@@ -34,6 +34,35 @@ const proofGate = async (req, res, next) => {
       return next();
     }
 
+    // ── Priority 2b: Fallback / Self-healing check on user_verifications ──
+    // If members.is_verified was desynced or false for any reason, but
+    // user_verifications has an approved row for this member, grant access
+    // and sync members.is_verified in the background.
+    const approvedVerR = await pool.query(
+      `SELECT scope FROM user_verifications
+       WHERE user_id = $1 AND status = 'approved'
+       ORDER BY CASE WHEN scope = 'discover' THEN 1 ELSE 2 END ASC
+       LIMIT 1`,
+      [userId]
+    );
+    if (approvedVerR.rows.length > 0) {
+      const verScope = approvedVerR.rows[0].scope;
+      pool.query(
+        `UPDATE members
+         SET is_verified = TRUE,
+             verification_tier = CASE
+               WHEN verification_tier = 'none' OR verification_tier IS NULL THEN
+                 CASE WHEN $2 = 'discover' THEN 'selfie_verified' ELSE 'plans_verified' END
+               ELSE verification_tier
+             END,
+             plans_access_blocked = FALSE
+         WHERE id = $1`,
+        [userId, verScope]
+      ).catch((e) => console.error('[proofGate] Self-heal error:', e.message));
+
+      return next();
+    }
+
     // ── Priority 3: First-time provisional access ──
     // Allow if the user has a pending plans-scope verification AND has never
     // previously had a rejection on plans scope.
