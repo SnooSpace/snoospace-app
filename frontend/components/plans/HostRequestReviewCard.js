@@ -3,7 +3,7 @@ import {
   View, Text, TouchableOpacity, StyleSheet, ActivityIndicator,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { Instagram, Calendar, FileText, Info, MessageCircle, MoveRight } from 'lucide-react-native';
+import { Instagram, Calendar, Star, Info, MessageCircle, MoveRight } from 'lucide-react-native';
 import VerifiedBadge from '../badges/VerifiedBadge';
 import { COLORS, FONTS, SHADOWS, BORDER_RADIUS } from '../../constants/theme';
 
@@ -90,17 +90,17 @@ const HostRequestReviewCard = ({ request, onApprove, onDecline, onOpenDm, onView
         <Text style={styles.noCommon}>No common events yet</Text>
       )}
 
-      {/* Their activity */}
+      {/* Member Profile — join date, events joined, activity tier, interests */}
       <View style={styles.section}>
-        <Text style={styles.sectionLabel}>THEIR ACTIVITY</Text>
+        <Text style={styles.sectionLabel}>MEMBER PROFILE</Text>
         <View style={styles.pillRow}>
           <View style={styles.activityPill}>
             <Calendar size={11} color={COLORS.textSecondary} strokeWidth={2} />
-            <Text style={styles.activityPillText}>{requester.events_attended_count ?? 0} events attended</Text>
+            <Text style={styles.activityPillText}>Since {requester.member_since || monthsAgo(requester.created_at)}</Text>
           </View>
           <View style={styles.activityPill}>
-            <FileText size={11} color={COLORS.textSecondary} strokeWidth={2} />
-            <Text style={styles.activityPillText}>{requester.post_count ?? 0} posts</Text>
+            <Calendar size={11} color={COLORS.textSecondary} strokeWidth={2} />
+            <Text style={styles.activityPillText}>{requester.events_joined_count ?? requester.events_attended_count ?? 0} events joined</Text>
           </View>
           {hasInstagram && (
             <View style={styles.activityPill}>
@@ -108,7 +108,22 @@ const HostRequestReviewCard = ({ request, onApprove, onDecline, onOpenDm, onView
               <Text style={styles.activityPillText}>Instagram linked</Text>
             </View>
           )}
+          {requester.activity_level && (
+            <View style={[styles.activityPill, styles.activityLevelPill]}>
+              <Star size={10} color="#92400E" strokeWidth={2} />
+              <Text style={[styles.activityPillText, { color: '#92400E' }]}>{requester.activity_level}</Text>
+            </View>
+          )}
         </View>
+        {requester.top_interests?.length > 0 && (
+          <View style={[styles.pillRow, { marginTop: 6 }]}>
+            {requester.top_interests.map((interest, idx) => (
+              <View key={idx} style={styles.interestChip}>
+                <Text style={styles.interestChipText}>{interest}</Text>
+              </View>
+            ))}
+          </View>
+        )}
       </View>
 
       {/* Note */}
@@ -276,6 +291,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.textMuted,
     marginBottom: 12,
+  },
+  activityLevelPill: {
+    backgroundColor: '#FEF3C7',
+  },
+  interestChip: {
+    backgroundColor: '#F0FDF4',
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  interestChipText: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: '#16A34A',
   },
   noteBlock: {
     borderLeftWidth: 3,

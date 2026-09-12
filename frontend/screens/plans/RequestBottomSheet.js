@@ -26,10 +26,13 @@ export default function RequestBottomSheet({
       setNote('');
       onClose();
     } catch (err) {
-      if (err.status === 403 && err.data?.error === 'proof_gate_required') {
+      if (err.status === 403 && (err.data?.error === 'proof_gate_required' || err.data?.error === 'plans_access_blocked')) {
+        const isBlocked = err.data?.error === 'plans_access_blocked';
         Alert.alert(
-          'Verification required',
-          'Identity verification is required to join an Open Plan. Please get verified to proceed.',
+          isBlocked ? 'Verification Required' : 'Verification required',
+          isBlocked
+            ? (err.data?.message || 'Your Open Plans access has been restricted. Please submit a new verification to restore access.')
+            : 'Identity verification is required to join an Open Plan. Please get verified to proceed.',
           [
             { text: 'Not now', style: 'cancel' },
             {
@@ -86,7 +89,10 @@ export default function RequestBottomSheet({
               <Info size={14} color={COLORS.textMuted} strokeWidth={1.8} />
               <Text style={styles.infoText}>
                 The host will review your profile before approving.{'\n'}
-                Exact meetup details are shared only after approval.
+                Exact meetup details are shared only after approval.{'\n'}
+                <Text style={styles.infoDisclosure}>
+                  If accepted, your join date, events count, and interests become visible to other approved attendees of this plan.
+                </Text>
               </Text>
             </View>
 
@@ -170,6 +176,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.textSecondary,
     lineHeight: 19,
+  },
+  infoDisclosure: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: COLORS.textMuted,
   },
   sendBtn: {
     height: 52,

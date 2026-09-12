@@ -71,6 +71,7 @@ function formatDateTime(date, time) {
 
 export default function EditPlanBottomSheet({ visible, onClose, plan, navigation, onPlanUpdated, onPlanCancelled }) {
   const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
   const [locationPublic, setLocationPublic] = useState('');
   const [maxAccepted, setMaxAccepted] = useState(5);
   const [isRecurring, setIsRecurring] = useState(false);
@@ -116,6 +117,7 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
     if (!visible || !plan) return;
 
     setTitle(plan.title || '');
+    setDescription(plan.description || '');
     setLocationPublic(plan.location_public || '');
     setMaxAccepted(plan.max_accepted ?? 5);
     setIsRecurring(plan.is_recurring ?? false);
@@ -200,6 +202,7 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
       const scheduledAt = formatDateTime(selectedDate, selectedTime);
       const body = {
         title: title.trim(),
+        description: description.trim() || null,
         location_public: locationPublic.trim() || null,
         max_accepted: maxAccepted,
         is_recurring: isRecurring,
@@ -337,6 +340,26 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
             onChangeText={setTitle}
           />
           {errors.title && <Text style={styles.errorText}>{errors.title}</Text>}
+
+          {/* Description (optional) */}
+          <View style={styles.labelOptionalRow}>
+            <Text style={[styles.fieldLabel, { marginTop: 0, marginBottom: 0 }]}>Description</Text>
+            <Text style={styles.optionalBadge}>Optional</Text>
+          </View>
+          <TextInput
+            style={[styles.input, styles.textArea]}
+            placeholder="Add more details about this plan…"
+            placeholderTextColor={COLORS.textMuted}
+            maxLength={300}
+            multiline
+            numberOfLines={3}
+            textAlignVertical="top"
+            value={description}
+            onChangeText={setDescription}
+          />
+          {description.length > 0 && (
+            <Text style={styles.charCount}>{description.length}/300</Text>
+          )}
 
           {/* Public location */}
           <Text style={styles.fieldLabel}>Where (Area name/public hint)</Text>
@@ -1331,5 +1354,36 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.semiBold,
     fontSize: 10,
     color: '#FFFFFF',
+  },
+  textArea: {
+    height: 88,
+    paddingTop: 12,
+    textAlignVertical: 'top',
+  },
+  labelOptionalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  optionalBadge: {
+    fontFamily: FONTS.medium,
+    fontSize: 11,
+    color: COLORS.textMuted,
+    backgroundColor: COLORS.surface,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    overflow: 'hidden',
+  },
+  charCount: {
+    fontFamily: FONTS.medium,
+    fontSize: 11,
+    color: COLORS.textMuted,
+    textAlign: 'right',
+    marginTop: 4,
   },
 });

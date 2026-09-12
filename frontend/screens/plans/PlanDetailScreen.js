@@ -10,14 +10,14 @@ import {
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-  ArrowLeft, MapPin, Clock, Users, Lock,
+  ArrowLeft, MapPin, Clock, Users, Lock, Calendar, Star,
   Heart, MessageCircle, ChartNoAxesCombined, Send, Pencil, MoreHorizontal, MoveRight, Trash2,
 } from 'lucide-react-native';
 import VerifiedBadge from '../../components/badges/VerifiedBadge';
 import { COLORS, FONTS, SHADOWS } from '../../constants/theme';
 import { getAuthToken, getActiveAccount } from '../../api/auth';
 import {
-  getPlanById, recordView, likePlan, unlikePlan, cancelPlan,
+  getPlanById, recordView, likePlan, unlikePlan, cancelPlan, getApprovedAttendees,
 } from '../../api/plans';
 import RequestBottomSheet from './RequestBottomSheet';
 import CommentsModal from '../../components/modals/CommentsModal';
@@ -154,6 +154,7 @@ export default function PlanDetailScreen({ navigation, route }) {
   const [deleting, setDeleting] = useState(false);
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
   const [deleteConfirmMessage, setDeleteConfirmMessage] = useState('');
+  const [attendees, setAttendees] = useState([]);
 
   const loadPlan = useCallback(async () => {
     try {
@@ -235,6 +236,24 @@ export default function PlanDetailScreen({ navigation, route }) {
       unsubscribe();
     };
   }, [loadPlan, navigation]);
+
+  // Load the approved-attendee roster once the plan is known and the viewer
+  // is the host or an approved attendee. Runs whenever plan or currentUserId changes.
+  useEffect(() => {
+    if (!plan || !currentUserId) return;
+    const viewerIsOwner = String(plan.created_by) === String(currentUserId);
+    const viewerIsApproved = plan.my_request_status === 'approved';
+    if (!viewerIsOwner && !viewerIsApproved) return;
+    (async () => {
+      try {
+        const token = await getAuthToken();
+        const data = await getApprovedAttendees(plan.id, token);
+        setAttendees(data?.attendees || []);
+      } catch {
+        // Non-fatal — attendees section just stays empty
+      }
+    })();
+  }, [plan, currentUserId]);
 
   useEffect(() => {
     return () => {
@@ -504,6 +523,47 @@ export default function PlanDetailScreen({ navigation, route }) {
               </View>
             </View>
 
+            {/* Description — only shown when present */}
+            {!!plan.description && (
+              <Text style={styles.descriptionText}>{plan.description}</Text>
+            )}
+
+            {/* Host trust stats — always visible to all plan viewers */}
+            {plan.host_profile?.member_since && (
+              <View style={styles.hostStatsCard}>
+                <Text style={styles.hostStatsTitle}>
+                  About {plan.host_profile.name?.split(' ')[0] || plan.host_profile.name}
+                </Text>
+                <View style={styles.hostStatsRow}>
+                  <View style={styles.hostStatItem}>
+                    <Calendar size={12} color={COLORS.textMuted} strokeWidth={2} />
+                    <Text style={styles.hostStatText}>Member since {plan.host_profile.member_since}</Text>
+                  </View>
+                  <View style={styles.hostStatItem}>
+                    <Users size={12} color={COLORS.textMuted} strokeWidth={2} />
+                    <Text style={styles.hostStatText}>{plan.host_profile.events_joined_count ?? 0} events joined</Text>
+                  </View>
+                </View>
+                {plan.host_profile.activity_level && (
+                  <View style={styles.hostStatsBottomRow}>
+                    <View style={[styles.activityLevelPill, styles[`activityLevel_${plan.host_profile.activity_level.replace(' ', '_')}`]]}>
+                      <Star size={10} color="#92400E" strokeWidth={2} />
+                      <Text style={styles.activityLevelText}>{plan.host_profile.activity_level}</Text>
+                    </View>
+                    {plan.host_profile.top_interests?.length > 0 && (
+                      <View style={styles.interestChipRow}>
+                        {plan.host_profile.top_interests.map((interest, idx) => (
+                          <View key={idx} style={styles.interestChip}>
+                            <Text style={styles.interestChipText}>{interest}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
+            )}
+
             {/* Time & location — inline */}
             <View style={styles.metaRow}>
               <View style={styles.metaItem}>
@@ -642,6 +702,53 @@ export default function PlanDetailScreen({ navigation, route }) {
 
             {/* Divider */}
             <View style={styles.divider} />
+
+            {/* Approved attendee roster — visible only to host and approved attendees */}
+            {(isOwner || isApproved) && attendees.length > 0 && (
+              <View style={styles.attendeesSection}>
+                <Text style={styles.attendeesSectionLabel}>WHO'S COMING</Text>
+                {attendees.map((attendee) => (
+                  <View key={attendee.id} style={styles.attendeeCard}>
+                    <View style={styles.attendeeAvatarCol}>
+                      {attendee.profile_photo_url ? (
+                        <Image
+                          source={{ uri: attendee.profile_photo_url }}
+                          style={styles.attendeeAvatar}
+                          cachePolicy="memory-disk"
+                        />
+                      ) : (
+                        <View style={styles.attendeeAvatarFallback}>
+                          <Text style={styles.attendeeAvatarInitial}>
+                            {(attendee.name || '?')[0].toUpperCase()}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    <View style={styles.attendeeInfo}>
+                      <View style={styles.attendeeNameRow}>
+                        <Text style={styles.attendeeName} numberOfLines={1}>{attendee.name}</Text>
+                        <VerifiedBadge tier={attendee.verification_tier} size={13} style={{ marginLeft: 4 }} />
+                      </View>
+                      <View style={styles.attendeeMetaRow}>
+                        <Text style={styles.attendeeMetaText}>Since {attendee.member_since}</Text>
+                        <Text style={styles.attendeeMetaDot}>·</Text>
+                        <Text style={styles.attendeeMetaText}>{attendee.events_joined_count ?? 0} events</Text>
+                      </View>
+                      <View style={styles.attendeeBottomRow}>
+                        <View style={[styles.attendeeActivityPill, styles[`activityLevel_${attendee.activity_level?.replace(' ', '_')}`]]}>
+                          <Text style={styles.attendeeActivityText}>{attendee.activity_level}</Text>
+                        </View>
+                        {attendee.top_interests?.slice(0, 2).map((interest, idx) => (
+                          <View key={idx} style={styles.attendeeInterestChip}>
+                            <Text style={styles.attendeeInterestText}>{interest}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
 
             {/* Engagement row */}
             <View style={styles.engagementRow}>
@@ -1071,6 +1178,16 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
 
+  // Plan description
+  descriptionText: {
+    fontFamily: FONTS.regular,
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    lineHeight: 20,
+    marginTop: 10,
+    marginBottom: 2,
+  },
+
   // Divider
   divider: {
     height: StyleSheet.hairlineWidth,
@@ -1426,5 +1543,178 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.textSecondary,
     marginTop: 2,
+  },
+
+  // ── Host trust stats card ──────────────────────────────────────────────────
+  hostStatsCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 10,
+    marginBottom: 4,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    gap: 8,
+  },
+  hostStatsTitle: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    letterSpacing: 0.3,
+  },
+  hostStatsRow: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  hostStatItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  hostStatText: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  hostStatsBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+
+  // ── Activity Level tier pills (shared by host card + attendee cards) ────────
+  activityLevelPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+  },
+  // Override tints per tier
+  'activityLevel_New':        { backgroundColor: '#F0FDF4' },
+  'activityLevel_Low':        { backgroundColor: '#F3F4F6' },
+  'activityLevel_Active':     { backgroundColor: '#EEF2FF' },
+  'activityLevel_Very_Active':{ backgroundColor: '#FEF3C7' },
+  activityLevelText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 11,
+    color: '#92400E',
+  },
+
+  // ── Interest chips ───────────────────────────────────────────────────────────
+  interestChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 5,
+  },
+  interestChip: {
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+  },
+  interestChipText: {
+    fontFamily: FONTS.medium,
+    fontSize: 11,
+    color: '#1D4ED8',
+  },
+
+  // ── Approved attendees roster ────────────────────────────────────────────────
+  attendeesSection: {
+    marginBottom: 12,
+  },
+  attendeesSectionLabel: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 10,
+    color: COLORS.textMuted,
+    letterSpacing: 0.8,
+    marginBottom: 8,
+  },
+  attendeeCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#F1F5F9',
+  },
+  attendeeAvatarCol: {},
+  attendeeAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#EEF2FF',
+  },
+  attendeeAvatarFallback: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  attendeeAvatarInitial: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 14,
+    color: COLORS.primary,
+  },
+  attendeeInfo: {
+    flex: 1,
+    gap: 3,
+  },
+  attendeeNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  attendeeName: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 14,
+    color: COLORS.textPrimary,
+  },
+  attendeeMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  attendeeMetaText: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  attendeeMetaDot: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: COLORS.textMuted,
+  },
+  attendeeBottomRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 5,
+    marginTop: 2,
+  },
+  attendeeActivityPill: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 999,
+    backgroundColor: '#F3F4F6',
+  },
+  attendeeActivityText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 10,
+    color: '#4B5563',
+  },
+  attendeeInterestChip: {
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 999,
+  },
+  attendeeInterestText: {
+    fontFamily: FONTS.medium,
+    fontSize: 10,
+    color: '#1D4ED8',
   },
 });

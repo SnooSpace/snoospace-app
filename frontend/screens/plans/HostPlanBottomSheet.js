@@ -142,6 +142,7 @@ export default function HostPlanBottomSheet({
   const [activityType, setActivityType] = useState("sports");
   const [customLabel, setCustomLabel] = useState("");
   const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [costType, setCostType] = useState("free");
   const [costAmount, setCostAmount] = useState("");
   const [visibility, setVisibility] = useState("everyone");
@@ -225,6 +226,7 @@ export default function HostPlanBottomSheet({
     setActivityType("sports");
     setCustomLabel("");
     setTitle("");
+    setDescription("");
     setCostType("free");
     setCostAmount("");
     setVisibility("everyone");
@@ -248,6 +250,7 @@ export default function HostPlanBottomSheet({
   const hasUnsavedChanges = useMemo(() => {
     return (
       title.trim().length > 0 ||
+      description.trim().length > 0 ||
       customLabel.trim().length > 0 ||
       activityType !== "sports" ||
       costType !== "free" ||
@@ -265,6 +268,7 @@ export default function HostPlanBottomSheet({
     );
   }, [
     title,
+    description,
     customLabel,
     activityType,
     costType,
@@ -295,6 +299,7 @@ export default function HostPlanBottomSheet({
       activityType,
       customLabel,
       title,
+      description,
       costType,
       costAmount,
       visibility,
@@ -329,6 +334,7 @@ export default function HostPlanBottomSheet({
       if (d.activityType) setActivityType(d.activityType);
       if (d.customLabel) setCustomLabel(d.customLabel);
       if (d.title) setTitle(d.title);
+      if (d.description) setDescription(d.description);
       if (d.costType) setCostType(d.costType);
       if (d.costAmount) setCostAmount(d.costAmount);
       if (d.visibility) setVisibility(d.visibility);
@@ -406,6 +412,7 @@ export default function HostPlanBottomSheet({
         custom_activity_label:
           activityType === "other" ? customLabel.trim() : undefined,
         title: title.trim(),
+        description: description.trim() || null,
         cost_type: costType,
         cost_amount_paise: costAmount
           ? Math.round(parseFloat(costAmount) * 100)
@@ -440,10 +447,13 @@ export default function HostPlanBottomSheet({
       onClose();
     } catch (err) {
       setBannerUploading(false);
-      if (err.status === 403 && err.data?.error === "proof_gate_required") {
+      if (err.status === 403 && (err.data?.error === "proof_gate_required" || err.data?.error === "plans_access_blocked")) {
+        const isBlocked = err.data?.error === "plans_access_blocked";
         Alert.alert(
-          "Verification required",
-          "Identity verification is required to host an Open Plan. Please get verified to proceed.",
+          isBlocked ? "Verification Required" : "Verification required",
+          isBlocked
+            ? (err.data?.message || "Your Open Plans access has been restricted. Please submit a new verification to restore access.")
+            : "Identity verification is required to host an Open Plan. Please get verified to proceed.",
           [
             { text: "Not now", style: "cancel" },
             {
@@ -590,6 +600,26 @@ export default function HostPlanBottomSheet({
             onChangeText={setTitle}
           />
           {errors.title && <Text style={styles.errorText}>{errors.title}</Text>}
+
+          {/* Description (optional) */}
+          <View style={styles.labelOptionalRow}>
+            <Text style={[styles.fieldLabel, { marginTop: 0, marginBottom: 0 }]}>Description</Text>
+            <Text style={styles.optionalBadge}>Optional</Text>
+          </View>
+          <TextInput
+            style={[styles.input, styles.textArea]}
+            placeholder="Add more details about this plan…"
+            placeholderTextColor={COLORS.textMuted}
+            maxLength={300}
+            multiline
+            numberOfLines={3}
+            textAlignVertical="top"
+            value={description}
+            onChangeText={setDescription}
+          />
+          {description.length > 0 && (
+            <Text style={styles.charCount}>{description.length}/300</Text>
+          )}
 
 
           {/* Cost */}
@@ -1624,5 +1654,36 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.semiBold,
     fontSize: 10,
     color: "#FFFFFF",
+  },
+  textArea: {
+    height: 88,
+    paddingTop: 12,
+    textAlignVertical: "top",
+  },
+  labelOptionalRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  optionalBadge: {
+    fontFamily: FONTS.medium,
+    fontSize: 11,
+    color: COLORS.textMuted,
+    backgroundColor: COLORS.surface,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    overflow: "hidden",
+  },
+  charCount: {
+    fontFamily: FONTS.medium,
+    fontSize: 11,
+    color: COLORS.textMuted,
+    textAlign: "right",
+    marginTop: 4,
   },
 });

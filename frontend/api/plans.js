@@ -58,6 +58,10 @@ export async function withdrawRequest(planId, reqId, token) {
   return apiDelete(`/plans/${planId}/requests/${reqId}`, null, 15000, token);
 }
 
+export async function getApprovedAttendees(planId, token) {
+  return apiGet(`/plans/${planId}/members`, 15000, token);
+}
+
 // ─── Engagement ─────────────────────────────────────────────────────────────
 
 export async function likePlan(planId, token) {

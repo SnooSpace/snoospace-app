@@ -1,4 +1,5 @@
 const pushService = require('../services/pushService');
+const { computeTrustStats } = require('./helpers/planTrustStats');
 
 // ---------------------------------------------------------------------------
 // POST /plans/:planId/requests
@@ -93,7 +94,8 @@ async function getRequests(req, res) {
     const statusClause = statusFilter !== 'all' ? `AND r.status = $${params.push(statusFilter)}` : '';
 
     const requestsR = await pool.query(
-      `SELECT r.*, m.name, m.profile_photo_url, m.is_verified, m.verification_tier, m.created_at as member_created_at
+      `SELECT r.*, m.name, m.profile_photo_url, m.is_verified, m.verification_tier,
+              m.created_at as member_created_at, m.interests
        FROM open_plan_requests r
        JOIN members m ON m.id = r.requester_id
        WHERE r.plan_id = $1 ${statusClause}
@@ -108,7 +110,7 @@ async function getRequests(req, res) {
 
         const [postCountR, eventsR, socialR, sharedCommR, sharedEventsR] = await Promise.all([
           pool.query(
-            `SELECT COUNT(*)::int as count FROM posts WHERE author_id = $1 AND author_type = 'member' AND post_type = 'media'`,
+            `SELECT COUNT(*)::int as count FROM posts WHERE author_id = $1 AND author_type = 'member'`,
             [reqId]
           ),
           pool.query(
@@ -139,6 +141,13 @@ async function getRequests(req, res) {
           ),
         ]);
 
+        // Pass the already-joined member row so computeTrustStats skips its own SELECT
+        const trustStats = await computeTrustStats(
+          pool,
+          reqId,
+          { created_at: row.member_created_at, interests: row.interests }
+        );
+
         return {
           id: row.id,
           plan_id: row.plan_id,
@@ -158,6 +167,11 @@ async function getRequests(req, res) {
             social_connections: socialR.rows,
             shared_communities: sharedCommR.rows,
             shared_events: sharedEventsR.rows,
+            // Trust stats: top_interests and activity_level (tier label only — raw post_count
+            // above is host-only context; activity_level is derived from it but not raw)
+            top_interests:  trustStats.top_interests,
+            activity_level: trustStats.activity_level,
+            member_since:   trustStats.member_since,
           },
         };
       })

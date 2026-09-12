@@ -1,4 +1,5 @@
 const pushService = require('../services/pushService');
+const { computeTrustStats } = require('./helpers/planTrustStats');
 
 // ---------------------------------------------------------------------------
 // Helper: get accepted count for a plan
@@ -86,6 +87,7 @@ async function createPlan(req, res) {
 
     const {
       title,
+      description,
       activity_type,
       custom_activity_label,
       cost_type,
@@ -108,6 +110,9 @@ async function createPlan(req, res) {
     }
     if (title.trim().length > 100) {
       return res.status(400).json({ error: 'title must be 100 characters or less' });
+    }
+    if (description !== undefined && description !== null && String(description).trim().length > 300) {
+      return res.status(400).json({ error: 'description must be 300 characters or less' });
     }
     const validActivityTypes = [
       'sports', 'study', 'cowork', 'food', 'gaming', 'games', 'other',
@@ -165,20 +170,21 @@ async function createPlan(req, res) {
 
       const result = await client.query(
         `INSERT INTO open_plans (
-           created_by, title, activity_type, custom_activity_label,
+           created_by, title, description, activity_type, custom_activity_label,
            cost_type, cost_amount_paise, visibility,
            gender_preference, location_public, location_private,
            scheduled_at, expires_at, max_accepted, is_recurring, recurrence_interval,
            banner_image_url
          ) VALUES (
-           $1, $2, $3, $4,
-           $5, $6, $7,
-           $8, $9, $10,
-           $11, $11::timestamptz + INTERVAL '24 hours', $12, $13, $14, $15
+           $1, $2, $3, $4, $5,
+           $6, $7, $8,
+           $9, $10, $11,
+           $12, $12::timestamptz + INTERVAL '24 hours', $13, $14, $15, $16
          ) RETURNING *`,
         [
           userId,
           title.trim(),
+          (description && String(description).trim()) || null,
           activity_type,
           custom_activity_label || null,
           cost_type,
@@ -415,7 +421,7 @@ async function getPlanById(req, res) {
     const [acceptedCount, myStatus, hostR, sharedCommunities, commentsR, approvedR, pendingCount] = await Promise.all([
       getAcceptedCount(pool, planId),
       getMyRequestStatus(pool, planId, userId),
-      pool.query(`SELECT id, name, is_verified, verification_tier, profile_photo_url, created_at FROM members WHERE id = $1`, [plan.created_by]),
+      pool.query(`SELECT id, name, is_verified, verification_tier, profile_photo_url, created_at, interests FROM members WHERE id = $1`, [plan.created_by]),
       getSharedCommunities(pool, userId, plan.created_by),
       pool.query(
         `SELECT c.id, c.content, c.created_at, m.id as commenter_id, m.name as commenter_name, m.profile_photo_url as commenter_photo
@@ -435,12 +441,36 @@ async function getPlanById(req, res) {
     const isHost = plan.created_by === userId;
     const isApproved = approvedR.rows.length > 0;
 
+    // Compute host trust stats, passing the already-fetched member row so
+    // computeTrustStats skips its own SELECT (fix: no redundant query).
+    const hostRow = hostR.rows[0];
+    const hostTrustStats = hostRow
+      ? await computeTrustStats(pool, plan.created_by, hostRow)
+      : null;
+
+    // Explicitly build host_profile — do NOT spread hostRow to avoid leaking
+    // raw created_at, interests, or any other member columns added in future.
+    const hostProfile = hostRow
+      ? {
+          id:                   hostRow.id,
+          name:                 hostRow.name,
+          is_verified:          hostRow.is_verified,
+          verification_tier:    hostRow.verification_tier || 'none',
+          profile_photo_url:    hostRow.profile_photo_url,
+          // Trust stats (computed tier — raw fields intentionally absent)
+          member_since:         hostTrustStats.member_since,
+          events_joined_count:  hostTrustStats.events_joined_count,
+          top_interests:        hostTrustStats.top_interests,
+          activity_level:       hostTrustStats.activity_level,
+        }
+      : null;
+
     const response = {
       ...plan,
       location_private: (isHost || isApproved) ? plan.location_private : undefined,
       accepted_count: acceptedCount,
       my_request_status: myStatus,
-      host_profile: hostR.rows[0] || null,
+      host_profile: hostProfile,
       shared_communities: sharedCommunities,
       comments_preview: commentsR.rows,
       pending_count: pendingCount,
@@ -462,7 +492,7 @@ async function updatePlan(req, res) {
     const userId = req.user.id;
     const planId = parseInt(req.params.planId, 10);
 
-    const stringFields = ['title', 'custom_activity_label', 'cost_type', 'location_public', 'location_private', 'banner_image_url', 'visibility', 'gender_preference'];
+    const stringFields = ['title', 'description', 'custom_activity_label', 'cost_type', 'location_public', 'location_private', 'banner_image_url', 'visibility', 'gender_preference'];
     const updates = [];
     const values = [];
     let idx = 1;
@@ -489,6 +519,12 @@ async function updatePlan(req, res) {
             return res.status(400).json({ error: 'title cannot be empty' });
           updates.push(`${field} = $${idx++}`);
           values.push(req.body[field].trim());
+        } else if (field === 'description') {
+          const desc = req.body.description;
+          if (desc !== null && String(desc).trim().length > 300)
+            return res.status(400).json({ error: 'description must be 300 characters or less' });
+          updates.push(`${field} = $${idx++}`);
+          values.push((desc && String(desc).trim()) || null);
         } else {
           updates.push(`${field} = $${idx++}`);
           values.push(req.body[field]);
@@ -713,4 +749,86 @@ async function cancelPlanCore(pool, planId, plan, pendingRequesterMessage) {
   }
 }
 
-module.exports = { createPlan, getPlans, getPlanById, updatePlan, cancelPlan, closePlan, cancelPlanCore };
+// ---------------------------------------------------------------------------
+// GET /plans/:planId/members
+// Returns approved attendee roster WITH trust stats.
+// Gated: caller must be the host OR an approved attendee of this plan.
+// Removal is automatically enforced — removed attendees have status 'removed',
+// so they fall out of the status = 'approved' filter on every fetch.
+// ---------------------------------------------------------------------------
+async function getApprovedAttendees(req, res) {
+  try {
+    const pool = req.app.locals.pool;
+    const userId = req.user.id;
+    const planId = parseInt(req.params.planId, 10);
+
+    // Fetch plan to check existence and host identity
+    const planR = await pool.query(
+      `SELECT created_by FROM open_plans WHERE id = $1`,
+      [planId]
+    );
+    if (planR.rows.length === 0) return res.status(404).json({ error: 'Plan not found' });
+    const plan = planR.rows[0];
+
+    const isHost = plan.created_by === userId;
+
+    if (!isHost) {
+      // Caller must be an approved attendee — same gate as location_private in getPlanById
+      const approvedR = await pool.query(
+        `SELECT 1 FROM open_plan_requests
+         WHERE plan_id = $1 AND requester_id = $2 AND status = 'approved'
+         LIMIT 1`,
+        [planId, userId]
+      );
+      if (approvedR.rows.length === 0) {
+        return res.status(403).json({ error: 'Not authorized' });
+      }
+    }
+
+    // Fetch all currently-approved attendees (removed attendees automatically excluded)
+    const attendeesR = await pool.query(
+      `SELECT r.requester_id, r.responded_at,
+              m.name, m.profile_photo_url, m.is_verified, m.verification_tier,
+              m.created_at AS member_created_at, m.interests
+       FROM open_plan_requests r
+       JOIN members m ON m.id = r.requester_id
+       WHERE r.plan_id = $1 AND r.status = 'approved'
+       ORDER BY r.responded_at ASC`,
+      [planId]
+    );
+
+    // N+1 note: computeTrustStats is called once per attendee. Acceptable for
+    // Open Plans' small guest counts (max 50). If attendee caps grow
+    // significantly, consider a batched query for post/event counts.
+    const attendees = await Promise.all(
+      attendeesR.rows.map(async (row) => {
+        const stats = await computeTrustStats(
+          pool,
+          row.requester_id,
+          { created_at: row.member_created_at, interests: row.interests } // skip redundant SELECT
+        );
+        // Explicitly build clean response — no row spread.
+        // Raw created_at, interests, post_count are intentionally absent.
+        return {
+          id:                   row.requester_id,
+          name:                 row.name,
+          profile_photo_url:    row.profile_photo_url,
+          is_verified:          row.is_verified,
+          verification_tier:    row.verification_tier || 'none',
+          responded_at:         row.responded_at,
+          member_since:         stats.member_since,
+          events_joined_count:  stats.events_joined_count,
+          top_interests:        stats.top_interests,
+          activity_level:       stats.activity_level,
+        };
+      })
+    );
+
+    res.json({ attendees });
+  } catch (err) {
+    console.error('[plansController.getApprovedAttendees]', err);
+    res.status(500).json({ error: 'server_error' });
+  }
+}
+
+module.exports = { createPlan, getPlans, getPlanById, updatePlan, cancelPlan, closePlan, cancelPlanCore, getApprovedAttendees };
