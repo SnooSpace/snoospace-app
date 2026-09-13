@@ -11,6 +11,11 @@ import {
   Linking,
   Share,
   Modal,
+  LayoutAnimation,
+  Platform,
+  UIManager,
+  Alert,
+  ToastAndroid,
 } from "react-native";
 import { ScrollView as GestureScrollView } from "react-native-gesture-handler";
 import { StatusBar, setStatusBarStyle } from "expo-status-bar";
@@ -155,7 +160,6 @@ import { getActiveAccount } from "../../api/auth";
 import HapticsService from "../../services/HapticsService";
 import EventBus from "../../utils/EventBus";
 import { NotificationConsumptionService } from "../../services/NotificationConsumptionService";
-import { Alert, ToastAndroid, Platform } from "react-native";
 import AttendanceConfirmationModal from "../../components/modals/AttendanceConfirmationModal";
 import SnooLoader from "../../components/ui/SnooLoader";
 import DynamicStatusBar from "../../components/navigation/DynamicStatusBar";
@@ -201,6 +205,7 @@ const EventDetailsScreen = ({ route, navigation }) => {
   const [error, setError] = useState(null);
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+  const [thingsExpanded, setThingsExpanded] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [roleToastVisible, setRoleToastVisible] = useState(false);
   const [roleToastId, setRoleToastId] = useState(0);
@@ -1663,7 +1668,10 @@ const EventDetailsScreen = ({ route, navigation }) => {
               {event.things_to_know?.length > 0 && (
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Things to Know</Text>
-                  {event.things_to_know.slice(0, 3).map((item, index) => {
+                  {(thingsExpanded
+                    ? event.things_to_know
+                    : event.things_to_know.slice(0, 3)
+                  ).map((item, index) => {
                     const ThingIcon = THINGS_ICON_MAP[item.icon_name] || Info;
                     return (
                       <View key={index} style={styles.thingRow}>
@@ -1677,8 +1685,26 @@ const EventDetailsScreen = ({ route, navigation }) => {
                     );
                   })}
                   {event.things_to_know.length > 3 && (
-                    <TouchableOpacity>
-                      <Text style={styles.seeAll}>See all ›</Text>
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      onPress={() => {
+                        if (
+                          Platform.OS === "android" &&
+                          UIManager.setLayoutAnimationEnabledExperimental
+                        ) {
+                          UIManager.setLayoutAnimationEnabledExperimental(true);
+                        }
+                        LayoutAnimation.configureNext(
+                          LayoutAnimation.Presets.easeInEaseOut,
+                        );
+                        setThingsExpanded(!thingsExpanded);
+                      }}
+                      style={styles.seeAllButton}
+                    >
+                      <Text style={styles.seeAll}>
+                        {thingsExpanded ? "Show less ‹" : "See all ›"}
+                      </Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -2798,10 +2824,15 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     flex: 1,
   },
+  seeAllButton: {
+    alignSelf: "flex-start",
+    marginTop: 12,
+    paddingVertical: 4,
+  },
   seeAll: {
     color: PRIMARY_COLOR,
-    fontWeight: "600",
-    marginTop: 12,
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 15,
   },
   featuredCard: {
     width: 100,

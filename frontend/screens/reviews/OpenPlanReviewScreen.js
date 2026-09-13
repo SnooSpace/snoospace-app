@@ -78,9 +78,15 @@ export default function OpenPlanReviewScreen({ route, navigation }) {
     setLoadingAttendees(true);
     try {
       const token = await getAuthToken();
-      const data = await apiGet(`/plans/${planId}/approved-attendees`, 15000, token);
+      let myId = currentUserId;
+      if (!myId) {
+        const { getActiveAccount } = require('../../api/auth');
+        const active = await getActiveAccount();
+        myId = active?.id;
+      }
+      const data = await apiGet(`/plans/${planId}/members`, 15000, token);
       const others = (data?.attendees || []).filter(
-        a => String(a.id) !== String(currentUserId)
+        a => String(a.id) !== String(myId)
       );
       setAttendees(others);
     } catch {

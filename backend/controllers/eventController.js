@@ -18,7 +18,7 @@ const {
   processOptOut,
   processKeep,
 } = require("../services/eventPostponementService");
-
+const { calculateOrderPricing } = require("../utils/pricingCalculator");
 
 const pool = createPool();
 
@@ -3699,13 +3699,75 @@ const registerForEvent = async (req, res) => {
         .json({ error: "Already registered for this event" });
     }
 
-    // 5a. Payment gate — paid events must go through Razorpay
-    // If totalAmount > 0, the frontend should have called /payments/create-order,
-    // opened the Razorpay payment sheet, and called /payments/verify.
-    // Registration for paid events is created by the Razorpay webhook
-    // (handlePaymentCaptured in routes/webhooks.js) — NOT here.
-    // This guard prevents bypass attempts that skip the payment step.
-    if (totalAmount && parseFloat(totalAmount) > 0) {
+    // 5a. Reconcile tickets against ticket_reservations if sessionId provided
+    let hasValidReservationHold = false;
+    if (sessionId) {
+      const reservationRes = await client.query(
+        `SELECT ticket_type_id, quantity, expires_at 
+         FROM ticket_reservations 
+         WHERE session_id = $1 AND member_id = $2 AND event_id = $3
+         FOR UPDATE`,
+        [sessionId, userId, eventId]
+      );
+
+      if (reservationRes.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({
+          error: "reservation_expired",
+          message: "Your ticket reservation hold has expired. Please select your tickets again.",
+        });
+      }
+
+      const isExpired = reservationRes.rows.some((r) => new Date(r.expires_at) <= new Date());
+      if (isExpired) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({
+          error: "reservation_expired",
+          message: "Your ticket reservation hold has expired. Please select your tickets again.",
+        });
+      }
+
+      const heldMap = new Map();
+      for (const r of reservationRes.rows) {
+        const tid = parseInt(r.ticket_type_id, 10);
+        heldMap.set(tid, (heldMap.get(tid) || 0) + parseInt(r.quantity, 10));
+      }
+
+      const requestedMap = new Map();
+      for (const t of tickets || []) {
+        const tid = parseInt(t.ticketTypeId, 10);
+        requestedMap.set(tid, (requestedMap.get(tid) || 0) + parseInt(t.quantity, 10));
+      }
+
+      let isMismatch = heldMap.size !== requestedMap.size;
+      if (!isMismatch) {
+        for (const [tid, qty] of requestedMap.entries()) {
+          if (heldMap.get(tid) !== qty) {
+            isMismatch = true;
+            break;
+          }
+        }
+      }
+
+      if (isMismatch) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({
+          error: "reservation_mismatch",
+          message: "Requested tickets do not match your reserved hold.",
+        });
+      }
+
+      hasValidReservationHold = true;
+    }
+
+    // 5b. Authoritative server-side pricing calculation
+    const pricing = await calculateOrderPricing(client, eventId, tickets, promoCode, userId, {
+      sessionId,
+      hasValidReservationHold,
+    });
+
+    // Payment gate — only reject if final server-computed amount > 0
+    if (pricing.finalAmount > 0) {
       await client.query("ROLLBACK");
       return res.status(402).json({
         error: "payment_required",
@@ -3832,54 +3894,81 @@ const registerForEvent = async (req, res) => {
     // 8. Generate unique QR code hash
     const qrCodeHash = crypto.randomBytes(16).toString("hex").toUpperCase();
 
-    // 9. Create registration
-    const regResult = await client.query(
-      `INSERT INTO event_registrations 
-        (event_id, member_id, registration_status, total_amount, promo_code, discount_amount, qr_code_hash)
-       VALUES ($1, $2, 'registered', $3, $4, $5, $6)
-       RETURNING id`,
-      [
-        eventId,
-        userId,
-        totalAmount || 0,
-        promoCode || null,
-        discountAmount || 0,
-        qrCodeHash,
-      ],
-    );
-    const registrationId = regResult.rows[0].id;
-
-    // 10. Insert ticket line items & update sold counts
-    for (const item of tickets) {
-      const ticketInfo = await client.query(
-        "SELECT name, base_price FROM ticket_types WHERE id = $1",
-        [item.ticketTypeId],
+    // 8b. Atomically lock and increment promo code usage if promo was applied
+    if (pricing.validatedPromoCode) {
+      const dcResult = await client.query(
+        `SELECT id, max_uses, current_uses FROM discount_codes 
+         WHERE event_id = $1 AND code_normalized = $2 
+         FOR UPDATE`,
+        [eventId, pricing.validatedPromoCode.toUpperCase().trim()]
       );
-      const ticket = ticketInfo.rows[0];
 
-      const basePrice = parseFloat(ticket?.base_price) || 0;
-      if (basePrice > 0) {
-        const err = new Error(
-          `${ticket?.name || 'This ticket'} is a paid ticket and cannot be claimed via free registration`,
+      if (dcResult.rows.length > 0) {
+        const dc = dcResult.rows[0];
+        if (dc.max_uses !== null && dc.current_uses >= dc.max_uses) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({
+            error: "promo_limit_reached",
+            message: "This promo code has reached its maximum usage limit.",
+          });
+        }
+        await client.query(
+          `UPDATE discount_codes SET current_uses = current_uses + 1 WHERE id = $1`,
+          [dc.id]
         );
-        err.statusCode = 400;
-        throw err;
       }
-      const resolvedUnitPrice = 
-        item.unitPrice !== undefined && item.unitPrice !== null
-          ? parseFloat(item.unitPrice)
-          : basePrice;
+    }
 
+    // 9. Create registration with 23505 unique_violation catch
+    let registrationId;
+    try {
+      const regResult = await client.query(
+        `INSERT INTO event_registrations 
+          (event_id, member_id, registration_status, total_amount, promo_code, discount_amount, qr_code_hash)
+         VALUES ($1, $2, 'registered', $3, $4, $5, $6)
+         RETURNING id`,
+        [
+          eventId,
+          userId,
+          0,
+          pricing.validatedPromoCode || null,
+          pricing.totalDiscount || 0,
+          qrCodeHash,
+        ],
+      );
+      registrationId = regResult.rows[0].id;
+    } catch (insertErr) {
+      if (insertErr.code === "23505") {
+        await client.query("ROLLBACK");
+        const dupeCheck = await pool.query(
+          `SELECT id FROM event_registrations 
+           WHERE event_id = $1 AND member_id = $2 AND registration_status != 'cancelled'`,
+          [eventId, userId]
+        );
+        if (dupeCheck.rows.length > 0) {
+          return res.json({
+            success: true,
+            registrationId: dupeCheck.rows[0].id,
+            replayed: true,
+            message: "Registration already exists.",
+          });
+        }
+      }
+      throw insertErr;
+    }
+
+    // 10. Insert ticket line items & update sold counts using pricing.ticketBreakdown
+    for (const item of pricing.ticketBreakdown) {
       await client.query(
         `INSERT INTO registration_tickets (registration_id, ticket_type_id, ticket_name, quantity, unit_price, total_price)
          VALUES ($1, $2, $3, $4, $5, $6)`,
         [
           registrationId,
           item.ticketTypeId,
-          item.ticketName || ticket.name,
+          item.ticketName,
           item.quantity,
-          resolvedUnitPrice,
-          item.quantity * resolvedUnitPrice,
+          item.unitPrice,
+          item.lineTotal,
         ],
       );
 
@@ -3894,11 +3983,12 @@ const registerForEvent = async (req, res) => {
         [item.ticketTypeId],
       );
       if (
-        updatedTicket.rows[0].total_quantity &&
-        updatedTicket.rows[0].sold_count >= updatedTicket.rows[0].total_quantity
+        updatedTicket.rows[0]?.total_quantity &&
+        updatedTicket.rows[0]?.sold_count >= updatedTicket.rows[0]?.total_quantity
       ) {
         // Mark for sold out notification (processed after commit)
-        item.isSoldOut = true;
+        const matchItem = tickets.find((t) => t.ticketTypeId === item.ticketTypeId);
+        if (matchItem) matchItem.isSoldOut = true;
       }
     }
 

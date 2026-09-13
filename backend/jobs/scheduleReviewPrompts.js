@@ -116,12 +116,16 @@ async function schedulePlanPrompts(pool) {
       )
   `);
 
-  // Also queue the host
+  // Also queue the host — only if at least one attendee was approved
   const { rows: hostRows } = await pool.query(`
     SELECT op.created_by AS user_id, op.id AS plan_id, op.expires_at
     FROM open_plans op
     WHERE op.status = 'completed'
       AND op.expires_at BETWEEN (NOW() - INTERVAL '7 hours') AND (NOW() - INTERVAL '${PROMPT_DELAY_HOURS} hours')
+      AND EXISTS (
+        SELECT 1 FROM open_plan_requests opr
+        WHERE opr.plan_id = op.id AND opr.status = 'approved'
+      )
       AND NOT EXISTS (
         SELECT 1 FROM review_prompts_queue rpq
         WHERE rpq.user_id     = op.created_by
@@ -156,7 +160,7 @@ async function schedulePlanPrompts(pool) {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // deliverReviewPrompts
-// Sends push notifications for due prompts with throttle guard.
+// Sends push notifications & in-app notifications for due prompts with throttle guard.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 async function deliverReviewPrompts(pool) {
@@ -173,14 +177,28 @@ async function deliverReviewPrompts(pool) {
       console.log(`[ReviewPromptDelivery] Marked ${expiredCount} prompts as expired`);
     }
 
-    // Fetch due prompts
+    // Fetch due prompts with source metadata
     const { rows: due } = await pool.query(`
-      SELECT id, user_id, source_type, source_id, expires_at
-      FROM review_prompts_queue
-      WHERE status = 'pending'
-        AND scheduled_for <= NOW()
-        AND expires_at > NOW()
-      ORDER BY scheduled_for ASC
+      SELECT rpq.id, rpq.user_id, rpq.source_type, rpq.source_id, rpq.expires_at,
+             CASE
+               WHEN rpq.source_type = 'event' THEN e.title
+               WHEN rpq.source_type = 'open_plan' THEN op.title
+             END AS source_title,
+             CASE
+               WHEN rpq.source_type = 'event' THEN e.community_id
+               WHEN rpq.source_type = 'open_plan' THEN op.created_by
+             END AS actor_id,
+             CASE
+               WHEN rpq.source_type = 'event' THEN 'community'
+               WHEN rpq.source_type = 'open_plan' THEN 'member'
+             END AS actor_type
+      FROM review_prompts_queue rpq
+      LEFT JOIN events e ON rpq.source_type = 'event' AND rpq.source_id = e.id
+      LEFT JOIN open_plans op ON rpq.source_type = 'open_plan' AND rpq.source_id = op.id
+      WHERE rpq.status = 'pending'
+        AND rpq.scheduled_for <= NOW()
+        AND rpq.expires_at > NOW()
+      ORDER BY rpq.scheduled_for ASC
       LIMIT 500
     `);
 
@@ -207,7 +225,45 @@ async function deliverReviewPrompts(pool) {
         continue;
       }
 
-      // Fetch user's push token
+      const rawTitle = prompt.source_title || (prompt.source_type === 'event' ? 'Event' : 'Open Plan');
+
+      // Build notification payload
+      const title = prompt.source_type === 'event'
+        ? '⭐ How was the event?'
+        : '👋 How did it go?';
+      const body = prompt.source_type === 'event'
+        ? `Share your thoughts on "${rawTitle}" — takes less than a minute.`
+        : `How was "${rawTitle}"? Let us know if you'd meet up again.`;
+
+      const deepLinkData = {
+        type:        'review_prompt',
+        sourceType:  prompt.source_type,
+        sourceId:    prompt.source_id,
+        sourceTitle: rawTitle,
+        expiresAt:   prompt.expires_at,
+      };
+
+      // 1. Create in-app notification
+      try {
+        const notificationService = require('../services/notificationService');
+        await notificationService.createSimpleNotification(pool, {
+          recipientId:   prompt.user_id,
+          recipientType: 'member',
+          actorId:       prompt.actor_id || prompt.user_id,
+          actorType:     prompt.actor_type || 'member',
+          type:          'review_prompt',
+          payload: {
+            sourceType:  prompt.source_type,
+            sourceId:    prompt.source_id,
+            sourceTitle: rawTitle,
+            expiresAt:   prompt.expires_at,
+          },
+        });
+      } catch (inAppErr) {
+        console.error(`[ReviewPromptDelivery] In-app notification failed for user ${prompt.user_id}:`, inAppErr.message);
+      }
+
+      // 2. Fetch user's push token
       const tokenResult = await pool.query(`
         SELECT expo_push_token AS push_token FROM push_tokens
         WHERE user_id = $1 AND user_type = 'member' AND is_active = true AND expo_push_token IS NOT NULL
@@ -215,30 +271,15 @@ async function deliverReviewPrompts(pool) {
       `, [prompt.user_id]);
 
       if (tokenResult.rows.length === 0) {
-        // No push token — mark as sent so we don't retry indefinitely
+        // No push token — in-app was created, mark queue row as sent
         await pool.query(`
           UPDATE review_prompts_queue SET status = 'sent', sent_at = NOW() WHERE id = $1
         `, [prompt.id]);
+        sent++;
         continue;
       }
 
-      const pushToken = tokenResult.rows[0].push_token;
-
-      // Build notification payload
-      const title = prompt.source_type === 'event'
-        ? '⭐ How was the event?'
-        : '👋 How did it go?';
-      const body = prompt.source_type === 'event'
-        ? 'Share your thoughts — takes less than a minute.'
-        : 'Let us know if you\'d meet up again.';
-
-      const deepLinkData = {
-        type:       'review_prompt',
-        sourceType: prompt.source_type,
-        sourceId:   prompt.source_id,
-        expiresAt:  prompt.expires_at,
-      };
-
+      // 3. Dispatch push notification
       try {
         const pushService = getPushService();
         await pushService.sendPushNotification(

@@ -183,20 +183,38 @@ const handlePaymentCaptured = async (pool, payment, event) => {
       const qrCodeHash = crypto.randomBytes(16).toString('hex').toUpperCase();
       const amountRupees = payment.amount / 100;
 
-      const regResult = await client.query(
-        `INSERT INTO event_registrations
-           (event_id, member_id, registration_status, total_amount,
-            promo_code, discount_amount, qr_code_hash)
-         VALUES ($1, $2, 'registered', $3, $4, $5, $6)
-         RETURNING id`,
-        [parsedEventId, parsedUserId, amountRupees, orderPromoCode, orderDiscount, qrCodeHash]
-      );
-      registrationId = regResult.rows[0].id;
-      isNewRegistration = true;
+      try {
+        const regResult = await client.query(
+          `INSERT INTO event_registrations
+             (event_id, member_id, registration_status, total_amount,
+              promo_code, discount_amount, qr_code_hash)
+           VALUES ($1, $2, 'registered', $3, $4, $5, $6)
+           RETURNING id`,
+          [parsedEventId, parsedUserId, amountRupees, orderPromoCode, orderDiscount, qrCodeHash]
+        );
+        registrationId = regResult.rows[0].id;
+        isNewRegistration = true;
 
-      console.log(
-        `[Razorpay] Created registration ${registrationId} for user ${parsedUserId}, event ${parsedEventId}`
-      );
+        console.log(
+          `[Razorpay] Created registration ${registrationId} for user ${parsedUserId}, event ${parsedEventId}`
+        );
+      } catch (insertErr) {
+        if (insertErr.code === '23505') {
+          const dupe = await client.query(
+            `SELECT id FROM event_registrations
+             WHERE event_id = $1 AND member_id = $2 AND registration_status != 'cancelled'`,
+            [parsedEventId, parsedUserId]
+          );
+          if (dupe.rows.length > 0) {
+            registrationId = dupe.rows[0].id;
+            isNewRegistration = false;
+          } else {
+            throw insertErr;
+          }
+        } else {
+          throw insertErr;
+        }
+      }
     } else {
       registrationId = existingReg.rows[0].id;
 
@@ -219,6 +237,16 @@ const handlePaymentCaptured = async (pool, payment, event) => {
        WHERE razorpay_order_id = $2`,
       [registrationId, orderId]
     );
+
+    // ── Promo Code Usage Increment ──────────────────────────────────────────
+    if (isNewRegistration && orderPromoCode) {
+      await client.query(
+        `UPDATE discount_codes 
+         SET current_uses = current_uses + 1 
+         WHERE event_id = $1 AND code_normalized = $2`,
+        [parsedEventId, orderPromoCode.toUpperCase().trim()]
+      );
+    }
 
     // ── Ticket line items, inventory, and reservation cleanup ──────────────
     // Only run on first fulfillment of this order. If Razorpay retries the

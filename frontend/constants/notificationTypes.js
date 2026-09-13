@@ -215,6 +215,11 @@ export const NotificationTypes = {
     channel: "events",
     icon: "❌",
   },
+  review_prompt: {
+    category: "events",
+    channel: "events",
+    icon: "⭐",
+  },
 
   // --- System Category ---
   plan_attendee_ver_failed: {

@@ -16,6 +16,7 @@
 const razorpay = require('../utils/razorpayClient');
 const crypto = require('crypto');
 const { createPool } = require('../config/db');
+const { calculateOrderPricing } = require('../utils/pricingCalculator');
 
 const pool = createPool();
 
@@ -43,6 +44,10 @@ const createOrder = async (req, res) => {
     return res.status(400).json({ error: 'event_id_required' });
   }
 
+  if (!tickets || !Array.isArray(tickets) || tickets.length === 0) {
+    return res.status(400).json({ error: 'tickets_required', message: 'No tickets selected' });
+  }
+
   try {
     // Fetch event to validate it exists and get title
     const eventResult = await pool.query(
@@ -57,7 +62,6 @@ const createOrder = async (req, res) => {
     const event = eventResult.rows[0];
 
     // Check if user already has a captured payment for this event
-    // This prevents double-payment if the user somehow gets back to checkout
     const existingPayment = await pool.query(
       `SELECT id FROM razorpay_payments
        WHERE user_id = $1 AND event_id = $2
@@ -69,7 +73,7 @@ const createOrder = async (req, res) => {
       return res.status(400).json({ error: 'already_paid' });
     }
 
-    // Check if user is already registered (e.g. from webhook completing earlier)
+    // Check if user is already registered
     const existingReg = await pool.query(
       `SELECT id FROM event_registrations
        WHERE event_id = $1 AND member_id = $2
@@ -78,7 +82,13 @@ const createOrder = async (req, res) => {
     );
 
     if (existingReg.rows.length > 0) {
-      return res.status(400).json({ error: 'already_registered' });
+      return res.json({
+        success: true,
+        isFullyDiscounted: true,
+        registrationId: existingReg.rows[0].id,
+        replayed: true,
+        message: 'Already registered for this event',
+      });
     }
 
     // Fetch user info for prefill
@@ -88,40 +98,272 @@ const createOrder = async (req, res) => {
     );
     const user = userResult.rows[0] || {};
 
-    // totalAmountRupees comes from the frontend after applying discounts/promo codes.
-    // Convert to paise — Razorpay always works in the smallest currency unit.
-    // Minimum Razorpay amount is ₹1 (100 paise).
-    const amountPaise = Math.round(parseFloat(totalAmountRupees || 0) * 100);
+    // ── Reconcile tickets against ticket_reservations hold ───────────────────
+    let hasValidReservationHold = false;
+    if (sessionId) {
+      const reservationRes = await pool.query(
+        `SELECT ticket_type_id, quantity, expires_at 
+         FROM ticket_reservations 
+         WHERE session_id = $1 AND member_id = $2 AND event_id = $3`,
+        [sessionId, userId, eventId]
+      );
+
+      if (reservationRes.rows.length === 0) {
+        return res.status(400).json({
+          error: 'reservation_expired',
+          message: 'Your ticket reservation hold has expired. Please select your tickets again.',
+        });
+      }
+
+      const isExpired = reservationRes.rows.some((r) => new Date(r.expires_at) <= new Date());
+      if (isExpired) {
+        return res.status(400).json({
+          error: 'reservation_expired',
+          message: 'Your ticket reservation hold has expired. Please select your tickets again.',
+        });
+      }
+
+      // Reconcile ticket quantities 1:1
+      const heldMap = new Map();
+      for (const r of reservationRes.rows) {
+        const tid = parseInt(r.ticket_type_id, 10);
+        heldMap.set(tid, (heldMap.get(tid) || 0) + parseInt(r.quantity, 10));
+      }
+
+      const requestedMap = new Map();
+      for (const t of tickets) {
+        const tid = parseInt(t.ticketTypeId, 10);
+        requestedMap.set(tid, (requestedMap.get(tid) || 0) + parseInt(t.quantity, 10));
+      }
+
+      let isMismatch = heldMap.size !== requestedMap.size;
+      if (!isMismatch) {
+        for (const [tid, qty] of requestedMap.entries()) {
+          if (heldMap.get(tid) !== qty) {
+            isMismatch = true;
+            break;
+          }
+        }
+      }
+
+      if (isMismatch) {
+        return res.status(400).json({
+          error: 'reservation_mismatch',
+          message: 'Requested tickets do not match your reserved hold.',
+        });
+      }
+
+      hasValidReservationHold = true;
+    }
+
+    // ── Authoritative Server-Side Pricing Calculation ───────────────────────
+    const pricing = await calculateOrderPricing(pool, eventId, tickets, promoCode, userId, {
+      sessionId,
+      hasValidReservationHold,
+    });
+
+    // Zero-tolerance comparison at the paise level
+    const clientAmountPaise = Math.round(parseFloat(totalAmountRupees || 0) * 100);
+    const serverAmountPaise = Math.round(pricing.finalAmount * 100);
+
+    if (clientAmountPaise !== serverAmountPaise) {
+      return res.status(400).json({
+        error: 'price_mismatch',
+        message: 'Pricing has changed, please review your order again.',
+        serverAmount: pricing.finalAmount,
+        clientAmount: parseFloat(totalAmountRupees || 0),
+      });
+    }
+
+    // ── 100% Discount Short-Circuit Path (Final Amount === 0) ────────────────
+    if (pricing.finalAmount === 0) {
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+
+        // Pre-check for existing non-cancelled registration
+        const existingRegCheck = await client.query(
+          `SELECT id FROM event_registrations
+           WHERE event_id = $1 AND member_id = $2 
+             AND registration_status != 'cancelled'
+           FOR UPDATE`,
+          [eventId, userId]
+        );
+
+        if (existingRegCheck.rows.length > 0) {
+          await client.query('COMMIT');
+          return res.json({
+            success: true,
+            isFullyDiscounted: true,
+            registrationId: existingRegCheck.rows[0].id,
+            replayed: true,
+          });
+        }
+
+        // Atomically lock and increment promo code usage if promo was applied
+        if (pricing.validatedPromoCode) {
+          const dcResult = await client.query(
+            `SELECT id, max_uses, current_uses FROM discount_codes 
+             WHERE event_id = $1 AND code_normalized = $2 
+             FOR UPDATE`,
+            [eventId, pricing.validatedPromoCode.toUpperCase().trim()]
+          );
+
+          if (dcResult.rows.length > 0) {
+            const dc = dcResult.rows[0];
+            if (dc.max_uses !== null && dc.current_uses >= dc.max_uses) {
+              await client.query('ROLLBACK');
+              return res.status(400).json({
+                error: 'promo_limit_reached',
+                message: 'This promo code has reached its maximum usage limit.',
+              });
+            }
+            await client.query(
+              `UPDATE discount_codes SET current_uses = current_uses + 1 WHERE id = $1`,
+              [dc.id]
+            );
+          }
+        }
+
+        // Insert registration with 23505 unique_violation catch
+        const qrCodeHash = crypto.randomBytes(16).toString('hex').toUpperCase();
+        let registrationId;
+
+        try {
+          const regResult = await client.query(
+            `INSERT INTO event_registrations (
+               event_id, member_id, registration_status, total_amount,
+               promo_code, discount_amount, qr_code_hash
+             ) VALUES ($1, $2, 'registered', 0, $3, $4, $5)
+             RETURNING id`,
+            [
+              eventId,
+              userId,
+              pricing.validatedPromoCode || null,
+              pricing.totalDiscount || 0,
+              qrCodeHash,
+            ]
+          );
+          registrationId = regResult.rows[0].id;
+        } catch (insertErr) {
+          if (insertErr.code === '23505') {
+            await client.query('ROLLBACK');
+            const dupeCheck = await pool.query(
+              `SELECT id FROM event_registrations 
+               WHERE event_id = $1 AND member_id = $2 AND registration_status != 'cancelled'`,
+              [eventId, userId]
+            );
+            if (dupeCheck.rows.length > 0) {
+              return res.json({
+                success: true,
+                isFullyDiscounted: true,
+                registrationId: dupeCheck.rows[0].id,
+                replayed: true,
+              });
+            }
+          }
+          throw insertErr;
+        }
+
+        // Insert ticket line items & update sold_count
+        for (const item of pricing.ticketBreakdown) {
+          await client.query(
+            `INSERT INTO registration_tickets (
+               registration_id, ticket_type_id, ticket_name, quantity, unit_price, total_price
+             ) VALUES ($1, $2, $3, $4, $5, $6)`,
+            [
+              registrationId,
+              item.ticketTypeId,
+              item.ticketName,
+              item.quantity,
+              item.unitPrice,
+              item.lineTotal,
+            ]
+          );
+
+          await client.query(
+            `UPDATE ticket_types 
+             SET sold_count = sold_count + $1, updated_at = NOW() 
+             WHERE id = $2`,
+            [item.quantity, item.ticketTypeId]
+          );
+        }
+
+        // Consume reservation hold if sessionId was provided
+        if (sessionId) {
+          const reservations = await client.query(
+            `SELECT ticket_type_id, quantity FROM ticket_reservations 
+             WHERE session_id = $1 FOR UPDATE`,
+            [sessionId]
+          );
+
+          for (const resRow of reservations.rows) {
+            await client.query(
+              `UPDATE ticket_types 
+               SET reserved_count = GREATEST(0, COALESCE(reserved_count, 0) - $1)
+               WHERE id = $2`,
+              [resRow.quantity, resRow.ticket_type_id]
+            );
+          }
+
+          await client.query(
+            `DELETE FROM ticket_reservations WHERE session_id = $1`,
+            [sessionId]
+          );
+        }
+
+        // Remove from bookmarks
+        await client.query(
+          `DELETE FROM event_interests WHERE event_id = $1 AND member_id = $2`,
+          [eventId, userId]
+        );
+
+        await client.query('COMMIT');
+
+        return res.json({
+          success: true,
+          isFullyDiscounted: true,
+          registrationId,
+          prefill: {
+            name: user.name || '',
+            email: user.email || '',
+          },
+        });
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
+      }
+    }
+
+    // ── Paid Razorpay Order Creation (Server-Computed Amount) ────────────────
+    const amountPaise = serverAmountPaise;
 
     if (amountPaise < 100) {
       return res.status(400).json({
         error: 'amount_too_low',
-        message: 'Minimum payable amount is ₹1. Use free registration for zero-cost tickets.'
+        message: 'Minimum payable amount is ₹1. Use free registration for zero-cost tickets.',
       });
     }
 
-    // Create order in Razorpay
     const receipt = `SNS-${userId}-${eventId}-${Date.now()}`;
     const razorpayOrder = await razorpay.orders.create({
       amount: amountPaise,
       currency: 'INR',
       receipt,
       notes: {
-        user_id: String(userId),    // stored as string — Razorpay notes are string-only
+        user_id: String(userId),
         event_id: String(eventId),
         event_title: event.title,
       },
     });
 
-    // Store order in our database so the webhook can look it up by order_id
-    // Full ticket/promo/session payload goes in a JSONB notes column so the
-    // webhook can fulfill line items later. Razorpay's own `notes` field only
-    // supports flat string key-value pairs, so we keep it minimal there.
     const fullOrderContext = {
       razorpay_notes: razorpayOrder.notes,
-      tickets: tickets || [],
-      promoCode: promoCode || null,
-      discountAmount: discountAmount || 0,
+      tickets: pricing.ticketBreakdown,
+      promoCode: pricing.validatedPromoCode || null,
+      discountAmount: pricing.totalDiscount || 0,
       sessionId: sessionId || null,
     };
 
@@ -145,13 +387,10 @@ const createOrder = async (req, res) => {
       `[createOrder] Created Razorpay order ${razorpayOrder.id} for user ${userId}, event ${eventId}, amount: ${amountPaise} paise`
     );
 
-    // Return order details to frontend
-    // key_id is the PUBLIC identifier — safe to expose to clients
-    // NEVER send key_secret to the frontend
     return res.json({
       success: true,
       orderId: razorpayOrder.id,
-      amount: amountPaise,          // paise
+      amount: amountPaise,
       currency: 'INR',
       keyId: process.env.RAZORPAY_KEY_ID,
       eventTitle: event.title,
@@ -159,12 +398,16 @@ const createOrder = async (req, res) => {
       prefill: {
         name: user.name || '',
         email: user.email || '',
-        contact: '',  // phone not stored — leave blank for user to fill
+        contact: '',
       },
     });
   } catch (err) {
     console.error('[createOrder] Error:', err.message, err.stack);
-    return res.status(500).json({ error: 'order_creation_failed' });
+    const statusCode = err.statusCode || 500;
+    return res.status(statusCode).json({
+      error: err.code || 'order_creation_failed',
+      message: err.message,
+    });
   }
 };
 

@@ -40,6 +40,7 @@ import {
   CheckCircle2,
   MinusCircle,
   UserPlus,
+  Star,
 } from "lucide-react-native";
 import { useNotifications } from "../../context/NotificationsContext";
 import { fetchNotifications } from "../../api/notifications";
@@ -342,6 +343,11 @@ const NotificationRow = ({
         return {
           icon: <CircleX size={18} color="#FF3B30" strokeWidth={2} />,
           bg: "rgba(255, 59, 48, 0.1)",
+        };
+      case "review_prompt":
+        return {
+          icon: <Star size={18} color="#FFB800" strokeWidth={2} />,
+          bg: "rgba(255, 184, 0, 0.12)",
         };
       default:
         return {
@@ -897,6 +903,33 @@ const NotificationRow = ({
         </Text>
       );
       subtitle = payload.commentText ? `"${payload.commentText}"` : null;
+      break;
+
+    case "review_prompt":
+      isNavigable = true;
+      onPress = () => {
+        if (payload.sourceType === "open_plan") {
+          navigation.navigate("OpenPlanReview", {
+            planId: payload.sourceId,
+            planTitle: payload.sourceTitle || "Open Plan",
+            currentUserId: firstItem.recipient_id,
+          });
+        } else {
+          navigation.navigate("EventReview", {
+            eventId: payload.sourceId,
+            eventTitle: payload.sourceTitle || "Event",
+          });
+        }
+      };
+      title = (
+        <Text style={styles.title}>
+          {payload.sourceType === "open_plan" ? "How did it go? " : "How was the event? "}
+          <Text style={styles.bold}>"{payload.sourceTitle || (payload.sourceType === "open_plan" ? "Open Plan" : "Event")}"</Text>
+        </Text>
+      );
+      subtitle = payload.sourceType === "open_plan"
+        ? "Let us know if you'd meet up again"
+        : "Share your thoughts — takes less than a minute";
       break;
 
     case "qna_question":

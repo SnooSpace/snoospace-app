@@ -217,6 +217,11 @@ const NotificationTypes = {
     channel: "events",
     icon: "❌",
   },
+  review_prompt: {
+    category: "events",
+    channel: "events",
+    icon: "⭐",
+  },
 
   // --- System Category ---
   removal_request: {

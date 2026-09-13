@@ -56,8 +56,9 @@ async function verifyEventAttendance(pool, userId, eventId) {
 
 async function verifyOpenPlanAttendance(pool, userId, planId) {
   const { rows } = await pool.query(
-    `SELECT 1 FROM open_plan_requests
-     WHERE requester_id = $1 AND plan_id = $2 AND status = 'approved'
+    `SELECT 1 FROM open_plans WHERE id = $2 AND created_by = $1
+     UNION
+     SELECT 1 FROM open_plan_requests WHERE requester_id = $1 AND plan_id = $2 AND status = 'approved'
      LIMIT 1`,
     [userId, planId]
   );

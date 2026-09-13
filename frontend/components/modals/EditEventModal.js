@@ -241,15 +241,15 @@ export default function EditEventModal({
   useEffect(() => {
     if (eventData && visible) {
       setTitle(eventData.title || "");
-      setEventDate(
-        eventData.event_date ? new Date(eventData.event_date) : new Date(),
-      );
-      // end_datetime is now required — always load from eventData if present
-      if (eventData.end_datetime) {
-        setEndDate(new Date(eventData.end_datetime));
-      }
-      // If absent (legacy event), endDate stays at its default (current time) so the
-      // form does not crash, but the organizer must pick a real end time to save.
+      const parsedStart = eventData.event_date
+        ? new Date(eventData.event_date)
+        : new Date();
+      setEventDate(parsedStart);
+      // end_datetime is required — load from eventData, or default to start + 2 hours for legacy events
+      const parsedEnd = eventData.end_datetime
+        ? new Date(eventData.end_datetime)
+        : new Date(parsedStart.getTime() + 2 * 60 * 60 * 1000);
+      setEndDate(parsedEnd);
 
       setGatesOpenTime(
         eventData.gates_open_time ? new Date(eventData.gates_open_time) : null,
@@ -341,12 +341,8 @@ export default function EditEventModal({
       setInitialSnapshot({
         title: eventData.title || "",
         description: eventData.description || "",
-        eventDate: eventData.event_date
-          ? new Date(eventData.event_date).toISOString()
-          : new Date().toISOString(),
-        endDate: eventData.end_datetime
-          ? new Date(eventData.end_datetime).toISOString()
-          : null,
+        eventDate: parsedStart.toISOString(),
+        endDate: parsedEnd.toISOString(),
         // hasEndTime removed — end time is always required now
         hasGates: !!eventData.gates_open_time,
         eventType: eventData.event_type || "in-person",
@@ -501,6 +497,20 @@ export default function EditEventModal({
   const handleBack = () => setCurrentStep(currentStep - 1);
 
   const handleSave = async () => {
+    if (!title.trim()) {
+      Alert.alert("Required", "Please enter an event title");
+      setCurrentStep(1);
+      return;
+    }
+    if (!endDate || endDate <= eventDate) {
+      Alert.alert(
+        "Required",
+        "End date/time is required and must be after the start time",
+      );
+      setCurrentStep(1);
+      return;
+    }
+
     setLoading(true);
     try {
       const updateData = {
@@ -622,7 +632,13 @@ export default function EditEventModal({
         Alert.alert("Error", result?.error || "Failed to update event");
       }
     } catch (error) {
-      Alert.alert("Error", "Failed to update event. Please try again.");
+      console.error("[EditEventModal] Failed to update event:", error);
+      const serverMsg =
+        error?.data?.error || error?.data?.message || error?.message;
+      Alert.alert(
+        "Error",
+        serverMsg || "Failed to update event. Please try again.",
+      );
     } finally {
       setLoading(false);
     }
@@ -779,9 +795,29 @@ export default function EditEventModal({
                         0,
                       );
                     }
+                    if (!endDate || newEndDate <= newEventDate) {
+                      newEndDate.setTime(
+                        newEventDate.getTime() + 2 * 60 * 60 * 1000,
+                      );
+                    }
                     setEndDate(newEndDate);
                   } else {
-                    setEndDate(null);
+                    // Single-day: preserve existing end time on the new event date
+                    const newEndDate = new Date(newEventDate);
+                    if (endDate) {
+                      newEndDate.setHours(
+                        endDate.getHours(),
+                        endDate.getMinutes(),
+                        0,
+                        0,
+                      );
+                    }
+                    if (!endDate || newEndDate <= newEventDate) {
+                      newEndDate.setTime(
+                        newEventDate.getTime() + 2 * 60 * 60 * 1000,
+                      );
+                    }
+                    setEndDate(newEndDate);
                   }
                 }}
               />

@@ -785,15 +785,24 @@ async function getApprovedAttendees(req, res) {
       }
     }
 
-    // Fetch all currently-approved attendees (removed attendees automatically excluded)
+    // Fetch host + all currently-approved attendees (removed attendees automatically excluded)
     const attendeesR = await pool.query(
-      `SELECT r.requester_id, r.responded_at,
+      `SELECT m.id AS requester_id, op.created_at AS responded_at,
               m.name, m.profile_photo_url, m.is_verified, m.verification_tier,
-              m.created_at AS member_created_at, m.interests
+              m.created_at AS member_created_at, m.interests,
+              TRUE AS is_host
+       FROM open_plans op
+       JOIN members m ON m.id = op.created_by
+       WHERE op.id = $1
+       UNION ALL
+       SELECT r.requester_id, r.responded_at,
+              m.name, m.profile_photo_url, m.is_verified, m.verification_tier,
+              m.created_at AS member_created_at, m.interests,
+              FALSE AS is_host
        FROM open_plan_requests r
        JOIN members m ON m.id = r.requester_id
        WHERE r.plan_id = $1 AND r.status = 'approved'
-       ORDER BY r.responded_at ASC`,
+       ORDER BY responded_at ASC`,
       [planId]
     );
 
@@ -820,6 +829,7 @@ async function getApprovedAttendees(req, res) {
           events_joined_count:  stats.events_joined_count,
           top_interests:        stats.top_interests,
           activity_level:       stats.activity_level,
+          is_host:              !!row.is_host,
         };
       })
     );

@@ -1514,6 +1514,12 @@ async function ensureTables(pool) {
       CREATE INDEX IF NOT EXISTS idx_events_is_postponed ON events(is_postponed) WHERE is_postponed = true;
       -- ── End Migration 086 ──────────────────────────────────────────────────
 
+      -- ── Migration 087: Partial unique index for active event registrations ──
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_event_registrations_active_unique
+      ON event_registrations (event_id, member_id)
+      WHERE registration_status != 'cancelled';
+      -- ── End Migration 087 ──────────────────────────────────────────────────
+
       -- Resynchronize table primary key sequences with MAX(id)
 
 

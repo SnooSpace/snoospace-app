@@ -8,6 +8,7 @@ router.post('/', authMiddleware, proofGate, plansController.createPlan);
 router.get('/', authMiddleware, plansController.getPlans);
 router.get('/:planId', authMiddleware, plansController.getPlanById);
 router.get('/:planId/members', authMiddleware, plansController.getApprovedAttendees);
+router.get('/:planId/approved-attendees', authMiddleware, plansController.getApprovedAttendees);
 router.patch('/:planId', authMiddleware, plansController.updatePlan);
 router.delete('/:planId', authMiddleware, plansController.cancelPlan);
 router.post('/:planId/close', authMiddleware, plansController.closePlan);

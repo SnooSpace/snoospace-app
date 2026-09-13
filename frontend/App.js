@@ -169,6 +169,15 @@ function AppContent() {
                   name: "Chat",
                   params: { conversationId: data.chatId },
                 });
+              } else if (data.type === "review_prompt") {
+                const screen = data.sourceType === "open_plan" ? "OpenPlanReview" : "EventReview";
+                const params = data.sourceType === "open_plan"
+                  ? { planId: data.sourceId, planTitle: data.sourceTitle, currentUserId: recipientId }
+                  : { eventId: data.sourceId, eventTitle: data.sourceTitle };
+                routes.push({
+                  name: screen,
+                  params,
+                });
               }
 
               // Safely handle navigation readiness
@@ -207,6 +216,18 @@ function AppContent() {
           CommonActions.navigate({
             name: "Chat",
             params: { conversationId: data.chatId },
+          })
+        );
+      } else if (data.type === "review_prompt") {
+        console.log("[App] Deep linking to review prompt:", data);
+        const screen = data.sourceType === "open_plan" ? "OpenPlanReview" : "EventReview";
+        const params = data.sourceType === "open_plan"
+          ? { planId: data.sourceId, planTitle: data.sourceTitle, currentUserId: recipientId }
+          : { eventId: data.sourceId, eventTitle: data.sourceTitle };
+        navigationRef.current?.dispatch(
+          CommonActions.navigate({
+            name: screen,
+            params,
           })
         );
       }

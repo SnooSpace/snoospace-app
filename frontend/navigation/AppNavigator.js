@@ -76,6 +76,9 @@ import VerificationSubmitScreen from "../screens/plans/VerificationSubmitScreen"
 import VerificationRecorderScreen from "../screens/plans/VerificationRecorderScreen";
 import VerificationHubScreen from "../screens/profile/member/VerificationHubScreen";
 import PlansVerificationScreen from "../screens/profile/member/PlansVerificationScreen";
+import EventReviewScreen from "../screens/reviews/EventReviewScreen";
+import OpenPlanReviewScreen from "../screens/reviews/OpenPlanReviewScreen";
+import ReviewSuccessScreen from "../screens/reviews/ReviewSuccessScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -346,6 +349,9 @@ export default function AppNavigator({ initialRouteName }) {
       <Stack.Screen name="CreatorMonetization" component={CommunityMonetizationScreen} />
       <Stack.Screen name="CommunityMonetization" component={CommunityMonetizationScreen} />
       <Stack.Screen name="CollabRequests" component={CollabRequestsScreen} />
+      <Stack.Screen name="EventReview" component={EventReviewScreen} />
+      <Stack.Screen name="OpenPlanReview" component={OpenPlanReviewScreen} />
+      <Stack.Screen name="ReviewSuccess" component={ReviewSuccessScreen} />
     </Stack.Navigator>
   );
 }

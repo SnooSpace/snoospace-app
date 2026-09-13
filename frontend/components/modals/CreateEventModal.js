@@ -1064,8 +1064,20 @@ const CreateEventModal = ({
                       );
                     }
                     setEndDate(newEndDate);
+                  } else if (endDate) {
+                    // Single day — keep existing end time on the new start date
+                    const newEndDate = new Date(newEventDate);
+                    newEndDate.setHours(
+                      endDate.getHours(),
+                      endDate.getMinutes(),
+                      0,
+                      0,
+                    );
+                    if (newEndDate <= newEventDate) {
+                      newEndDate.setTime(newEventDate.getTime() + 60 * 60 * 1000);
+                    }
+                    setEndDate(newEndDate);
                   } else {
-                    // Single day — clear any previous range end
                     setEndDate(null);
                   }
 
