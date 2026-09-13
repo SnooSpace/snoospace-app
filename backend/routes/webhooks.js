@@ -253,29 +253,71 @@ const handlePaymentCaptured = async (pool, payment, event) => {
 
     // Consume/clear the checkout-hold reservation now that payment succeeded.
     if (isNewRegistration && orderSessionId) {
-      // 1. Decrement reserved_count on ticket_types (converting reserved -> sold)
+      // FOR UPDATE prevents a concurrent cron cleanup sweep from deleting
+      // these same rows mid-transaction (double-decrement race, item 7).
       const reservations = await client.query(
-        `SELECT ticket_type_id, quantity FROM ticket_reservations WHERE session_id = $1`,
+        `SELECT ticket_type_id, quantity FROM ticket_reservations 
+         WHERE session_id = $1 FOR UPDATE`,
         [orderSessionId]
       );
 
-      for (const reservation of reservations.rows) {
-        await client.query(
-          `UPDATE ticket_types
-           SET reserved_count = GREATEST(0, COALESCE(reserved_count, 0) - $1)
-           WHERE id = $2`,
-          [reservation.quantity, reservation.ticket_type_id]
+      if (reservations.rows.length > 0) {
+        for (const reservation of reservations.rows) {
+          await client.query(
+            `UPDATE ticket_types
+             SET reserved_count = GREATEST(0, COALESCE(reserved_count, 0) - $1)
+             WHERE id = $2`,
+            [reservation.quantity, reservation.ticket_type_id]
+          );
+        }
+
+        const releaseResult = await client.query(
+          `DELETE FROM ticket_reservations WHERE session_id = $1`,
+          [orderSessionId]
         );
-      }
+        console.log(
+          `[Razorpay] Consumed ${releaseResult.rowCount} reservation row(s) for session ${orderSessionId}`
+        );
+      } else {
+        // Item 8: the reservation is already gone — most likely the cron's
+        // expiry sweep beat this webhook to it. Payment was captured
+        // (money changed hands), so we must NOT fail the registration.
+        // Instead, re-verify capacity is still available for what was
+        // purchased and log loudly for manual review if oversold.
+        console.warn(
+          `[Razorpay] No active reservation found for session ${orderSessionId} ` +
+          `at fulfillment time — likely expired before webhook arrived. ` +
+          `Proceeding with fulfillment (payment already captured) and ` +
+          `re-checking capacity for oversell.`
+        );
 
-      // 2. Delete the reservation records
-      const releaseResult = await client.query(
-        `DELETE FROM ticket_reservations WHERE session_id = $1`,
-        [orderSessionId]
-      );
-      console.log(
-        `[Razorpay] Consumed ${releaseResult.rowCount} reservation row(s) for session ${orderSessionId}`
-      );
+        for (const ticket of orderTickets) {
+          if (!ticket.ticketTypeId) continue;
+          const capacityCheck = await client.query(
+            `SELECT total_quantity, sold_count, reserved_count, name
+             FROM ticket_types WHERE id = $1 FOR UPDATE`,
+            [ticket.ticketTypeId]
+          );
+          const tt = capacityCheck.rows[0];
+          if (!tt) continue;
+          const requestedQty = parseInt(ticket.quantity, 10) || 1;
+          const available = tt.total_quantity
+            ? tt.total_quantity - (tt.sold_count || 0) - (tt.reserved_count || 0)
+            : null;
+          if (available !== null && available < 0) {
+            // Oversold: fulfillment already proceeds above (payment was
+            // captured, we do not withhold a paid-for ticket), but this
+            // must surface for manual review / possible extra-capacity
+            // decision or refund-and-apologize outreach.
+            console.error(
+              `[Razorpay] OVERSELL DETECTED: ticket_type ${ticket.ticketTypeId} ` +
+              `(${tt.name}) is now ${Math.abs(available)} over capacity after ` +
+              `fulfilling session ${orderSessionId}. Payment ${payment.id} was ` +
+              `captured and registration was created regardless. Needs manual review.`
+            );
+          }
+        }
+      }
     }
 
     // Remove from bookmarks (event_interests) if the user had marked interest.

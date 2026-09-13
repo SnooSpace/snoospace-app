@@ -282,8 +282,11 @@ const createEvent = async (req, res) => {
             ticket.description || null,
             ticket.base_price || 0,
             ticket.total_quantity || null,
-            ticket.sale_start_at || null,
-            ticket.sale_end_at || null,
+            // TEMPORARY: TicketTypesEditor.js currently sends sales_start_date/
+            // sales_end_date while this backend expects sale_start_at/sale_end_at.
+            // Accept both until the frontend is migrated to one canonical name.
+            ticket.sale_start_at || ticket.sales_start_date || null,
+            ticket.sale_end_at || ticket.sales_end_date || null,
             ticket.visibility || "public",
             ticket.access_code || null,
             ticket.min_per_order || 1,
@@ -303,6 +306,41 @@ const createEvent = async (req, res) => {
         ),
       );
       await Promise.all(ticketInserts);
+    } else {
+      // Default tier auto-creation for events created without explicit multi-tier pricing.
+      // Guarantees every event in SnooSpace has at least one valid ticket_type.
+      const defaultBasePrice = parseFloat(ticket_price) || 0;
+      const defaultQuantity = max_attendees ? parseInt(max_attendees) : null;
+      await pool.query(
+        `INSERT INTO ticket_types (
+          event_id, name, description, base_price, total_quantity,
+          sale_start_at, sale_end_at, visibility, access_code,
+          min_per_order, max_per_order, max_per_user, refund_policy,
+          display_order, is_active, gender_restriction
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+        [
+          eventId,
+          "General Admission",
+          null,
+          defaultBasePrice,
+          defaultQuantity,
+          null,
+          null,
+          "public",
+          null,
+          1,
+          10,
+          null,
+          JSON.stringify({
+            allowed: true,
+            deadline_hours_before: 24,
+            percentage: 100,
+          }),
+          0,
+          true,
+          "all",
+        ],
+      );
     }
 
     // Save discount codes
@@ -2204,8 +2242,11 @@ const updateEvent = async (req, res) => {
               ticket.description || null,
               ticket.base_price || 0,
               ticket.total_quantity || null,
-              ticket.sale_start_at || null,
-              ticket.sale_end_at || null,
+              // TEMPORARY: TicketTypesEditor.js currently sends sales_start_date/
+              // sales_end_date while this backend expects sale_start_at/sale_end_at.
+              // Accept both until the frontend is migrated to one canonical name.
+              ticket.sale_start_at || ticket.sales_start_date || null,
+              ticket.sale_end_at || ticket.sales_end_date || null,
               ticket.visibility || "public",
               ticket.access_code || null,
               ticket.min_per_order || 1,
@@ -2243,8 +2284,11 @@ const updateEvent = async (req, res) => {
               ticket.description || null,
               ticket.base_price || 0,
               ticket.total_quantity || null,
-              ticket.sale_start_at || null,
-              ticket.sale_end_at || null,
+              // TEMPORARY: TicketTypesEditor.js currently sends sales_start_date/
+              // sales_end_date while this backend expects sale_start_at/sale_end_at.
+              // Accept both until the frontend is migrated to one canonical name.
+              ticket.sale_start_at || ticket.sales_start_date || null,
+              ticket.sale_end_at || ticket.sales_end_date || null,
               ticket.visibility || "public",
               ticket.access_code || null,
               ticket.min_per_order || 1,
@@ -3678,7 +3722,9 @@ const registerForEvent = async (req, res) => {
         [item.ticketTypeId, eventId],
       );
       if (ticketResult.rows.length === 0) {
-        throw new Error(`Invalid ticket type: ${item.ticketTypeId}`);
+        const err = new Error(`Invalid ticket type: ${item.ticketTypeId}`);
+        err.statusCode = 400;
+        throw err;
       }
       const ticket = ticketResult.rows[0];
 
@@ -3692,33 +3738,43 @@ const registerForEvent = async (req, res) => {
         // If user has a reservation, their quantity is already in reserved_count, so add it back
         const userReserved = sessionId ? item.quantity : 0;
         if (item.quantity > available + userReserved) {
-          throw new Error(
+          const err = new Error(
             available <= 0
               ? `Sold out: ${ticket.name}`
               : `Only ${available} tickets left for ${ticket.name}`,
           );
+          err.statusCode = 400;
+          throw err;
         }
       }
 
       // Check sale window
       const now = new Date();
       if (ticket.sale_start_at && new Date(ticket.sale_start_at) > now) {
-        throw new Error(`${ticket.name} sales haven't started yet`);
+        const err = new Error(`${ticket.name} sales haven't started yet`);
+        err.statusCode = 400;
+        throw err;
       }
       if (ticket.sale_end_at && new Date(ticket.sale_end_at) < now) {
-        throw new Error(`${ticket.name} sales have ended`);
+        const err = new Error(`${ticket.name} sales have ended`);
+        err.statusCode = 400;
+        throw err;
       }
 
       // Check min/max per order
       if (ticket.min_per_order && item.quantity < ticket.min_per_order) {
-        throw new Error(
+        const err = new Error(
           `Minimum ${ticket.min_per_order} tickets required for ${ticket.name}`,
         );
+        err.statusCode = 400;
+        throw err;
       }
       if (ticket.max_per_order && item.quantity > ticket.max_per_order) {
-        throw new Error(
+        const err = new Error(
           `Maximum ${ticket.max_per_order} tickets allowed for ${ticket.name}`,
         );
+        err.statusCode = 400;
+        throw err;
       }
 
       // Check gender restriction (only if explicitly set and not 'all')
@@ -3731,14 +3787,18 @@ const registerForEvent = async (req, res) => {
       ) {
         if (!member.gender) {
           // Gender is required but unavailable — block purchase
-          throw new Error(
+          const err = new Error(
             `${ticket.name} is only available for ${ticket.gender_restriction}. Your profile gender information is required to purchase this ticket.`,
           );
+          err.statusCode = 400;
+          throw err;
         }
         if (ticket.gender_restriction.toLowerCase() !== member.gender.toLowerCase()) {
-          throw new Error(
+          const err = new Error(
             `${ticket.name} is only available for ${ticket.gender_restriction}`,
           );
+          err.statusCode = 400;
+          throw err;
         }
       }
 
@@ -3755,9 +3815,11 @@ const registerForEvent = async (req, res) => {
           parseInt(existingCount.rows[0].total) + item.quantity >
           ticket.max_per_user
         ) {
-          throw new Error(
+          const err = new Error(
             `You can only purchase ${ticket.max_per_user} tickets of type "${ticket.name}"`,
           );
+          err.statusCode = 400;
+          throw err;
         }
       }
     }
@@ -3790,6 +3852,19 @@ const registerForEvent = async (req, res) => {
       );
       const ticket = ticketInfo.rows[0];
 
+      const basePrice = parseFloat(ticket?.base_price) || 0;
+      if (basePrice > 0) {
+        const err = new Error(
+          `${ticket?.name || 'This ticket'} is a paid ticket and cannot be claimed via free registration`,
+        );
+        err.statusCode = 400;
+        throw err;
+      }
+      const resolvedUnitPrice = 
+        item.unitPrice !== undefined && item.unitPrice !== null
+          ? parseFloat(item.unitPrice)
+          : basePrice;
+
       await client.query(
         `INSERT INTO registration_tickets (registration_id, ticket_type_id, ticket_name, quantity, unit_price, total_price)
          VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -3798,8 +3873,8 @@ const registerForEvent = async (req, res) => {
           item.ticketTypeId,
           item.ticketName || ticket.name,
           item.quantity,
-          item.unitPrice,
-          item.quantity * item.unitPrice,
+          resolvedUnitPrice,
+          item.quantity * resolvedUnitPrice,
         ],
       );
 
@@ -4064,7 +4139,8 @@ const registerForEvent = async (req, res) => {
   } catch (error) {
     await client.query("ROLLBACK");
     console.error("Error registering for event:", error);
-    res.status(500).json({ error: error.message || "Failed to register" });
+    const statusCode = error.statusCode || 500;
+    res.status(statusCode).json({ error: error.message || "Failed to register" });
   } finally {
     client.release();
   }
@@ -4094,7 +4170,7 @@ const cancelRegistration = async (req, res) => {
 
     // 2. Get registration with event details
     const regResult = await client.query(
-      `SELECT er.*, e.event_date, e.title as event_title
+      `SELECT er.*, COALESCE(e.start_datetime, e.event_date) as event_date, e.title as event_title
        FROM event_registrations er
        JOIN events e ON er.event_id = e.id
        WHERE er.event_id = $1 AND er.member_id = $2 AND er.registration_status = 'registered'`,
@@ -4111,7 +4187,7 @@ const cancelRegistration = async (req, res) => {
     const ticketsResult = await client.query(
       `SELECT rt.*, tt.refund_policy
        FROM registration_tickets rt
-       JOIN ticket_types tt ON rt.ticket_type_id = tt.id
+       LEFT JOIN ticket_types tt ON rt.ticket_type_id = tt.id
        WHERE rt.registration_id = $1`,
       [registration.id],
     );
@@ -4142,10 +4218,12 @@ const cancelRegistration = async (req, res) => {
 
     // 5. Restore ticket sold counts
     for (const ticket of ticketsResult.rows) {
-      await client.query(
-        "UPDATE ticket_types SET sold_count = GREATEST(0, sold_count - $1) WHERE id = $2",
-        [ticket.quantity, ticket.ticket_type_id],
-      );
+      if (ticket.ticket_type_id) {
+        await client.query(
+          "UPDATE ticket_types SET sold_count = GREATEST(0, sold_count - $1) WHERE id = $2",
+          [ticket.quantity, ticket.ticket_type_id],
+        );
+      }
     }
 
     await client.query("COMMIT");
@@ -5726,22 +5804,41 @@ const reserveTickets = async (req, res) => {
       return res.status(400).json({ error: "No tickets to reserve" });
     }
 
-    // Check if user already has an active reservation for this event
-    const existingReservation = await client.query(
-      `SELECT session_id FROM ticket_reservations 
+    // Fetch event start time to evaluate effective sales window
+    const eventRow = await client.query(
+      `SELECT start_datetime, event_date FROM events WHERE id = $1`,
+      [eventId],
+    );
+    const eventStartDatetime =
+      eventRow.rows[0]?.start_datetime || eventRow.rows[0]?.event_date || null;
+
+    // If the user has an active hold for this event, release it atomically
+    // before creating the new one. This handles cart changes mid-checkout
+    // (e.g. switching from VIP to General Admission) — the old fix silently
+    // reused the old session and left the old tier locked while never
+    // holding the new tier. Everything here happens inside the same
+    // transaction as the new reservation below, so a failure to lock the
+    // new tickets rolls back the release too, leaving no orphaned state.
+    const existingHolds = await client.query(
+      `SELECT ticket_type_id, quantity FROM ticket_reservations 
        WHERE member_id = $1 AND event_id = $2 AND expires_at > NOW()
-       LIMIT 1`,
+       FOR UPDATE`,
       [userId, eventId],
     );
 
-    if (existingReservation.rows.length > 0) {
-      // Return existing session instead of creating new one
-      await client.query("ROLLBACK");
-      return res.json({
-        success: true,
-        sessionId: existingReservation.rows[0].session_id,
-        message: "Using existing reservation",
-      });
+    if (existingHolds.rows.length > 0) {
+      for (const hold of existingHolds.rows) {
+        await client.query(
+          `UPDATE ticket_types 
+           SET reserved_count = GREATEST(0, COALESCE(reserved_count, 0) - $1)
+           WHERE id = $2`,
+          [hold.quantity, hold.ticket_type_id],
+        );
+      }
+      await client.query(
+        `DELETE FROM ticket_reservations WHERE member_id = $1 AND event_id = $2`,
+        [userId, eventId],
+      );
     }
 
     // Generate unique session ID
@@ -5762,6 +5859,18 @@ const reserveTickets = async (req, res) => {
       }
 
       const ticket = ticketResult.rows[0];
+
+      // Enforce sales window — reject reservations outside the ticket's
+      // configured sale_start_at/sale_end_at, falling back to the event's
+      // own start time if no explicit sale_end_at is set.
+      const now = new Date();
+      if (ticket.sale_start_at && now < new Date(ticket.sale_start_at)) {
+        throw new Error(`Sales for ${ticket.name} have not opened yet`);
+      }
+      const effectiveEnd = ticket.sale_end_at || eventStartDatetime;
+      if (effectiveEnd && now > new Date(effectiveEnd)) {
+        throw new Error(`Sales for ${ticket.name} have closed`);
+      }
 
       // Check availability (total_quantity - sold_count - reserved_count)
       if (ticket.total_quantity) {

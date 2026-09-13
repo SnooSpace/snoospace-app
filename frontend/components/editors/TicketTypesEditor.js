@@ -257,8 +257,11 @@ const TicketTypesEditor = React.forwardRef(
     }));
 
     const openEditModal = (index, options = {}) => {
-      const ticket = ticketTypes[index];
-      const rp = ticket.refund_policy || { allowed: false, deadline_hours_before: 24, percentage: 100 };
+      // TEMPORARY: backend returns sale_start_at/sale_end_at; accept the
+      // legacy sales_start_date/sales_end_date name too until standardized.
+      const rawStartDate = ticket.sale_start_at || ticket.sales_start_date || null;
+      const rawEndDate = ticket.sale_end_at || ticket.sales_end_date || null;
+
       setCurrentTicket({
         name: ticket.name || "",
         description: ticket.description || "",
@@ -268,12 +271,8 @@ const TicketTypesEditor = React.forwardRef(
         gender_restriction: ticket.gender_restriction || "all",
         min_per_order: ticket.min_per_order?.toString() || "1",
         max_per_order: ticket.max_per_order?.toString() || "10",
-        sales_start_date: ticket.sales_start_date
-          ? new Date(ticket.sales_start_date)
-          : null,
-        sales_end_date: ticket.sales_end_date
-          ? new Date(ticket.sales_end_date)
-          : null,
+        sales_start_date: rawStartDate ? new Date(rawStartDate) : null,
+        sales_end_date: rawEndDate ? new Date(rawEndDate) : null,
         refund_policy_allowed: rp.allowed === true,
         refund_policy_deadline: rp.deadline_hours_before?.toString() ?? "24",
         refund_policy_percentage: rp.percentage?.toString() ?? "100",
@@ -281,7 +280,7 @@ const TicketTypesEditor = React.forwardRef(
 
       setCapacityMode(ticket.total_quantity ? "limited" : "unlimited");
       setSalesMode(
-        ticket.sales_start_date || ticket.sales_end_date
+        rawStartDate || rawEndDate
           ? "custom"
           : "duration",
       );
@@ -375,6 +374,15 @@ const TicketTypesEditor = React.forwardRef(
         }
       }
 
+      const salesStartDate =
+        salesMode === "custom" && currentTicket.sales_start_date
+          ? currentTicket.sales_start_date.toISOString()
+          : null;
+      const salesEndDate =
+        salesMode === "custom" && currentTicket.sales_end_date
+          ? currentTicket.sales_end_date.toISOString()
+          : null;
+
       const ticketData = {
         name: currentTicket.name.trim(),
         description: currentTicket.description.trim() || null,
@@ -391,14 +399,11 @@ const TicketTypesEditor = React.forwardRef(
         min_per_order: parseInt(currentTicket.min_per_order) || 1,
         max_per_order: parseInt(currentTicket.max_per_order) || 10,
         is_active: true,
-        sales_start_date:
-          salesMode === "custom" && currentTicket.sales_start_date
-            ? currentTicket.sales_start_date.toISOString()
-            : null,
-        sales_end_date:
-          salesMode === "custom" && currentTicket.sales_end_date
-            ? currentTicket.sales_end_date.toISOString()
-            : null,
+        // TEMPORARY: output both field name pairs so either backend expectation is satisfied
+        sale_start_at: salesStartDate,
+        sale_end_at: salesEndDate,
+        sales_start_date: salesStartDate,
+        sales_end_date: salesEndDate,
         // Per-tier refund policy \u2014 organiser-set, sent explicitly to backend.
         // Backend falls back to default only if this is absent (backward compat).
         refund_policy: {

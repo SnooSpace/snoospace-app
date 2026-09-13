@@ -396,15 +396,15 @@ const OpenPlanCard = ({
 
   const scheduledTime = plan?.scheduled_at ? new Date(plan.scheduled_at).getTime() : 0;
   const nowTime = Date.now();
-  const threeHours = 3 * 60 * 60 * 1000;
+  const oneHour = 60 * 60 * 1000;
 
   let statusChip = null;
   if (plan?.status === 'cancelled') {
     statusChip = { label: 'Cancelled', bg: '#FFEBEE', text: '#C62828' };
-  } else if (plan?.status === 'completed' || (scheduledTime && nowTime > scheduledTime + threeHours)) {
+  } else if (plan?.status === 'completed' || (scheduledTime && nowTime > scheduledTime + oneHour)) {
     statusChip = { label: 'Past', bg: '#F5F5F5', text: '#616161' };
-  } else if (scheduledTime && nowTime >= scheduledTime && nowTime <= scheduledTime + threeHours) {
-    statusChip = { label: 'Live', bg: '#E8F5E9', text: '#2E7D32' };
+  } else if (scheduledTime && nowTime >= scheduledTime && nowTime <= scheduledTime + oneHour) {
+    statusChip = { label: isOwner ? 'Hosting' : 'Live', bg: '#E8F5E9', text: '#2E7D32' };
   } else {
     statusChip = { label: 'Upcoming', bg: '#E3F2FD', text: '#1565C0' };
   }

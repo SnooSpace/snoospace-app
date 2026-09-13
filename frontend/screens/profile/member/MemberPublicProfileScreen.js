@@ -2388,7 +2388,9 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                 const displayPosts = posts.filter((p) => {
                   if (p?.post_type === "plan_promo" || p?.post_type === "event_promo") return false;
                   if (p?.type_data?.promo_source_type) return false;
-                  if (!profile?.is_creator_mode_enabled) return true;
+                  // Interactive post types (poll, prompt, qna, challenge, opportunity) live in the
+                  // Community tab when creator mode is ON and are hidden entirely when it is OFF.
+                  // Never include them in the Posts grid regardless of creator mode state.
                   const postType = p.post_type || p.type;
                   const isInteractive = [
                     "poll",
@@ -2874,7 +2876,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
           posts={posts.filter((p) => {
             if (p?.post_type === "plan_promo" || p?.post_type === "event_promo") return false;
             if (p?.type_data?.promo_source_type) return false;
-            if (!profile?.is_creator_mode_enabled) return true;
+            // Same rule as the Posts grid: always exclude interactive post types.
             const postType = p.post_type || p.type;
             const isInteractive = [
               "poll",

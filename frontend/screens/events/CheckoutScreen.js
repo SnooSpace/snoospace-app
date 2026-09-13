@@ -10,7 +10,7 @@
  *
  * Free tickets: registerForEvent() directly (unchanged).
  */
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -74,6 +74,15 @@ export default function CheckoutScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const { openCheckout, RazorpayUI } = useRazorpay();
 
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   // 10-minute countdown timer
   const [timeLeft, setTimeLeft] = useState(10 * 60);
   const [promoCode, setPromoCode] = useState("");
@@ -106,51 +115,71 @@ export default function CheckoutScreen({ route, navigation }) {
     };
   }, []);
 
-  // Reserve tickets on mount
-  useEffect(() => {
-    let isMounted = true;
+  const attemptReservation = async () => {
+    if (!isMountedRef.current) return;
+    setIsReserving(true);
+    try {
+      const tickets = cartItems.map((item) => ({
+        ticketTypeId: item.ticket.id,
+        quantity: item.quantity,
+      }));
 
-    const doReserve = async () => {
-      try {
-        const tickets = cartItems.map((item) => ({
-          ticketTypeId: item.ticket.id,
-          quantity: item.quantity,
-        }));
+      const response = await reserveTickets(event.id, tickets);
 
-        const response = await reserveTickets(event.id, tickets);
-
-        if (!isMounted) return;
-
-        if (response.success) {
-          setSessionId(response.sessionId);
-          setReservationError(null);
-        } else {
-          setReservationError(response.error || "Failed to reserve tickets");
-          Alert.alert(
-            "Reservation Failed",
-            response.error || "Unable to reserve tickets. Please try again.",
-            [{ text: "OK", onPress: () => navigation.goBack() }]
+      if (!isMountedRef.current) {
+        if (response?.success && response?.sessionId) {
+          releaseReservation(event.id, response.sessionId).catch((err) =>
+            console.warn("[Checkout] Auto-release on unmounted attemptReservation failed:", err)
           );
         }
-      } catch (error) {
-        if (!isMounted) return;
-        setReservationError(error.message);
+        return;
+      }
+
+      if (response.success) {
+        setSessionId(response.sessionId);
+        setReservationError(null);
+        setTimeLeft(10 * 60);
+      } else {
+        setReservationError(response.error || "Failed to reserve tickets");
         Alert.alert(
           "Reservation Failed",
-          error.message || "Unable to reserve tickets. Please try again.",
+          response.error || "Unable to reserve tickets. Please try again.",
           [{ text: "OK", onPress: () => navigation.goBack() }]
         );
-      } finally {
-        if (isMounted) setIsReserving(false);
       }
-    };
+    } catch (error) {
+      if (!isMountedRef.current) return;
+      setReservationError(error.message);
+      Alert.alert(
+        "Reservation Failed",
+        error.message || "Unable to reserve tickets. Please try again.",
+        [{ text: "OK", onPress: () => navigation.goBack() }]
+      );
+    } finally {
+      if (isMountedRef.current) setIsReserving(false);
+    }
+  };
 
-    doReserve();
-
-    return () => {
-      isMounted = false;
-    };
+  // Reserve tickets on mount
+  useEffect(() => {
+    attemptReservation();
   }, []);
+
+  // Auto-release reservation on any screen exit: hardware back button,
+  // iOS swipe-back gesture, tab switch, or programmatic navigation away.
+  // This is the safety net that handleGoBack (explicit tap) and the
+  // 10-minute timer don't cover.
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("beforeRemove", () => {
+      if (sessionId && !isConfirmed) {
+        // Fire-and-forget — do not block navigation on this call.
+        releaseReservation(event.id, sessionId).catch((err) =>
+          console.warn("[Checkout] Auto-release on screen removal failed:", err)
+        );
+      }
+    });
+    return unsubscribe;
+  }, [navigation, sessionId, isConfirmed, event.id]);
 
   const handleReleaseReservation = async () => {
     if (sessionId && !isConfirmed) {
@@ -421,10 +450,29 @@ export default function CheckoutScreen({ route, navigation }) {
               (typeof rzpError === "string" ? rzpError : null) ||
               "Payment could not be completed. Please try again.";
             Alert.alert("Payment Failed", errorMessage);
+            handleReleaseReservation()
+              .catch((err) =>
+                console.warn("[Checkout] Failed to release reservation after payment failure:", err)
+              )
+              .finally(() => {
+                // The old hold is dead — clear it and get a fresh one so a retry
+                // has a valid session and an honest countdown, rather than silently
+                // reusing a released sessionId.
+                setSessionId(null);
+                attemptReservation();
+              });
           },
           onClose: () => {
             setIsLoading(false);
             showToast("Info", "Payment was cancelled");
+            handleReleaseReservation()
+              .catch((err) =>
+                console.warn("[Checkout] Failed to release reservation after payment close:", err)
+              )
+              .finally(() => {
+                setSessionId(null);
+                attemptReservation();
+              });
           },
         });
 
@@ -480,6 +528,18 @@ export default function CheckoutScreen({ route, navigation }) {
         "Booking Failed",
         error.message || "Something went wrong. Please try again."
       );
+      // Only release on pre-payment failures (e.g. createPaymentOrder threw,
+      // or the free-registration call threw). If payment already succeeded
+      // and only verifyPayment failed, isConfirmed is true and this is a
+      // safe no-op — the hold has already been consumed by the webhook.
+      handleReleaseReservation()
+        .catch((err) =>
+          console.warn("[Checkout] Failed to release reservation after booking error:", err)
+        )
+        .finally(() => {
+          setSessionId(null);
+          attemptReservation();
+        });
     }
   };
 

@@ -36,6 +36,12 @@ const init = (dbPool) => {
   pool = dbPool;
   console.log("[Scheduler] Initializing scheduler service...");
 
+  // Purge any reservations that expired while the server was down or
+  // restarting, rather than waiting up to 60s for the first cron tick.
+  cleanupExpiredReservations().catch((err) =>
+    console.error("[Scheduler] Startup reservation cleanup error:", err)
+  );
+
   // Run event reminder check every 15 minutes
   cron.schedule("*/15 * * * *", async () => {
     console.log("[Scheduler] Running event reminder check...");
@@ -617,6 +623,23 @@ const cleanupExpiredReservations = async () => {
     await client.query(
       `DELETE FROM ticket_reservations WHERE expires_at < NOW()`
     );
+
+    // Self-healing reconciliation: guard against any drift in reserved_count
+    // caused by crashes, race conditions, or manual DB edits. Idempotent —
+    // only updates rows where the value actually differs.
+    await client.query(`
+      UPDATE ticket_types tt
+      SET reserved_count = COALESCE(sub.active_reserved, 0)
+      FROM (
+        SELECT tt2.id, COALESCE(SUM(tr.quantity), 0) AS active_reserved
+        FROM ticket_types tt2
+        LEFT JOIN ticket_reservations tr 
+          ON tr.ticket_type_id = tt2.id AND tr.expires_at > NOW()
+        WHERE tt2.reserved_count > 0 OR tr.id IS NOT NULL
+        GROUP BY tt2.id
+      ) sub
+      WHERE tt.id = sub.id AND tt.reserved_count != sub.active_reserved
+    `);
 
     await client.query("COMMIT");
 

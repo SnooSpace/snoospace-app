@@ -89,6 +89,7 @@ export default function CompactPlanCard({
   onPress,
   navigation,
   variant = 'light',
+  isDiscover = false,
 }) {
   const [cardW, setCardW] = useState((Dimensions.get('window').width - 44) / 2);
   const isOwner = currentUserId && (plan.created_by === currentUserId || plan.created_by === String(currentUserId));
@@ -106,7 +107,24 @@ export default function CompactPlanCard({
 
   let bottomPillLabel = null;
   if (isOwner) {
-    bottomPillLabel = 'Hosting';
+    if (isDiscover) {
+      bottomPillLabel = 'Hosting';
+    } else {
+      const scheduledDate = plan.scheduled_at ? new Date(plan.scheduled_at) : null;
+      const scheduledTime = scheduledDate && !isNaN(scheduledDate.getTime()) ? scheduledDate.getTime() : 0;
+      const ONE_HOUR_MS = 60 * 60 * 1000;
+      const now = Date.now();
+
+      if (!scheduledTime) {
+        bottomPillLabel = 'Upcoming';
+      } else if (now < scheduledTime) {
+        bottomPillLabel = 'Upcoming';
+      } else if (now <= scheduledTime + ONE_HOUR_MS) {
+        bottomPillLabel = 'Hosting';
+      } else {
+        bottomPillLabel = 'Past';
+      }
+    }
   } else if (reqStatus === 'approved') {
     bottomPillLabel = 'Joined';
   } else if (reqStatus === 'pending') {
@@ -158,14 +176,23 @@ export default function CompactPlanCard({
             <View
               style={[
                 styles.statusDot,
-                bottomPillLabel === 'Hosting'
-                  ? styles.statusDotHosting
+                bottomPillLabel === 'Upcoming'
+                  ? styles.statusDotUpcoming
+                  : bottomPillLabel === 'Hosting'
+                  ? (isDiscover ? styles.statusDotHosting : styles.statusDotLive)
+                  : bottomPillLabel === 'Past'
+                  ? styles.statusDotPast
                   : bottomPillLabel === 'Joined'
                   ? styles.statusDotJoined
                   : styles.statusDotPending,
               ]}
             />
-            <Text style={styles.statusPillText}>
+            <Text
+              style={[
+                styles.statusPillText,
+                bottomPillLabel === 'Past' && styles.statusPillTextPast,
+              ]}
+            >
               {bottomPillLabel}
             </Text>
           </View>
@@ -327,11 +354,23 @@ const styles = StyleSheet.create({
   statusDotHosting: {
     backgroundColor: '#38BDF8',
   },
+  statusDotLive: {
+    backgroundColor: '#22C55E',
+  },
+  statusDotUpcoming: {
+    backgroundColor: '#38BDF8',
+  },
+  statusDotPast: {
+    backgroundColor: '#9CA3AF',
+  },
   statusDotJoined: {
     backgroundColor: '#34D399',
   },
   statusDotPending: {
     backgroundColor: '#FBBF24',
+  },
+  statusPillTextPast: {
+    color: '#D1D5DB',
   },
   editBtn: {
     position: 'absolute',

@@ -497,12 +497,25 @@ const EventDetailsScreen = ({ route, navigation }) => {
       showRoleRestrictionMessage();
       return;
     }
-    // Navigate to ticket selection if there are ticket types
+    // Every event now has at least one ticket_type (default "General
+    // Admission" tier is auto-created by createEvent for events without
+    // explicit pricing tiers — see backfillDefaultTicketTypes.js for the
+    // one-time migration that backfilled pre-existing events).
     if (event?.ticket_types?.length > 0) {
       navigation.navigate("TicketSelection", { event });
     } else {
-      // Free event registration
-      console.log("Register for free event:", event?.id);
+      // Defensive fallback only — should be unreachable after the Part 1
+      // migration and Part 2 createEvent fix. If this fires, it means an
+      // event somehow has zero ticket_types despite the invariant, which
+      // is itself a bug worth surfacing rather than silently no-opping.
+      console.error(
+        "[EventDetails] Event has no ticket_types — this should be " +
+        "unreachable. Event ID:", event?.id
+      );
+      Alert.alert(
+        "Unable to Register",
+        "This event isn't set up for registration yet. Please try again later or contact the organizer."
+      );
     }
   };
 
