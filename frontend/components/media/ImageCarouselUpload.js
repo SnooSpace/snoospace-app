@@ -1,10 +1,10 @@
 import React, { useState, useRef } from "react";
-import { View, Text, TouchableOpacity, Image, StyleSheet, ScrollView, Alert, Animated, TouchableWithoutFeedback } from "react-native";
+import { View, Text, TouchableOpacity, Image, StyleSheet, ScrollView, Alert, Animated, TouchableWithoutFeedback, Modal } from "react-native";
 import * as ImagePicker from "expo-image-picker";
-import { useNavigation } from "@react-navigation/native";
 import { GalleryHorizontal, Plus, Star, Trash2 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { uploadEventBanner } from "../../api/upload";
+import BatchCropScreen from "./BatchCropScreen";
 
 import { COLORS } from "../../constants/theme";
 import SnooLoader from "../ui/SnooLoader";
@@ -16,8 +16,8 @@ import SnooLoader from "../ui/SnooLoader";
  */
 const ImageCarouselUpload = ({ images = [], onChange, maxImages = 5 }) => {
   const [uploading, setUploading] = useState(false);
-  const navigation = useNavigation();
-  const resolveRef = useRef(null);
+  const [cropModalVisible, setCropModalVisible] = useState(false);
+  const [pendingUris, setPendingUris] = useState([]);
 
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
@@ -64,38 +64,26 @@ const ImageCarouselUpload = ({ images = [], onChange, maxImages = 5 }) => {
         selectionLimit: Math.min(remainingSlots, 5),
       });
 
-      if (result.canceled || result.assets.length === 0) return;
+      if (result.canceled || !result.assets || result.assets.length === 0) return;
 
-      // Get image URIs
+      // Get image URIs and open in-modal batch crop
       const imageUris = result.assets.map((asset) => asset.uri);
+      setPendingUris(imageUris);
+      setCropModalVisible(true);
+    } catch (error) {
+      console.error("Error picking images:", error);
+      Alert.alert("Error", "Failed to select images. Please try again.");
+    }
+  };
 
-      // Navigate to BatchCropScreen for 1:1 crop (no aspect toggle)
-      const croppedResults = await new Promise((resolve) => {
-        resolveRef.current = resolve;
+  const handleCropComplete = async (croppedResults) => {
+    setCropModalVisible(false);
+    setPendingUris([]);
 
-        navigation.navigate("BatchCropScreen", {
-          imageUris: imageUris,
-          defaultPreset: "banner_square", // 1:1 fixed, no aspect toggle
-          onComplete: (results) => {
-            if (resolveRef.current) {
-              resolveRef.current(results);
-              resolveRef.current = null;
-            }
-          },
-          onCancel: () => {
-            if (resolveRef.current) {
-              resolveRef.current(null);
-              resolveRef.current = null;
-            }
-          },
-        });
-      });
+    if (!croppedResults || croppedResults.length === 0) return;
 
-      // User cancelled cropping
-      if (!croppedResults || croppedResults.length === 0) return;
-
-      setUploading(true);
-
+    setUploading(true);
+    try {
       // Upload all cropped images
       const uploadPromises = croppedResults.map(async (cropResult, index) => {
         const uploadResult = await uploadEventBanner(cropResult.uri);
@@ -110,11 +98,16 @@ const ImageCarouselUpload = ({ images = [], onChange, maxImages = 5 }) => {
       const newImages = await Promise.all(uploadPromises);
       onChange([...images, ...newImages]);
     } catch (error) {
-      console.error("Error picking images:", error);
+      console.error("Error uploading banner images:", error);
       Alert.alert("Error", "Failed to upload images. Please try again.");
     } finally {
       setUploading(false);
     }
+  };
+
+  const handleCropCancel = () => {
+    setCropModalVisible(false);
+    setPendingUris([]);
   };
 
   const removeImage = (index) => {
@@ -252,6 +245,23 @@ const ImageCarouselUpload = ({ images = [], onChange, maxImages = 5 }) => {
             </>
           )}
         </TouchableOpacity>
+      )}
+
+      {cropModalVisible && (
+        <Modal
+          visible={cropModalVisible}
+          animationType="slide"
+          statusBarTranslucent={true}
+          onRequestClose={handleCropCancel}
+        >
+          <BatchCropScreen
+            imageUris={pendingUris}
+            defaultPreset="banner_square"
+            lockedPreset="banner_square"
+            onComplete={handleCropComplete}
+            onCancel={handleCropCancel}
+          />
+        </Modal>
       )}
     </View>
   );

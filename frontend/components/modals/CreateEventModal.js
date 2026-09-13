@@ -810,6 +810,8 @@ const CreateEventModal = ({
   const handleNext = () => {
     if (isStepComplete(currentStep)) {
       setErrorField(null);
+      // Auto-save draft silently so progress is never lost between steps
+      saveDraft(true);
       setCurrentStep(currentStep + 1);
     } else {
       const field = getFirstMissingField(currentStep);

@@ -266,10 +266,11 @@ export default function CommunityDashboardScreen({ navigation }) {
 
   // Scroll Animation
   const scrollY = useRef(new Animated.Value(0)).current;
+  const hasInitialLoadRef = useRef(false);
 
   const loadDashboard = async (isRefresh = false) => {
     try {
-      if (!isRefresh && upcomingEvents.length === 0 && previousEvents.length === 0) {
+      if (!isRefresh && !hasInitialLoadRef.current) {
         setLoading(true);
       }
       const eventsData = await getCommunityEvents();
@@ -287,6 +288,7 @@ export default function CommunityDashboardScreen({ navigation }) {
     } catch (error) {
       console.error("Dashboard error:", error);
     } finally {
+      hasInitialLoadRef.current = true;
       setLoading(false);
       setRefreshing(false);
     }
@@ -307,7 +309,7 @@ export default function CommunityDashboardScreen({ navigation }) {
 
   useFocusEffect(
     useCallback(() => {
-      loadDashboard();
+      loadDashboard(true);
       loadAudienceStats();
       loadRevenueSummary(revenuePeriod);
     }, [revenuePeriod])
@@ -661,7 +663,7 @@ export default function CommunityDashboardScreen({ navigation }) {
     });
   };
 
-  if (loading) {
+  if (loading && !showCreateEventModal && !showEditEventModal) {
     return (
       <View style={styles.loadingContainer}>
         <SnooLoader size="large" color={COLORS.primary} />

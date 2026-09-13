@@ -1,4 +1,4 @@
-﻿/**
+/**
  * BatchCropScreen.js
  * Multi-image batch crop editor with thumbnail strip.
  * Allows selecting multiple images, cropping each one, then returning all results.
@@ -36,14 +36,15 @@ const THUMBNAIL_SIZE = 74; // Increased from 60
  * - onComplete: Callback with array of cropped image results
  * - onCancel: Callback when cancelled
  */
-const BatchCropScreen = ({ route, navigation }) => {
+const BatchCropScreen = ({ route, navigation, ...directProps }) => {
+  const params = { ...(route?.params || {}), ...directProps };
   const {
     imageUris = [],
     defaultPreset = "feed_portrait",
     lockedPreset = null, // If set, aspect ratio is locked and toggle is hidden
     onComplete,
     onCancel,
-  } = route?.params || {};
+  } = params;
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [currentPresetKey, setCurrentPresetKey] = useState(
@@ -280,7 +281,7 @@ const BatchCropScreen = ({ route, navigation }) => {
     if (onCancel) {
       onCancel();
     }
-    if (navigation.canGoBack()) {
+    if (navigation?.canGoBack?.()) {
       navigation.goBack();
     }
   }, [navigation, onCancel]);
@@ -582,7 +583,7 @@ const BatchCropScreen = ({ route, navigation }) => {
         onComplete(results);
       }
 
-      if (navigation.canGoBack()) {
+      if (navigation?.canGoBack?.()) {
         navigation.goBack();
       }
     } catch (error) {

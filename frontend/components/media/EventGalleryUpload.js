@@ -1,9 +1,9 @@
 import React, { useState, useRef } from "react";
-import { View, Text, TouchableOpacity, Image, StyleSheet, FlatList, Alert, Animated, TouchableWithoutFeedback } from "react-native";
+import { View, Text, TouchableOpacity, Image, StyleSheet, FlatList, Alert, Animated, TouchableWithoutFeedback, Modal } from "react-native";
 import * as ImagePicker from "expo-image-picker";
-import { useNavigation } from "@react-navigation/native";
 import { Images, Plus, X } from "lucide-react-native";
 import { uploadEventGallery } from "../../api/upload";
+import BatchCropScreen from "./BatchCropScreen";
 import { COLORS } from "../../constants/theme";
 import SnooLoader from "../ui/SnooLoader";
 
@@ -13,8 +13,8 @@ import SnooLoader from "../ui/SnooLoader";
  */
 const EventGalleryUpload = ({ images = [], onChange, maxImages = 20 }) => {
   const [uploading, setUploading] = useState(false);
-  const navigation = useNavigation();
-  const resolveRef = useRef(null);
+  const [cropModalVisible, setCropModalVisible] = useState(false);
+  const [pendingUris, setPendingUris] = useState([]);
 
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
@@ -63,66 +63,51 @@ const EventGalleryUpload = ({ images = [], onChange, maxImages = 20 }) => {
         selectionLimit: Math.min(remainingSlots, 10), // Max 10 at a time
       });
 
-      if (!result.canceled && result.assets.length > 0) {
-        // Get image URIs directly - no slow normalization needed
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        // Get image URIs directly - open in-modal batch crop
         const imageUris = result.assets.map((asset) => asset.uri);
-
-        // Navigate to BatchCropScreen with selected images
-        const croppedResults = await new Promise((resolve) => {
-          resolveRef.current = resolve;
-
-          navigation.navigate("BatchCropScreen", {
-            imageUris: imageUris,
-            defaultPreset: "feed_portrait", // 4:5 default
-            onComplete: (results) => {
-              if (resolveRef.current) {
-                resolveRef.current(results);
-                resolveRef.current = null;
-              }
-            },
-            onCancel: () => {
-              if (resolveRef.current) {
-                resolveRef.current(null);
-                resolveRef.current = null;
-              }
-            },
-          });
-        });
-
-        // User cancelled cropping
-        if (!croppedResults || croppedResults.length === 0) {
-          return;
-        }
-
-        setUploading(true);
-
-        try {
-          // Upload all cropped images to Cloudinary
-          const imageUris = croppedResults.map((r) => r.uri);
-          const uploadResults = await uploadEventGallery(imageUris);
-
-          if (uploadResults && Array.isArray(uploadResults)) {
-            const newImages = uploadResults.map((img, index) => ({
-              url: img.url,
-              cloudinary_public_id: img.public_id,
-              order: images.length + index,
-              crop_metadata: croppedResults[index]?.metadata,
-            }));
-
-            onChange([...images, ...newImages]);
-          }
-
-          setUploading(false);
-        } catch (uploadError) {
-          console.error("Error uploading gallery images:", uploadError);
-          Alert.alert("Error", "Failed to upload images. Please try again.");
-          setUploading(false);
-        }
+        setPendingUris(imageUris);
+        setCropModalVisible(true);
       }
     } catch (error) {
       console.error("Error picking images:", error);
       Alert.alert("Error", "Failed to pick images. Please try again.");
     }
+  };
+
+  const handleCropComplete = async (croppedResults) => {
+    setCropModalVisible(false);
+    setPendingUris([]);
+
+    if (!croppedResults || croppedResults.length === 0) return;
+
+    setUploading(true);
+    try {
+      // Upload all cropped images to Cloudinary
+      const imageUris = croppedResults.map((r) => r.uri);
+      const uploadResults = await uploadEventGallery(imageUris);
+
+      if (uploadResults && Array.isArray(uploadResults)) {
+        const newImages = uploadResults.map((img, index) => ({
+          url: img.url,
+          cloudinary_public_id: img.public_id,
+          order: images.length + index,
+          crop_metadata: croppedResults[index]?.metadata,
+        }));
+
+        onChange([...images, ...newImages]);
+      }
+    } catch (uploadError) {
+      console.error("Error uploading gallery images:", uploadError);
+      Alert.alert("Error", "Failed to upload images. Please try again.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleCropCancel = () => {
+    setCropModalVisible(false);
+    setPendingUris([]);
   };
 
   const removeImage = (index) => {
@@ -243,6 +228,22 @@ const EventGalleryUpload = ({ images = [], onChange, maxImages = 20 }) => {
             </TouchableOpacity>
           )}
         </View>
+      )}
+
+      {cropModalVisible && (
+        <Modal
+          visible={cropModalVisible}
+          animationType="slide"
+          statusBarTranslucent={true}
+          onRequestClose={handleCropCancel}
+        >
+          <BatchCropScreen
+            imageUris={pendingUris}
+            defaultPreset="feed_portrait"
+            onComplete={handleCropComplete}
+            onCancel={handleCropCancel}
+          />
+        </Modal>
       )}
     </View>
   );
