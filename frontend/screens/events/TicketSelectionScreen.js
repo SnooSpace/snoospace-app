@@ -54,6 +54,7 @@ import {
   resolveEventTicketThemes,
   SEMANTIC_THEMES,
 } from "../../utils/ticketVisuals";
+import { getSalesStatus } from "../../utils/salesTiming";
 
 // Premium Theme Colors
 const BACKGROUND_COLOR = "#F8F9FA";
@@ -109,6 +110,7 @@ const TicketCard = React.memo(({
   theme,
   displayDate,
   pricingRules,
+  salesStatus,
   onAdd,
   onRemove,
   onLockedPress,
@@ -117,8 +119,11 @@ const TicketCard = React.memo(({
   const borderId = `border-${ticket.id || index}`;
 
   const handleAddPress = useCallback(() => {
+    if (salesStatus?.status === "closed" || salesStatus?.status === "upcoming") {
+      return;
+    }
     onAdd(ticket);
-  }, [onAdd, ticket]);
+  }, [onAdd, ticket, salesStatus?.status]);
 
   const handleRemovePress = useCallback(() => {
     onRemove(ticket);
@@ -219,6 +224,24 @@ const TicketCard = React.memo(({
               {formatDate(displayDate)}  •  {formatTime(displayDate)}
             </Text>
           </View>
+
+          {/* Sales Window Urgency / Status Badge */}
+          {salesStatus?.status === "closed" ? (
+            <View style={styles.salesBadgeClosed}>
+              <Lock size={12} color="#DC2626" strokeWidth={2.2} />
+              <Text style={styles.salesBadgeClosedText}>Sales Closed</Text>
+            </View>
+          ) : salesStatus?.status === "upcoming" ? (
+            <View style={styles.salesBadgeUpcoming}>
+              <Clock size={12} color="#2563EB" strokeWidth={2.2} />
+              <Text style={styles.salesBadgeUpcomingText}>{salesStatus.label}</Text>
+            </View>
+          ) : salesStatus?.status === "ending_soon" ? (
+            <View style={styles.salesBadgeEndingSoon}>
+              <Clock size={12} color="#D97706" strokeWidth={2.2} />
+              <Text style={styles.salesBadgeEndingSoonText}>{salesStatus.label}</Text>
+            </View>
+          ) : null}
 
           {/* Gender restriction lock reason if locked */}
           {ticket.isLocked && ticket.lockReason ? (
@@ -331,6 +354,14 @@ const TicketCard = React.memo(({
                   <Lock size={12} color={theme.color} strokeWidth={2.4} style={{ marginRight: 3 }} />
                   <Text style={[styles.lockedBadgeText, { color: theme.color }]}>Locked</Text>
                 </TouchableOpacity>
+              ) : salesStatus?.status === "closed" ? (
+                <View style={styles.closedActionBadge}>
+                  <Text style={styles.closedActionBadgeText}>Closed</Text>
+                </View>
+              ) : salesStatus?.status === "upcoming" ? (
+                <View style={styles.upcomingActionBadge}>
+                  <Text style={styles.upcomingActionBadgeText}>Soon</Text>
+                </View>
               ) : !isSoldOut ? (
                 qty === 0 ? (
                   <TouchableOpacity
@@ -518,9 +549,38 @@ export default function TicketSelectionScreen({ route, navigation }) {
     return { totalItems: items, totalAmount: amount };
   }, [cart, displayedTickets, event.pricing_rules]);
 
+  // Live ticker for sales window countdowns (matches CheckoutScreen setInterval pattern)
+  const [tick, setTick] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTick(Date.now());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Find soonest ending ticket among all event tickets for the urgency banner
+  const urgencyInfo = useMemo(() => {
+    if (!event?.ticket_types || event.ticket_types.length === 0) return null;
+    const now = new Date(tick);
+    let soonest = null;
+
+    for (const t of event.ticket_types) {
+      const status = getSalesStatus(t, event, now);
+      if (status.status === "ending_soon") {
+        if (!soonest || (status.msRemaining !== null && status.msRemaining < soonest.msRemaining)) {
+          soonest = status;
+        }
+      }
+    }
+    return soonest;
+  }, [event, tick]);
+
   // Stable handlers
   const handleAdd = useCallback((ticket) => {
     if (ticket.isLocked) return;
+    const sales = getSalesStatus(ticket, event, new Date(Date.now()));
+    if (sales.status === "closed" || sales.status === "upcoming") return;
+
     const key = ticket.id?.toString() || ticket.name;
     setCart((prev) => {
       const currentQty = prev[key] || 0;
@@ -536,7 +596,7 @@ export default function TicketSelectionScreen({ route, navigation }) {
         [key]: currentQty + 1,
       };
     });
-  }, []);
+  }, [event]);
 
   const handleRemove = useCallback((ticket) => {
     const key = ticket.id?.toString() || ticket.name;
@@ -626,6 +686,18 @@ export default function TicketSelectionScreen({ route, navigation }) {
         </View>
       </View>
 
+      {/* Floating Urgency Banner if any ticket is ending soon */}
+      {urgencyInfo && (
+        <View style={styles.urgencyBanner}>
+          <View style={styles.urgencyIconWrap}>
+            <Clock size={14} color="#D97706" strokeWidth={2.2} />
+          </View>
+          <Text style={styles.urgencyBannerText} numberOfLines={1}>
+            Ticket sales closing soon • {urgencyInfo.label}
+          </Text>
+        </View>
+      )}
+
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Section Title - Authority Rule: BasicCommercialBlack used once */}
         <Text style={styles.sectionTitle}>Choose tickets</Text>
@@ -682,6 +754,7 @@ export default function TicketSelectionScreen({ route, navigation }) {
           const maxAllowed = Math.min(ticket.max_per_order || 10, available);
           const addDisabled = qty >= maxAllowed;
           const theme = ticket.theme;
+          const salesStatus = getSalesStatus(ticket, event, new Date(tick));
 
           return (
             <TicketCard
@@ -696,6 +769,7 @@ export default function TicketSelectionScreen({ route, navigation }) {
               theme={theme}
               displayDate={displayDate}
               pricingRules={event.pricing_rules}
+              salesStatus={salesStatus}
               onAdd={handleAdd}
               onRemove={handleRemove}
               onLockedPress={handleLockedPress}
@@ -1197,5 +1271,106 @@ const styles = StyleSheet.create({
     color: MUTED_TEXT,
     textAlign: "center",
     lineHeight: 20,
+  },
+  // Floating Urgency Banner
+  urgencyBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFBEB",
+    borderBottomWidth: 1,
+    borderBottomColor: "#FDE68A",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  urgencyIconWrap: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "#FEF3C7",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 10,
+  },
+  urgencyBannerText: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 13,
+    color: "#B45309",
+    flex: 1,
+  },
+  // Per-card sales timing badges
+  salesBadgeClosed: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FEF2F2",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    alignSelf: "flex-start",
+    marginTop: 6,
+  },
+  salesBadgeClosedText: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 12,
+    color: "#DC2626",
+    marginLeft: 4,
+  },
+  salesBadgeUpcoming: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EFF6FF",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    alignSelf: "flex-start",
+    marginTop: 6,
+  },
+  salesBadgeUpcomingText: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 12,
+    color: "#2563EB",
+    marginLeft: 4,
+  },
+  salesBadgeEndingSoon: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFBEB",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    alignSelf: "flex-start",
+    marginTop: 6,
+  },
+  salesBadgeEndingSoonText: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 12,
+    color: "#D97706",
+    marginLeft: 4,
+  },
+  // Action stub badges when disabled
+  closedActionBadge: {
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  closedActionBadgeText: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 12,
+    color: "#9CA3AF",
+  },
+  upcomingActionBadge: {
+    backgroundColor: "#EFF6FF",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  upcomingActionBadgeText: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 12,
+    color: "#3B82F6",
   },
 });

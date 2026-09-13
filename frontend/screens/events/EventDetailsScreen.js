@@ -172,6 +172,7 @@ import {
   EVENT_STATES,
 } from "../../utils/eventStateUtils";
 import { detectMeetingPlatform } from "../../utils/meetingPlatformUtils";
+import { getSalesStatus } from "../../utils/salesTiming";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const BANNER_HEIGHT = SCREEN_HEIGHT * 0.45;
@@ -492,6 +493,10 @@ const EventDetailsScreen = ({ route, navigation }) => {
       navigation.navigate("TicketView", { eventId: event?.id });
       return;
     }
+    // If all ticket types are closed or upcoming, disallow registration tap
+    if (salesSummary.allClosed || salesSummary.allUpcoming) {
+      return;
+    }
     // Only members can book tickets
     if (isRestrictedRole) {
       showRoleRestrictionMessage();
@@ -697,6 +702,38 @@ const EventDetailsScreen = ({ route, navigation }) => {
 
   // Get event state for conditional rendering
   const eventState = getEventState(event, serverTime);
+
+  // Defect 8: Sales window urgency & CTA state logic
+  const salesSummary = useMemo(() => {
+    const tickets = event?.ticket_types;
+    if (!tickets || tickets.length === 0) {
+      return { allClosed: false, allUpcoming: false, endingSoonTicket: null };
+    }
+    const statuses = tickets.map((t) => getSalesStatus(t, event));
+    const allClosed =
+      statuses.length > 0 && statuses.every((s) => s.status === "closed");
+    const allUpcoming =
+      statuses.length > 0 && statuses.every((s) => s.status === "upcoming");
+
+    // Find soonest ending ticket among those ending soon
+    let endingSoonTicket = null;
+    for (const s of statuses) {
+      if (s.status === "ending_soon") {
+        if (
+          !endingSoonTicket ||
+          (s.msRemaining !== null && s.msRemaining < endingSoonTicket.msRemaining)
+        ) {
+          endingSoonTicket = s;
+        }
+      }
+    }
+
+    return {
+      allClosed,
+      allUpcoming,
+      endingSoonTicket,
+    };
+  }, [event]);
 
   // Get View Attendees state (always visible for members, but may be locked)
   const viewAttendeesState = getViewAttendeesState(
@@ -1446,6 +1483,19 @@ const EventDetailsScreen = ({ route, navigation }) => {
                     </View>
                   )}
 
+                  {/* Urgency Badge above CTA if any ticket is ending soon */}
+                  {salesSummary.endingSoonTicket &&
+                    !isRegistered &&
+                    !salesSummary.allClosed &&
+                    !isInviteOnlyNotInvited && (
+                      <View style={styles.ctaUrgencyRow}>
+                        <Clock size={12} color="#D97706" strokeWidth={2.2} />
+                        <Text style={styles.ctaUrgencyText}>
+                          {salesSummary.endingSoonTicket.label}
+                        </Text>
+                      </View>
+                    )}
+
                   <View
                     style={styles.stickyActionContent}
                     onLayout={(e) => {
@@ -1483,8 +1533,10 @@ const EventDetailsScreen = ({ route, navigation }) => {
                   <TouchableOpacity
                     style={[
                       styles.stickyRegisterButton,
-                      isRestrictedRole &&
-                        !isInviteOnlyNotInvited &&
+                      (isRestrictedRole ||
+                        (!isRegistered &&
+                          !isInviteOnlyNotInvited &&
+                          (salesSummary.allClosed || salesSummary.allUpcoming))) &&
                         styles.stickyRegisterButtonDisabled,
                       isRegistered && styles.stickyRegisterButtonRegistered,
                     ]}
@@ -1495,7 +1547,11 @@ const EventDetailsScreen = ({ route, navigation }) => {
                     }
                     activeOpacity={0.8}
                     disabled={
-                      requestingInvite || (!!inviteRequestStatus && !isInvited)
+                      requestingInvite ||
+                      (!!inviteRequestStatus && !isInvited) ||
+                      (!isRegistered &&
+                        !isInviteOnlyNotInvited &&
+                        (salesSummary.allClosed || salesSummary.allUpcoming))
                     }
                   >
                     {requestingInvite ? (
@@ -1504,8 +1560,10 @@ const EventDetailsScreen = ({ route, navigation }) => {
                       <Text
                         style={[
                           styles.stickyRegisterText,
-                          isRestrictedRole &&
-                            !isInviteOnlyNotInvited &&
+                          (isRestrictedRole ||
+                            (!isRegistered &&
+                              !isInviteOnlyNotInvited &&
+                              (salesSummary.allClosed || salesSummary.allUpcoming))) &&
                             styles.stickyRegisterTextDisabled,
                           isRegistered && { color: "#FFFFFF" },
                         ]}
@@ -1516,10 +1574,14 @@ const EventDetailsScreen = ({ route, navigation }) => {
                             ? "Requested"
                             : isInviteOnlyNotInvited
                               ? "Request Invite"
-                              : event.ticket_types?.length > 0 ||
-                                  event.ticket_price
-                                ? "Register Now"
-                                : "Register"}
+                              : salesSummary.allClosed
+                                ? "Sales Closed"
+                                : salesSummary.allUpcoming
+                                  ? "Coming Soon"
+                                  : event.ticket_types?.length > 0 ||
+                                      event.ticket_price
+                                    ? "Register Now"
+                                    : "Register"}
                       </Text>
                     )}
                   </TouchableOpacity>
@@ -2494,6 +2556,24 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 16,
     fontFamily: "Manrope-SemiBold",
+  },
+  ctaUrgencyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    backgroundColor: "#FFFBEB",
+    borderColor: "#FDE68A",
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  ctaUrgencyText: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 12,
+    color: "#B45309",
+    marginLeft: 5,
   },
   categoriesScroll: {
     marginLeft: -4, // Counteract chip margin for first item alignment
