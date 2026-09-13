@@ -1597,7 +1597,7 @@ export default function EditEventModal({
                             ]}
                           >
                             {p.offer_type === "promo_code"
-                              ? p.code || p.name
+                              ? `${p.code || p.name}${p.max_uses ? ` • Max ${p.max_uses}` : ""}`
                               : p.name || "Early Bird"}
                           </Text>
                         </View>

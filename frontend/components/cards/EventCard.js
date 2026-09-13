@@ -990,7 +990,7 @@ function EventCard({
               >
                 {community_name}
               </Text>
-              {is_following_community && (
+              {!!is_following_community && (
                 <View style={styles.followingBadge}>
                   <Text style={styles.followingText}>Following</Text>
                 </View>

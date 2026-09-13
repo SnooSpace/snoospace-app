@@ -2025,7 +2025,7 @@ const CreateEventModal = ({
                             ]}
                           >
                             {p.offer_type === "promo_code"
-                              ? p.code || p.name
+                              ? `${p.code || p.name}${p.max_uses ? ` • Max ${p.max_uses}` : ""}`
                               : p.name || "Early Bird"}
                           </Text>
                         </View>
@@ -2074,6 +2074,105 @@ const CreateEventModal = ({
                   </View>
                 );
               })}
+
+              {/* Active Promos & Discounts */}
+              {promos.length > 0 && (
+                <View style={styles.reviewDiscountHeader}>
+                  <View style={styles.reviewDivider} />
+                  <Text style={styles.reviewDiscountSectionLabel}>
+                    Active Promos & Offers
+                  </Text>
+                  {promos.map((p, pIdx) => {
+                    const isPromoCode = p.offer_type === "promo_code";
+                    const isEarlyBird = p.offer_type === "early_bird";
+                    const badgeBg = isPromoCode
+                      ? "#F0FDF4"
+                      : isEarlyBird
+                      ? "#FFF7ED"
+                      : "#F5F3FF";
+                    const badgeColor = isPromoCode
+                      ? "#16A34A"
+                      : isEarlyBird
+                      ? "#EA580C"
+                      : "#8B5CF6";
+                    const badgeLabel = isPromoCode
+                      ? "PROMO CODE"
+                      : isEarlyBird
+                      ? "EARLY BIRD"
+                      : "GROUP";
+
+                    const conditions = [];
+                    if (p.max_uses) conditions.push(`Max ${p.max_uses} uses`);
+                    if (p.min_purchase && parseFloat(p.min_purchase) > 0)
+                      conditions.push(`Min spend ₹${p.min_purchase}`);
+                    if (p.valid_until)
+                      conditions.push(
+                        `Until ${new Date(p.valid_until).toLocaleDateString(
+                          "en-IN",
+                          { day: "numeric", month: "short" },
+                        )}`,
+                      );
+                    if (p.stackable) conditions.push("Stackable");
+                    if (
+                      isEarlyBird &&
+                      p.trigger === "by_sales" &&
+                      p.quantity_threshold
+                    )
+                      conditions.push(`First ${p.quantity_threshold} tickets`);
+                    if (p.offer_type === "group_discount" && p.min_quantity)
+                      conditions.push(`Min ${p.min_quantity} tickets`);
+                    const conditionStr =
+                      conditions.length > 0
+                        ? conditions.join(" • ")
+                        : "No limits set";
+
+                    const appliesStr =
+                      p.applies_to === "all"
+                        ? "Applies to all tickets"
+                        : p.selected_tickets?.length > 0
+                        ? `Applies to: ${p.selected_tickets.join(", ")}`
+                        : "No tickets selected";
+
+                    return (
+                      <View key={pIdx} style={styles.reviewDiscountRow}>
+                        <View
+                          style={[
+                            styles.reviewDiscountBadge,
+                            { backgroundColor: badgeBg },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.reviewDiscountBadgeText,
+                              { color: badgeColor },
+                            ]}
+                          >
+                            {badgeLabel}
+                          </Text>
+                        </View>
+                        <View style={styles.reviewDiscountInfo}>
+                          <Text style={styles.reviewDiscountName}>
+                            {isPromoCode
+                              ? p.code || p.name
+                              : p.name ||
+                                (isEarlyBird ? "Early Bird" : "Group Discount")}
+                          </Text>
+                          <Text style={styles.reviewDiscountValue}>
+                            {p.discount_type === "percentage"
+                              ? `${p.discount_value}% OFF`
+                              : `₹${p.discount_value} OFF`}
+                            {" • "}
+                            {conditionStr}
+                          </Text>
+                          <Text style={styles.reviewDiscountMeta}>
+                            {appliesStr}
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
             </View>
 
             {/* ── Card 3: Content ── */}

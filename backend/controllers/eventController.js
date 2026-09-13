@@ -701,11 +701,16 @@ const getCommunityEvents = async (req, res) => {
 // Get events user is registered for (both past and upcoming)
 const getMyEvents = async (req, res) => {
   try {
-    const userId = req.user?.id;
+    const userId = req.user?.id || req.user?.userId;
     const userType = req.user?.type;
 
-    if (!userId || userType !== "member") {
+    if (!userId) {
       return res.status(401).json({ error: "Authentication required" });
+    }
+
+    // Community accounts cannot register for events as attendees, return empty list
+    if (userType !== "member") {
+      return res.json({ success: true, events: [], total_events: 0 });
     }
 
     const query = `
@@ -7644,7 +7649,13 @@ async function unpinEventComment(req, res) {
 }
 
 async function getEventVerifications(req, res) {
-  const userId = req.user.userId;
+  const userId = req.user?.id || req.user?.userId;
+  const userType = req.user?.type;
+
+  if (!userId || userType !== "member") {
+    return res.status(200).json({ success: true, verifications: [] });
+  }
+
   try {
     const result = await pool.query(
       "SELECT event_id, type, status, next_prompt_at, dismiss_count, answered_at FROM event_verifications WHERE member_id = $1",

@@ -257,6 +257,8 @@ const TicketTypesEditor = React.forwardRef(
     }));
 
     const openEditModal = (index, options = {}) => {
+      const ticket = ticketTypes[index] || {};
+      const rp = ticket.refund_policy || { allowed: false, deadline_hours_before: 24, percentage: 100 };
       // TEMPORARY: backend returns sale_start_at/sale_end_at; accept the
       // legacy sales_start_date/sales_end_date name too until standardized.
       const rawStartDate = ticket.sale_start_at || ticket.sales_start_date || null;

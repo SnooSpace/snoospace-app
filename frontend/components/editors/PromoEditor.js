@@ -22,7 +22,16 @@ import {
 } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { BadgePercent, Zap, Users } from "lucide-react-native";
+import {
+  BadgePercent,
+  Zap,
+  Users,
+  Infinity as InfinityIcon,
+  ShoppingBag,
+  Calendar,
+  Layers,
+  Clock,
+} from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import CustomDatePicker from "../../components/ui/CustomDatePicker";
 import CustomAlertModal from "../../components/ui/CustomAlertModal";
@@ -449,6 +458,19 @@ const PromoEditor = React.forwardRef(
       });
     };
 
+    const formatShortDate = (d) => {
+      if (!d) return "";
+      try {
+        const dateObj = typeof d === "string" ? new Date(d) : d;
+        return dateObj.toLocaleDateString("en-IN", {
+          day: "numeric",
+          month: "short",
+        });
+      } catch (e) {
+        return "";
+      }
+    };
+
     const formatDiscount = (p) => {
       if (p.discount_type === "percentage") return `${p.discount_value}% OFF`;
       return `₹${p.discount_value} OFF`;
@@ -608,6 +630,85 @@ const PromoEditor = React.forwardRef(
                   </Text>
                 </View>
                 <Text style={styles.tilePrice}>{formatDiscount(p)}</Text>
+                {/* Additional Options & Conditions */}
+                <View style={styles.tileChipsRow}>
+                  {p.max_uses ? (
+                    <View style={styles.tileChip}>
+                      <Users size={12} color="#475569" strokeWidth={1.75} />
+                      <Text style={styles.tileChipText}>
+                        {p.current_uses
+                          ? `${p.current_uses} / ${p.max_uses} uses`
+                          : `Max ${p.max_uses} uses`}
+                      </Text>
+                    </View>
+                  ) : p.offer_type === "promo_code" ? (
+                    <View style={styles.tileChip}>
+                      <InfinityIcon size={12} color="#64748B" strokeWidth={1.75} />
+                      <Text style={styles.tileChipText}>Unlimited uses</Text>
+                    </View>
+                  ) : null}
+
+                  {p.min_purchase && parseFloat(p.min_purchase) > 0 ? (
+                    <View style={styles.tileChip}>
+                      <ShoppingBag size={12} color="#475569" strokeWidth={1.75} />
+                      <Text style={styles.tileChipText}>
+                        Min ₹{parseFloat(p.min_purchase).toLocaleString("en-IN")}
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {(p.valid_from || p.valid_until) ? (
+                    <View style={styles.tileChip}>
+                      <Calendar size={12} color="#475569" strokeWidth={1.75} />
+                      <Text style={styles.tileChipText}>
+                        {p.valid_from && p.valid_until
+                          ? `${formatShortDate(p.valid_from)} – ${formatShortDate(p.valid_until)}`
+                          : p.valid_until
+                          ? `Until ${formatShortDate(p.valid_until)}`
+                          : `From ${formatShortDate(p.valid_from)}`}
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {p.stackable ? (
+                    <View style={styles.tileChip}>
+                      <Layers size={12} color="#475569" strokeWidth={1.75} />
+                      <Text style={styles.tileChipText}>Stackable</Text>
+                    </View>
+                  ) : null}
+
+                  {p.offer_type === "early_bird" &&
+                  p.trigger === "by_sales" &&
+                  p.quantity_threshold ? (
+                    <View style={styles.tileChip}>
+                      <Zap size={12} color="#EA580C" strokeWidth={1.75} />
+                      <Text style={styles.tileChipText}>
+                        First {p.quantity_threshold} tickets
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {p.offer_type === "early_bird" &&
+                  p.trigger === "by_date" &&
+                  p.valid_until ? (
+                    <View style={styles.tileChip}>
+                      <Clock size={12} color="#EA580C" strokeWidth={1.75} />
+                      <Text style={styles.tileChipText}>
+                        Until {formatShortDate(p.valid_until)}
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {p.offer_type === "group_discount" && p.min_quantity ? (
+                    <View style={styles.tileChip}>
+                      <Users size={12} color="#8B5CF6" strokeWidth={1.75} />
+                      <Text style={styles.tileChipText}>
+                        Min {p.min_quantity} tickets
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+
                 {/* Applies To info */}
                 <Text style={styles.tileAppliesTo}>
                   {p.applies_to === "all"
@@ -1072,6 +1173,84 @@ const PromoEditor = React.forwardRef(
                             Discount exceeds ticket price for some tickets
                           </Text>
                         )}
+
+                        {/* Offer Rules & Limits Live Preview */}
+                        <View style={styles.previewDivider} />
+                        <View style={styles.previewChipsRow}>
+                          {current.max_uses ? (
+                            <View style={styles.previewChip}>
+                              <Users size={12} color="#475569" strokeWidth={1.75} />
+                              <Text style={styles.previewChipText}>
+                                Max {current.max_uses} uses
+                              </Text>
+                            </View>
+                          ) : current.offer_type === "promo_code" ? (
+                            <View style={styles.previewChip}>
+                              <InfinityIcon size={12} color="#64748B" strokeWidth={1.75} />
+                              <Text style={styles.previewChipText}>Unlimited uses</Text>
+                            </View>
+                          ) : null}
+
+                          {current.min_purchase && parseFloat(current.min_purchase) > 0 ? (
+                            <View style={styles.previewChip}>
+                              <ShoppingBag size={12} color="#475569" strokeWidth={1.75} />
+                              <Text style={styles.previewChipText}>
+                                Min order ₹{parseFloat(current.min_purchase).toLocaleString("en-IN")}
+                              </Text>
+                            </View>
+                          ) : null}
+
+                          {(current.valid_from || current.valid_until) ? (
+                            <View style={styles.previewChip}>
+                              <Calendar size={12} color="#475569" strokeWidth={1.75} />
+                              <Text style={styles.previewChipText}>
+                                {current.valid_from && current.valid_until
+                                  ? `${formatShortDate(current.valid_from)} – ${formatShortDate(current.valid_until)}`
+                                  : current.valid_until
+                                  ? `Until ${formatShortDate(current.valid_until)}`
+                                  : `From ${formatShortDate(current.valid_from)}`}
+                              </Text>
+                            </View>
+                          ) : null}
+
+                          {current.stackable ? (
+                            <View style={styles.previewChip}>
+                              <Layers size={12} color="#475569" strokeWidth={1.75} />
+                              <Text style={styles.previewChipText}>Stackable</Text>
+                            </View>
+                          ) : null}
+
+                          {current.offer_type === "early_bird" &&
+                          current.trigger === "by_sales" &&
+                          current.quantity_threshold ? (
+                            <View style={styles.previewChip}>
+                              <Zap size={12} color="#EA580C" strokeWidth={1.75} />
+                              <Text style={styles.previewChipText}>
+                                First {current.quantity_threshold} tickets
+                              </Text>
+                            </View>
+                          ) : null}
+
+                          {current.offer_type === "early_bird" &&
+                          current.trigger === "by_date" &&
+                          current.valid_until ? (
+                            <View style={styles.previewChip}>
+                              <Clock size={12} color="#EA580C" strokeWidth={1.75} />
+                              <Text style={styles.previewChipText}>
+                                Until {formatShortDate(current.valid_until)}
+                              </Text>
+                            </View>
+                          ) : null}
+
+                          {current.offer_type === "group_discount" ? (
+                            <View style={styles.previewChip}>
+                              <Users size={12} color="#8B5CF6" strokeWidth={1.75} />
+                              <Text style={styles.previewChipText}>
+                                Min {current.min_quantity || 2} tickets
+                              </Text>
+                            </View>
+                          ) : null}
+                        </View>
                       </View>
                     );
                   })()}
@@ -1541,7 +1720,27 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: "Manrope-Medium",
     color: "#111827",
-    marginBottom: 4,
+    marginBottom: 6,
+  },
+  tileChipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginBottom: 6,
+  },
+  tileChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#F1F5F9",
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: 6,
+  },
+  tileChipText: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 11,
+    color: "#475569",
   },
   tileAppliesTo: {
     fontFamily: "Manrope-Regular",
@@ -1807,6 +2006,32 @@ const styles = StyleSheet.create({
     fontFamily: "Manrope-SemiBold",
     fontSize: 14,
     color: "#22C55E",
+  },
+  previewDivider: {
+    height: 1,
+    backgroundColor: "#E2E8F0",
+    marginVertical: 10,
+  },
+  previewChipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  previewChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  previewChipText: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 11,
+    color: "#475569",
   },
 
   // ── CHIPS ──
