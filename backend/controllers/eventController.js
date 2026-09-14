@@ -7376,9 +7376,9 @@ const switchTicketTier = async (req, res) => {
       const refundResult = await client.query(
         `INSERT INTO refund_requests (
            registration_id, member_id, event_id, ticket_type_id,
-           requested_amount, reason, status, policy_snapshot, requested_at
+           requested_amount, reason, status, trigger_source, policy_snapshot, requested_at
          )
-         VALUES ($1, $2, $3, $4, $5, $6, 'manual_review', $7, NOW())
+         VALUES ($1, $2, $3, $4, $5, $6, 'manual_review', 'tier_switch_downgrade', $7, NOW())
          RETURNING id`,
         [
           registration.id,

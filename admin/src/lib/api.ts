@@ -1830,10 +1830,19 @@ export interface RefundRequest {
   reason: string | null;
   rejection_reason: string | null;
   status: "pending_review" | "auto_approved" | "manual_review" | "approved" | "rejected" | "completed";
+  trigger_source?: string;
   policy_snapshot: {
-    allowed: boolean;
-    deadline_hours_before: number;
-    percentage: number;
+    allowed?: boolean;
+    deadline_hours_before?: number;
+    percentage?: number;
+    downgrade?: boolean;
+    old_tier_name?: string;
+    old_tier_id?: number;
+    new_tier_name?: string;
+    new_tier_id?: number;
+    quantity?: number;
+    price_difference?: number;
+    [key: string]: any;
   };
   requested_at: string;
   decided_at: string | null;

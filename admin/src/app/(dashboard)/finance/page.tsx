@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Fragment } from "react";
 import {
   Card,
   CardContent,
@@ -107,6 +107,25 @@ const refundStatusLabels: Record<string, string> = {
   approved:       "Approved",
   completed:      "Completed",
   rejected:       "Rejected",
+};
+
+const triggerSourceConfig: Record<string, { label: string; className: string }> = {
+  tier_switch_downgrade: {
+    label: "Tier Switch",
+    className: "border-purple-300 bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800",
+  },
+  system_cancellation: {
+    label: "Event Cancelled",
+    className: "border-red-300 bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800",
+  },
+  postponement_opt_out: {
+    label: "Postponed",
+    className: "border-amber-300 bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800",
+  },
+  postponement_indefinite_cap: {
+    label: "Postponed",
+    className: "border-amber-300 bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800",
+  },
 };
 
 // ─── Ledger Snapshot Expander ────────────────────────────────────────────────
@@ -306,7 +325,7 @@ function RefundQueueTab() {
             </TableHeader>
             <TableBody>
               {requests.map((rq) => (
-                <>
+                <Fragment key={rq.id}>
                   <TableRow key={rq.id} className="cursor-pointer hover:bg-muted/50">
                     <TableCell onClick={() => setExpandedId(expandedId === rq.id ? null : rq.id)}>
                       {expandedId === rq.id
@@ -325,14 +344,33 @@ function RefundQueueTab() {
                     <TableCell>{rq.ticket_tier_name ?? "—"}</TableCell>
                     <TableCell className="font-semibold">{fmt(rq.requested_amount)}</TableCell>
                     <TableCell>
-                      <div className="text-xs text-muted-foreground">
-                        {rq.policy_snapshot?.percentage}% · {rq.policy_snapshot?.deadline_hours_before}h
-                      </div>
+                      {rq.policy_snapshot?.downgrade ? (
+                        <span className="text-xs font-medium text-muted-foreground">Tier switch</span>
+                      ) : rq.policy_snapshot?.percentage !== undefined && rq.policy_snapshot?.percentage !== null ? (
+                        <div className="text-xs text-muted-foreground">
+                          {rq.policy_snapshot.percentage}% · {rq.policy_snapshot.deadline_hours_before}h
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     <TableCell>
-                      <Badge className={refundStatusColors[rq.status]}>
-                        {refundStatusLabels[rq.status] ?? rq.status}
-                      </Badge>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <Badge className={refundStatusColors[rq.status]}>
+                          {refundStatusLabels[rq.status] ?? rq.status}
+                        </Badge>
+                        {rq.trigger_source && rq.trigger_source !== "buyer" && (
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] px-1.5 py-0 font-medium ${
+                              triggerSourceConfig[rq.trigger_source]?.className ??
+                              "border-gray-300 bg-gray-50 text-gray-700"
+                            }`}
+                          >
+                            {triggerSourceConfig[rq.trigger_source]?.label ?? rq.trigger_source}
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {fmtDate(rq.requested_at)}
@@ -384,7 +422,7 @@ function RefundQueueTab() {
                       </TableCell>
                     </TableRow>
                   )}
-                </>
+                </Fragment>
               ))}
             </TableBody>
           </Table>

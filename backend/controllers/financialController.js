@@ -369,12 +369,13 @@ const listRefundRequests = async (req, res) => {
          rr.reason,
          rr.rejection_reason,
          rr.status,
+         rr.trigger_source,
          rr.policy_snapshot,
          rr.requested_at,
          rr.decided_at,
          rr.completed_at,
          -- Buyer info
-         m.full_name         AS buyer_name,
+         COALESCE(m.name, m.username) AS buyer_name,
          m.username          AS buyer_username,
          -- Event info
          e.title             AS event_title,
