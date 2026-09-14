@@ -34,6 +34,7 @@ import {
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import CustomDatePicker from "../../components/ui/CustomDatePicker";
+import CustomTimePicker from "../../components/ui/CustomTimePicker";
 import CustomAlertModal from "../../components/ui/CustomAlertModal";
 import { COLORS, SHADOWS, FONTS } from "../../constants/theme";
 
@@ -112,7 +113,10 @@ const PromoEditor = React.forwardRef(
     const [showModal, setShowModal] = useState(false);
     const [editingIndex, setEditingIndex] = useState(null);
     const [showValidUntilPicker, setShowValidUntilPicker] = useState(false);
+    const [showValidUntilTimePicker, setShowValidUntilTimePicker] = useState(false);
     const [showValidityPicker, setShowValidityPicker] = useState(false);
+    const [showValidFromTimePicker, setShowValidFromTimePicker] = useState(false);
+    const [showValidityEndTimePicker, setShowValidityEndTimePicker] = useState(false);
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [alertConfig, setAlertConfig] = useState(null);
 
@@ -471,6 +475,25 @@ const PromoEditor = React.forwardRef(
       }
     };
 
+    const formatShortDateTime = (d) => {
+      if (!d) return "";
+      try {
+        const dateObj = typeof d === "string" ? new Date(d) : d;
+        const dateStr = dateObj.toLocaleDateString("en-IN", {
+          day: "numeric",
+          month: "short",
+        });
+        const timeStr = dateObj.toLocaleTimeString([], {
+          hour: "numeric",
+          minute: "2-digit",
+          hour12: true,
+        });
+        return `${dateStr}, ${timeStr}`;
+      } catch (e) {
+        return "";
+      }
+    };
+
     const formatDiscount = (p) => {
       if (p.discount_type === "percentage") return `${p.discount_value}% OFF`;
       return `₹${p.discount_value} OFF`;
@@ -694,7 +717,7 @@ const PromoEditor = React.forwardRef(
                     <View style={styles.tileChip}>
                       <Clock size={12} color="#EA580C" strokeWidth={1.75} />
                       <Text style={styles.tileChipText}>
-                        Until {formatShortDate(p.valid_until)}
+                        Until {formatShortDateTime(p.valid_until)}
                       </Text>
                     </View>
                   ) : null}
@@ -981,26 +1004,58 @@ const PromoEditor = React.forwardRef(
                         <Text style={[styles.fieldLabel, { marginTop: 16 }]}>
                           Early Bird Ends On *
                         </Text>
-                        <TouchableOpacity
-                          style={styles.dateButton}
-                          onPress={() => setShowValidUntilPicker(true)}
-                        >
-                          <Ionicons
-                            name="calendar-outline"
-                            size={20}
-                            color="#94A3B8"
-                          />
-                          <Text
-                            style={[
-                              styles.dateButtonText,
-                              !current.valid_until && { color: "#94A3B8" },
-                            ]}
+                        <View style={{ flexDirection: "row", gap: 10 }}>
+                          <TouchableOpacity
+                            style={[styles.dateButton, { flex: 1 }]}
+                            onPress={() => setShowValidUntilPicker(true)}
                           >
-                            {current.valid_until
-                              ? current.valid_until.toLocaleDateString()
-                              : "Select end date"}
-                          </Text>
-                        </TouchableOpacity>
+                            <Ionicons
+                              name="calendar-outline"
+                              size={18}
+                              color="#94A3B8"
+                            />
+                            <Text
+                              style={[
+                                styles.dateButtonText,
+                                !current.valid_until && { color: "#94A3B8" },
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {current.valid_until
+                                ? current.valid_until.toLocaleDateString("en-IN", {
+                                    day: "numeric",
+                                    month: "short",
+                                  })
+                                : "Select date"}
+                            </Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={[styles.dateButton, { flex: 1 }]}
+                            onPress={() => setShowValidUntilTimePicker(true)}
+                          >
+                            <Clock
+                              size={18}
+                              color="#94A3B8"
+                              strokeWidth={1.75}
+                            />
+                            <Text
+                              style={[
+                                styles.dateButtonText,
+                                !current.valid_until && { color: "#94A3B8" },
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {current.valid_until
+                                ? current.valid_until.toLocaleTimeString([], {
+                                    hour: "numeric",
+                                    minute: "2-digit",
+                                    hour12: true,
+                                  })
+                                : "11:59 PM"}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
                         {eventStartDate ? (
                           <Text style={styles.eventDateHint}>
                             Event starts on{" "}
@@ -1237,7 +1292,7 @@ const PromoEditor = React.forwardRef(
                             <View style={styles.previewChip}>
                               <Clock size={12} color="#EA580C" strokeWidth={1.75} />
                               <Text style={styles.previewChipText}>
-                                Until {formatShortDate(current.valid_until)}
+                                Until {formatShortDateTime(current.valid_until)}
                               </Text>
                             </View>
                           ) : null}
@@ -1481,10 +1536,7 @@ const PromoEditor = React.forwardRef(
                               numberOfLines={1}
                             >
                               {current.valid_until
-                                ? current.valid_until.toLocaleDateString(
-                                    "en-IN",
-                                    { day: "numeric", month: "short" },
-                                  )
+                                ? formatShortDateTime(current.valid_until)
                                 : "Until date"}
                             </Text>
                             {current.valid_until && (
@@ -1505,6 +1557,44 @@ const PromoEditor = React.forwardRef(
                             )}
                           </TouchableOpacity>
                         </View>
+
+                        {(current.valid_from || current.valid_until) && (
+                          <View style={{ flexDirection: "row", gap: 10, marginTop: 8 }}>
+                            <TouchableOpacity
+                              style={[styles.datePillBtn, { flex: 1 }]}
+                              onPress={() => setShowValidFromTimePicker(true)}
+                            >
+                              <Clock size={15} color={COLORS.primary} strokeWidth={1.75} />
+                              <Text style={styles.datePillText} numberOfLines={1}>
+                                {current.valid_from
+                                  ? new Date(current.valid_from).toLocaleTimeString([], {
+                                      hour: "numeric",
+                                      minute: "2-digit",
+                                      hour12: true,
+                                    })
+                                  : "12:00 AM"}
+                              </Text>
+                            </TouchableOpacity>
+
+                            <Text style={styles.datePillArrow}>→</Text>
+
+                            <TouchableOpacity
+                              style={[styles.datePillBtn, { flex: 1 }]}
+                              onPress={() => setShowValidityEndTimePicker(true)}
+                            >
+                              <Clock size={15} color={COLORS.primary} strokeWidth={1.75} />
+                              <Text style={styles.datePillText} numberOfLines={1}>
+                                {current.valid_until
+                                  ? new Date(current.valid_until).toLocaleTimeString([], {
+                                      hour: "numeric",
+                                      minute: "2-digit",
+                                      hour12: true,
+                                    })
+                                  : "11:59 PM"}
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
 
                         {eventStartDate && (
                           <Text style={styles.eventDateHint}>
@@ -1531,12 +1621,86 @@ const PromoEditor = React.forwardRef(
                               : undefined
                           }
                           onConfirm={({ startDate, endDate }) => {
-                            setCurrent({
-                              ...current,
-                              valid_from: startDate || null,
-                              valid_until: endDate || null,
-                            });
+                            let newStart = null;
+                            if (startDate) {
+                              newStart = new Date(startDate);
+                              if (current.valid_from) {
+                                newStart.setHours(
+                                  current.valid_from.getHours(),
+                                  current.valid_from.getMinutes(),
+                                  0,
+                                  0,
+                                );
+                              } else {
+                                newStart.setHours(0, 0, 0, 0);
+                              }
+                            }
+
+                            let newEnd = null;
+                            if (endDate) {
+                              newEnd = new Date(endDate);
+                              if (
+                                current.valid_until &&
+                                (current.valid_until.getHours() !== 0 ||
+                                  current.valid_until.getMinutes() !== 0)
+                              ) {
+                                newEnd.setHours(
+                                  current.valid_until.getHours(),
+                                  current.valid_until.getMinutes(),
+                                  0,
+                                  0,
+                                );
+                              } else {
+                                newEnd.setHours(23, 59, 0, 0);
+                              }
+                            }
+
+                            setCurrent((prev) => ({
+                              ...prev,
+                              valid_from: newStart,
+                              valid_until: newEnd,
+                            }));
                             setShowValidityPicker(false);
+                          }}
+                        />
+
+                        {/* Validity From Time Picker */}
+                        <CustomTimePicker
+                          visible={showValidFromTimePicker}
+                          onClose={() => setShowValidFromTimePicker(false)}
+                          time={
+                            current.valid_from ||
+                            new Date(new Date().setHours(0, 0, 0, 0))
+                          }
+                          onChange={(newTime) => {
+                            const base = current.valid_from
+                              ? new Date(current.valid_from)
+                              : new Date();
+                            base.setHours(newTime.getHours(), newTime.getMinutes(), 0, 0);
+                            setCurrent((prev) => ({
+                              ...prev,
+                              valid_from: base,
+                            }));
+                          }}
+                        />
+
+                        {/* Validity Until Time Picker */}
+                        <CustomTimePicker
+                          visible={showValidityEndTimePicker}
+                          onClose={() => setShowValidityEndTimePicker(false)}
+                          time={
+                            current.valid_until ||
+                            new Date(new Date().setHours(23, 59, 0, 0))
+                          }
+                          onChange={(newTime) => {
+                            const base = current.valid_until
+                              ? new Date(current.valid_until)
+                              : new Date();
+                            base.setHours(newTime.getHours(), newTime.getMinutes(), 0, 0);
+                            setCurrent((prev) => ({
+                              ...prev,
+                              valid_until: base,
+                            }));
                           }}
                         />
                       </>
@@ -1554,10 +1718,44 @@ const PromoEditor = React.forwardRef(
                     eventStartDate ? new Date(eventStartDate) : undefined
                   }
                   onConfirm={({ startDate }) => {
-                    setCurrent({ ...current, valid_until: startDate });
+                    if (startDate) {
+                      const d = new Date(startDate);
+                      if (
+                        current.valid_until &&
+                        (current.valid_until.getHours() !== 0 ||
+                          current.valid_until.getMinutes() !== 0)
+                      ) {
+                        d.setHours(
+                          current.valid_until.getHours(),
+                          current.valid_until.getMinutes(),
+                          0,
+                          0,
+                        );
+                      } else {
+                        d.setHours(23, 59, 0, 0);
+                      }
+                      setCurrent((prev) => ({ ...prev, valid_until: d }));
+                    }
                     setShowValidUntilPicker(false);
                   }}
                   minDate={new Date()}
+                />
+
+                {/* Early Bird time picker */}
+                <CustomTimePicker
+                  visible={showValidUntilTimePicker}
+                  onClose={() => setShowValidUntilTimePicker(false)}
+                  time={
+                    current.valid_until ||
+                    new Date(new Date().setHours(23, 59, 0, 0))
+                  }
+                  onChange={(newTime) => {
+                    const base = current.valid_until
+                      ? new Date(current.valid_until)
+                      : new Date();
+                    base.setHours(newTime.getHours(), newTime.getMinutes(), 0, 0);
+                    setCurrent((prev) => ({ ...prev, valid_until: base }));
+                  }}
                 />
               </KeyboardAwareScrollView>
 

@@ -61,6 +61,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import CustomDatePicker from "../../components/ui/CustomDatePicker";
+import CustomTimePicker from "../../components/ui/CustomTimePicker";
 import CustomAlertModal from "../../components/ui/CustomAlertModal";
 import { COLORS, SHADOWS, FONTS } from "../../constants/theme";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
@@ -154,6 +155,8 @@ const TicketTypesEditor = React.forwardRef(
     const [showSalesStartPicker, setShowSalesStartPicker] = useState(false);
     const [showSalesEndPicker, setShowSalesEndPicker] = useState(false);
     const [showSalesDatePicker, setShowSalesDatePicker] = useState(false);
+    const [showSalesStartTimePicker, setShowSalesStartTimePicker] = useState(false);
+    const [showSalesEndTimePicker, setShowSalesEndTimePicker] = useState(false);
 
     const [isKeyboardVisible, setKeyboardVisible] = useState(false);
 
@@ -1107,67 +1110,132 @@ const TicketTypesEditor = React.forwardRef(
                   )}
 
                   {salesMode === "custom" && (
-                    <View style={styles.customDatesRow}>
-                      <TouchableOpacity
-                        style={styles.datePillBtn}
-                        activeOpacity={0.75}
-                        onPress={() => setShowSalesDatePicker(true)}
-                      >
-                        <CalendarDays
-                          size={16}
-                          strokeWidth={1.75}
-                          color={COLORS.primary}
-                        />
-                        <Text
-                          style={[
-                            styles.datePillText,
-                            !currentTicket.sales_start_date &&
-                              styles.datePillPlaceholder,
-                          ]}
-                          numberOfLines={1}
+                    <>
+                      <View style={styles.customDatesRow}>
+                        <TouchableOpacity
+                          style={styles.datePillBtn}
+                          activeOpacity={0.75}
+                          onPress={() => setShowSalesDatePicker(true)}
                         >
-                          {currentTicket.sales_start_date
-                            ? new Date(
-                                currentTicket.sales_start_date,
-                              ).toLocaleDateString("en-IN", {
-                                day: "numeric",
-                                month: "short",
-                              })
-                            : "Start date"}
-                        </Text>
-                      </TouchableOpacity>
+                          <CalendarDays
+                            size={16}
+                            strokeWidth={1.75}
+                            color={COLORS.primary}
+                          />
+                          <Text
+                            style={[
+                              styles.datePillText,
+                              !currentTicket.sales_start_date &&
+                                styles.datePillPlaceholder,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {currentTicket.sales_start_date
+                              ? `${new Date(
+                                  currentTicket.sales_start_date,
+                                ).toLocaleDateString("en-IN", {
+                                  day: "numeric",
+                                  month: "short",
+                                })}, ${new Date(
+                                  currentTicket.sales_start_date,
+                                ).toLocaleTimeString([], {
+                                  hour: "numeric",
+                                  minute: "2-digit",
+                                  hour12: true,
+                                })}`
+                              : "Start date"}
+                          </Text>
+                        </TouchableOpacity>
 
-                      <Text style={styles.datePillArrow}>→</Text>
+                        <Text style={styles.datePillArrow}>→</Text>
 
-                      <TouchableOpacity
-                        style={styles.datePillBtn}
-                        activeOpacity={0.75}
-                        onPress={() => setShowSalesDatePicker(true)}
-                      >
-                        <CalendarDays
-                          size={16}
-                          strokeWidth={1.75}
-                          color={COLORS.primary}
-                        />
-                        <Text
-                          style={[
-                            styles.datePillText,
-                            !currentTicket.sales_end_date &&
-                              styles.datePillPlaceholder,
-                          ]}
-                          numberOfLines={1}
+                        <TouchableOpacity
+                          style={styles.datePillBtn}
+                          activeOpacity={0.75}
+                          onPress={() => setShowSalesDatePicker(true)}
                         >
-                          {currentTicket.sales_end_date
-                            ? new Date(
-                                currentTicket.sales_end_date,
-                              ).toLocaleDateString("en-IN", {
-                                day: "numeric",
-                                month: "short",
-                              })
-                            : "End date"}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
+                          <CalendarDays
+                            size={16}
+                            strokeWidth={1.75}
+                            color={COLORS.primary}
+                          />
+                          <Text
+                            style={[
+                              styles.datePillText,
+                              !currentTicket.sales_end_date &&
+                                styles.datePillPlaceholder,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {currentTicket.sales_end_date
+                              ? `${new Date(
+                                  currentTicket.sales_end_date,
+                                ).toLocaleDateString("en-IN", {
+                                  day: "numeric",
+                                  month: "short",
+                                })}, ${new Date(
+                                  currentTicket.sales_end_date,
+                                ).toLocaleTimeString([], {
+                                  hour: "numeric",
+                                  minute: "2-digit",
+                                  hour12: true,
+                                })}`
+                              : "End date"}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      {/* Sales Window Time Pickers Row */}
+                      <View style={styles.salesTimeRow}>
+                        <TouchableOpacity
+                          style={styles.salesTimeCard}
+                          activeOpacity={0.75}
+                          onPress={() => setShowSalesStartTimePicker(true)}
+                        >
+                          <View style={styles.salesTimeIconContainer}>
+                            <Clock size={15} strokeWidth={1.75} color={COLORS.primary} />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.salesTimeLabel}>Sales open</Text>
+                            <Text style={styles.salesTimeValue}>
+                              {currentTicket.sales_start_date
+                                ? new Date(
+                                    currentTicket.sales_start_date,
+                                  ).toLocaleTimeString([], {
+                                    hour: "numeric",
+                                    minute: "2-digit",
+                                    hour12: true,
+                                  })
+                                : "12:00 AM"}
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={styles.salesTimeCard}
+                          activeOpacity={0.75}
+                          onPress={() => setShowSalesEndTimePicker(true)}
+                        >
+                          <View style={styles.salesTimeIconContainer}>
+                            <Clock size={15} strokeWidth={1.75} color={COLORS.primary} />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.salesTimeLabel}>Sales close</Text>
+                            <Text style={styles.salesTimeValue}>
+                              {currentTicket.sales_end_date
+                                ? new Date(
+                                    currentTicket.sales_end_date,
+                                  ).toLocaleTimeString([], {
+                                    hour: "numeric",
+                                    minute: "2-digit",
+                                    hour12: true,
+                                  })
+                                : "11:59 PM"}
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+                      </View>
+                    </>
                   )}
 
                   {salesMode === "custom" &&
@@ -1718,11 +1786,10 @@ const TicketTypesEditor = React.forwardRef(
                           {salesMode === "duration"
                             ? "Entire duration"
                             : currentTicket.sales_start_date
-                              ? `${new Date(currentTicket.sales_start_date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}${
-                                  currentTicket.sales_end_date
-                                    ? ` → ${new Date(currentTicket.sales_end_date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`
-                                    : ""
-                                }`
+                              ? `${new Date(currentTicket.sales_start_date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}, ${new Date(currentTicket.sales_start_date).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true })}` +
+                                (currentTicket.sales_end_date
+                                  ? ` → ${new Date(currentTicket.sales_end_date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}, ${new Date(currentTicket.sales_end_date).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true })}`
+                                  : "")
                               : "Custom dates"}
                         </Text>
                       </View>
@@ -1739,12 +1806,97 @@ const TicketTypesEditor = React.forwardRef(
                 endDate={currentTicket.sales_end_date}
                 maxDate={eventStartDate ? new Date(eventStartDate) : undefined}
                 onConfirm={({ startDate, endDate }) => {
-                  setCurrentTicket({
-                    ...currentTicket,
-                    sales_start_date: startDate,
-                    sales_end_date: endDate,
-                  });
+                  let newStart = null;
+                  if (startDate) {
+                    newStart = new Date(startDate);
+                    if (currentTicket.sales_start_date) {
+                      newStart.setHours(
+                        currentTicket.sales_start_date.getHours(),
+                        currentTicket.sales_start_date.getMinutes(),
+                        0,
+                        0,
+                      );
+                    } else {
+                      newStart.setHours(0, 0, 0, 0);
+                    }
+                  }
+
+                  let newEnd = null;
+                  if (endDate) {
+                    newEnd = new Date(endDate);
+                    if (
+                      currentTicket.sales_end_date &&
+                      (currentTicket.sales_end_date.getHours() !== 0 ||
+                        currentTicket.sales_end_date.getMinutes() !== 0)
+                    ) {
+                      newEnd.setHours(
+                        currentTicket.sales_end_date.getHours(),
+                        currentTicket.sales_end_date.getMinutes(),
+                        0,
+                        0,
+                      );
+                    } else {
+                      newEnd.setHours(23, 59, 0, 0);
+                    }
+                  }
+
+                  setCurrentTicket((prev) => ({
+                    ...prev,
+                    sales_start_date: newStart,
+                    sales_end_date: newEnd,
+                  }));
                   setShowSalesDatePicker(false);
+                }}
+              />
+
+              {/* SALES START TIME PICKER */}
+              <CustomTimePicker
+                visible={showSalesStartTimePicker}
+                onClose={() => setShowSalesStartTimePicker(false)}
+                time={
+                  currentTicket.sales_start_date ||
+                  new Date(new Date().setHours(0, 0, 0, 0))
+                }
+                onChange={(newTime) => {
+                  const base = currentTicket.sales_start_date
+                    ? new Date(currentTicket.sales_start_date)
+                    : new Date();
+                  base.setHours(newTime.getHours(), newTime.getMinutes(), 0, 0);
+                  setCurrentTicket((prev) => ({
+                    ...prev,
+                    sales_start_date: base,
+                  }));
+                }}
+              />
+
+              {/* SALES END TIME PICKER */}
+              <CustomTimePicker
+                visible={showSalesEndTimePicker}
+                onClose={() => setShowSalesEndTimePicker(false)}
+                time={
+                  currentTicket.sales_end_date ||
+                  (currentTicket.sales_start_date
+                    ? new Date(
+                        new Date(currentTicket.sales_start_date).setHours(
+                          23,
+                          59,
+                          0,
+                          0,
+                        ),
+                      )
+                    : new Date(new Date().setHours(23, 59, 0, 0)))
+                }
+                onChange={(newTime) => {
+                  const base = currentTicket.sales_end_date
+                    ? new Date(currentTicket.sales_end_date)
+                    : currentTicket.sales_start_date
+                    ? new Date(currentTicket.sales_start_date)
+                    : new Date();
+                  base.setHours(newTime.getHours(), newTime.getMinutes(), 0, 0);
+                  setCurrentTicket((prev) => ({
+                    ...prev,
+                    sales_end_date: base,
+                  }));
                 }}
               />
 
@@ -2187,6 +2339,42 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     marginTop: 12,
+  },
+  salesTimeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 8,
+  },
+  salesTimeCard: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  salesTimeIconContainer: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#EFF6FF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  salesTimeLabel: {
+    fontFamily: FONTS.medium,
+    fontSize: 11,
+    color: "#64748B",
+  },
+  salesTimeValue: {
+    fontFamily: FONTS.semibold,
+    fontSize: 13,
+    color: "#1E293B",
   },
   datePillBtn: {
     flex: 1,

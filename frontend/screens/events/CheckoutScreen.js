@@ -10,7 +10,7 @@
  *
  * Free tickets: registerForEvent() directly (unchanged).
  */
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -270,6 +270,17 @@ export default function CheckoutScreen({ route, navigation }) {
         }
       }
 
+      // Check minimum cart value requirement against post-pricing-rules subtotal
+      if (discount.min_cart_value && parseFloat(discount.min_cart_value) > 0) {
+        if (pricingBreakdown.subtotalAfterPricingRules < parseFloat(discount.min_cart_value)) {
+          Alert.alert(
+            "Promo Code Error",
+            `Order total must be at least ₹${discount.min_cart_value} to use this promo code.`
+          );
+          return;
+        }
+      }
+
       setAppliedDiscount(discount);
       showToast("Success", `Promo code "${code}" applied successfully!`);
     } else {
@@ -293,12 +304,49 @@ export default function CheckoutScreen({ route, navigation }) {
     ]);
   };
 
-  // CORRECT FIXED DISCOUNT CALCULATION: Only apply to eligible ticket types!
+  // Recompute pricing breakdown from raw cart items and active pricing rules
+  const pricingBreakdown = useMemo(() => {
+    let rawSubtotal = 0;
+    let subtotalAfterPricingRules = 0;
+    const ruleDiscountsByName = {};
+
+    cartItems.forEach((item) => {
+      const basePrice = parseFloat(item.ticket.base_price) || 0;
+      rawSubtotal += basePrice * item.quantity;
+
+      const pricing = calculateEffectivePrice(
+        item.ticket,
+        event.pricing_rules,
+        item.quantity
+      );
+
+      const effectivePrice = pricing.effectivePrice;
+      subtotalAfterPricingRules += effectivePrice * item.quantity;
+
+      const itemRuleDiscount = (basePrice - effectivePrice) * item.quantity;
+      if (itemRuleDiscount > 0 && pricing.ruleName) {
+        const name = pricing.ruleName;
+        ruleDiscountsByName[name] = (ruleDiscountsByName[name] || 0) + itemRuleDiscount;
+      }
+    });
+
+    return {
+      rawSubtotal,
+      subtotalAfterPricingRules,
+      ruleDiscountsByName,
+    };
+  }, [cartItems, event.pricing_rules]);
+
+  // CORRECT FIXED DISCOUNT CALCULATION: Matches pricingCalculator.js sequence
   const calculateDiscount = () => {
     if (!appliedDiscount) return 0;
 
-    if (appliedDiscount.applies_to === "specific" && appliedDiscount.selected_tickets) {
-      let discountableAmount = 0;
+    let discountableAmount = 0;
+    if (
+      appliedDiscount.applies_to === "specific" &&
+      appliedDiscount.selected_tickets &&
+      appliedDiscount.selected_tickets.length > 0
+    ) {
       cartItems.forEach((item) => {
         const isEligible = appliedDiscount.selected_tickets.some(
           (ticketNameOrId) =>
@@ -306,27 +354,37 @@ export default function CheckoutScreen({ route, navigation }) {
             ticketNameOrId?.toString() === item.ticket.name
         );
         if (isEligible) {
-          const pricing = calculateEffectivePrice(item.ticket, event.pricing_rules, item.quantity);
+          const pricing = calculateEffectivePrice(
+            item.ticket,
+            event.pricing_rules,
+            item.quantity
+          );
           discountableAmount += item.quantity * pricing.effectivePrice;
         }
       });
-
-      if (appliedDiscount.discount_type === "percentage") {
-        return (discountableAmount * parseFloat(appliedDiscount.discount_value)) / 100;
-      }
-      return Math.min(parseFloat(appliedDiscount.discount_value), discountableAmount);
+    } else {
+      // Default: applies to whole cart after pricing rules
+      discountableAmount = pricingBreakdown.subtotalAfterPricingRules;
     }
 
-    // Default: applies to whole cart
+    if (discountableAmount <= 0) return 0;
+
+    const promoVal = parseFloat(appliedDiscount.discount_value) || 0;
+    let promoDiscount = 0;
     if (appliedDiscount.discount_type === "percentage") {
-      return (totalAmount * parseFloat(appliedDiscount.discount_value)) / 100;
+      promoDiscount = (discountableAmount * promoVal) / 100;
+    } else {
+      promoDiscount = Math.min(promoVal, discountableAmount);
     }
-    return Math.min(parseFloat(appliedDiscount.discount_value), totalAmount);
+    return Math.round(promoDiscount * 100) / 100;
   };
 
   const discountAmount = calculateDiscount();
   const bookingFee = 0; // Free as requested
-  const finalAmount = totalAmount - discountAmount + bookingFee;
+  const finalAmount = Math.max(
+    0,
+    Math.round(pricingBreakdown.subtotalAfterPricingRules - discountAmount + bookingFee)
+  );
 
   // ─── Confirm Booking ────────────────────────────────────────────────────────
   // For FREE tickets (finalAmount === 0): calls registerForEvent directly.
@@ -813,18 +871,52 @@ export default function CheckoutScreen({ route, navigation }) {
 
           <View style={styles.summaryCard}>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Order amount</Text>
+              <Text style={styles.summaryLabel}>Subtotal</Text>
               <Text style={styles.summaryValue}>
-                ₹{totalAmount.toLocaleString("en-IN")}
+                ₹{pricingBreakdown.rawSubtotal.toLocaleString("en-IN")}
               </Text>
             </View>
 
+            {Object.entries(pricingBreakdown.ruleDiscountsByName).map(
+              ([ruleName, ruleDiscount]) =>
+                ruleDiscount > 0 ? (
+                  <View key={ruleName} style={styles.summaryRow}>
+                    <Text
+                      style={[
+                        styles.summaryLabel,
+                        { color: SUCCESS_COLOR, fontFamily: "Manrope-SemiBold" },
+                      ]}
+                    >
+                      {ruleName}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.summaryValue,
+                        { color: SUCCESS_COLOR, fontFamily: "Manrope-SemiBold" },
+                      ]}
+                    >
+                      -₹{ruleDiscount.toLocaleString("en-IN")}
+                    </Text>
+                  </View>
+                ) : null
+            )}
+
             {discountAmount > 0 && (
               <View style={styles.summaryRow}>
-                <Text style={[styles.summaryLabel, { color: SUCCESS_COLOR, fontFamily: 'Manrope-SemiBold' }]}>
+                <Text
+                  style={[
+                    styles.summaryLabel,
+                    { color: SUCCESS_COLOR, fontFamily: "Manrope-SemiBold" },
+                  ]}
+                >
                   Promo Discount
                 </Text>
-                <Text style={[styles.summaryValue, { color: SUCCESS_COLOR, fontFamily: 'Manrope-SemiBold' }]}>
+                <Text
+                  style={[
+                    styles.summaryValue,
+                    { color: SUCCESS_COLOR, fontFamily: "Manrope-SemiBold" },
+                  ]}
+                >
                   -₹{discountAmount.toLocaleString("en-IN")}
                 </Text>
               </View>
