@@ -98,12 +98,14 @@ function withTimeout(promise, ms = 15000) {
 
 function buildError(res, data) {
   const status = res?.status;
-  const serverMessage = data?.error || data?.message || data?.msg;
+  const serverMessage = data?.message || data?.error || data?.msg;
   const statusText = res?.statusText;
   const message = serverMessage || statusText || "Request failed";
   const err = new Error(message);
   if (typeof status === "number") err.status = status;
   if (data) err.data = data;
+  err.code = data?.error || data?.code || null;
+  err.error = data?.error || null;
   return err;
 }
 

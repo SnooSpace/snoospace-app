@@ -18,7 +18,6 @@ import {
   StyleSheet,
   StatusBar,
   TextInput,
-  Alert,
   Image,
   Platform,
   Keyboard,
@@ -56,6 +55,7 @@ import CelebrationModal from "../../components/modals/CelebrationModal";
 import SnooLoader from "../../components/ui/SnooLoader";
 import { useToast } from "../../context/ToastContext";
 import DynamicStatusBar from "../../components/navigation/DynamicStatusBar";
+import CustomAlertModal from "../../components/ui/CustomAlertModal";
 import { getActiveAccount } from "../../api/auth";
 
 // Premium Theme Colors
@@ -68,13 +68,32 @@ const PRIMARY_COLOR = COLORS.primary;
 const SUCCESS_COLOR = "#34C759";
 const WARNING_COLOR = "#FF9500";
 
+const DEAD_SESSION_CODES = new Set([
+  "reservation_expired",
+  "reservation_mismatch",
+  "price_mismatch",
+  "session_expired",
+]);
+
+function isDeadSessionError(error) {
+  const code = error?.code || error?.data?.error || error?.data?.code;
+  return DEAD_SESSION_CODES.has(code);
+}
+
 export default function CheckoutScreen({ route, navigation }) {
   const { event, cartItems, totalAmount } = route.params;
   const { showToast } = useToast();
   const insets = useSafeAreaInsets();
-  const { openCheckout, RazorpayUI } = useRazorpay();
+  const { openCheckout, RazorpayUI, isVisible: isRazorpayVisible } = useRazorpay();
 
   const isMountedRef = useRef(true);
+  const isRazorpayVisibleRef = useRef(false);
+  const expiresAtRef = useRef(null);
+  const hasExpiredRef = useRef(false);
+
+  useEffect(() => {
+    isRazorpayVisibleRef.current = !!isRazorpayVisible;
+  }, [isRazorpayVisible]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -83,7 +102,7 @@ export default function CheckoutScreen({ route, navigation }) {
     };
   }, []);
 
-  // 10-minute countdown timer
+  // 10-minute countdown timer state
   const [timeLeft, setTimeLeft] = useState(10 * 60);
   const [promoCode, setPromoCode] = useState("");
   const [appliedDiscount, setAppliedDiscount] = useState(null);
@@ -91,6 +110,21 @@ export default function CheckoutScreen({ route, navigation }) {
   const [isLoading, setIsLoading] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
   const [confirmedOrderId, setConfirmedOrderId] = useState(null);
+
+  // Custom Alert Modal State
+  const [alertConfig, setAlertConfig] = useState({
+    visible: false,
+    title: "",
+    message: "",
+    primaryAction: null,
+    secondaryAction: null,
+    icon: null,
+    iconColor: COLORS.primary,
+    showClose: true,
+  });
+
+  const showAlert = (config) => setAlertConfig({ showClose: true, ...config, visible: true });
+  const hideAlert = () => setAlertConfig((prev) => ({ ...prev, visible: false }));
 
   // Reservation state
   const [sessionId, setSessionId] = useState(null);
@@ -115,6 +149,36 @@ export default function CheckoutScreen({ route, navigation }) {
     };
   }, []);
 
+  const handleReleaseReservation = async () => {
+    if (sessionId && !isConfirmed) {
+      try {
+        await releaseReservation(event.id, sessionId);
+      } catch (err) {
+        console.warn("Failed to release reservation:", err);
+      }
+    }
+  };
+
+  const triggerSessionExpired = (force = false) => {
+    if (hasExpiredRef.current) return;
+    if (!force && isRazorpayVisibleRef.current) {
+      // Defer/suppress proactive alert and navigation while Razorpay sheet is open
+      return;
+    }
+    hasExpiredRef.current = true;
+    expiresAtRef.current = null;
+    setTimeLeft(0);
+    handleReleaseReservation();
+    showAlert({
+      title: "Session Expired",
+      message: "Your booking session has expired. Please try again.",
+      icon: Hourglass,
+      iconColor: WARNING_COLOR,
+      primaryAction: { text: "OK", onPress: () => navigation.popToTop() },
+      showClose: false,
+    });
+  };
+
   const attemptReservation = async () => {
     if (!isMountedRef.current) return;
     setIsReserving(true);
@@ -138,23 +202,37 @@ export default function CheckoutScreen({ route, navigation }) {
       if (response.success) {
         setSessionId(response.sessionId);
         setReservationError(null);
-        setTimeLeft(10 * 60);
+        hasExpiredRef.current = false;
+        const expiryMs = response.expiresAt
+          ? new Date(response.expiresAt).getTime()
+          : Date.now() + 10 * 60 * 1000;
+        expiresAtRef.current = expiryMs;
+        const initialSeconds = Math.max(0, Math.floor((expiryMs - Date.now()) / 1000));
+        setTimeLeft(initialSeconds);
       } else {
+        expiresAtRef.current = null;
         setReservationError(response.error || "Failed to reserve tickets");
-        Alert.alert(
-          "Reservation Failed",
-          response.error || "Unable to reserve tickets. Please try again.",
-          [{ text: "OK", onPress: () => navigation.goBack() }]
-        );
+        showAlert({
+          title: "Reservation Failed",
+          message: response.error || "Unable to reserve tickets. Please try again.",
+          icon: TriangleAlert,
+          iconColor: COLORS.error,
+          primaryAction: { text: "OK", onPress: () => navigation.goBack() },
+          showClose: false,
+        });
       }
     } catch (error) {
       if (!isMountedRef.current) return;
+      expiresAtRef.current = null;
       setReservationError(error.message);
-      Alert.alert(
-        "Reservation Failed",
-        error.message || "Unable to reserve tickets. Please try again.",
-        [{ text: "OK", onPress: () => navigation.goBack() }]
-      );
+      showAlert({
+        title: "Reservation Failed",
+        message: error.message || "Unable to reserve tickets. Please try again.",
+        icon: TriangleAlert,
+        iconColor: COLORS.error,
+        primaryAction: { text: "OK", onPress: () => navigation.goBack() },
+        showClose: false,
+      });
     } finally {
       if (isMountedRef.current) setIsReserving(false);
     }
@@ -181,37 +259,46 @@ export default function CheckoutScreen({ route, navigation }) {
     return unsubscribe;
   }, [navigation, sessionId, isConfirmed, event.id]);
 
-  const handleReleaseReservation = async () => {
-    if (sessionId && !isConfirmed) {
-      try {
-        await releaseReservation(event.id, sessionId);
-      } catch (err) {
-        console.warn("Failed to release reservation:", err);
-      }
-    }
-  };
-
+  // Fix 1: Timestamp-based countdown timer
   useEffect(() => {
-    if (timeLeft <= 0 || isConfirmed) return;
+    if (!sessionId || isConfirmed) return;
 
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          handleReleaseReservation();
-          Alert.alert(
-            "Session Expired",
-            "Your booking session has expired. Please try again.",
-            [{ text: "OK", onPress: () => navigation.popToTop() }]
-          );
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    const checkAndTick = () => {
+      if (!expiresAtRef.current) return;
+      const remainingSeconds = Math.max(
+        0,
+        Math.floor((expiresAtRef.current - Date.now()) / 1000)
+      );
+      setTimeLeft(remainingSeconds);
 
+      if (remainingSeconds <= 0) {
+        if (isRazorpayVisibleRef.current) return;
+        triggerSessionExpired();
+      }
+    };
+
+    checkAndTick();
+    const timer = setInterval(checkAndTick, 1000);
     return () => clearInterval(timer);
-  }, [timeLeft, isConfirmed, sessionId]);
+  }, [sessionId, isConfirmed]);
+
+  // Fix 2: Proactive re-validation on app resume via existing appResumed event
+  useEffect(() => {
+    const handleAppResumed = () => {
+      if (!isMountedRef.current || !sessionId || isConfirmed) return;
+      if (isRazorpayVisibleRef.current) return;
+      if (expiresAtRef.current && expiresAtRef.current <= Date.now()) {
+        triggerSessionExpired();
+      } else if (expiresAtRef.current) {
+        setTimeLeft(Math.max(0, Math.floor((expiresAtRef.current - Date.now()) / 1000)));
+      }
+    };
+
+    const unsubscribe = EventBus.on("appResumed", handleAppResumed);
+    return () => {
+      unsubscribe();
+    };
+  }, [sessionId, isConfirmed]);
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -262,10 +349,13 @@ export default function CheckoutScreen({ route, navigation }) {
         );
 
         if (!hasEligibleTicket) {
-          Alert.alert(
-            "Promo Code Error",
-            `This code is only applicable to specific ticket types: ${discount.selected_tickets.join(", ")}.`
-          );
+          showAlert({
+            title: "Promo Code Error",
+            message: `This code is only applicable to specific ticket types: ${discount.selected_tickets.join(", ")}.`,
+            icon: Tag,
+            iconColor: WARNING_COLOR,
+            primaryAction: { text: "OK", onPress: hideAlert },
+          });
           return;
         }
       }
@@ -273,10 +363,13 @@ export default function CheckoutScreen({ route, navigation }) {
       // Check minimum cart value requirement against post-pricing-rules subtotal
       if (discount.min_cart_value && parseFloat(discount.min_cart_value) > 0) {
         if (pricingBreakdown.subtotalAfterPricingRules < parseFloat(discount.min_cart_value)) {
-          Alert.alert(
-            "Promo Code Error",
-            `Order total must be at least ₹${discount.min_cart_value} to use this promo code.`
-          );
+          showAlert({
+            title: "Promo Code Error",
+            message: `Order total must be at least ₹${discount.min_cart_value} to use this promo code.`,
+            icon: Tag,
+            iconColor: WARNING_COLOR,
+            primaryAction: { text: "OK", onPress: hideAlert },
+          });
           return;
         }
       }
@@ -284,24 +377,32 @@ export default function CheckoutScreen({ route, navigation }) {
       setAppliedDiscount(discount);
       showToast("Success", `Promo code "${code}" applied successfully!`);
     } else {
-      Alert.alert(
-        "Invalid Code",
-        "This promo code is not valid or has expired."
-      );
+      showAlert({
+        title: "Invalid Code",
+        message: "This promo code is not valid or has expired.",
+        icon: Tag,
+        iconColor: WARNING_COLOR,
+        primaryAction: { text: "OK", onPress: hideAlert },
+      });
     }
   };
 
   const handleRemoveItem = (index) => {
-    Alert.alert("Remove Item", "Are you sure you want to remove this item?", [
-      { text: "Cancel", style: "cancel" },
-      {
+    showAlert({
+      title: "Remove Item",
+      message: "Are you sure you want to remove this item?",
+      icon: TriangleAlert,
+      iconColor: COLORS.error,
+      secondaryAction: { text: "Cancel", onPress: hideAlert },
+      primaryAction: {
         text: "Remove",
         style: "destructive",
         onPress: () => {
+          hideAlert();
           navigation.goBack();
         },
       },
-    ]);
+    });
   };
 
   // Recompute pricing breakdown from raw cart items and active pricing rules
@@ -491,10 +592,13 @@ export default function CheckoutScreen({ route, navigation }) {
               setShowCelebration(true);
             } catch (vErr) {
               console.error("[Checkout] Payment verification failed:", vErr);
-              Alert.alert(
-                "Verification Error",
-                "Payment received, but verification timed out. Please check your tickets under My Profile."
-              );
+              showAlert({
+                title: "Verification Error",
+                message: "Payment received, but verification timed out. Please check your tickets under My Profile.",
+                icon: TriangleAlert,
+                iconColor: WARNING_COLOR,
+                primaryAction: { text: "OK", onPress: hideAlert },
+              });
             } finally {
               setIsLoading(false);
             }
@@ -507,7 +611,23 @@ export default function CheckoutScreen({ route, navigation }) {
               rzpError?.message ||
               (typeof rzpError === "string" ? rzpError : null) ||
               "Payment could not be completed. Please try again.";
-            Alert.alert("Payment Failed", errorMessage);
+
+            const isExpired =
+              isDeadSessionError(rzpError) ||
+              (expiresAtRef.current && expiresAtRef.current <= Date.now());
+
+            if (isExpired) {
+              triggerSessionExpired(true);
+              return;
+            }
+
+            showAlert({
+              title: "Payment Failed",
+              message: errorMessage,
+              icon: TriangleAlert,
+              iconColor: COLORS.error,
+              primaryAction: { text: "OK", onPress: hideAlert },
+            });
             handleReleaseReservation()
               .catch((err) =>
                 console.warn("[Checkout] Failed to release reservation after payment failure:", err)
@@ -523,6 +643,13 @@ export default function CheckoutScreen({ route, navigation }) {
           onClose: () => {
             setIsLoading(false);
             showToast("Info", "Payment was cancelled");
+
+            // If the hold expired while the payment sheet was open, trigger session expired now
+            if (expiresAtRef.current && expiresAtRef.current <= Date.now()) {
+              triggerSessionExpired(true);
+              return;
+            }
+
             handleReleaseReservation()
               .catch((err) =>
                 console.warn("[Checkout] Failed to release reservation after payment close:", err)
@@ -582,10 +709,36 @@ export default function CheckoutScreen({ route, navigation }) {
     } catch (error) {
       setIsLoading(false);
       console.error("Booking error:", error);
-      Alert.alert(
-        "Booking Failed",
-        error.message || "Something went wrong. Please try again."
-      );
+
+      // Fix 3: Stop silent auto-retry on dead session errors
+      if (isDeadSessionError(error)) {
+        handleReleaseReservation().catch(() => {});
+        setSessionId(null);
+        expiresAtRef.current = null;
+        hasExpiredRef.current = true;
+        setTimeLeft(0);
+        const title = error?.code === "price_mismatch" ? "Price Updated" : "Session Expired";
+        const msg =
+          error?.message ||
+          "Your booking session has expired. Please select your tickets again.";
+        showAlert({
+          title,
+          message: msg,
+          icon: error?.code === "price_mismatch" ? Tag : Hourglass,
+          iconColor: error?.code === "price_mismatch" ? COLORS.primary : WARNING_COLOR,
+          primaryAction: { text: "OK", onPress: () => navigation.popToTop() },
+          showClose: false,
+        });
+        return;
+      }
+
+      showAlert({
+        title: "Booking Failed",
+        message: error.message || "Something went wrong. Please try again.",
+        icon: TriangleAlert,
+        iconColor: COLORS.error,
+        primaryAction: { text: "OK", onPress: hideAlert },
+      });
       // Only release on pre-payment failures (e.g. createPaymentOrder threw,
       // or the free-registration call threw). If payment already succeeded
       // and only verifyPayment failed, isConfirmed is true and this is a
@@ -640,6 +793,17 @@ export default function CheckoutScreen({ route, navigation }) {
         }}
       />
       {RazorpayUI}
+      <CustomAlertModal
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        onClose={hideAlert}
+        primaryAction={alertConfig.primaryAction}
+        secondaryAction={alertConfig.secondaryAction}
+        icon={alertConfig.icon}
+        iconColor={alertConfig.iconColor}
+        showClose={alertConfig.showClose !== false}
+      />
       <DynamicStatusBar style="dark-content" />
 
       {/* Header */}

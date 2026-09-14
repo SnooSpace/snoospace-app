@@ -296,17 +296,28 @@ export default function EditEventModal({
       const loadedPromos = [];
       if (eventData.discount_codes) {
         eventData.discount_codes.forEach((dc) => {
+          let selTickets = dc.selected_tickets;
+          if (typeof selTickets === "string") {
+            try { selTickets = JSON.parse(selTickets); } catch (e) { selTickets = []; }
+          }
           loadedPromos.push({
             ...dc,
             offer_type: "promo_code",
             name: dc.name || dc.code || "",
             applies_to: dc.applies_to || "all",
-            selected_tickets: dc.selected_tickets || [],
+            selected_tickets: Array.isArray(selTickets) ? selTickets : [],
+            min_purchase: dc.min_purchase !== undefined && dc.min_purchase !== null ? String(dc.min_purchase) : dc.min_cart_value !== undefined && dc.min_cart_value !== null ? String(dc.min_cart_value) : "",
+            max_uses: dc.max_uses !== undefined && dc.max_uses !== null ? String(dc.max_uses) : "",
+            stackable: Boolean(dc.stackable),
           });
         });
       }
       if (eventData.pricing_rules) {
         eventData.pricing_rules.forEach((pr) => {
+          let selTickets = pr.selected_tickets;
+          if (typeof selTickets === "string") {
+            try { selTickets = JSON.parse(selTickets); } catch (e) { selTickets = []; }
+          }
           loadedPromos.push({
             ...pr,
             offer_type:
@@ -315,9 +326,12 @@ export default function EditEventModal({
                 : "early_bird",
             trigger:
               pr.rule_type === "early_bird_quantity" ? "by_sales" : "by_date",
-            min_quantity: pr.min_quantity,
+            min_quantity: pr.min_quantity !== undefined && pr.min_quantity !== null ? String(pr.min_quantity) : "2",
             applies_to: pr.applies_to || "all",
-            selected_tickets: pr.selected_tickets || [],
+            selected_tickets: Array.isArray(selTickets) ? selTickets : [],
+            min_purchase: pr.min_purchase !== undefined && pr.min_purchase !== null ? String(pr.min_purchase) : pr.min_cart_value !== undefined && pr.min_cart_value !== null ? String(pr.min_cart_value) : "",
+            max_uses: pr.max_uses !== undefined && pr.max_uses !== null ? String(pr.max_uses) : "",
+            stackable: Boolean(pr.stackable),
           });
         });
       }
@@ -358,22 +372,7 @@ export default function EditEventModal({
         featuredAccounts: JSON.stringify(eventData.featured_accounts || []),
         thingsToKnow: JSON.stringify(eventData.things_to_know || []),
         ticketTypes: JSON.stringify(eventData.ticket_types || []),
-        promos: JSON.stringify([
-          ...(eventData.discount_codes || []).map((dc) => ({
-            ...dc,
-            offer_type: "promo_code",
-            name: dc.name || dc.code || "",
-          })),
-          ...(eventData.pricing_rules || []).map((pr) => ({
-            ...pr,
-            offer_type:
-              pr.rule_type === "group_discount"
-                ? "group_discount"
-                : "early_bird",
-            trigger:
-              pr.rule_type === "early_bird_quantity" ? "by_sales" : "by_date",
-          })),
-        ]),
+        promos: JSON.stringify(loadedPromos),
         categories: JSON.stringify(categoryIds),
         accessType: eventData.access_type || "public",
         invitePublicVisibility: eventData.invite_public_visibility || false,
@@ -567,13 +566,14 @@ export default function EditEventModal({
                 discount_type: p.discount_type,
                 discount_value:
                   p.discount_value !== undefined ? p.discount_value : p.value,
-                max_uses: p.max_uses,
+                max_uses: p.max_uses ? parseInt(p.max_uses, 10) : null,
                 valid_from: p.valid_from,
                 valid_until: p.valid_until,
                 applies_to: p.applies_to,
                 selected_tickets: p.selected_tickets,
-                stackable: p.stackable,
-                min_purchase: p.min_purchase,
+                stackable: Boolean(p.stackable),
+                min_purchase: p.min_purchase ? parseFloat(p.min_purchase) : null,
+                min_cart_value: p.min_purchase ? parseFloat(p.min_purchase) : null,
                 is_active: p.is_active,
                 name: p.name,
               }))
@@ -600,11 +600,16 @@ export default function EditEventModal({
                 discount_value:
                   p.discount_value !== undefined ? p.discount_value : p.value,
                 valid_until: p.valid_until,
-                quantity_threshold: p.quantity_threshold,
+                valid_from: p.valid_from,
+                quantity_threshold: p.quantity_threshold ? parseInt(p.quantity_threshold, 10) : null,
                 min_quantity: p.min_quantity ? parseInt(p.min_quantity, 10) : null,
                 is_active: p.is_active,
                 applies_to: p.applies_to,
                 selected_tickets: p.selected_tickets,
+                max_uses: p.max_uses ? parseInt(p.max_uses, 10) : null,
+                min_purchase: p.min_purchase ? parseFloat(p.min_purchase) : null,
+                min_cart_value: p.min_purchase ? parseFloat(p.min_purchase) : null,
+                stackable: Boolean(p.stackable),
               }))
             : null;
         })(),

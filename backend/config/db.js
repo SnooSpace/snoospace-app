@@ -636,10 +636,22 @@ async function ensureTables(pool) {
         ALTER TABLE discount_codes ADD COLUMN IF NOT EXISTS selected_tickets JSONB DEFAULT '[]'::jsonb;
       EXCEPTION WHEN duplicate_column THEN NULL; END $$;
       DO $$ BEGIN
+        ALTER TABLE discount_codes ADD COLUMN IF NOT EXISTS stackable BOOLEAN DEFAULT false;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
         ALTER TABLE pricing_rules ADD COLUMN IF NOT EXISTS applies_to TEXT DEFAULT 'all';
       EXCEPTION WHEN duplicate_column THEN NULL; END $$;
       DO $$ BEGIN
         ALTER TABLE pricing_rules ADD COLUMN IF NOT EXISTS selected_tickets JSONB DEFAULT '[]'::jsonb;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE pricing_rules ADD COLUMN IF NOT EXISTS stackable BOOLEAN DEFAULT false;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE pricing_rules ADD COLUMN IF NOT EXISTS max_uses INTEGER;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE pricing_rules ADD COLUMN IF NOT EXISTS min_cart_value DECIMAL(10,2);
       EXCEPTION WHEN duplicate_column THEN NULL; END $$;
 
       -- Add gender_restriction to ticket_types (for gender-based ticket filtering)

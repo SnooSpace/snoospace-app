@@ -355,23 +355,28 @@ const createEvent = async (req, res) => {
             event_id, code, code_normalized, discount_type, discount_value,
             max_uses, max_uses_per_user, valid_from, valid_until,
             min_cart_value, applicable_ticket_ids, is_active,
-            applies_to, selected_tickets
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+            applies_to, selected_tickets, stackable
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
           [
             eventId,
             dc.code,
             dc.code.toUpperCase().trim(),
             dc.discount_type || "percentage",
             dc.discount_value,
-            dc.max_uses || null,
+            dc.max_uses ? parseInt(dc.max_uses, 10) : null,
             dc.max_uses_per_user || 1,
             dc.valid_from || null,
             dc.valid_until || null,
-            dc.min_cart_value || null,
+            dc.min_cart_value !== undefined && dc.min_cart_value !== null && dc.min_cart_value !== ""
+              ? dc.min_cart_value
+              : dc.min_purchase !== undefined && dc.min_purchase !== null && dc.min_purchase !== ""
+              ? dc.min_purchase
+              : null,
             dc.applicable_ticket_ids || null,
             dc.is_active !== false,
             dc.applies_to || "all",
             JSON.stringify(dc.selected_tickets || []),
+            Boolean(dc.stackable),
           ],
         ),
       );
@@ -389,8 +394,8 @@ const createEvent = async (req, res) => {
           `INSERT INTO pricing_rules (
             event_id, ticket_type_id, name, rule_type, discount_type, discount_value,
             quantity_threshold, min_quantity, valid_from, valid_until, priority, is_active,
-            applies_to, selected_tickets
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+            applies_to, selected_tickets, max_uses, min_cart_value, stackable
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
           [
             eventId,
             rule.ticket_type_id || null,
@@ -398,14 +403,21 @@ const createEvent = async (req, res) => {
             rule.rule_type,
             rule.discount_type || "percentage",
             rule.discount_value,
-            rule.quantity_threshold || null,
-            rule.min_quantity || null,
+            rule.quantity_threshold ? parseInt(rule.quantity_threshold, 10) : null,
+            rule.min_quantity ? parseInt(rule.min_quantity, 10) : null,
             rule.valid_from || null,
             rule.valid_until || null,
             rule.priority || 100,
             rule.is_active !== false,
             rule.applies_to || "all",
             JSON.stringify(rule.selected_tickets || []),
+            rule.max_uses ? parseInt(rule.max_uses, 10) : null,
+            rule.min_cart_value !== undefined && rule.min_cart_value !== null && rule.min_cart_value !== ""
+              ? rule.min_cart_value
+              : rule.min_purchase !== undefined && rule.min_purchase !== null && rule.min_purchase !== ""
+              ? rule.min_purchase
+              : null,
+            Boolean(rule.stackable),
           ],
         ),
       );
@@ -631,7 +643,7 @@ const getCommunityEvents = async (req, res) => {
           `SELECT id, name, description, base_price, total_quantity, sold_count, reserved_count,
                 sale_start_at, sale_end_at, visibility, access_code,
                 min_per_order, max_per_order, max_per_user, refund_policy,
-                display_order, is_active
+                display_order, is_active, gender_restriction
          FROM ticket_types 
          WHERE event_id = $1
          ORDER BY display_order ASC`,
@@ -644,7 +656,8 @@ const getCommunityEvents = async (req, res) => {
                 max_uses_per_user, valid_from, valid_until, min_cart_value,
                 applicable_ticket_ids, is_active,
                 COALESCE(applies_to, 'all') as applies_to,
-                COALESCE(selected_tickets, '[]'::jsonb) as selected_tickets
+                COALESCE(selected_tickets, '[]'::jsonb) as selected_tickets,
+                COALESCE(stackable, false) as stackable
          FROM discount_codes 
          WHERE event_id = $1
          ORDER BY created_at ASC`,
@@ -656,7 +669,9 @@ const getCommunityEvents = async (req, res) => {
           `SELECT id, ticket_type_id, name, rule_type, discount_type, discount_value,
                 quantity_threshold, min_quantity, valid_from, valid_until, priority, is_active,
                 COALESCE(applies_to, 'all') as applies_to,
-                COALESCE(selected_tickets, '[]'::jsonb) as selected_tickets
+                COALESCE(selected_tickets, '[]'::jsonb) as selected_tickets,
+                max_uses, min_cart_value,
+                COALESCE(stackable, false) as stackable
          FROM pricing_rules 
          WHERE event_id = $1
          ORDER BY priority ASC`,
@@ -2377,23 +2392,28 @@ const updateEvent = async (req, res) => {
               event_id, code, code_normalized, discount_type, discount_value,
               max_uses, max_uses_per_user, valid_from, valid_until,
               min_cart_value, applicable_ticket_ids, is_active,
-              applies_to, selected_tickets
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+              applies_to, selected_tickets, stackable
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
             [
               eventId,
               dc.code,
               dc.code.toUpperCase().trim(),
               dc.discount_type || "percentage",
               dc.discount_value,
-              dc.max_uses || null,
+              dc.max_uses ? parseInt(dc.max_uses, 10) : null,
               dc.max_uses_per_user || 1,
               dc.valid_from || null,
               dc.valid_until || null,
-              dc.min_cart_value || null,
+              dc.min_cart_value !== undefined && dc.min_cart_value !== null && dc.min_cart_value !== ""
+                ? dc.min_cart_value
+                : dc.min_purchase !== undefined && dc.min_purchase !== null && dc.min_purchase !== ""
+                ? dc.min_purchase
+                : null,
               dc.applicable_ticket_ids || null,
               dc.is_active !== false,
               dc.applies_to || "all",
               JSON.stringify(dc.selected_tickets || []),
+              Boolean(dc.stackable),
             ],
           ),
         );
@@ -2420,8 +2440,8 @@ const updateEvent = async (req, res) => {
             `INSERT INTO pricing_rules (
               event_id, ticket_type_id, name, rule_type, discount_type, discount_value,
               quantity_threshold, min_quantity, valid_from, valid_until, priority, is_active,
-              applies_to, selected_tickets
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+              applies_to, selected_tickets, max_uses, min_cart_value, stackable
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
             [
               eventId,
               rule.ticket_type_id || null,
@@ -2429,14 +2449,21 @@ const updateEvent = async (req, res) => {
               rule.rule_type,
               rule.discount_type || "percentage",
               rule.discount_value,
-              rule.quantity_threshold || null,
-              rule.min_quantity || null,
+              rule.quantity_threshold ? parseInt(rule.quantity_threshold, 10) : null,
+              rule.min_quantity ? parseInt(rule.min_quantity, 10) : null,
               rule.valid_from || null,
               rule.valid_until || null,
               rule.priority || 100,
               rule.is_active !== false,
               rule.applies_to || "all",
               JSON.stringify(rule.selected_tickets || []),
+              rule.max_uses ? parseInt(rule.max_uses, 10) : null,
+              rule.min_cart_value !== undefined && rule.min_cart_value !== null && rule.min_cart_value !== ""
+                ? rule.min_cart_value
+                : rule.min_purchase !== undefined && rule.min_purchase !== null && rule.min_purchase !== ""
+                ? rule.min_purchase
+                : null,
+              Boolean(rule.stackable),
             ],
           ),
         );
@@ -2747,7 +2774,10 @@ const getEventById = async (req, res) => {
     const discountCodesResult = await pool.query(
       `SELECT id, code, discount_type, discount_value, max_uses, current_uses,
               max_uses_per_user, valid_from, valid_until, min_cart_value,
-              applicable_ticket_ids, is_active
+              applicable_ticket_ids, is_active,
+              COALESCE(applies_to, 'all') as applies_to,
+              COALESCE(selected_tickets, '[]'::jsonb) as selected_tickets,
+              COALESCE(stackable, false) as stackable
        FROM discount_codes 
        WHERE event_id = $1
        ORDER BY created_at ASC`,
@@ -2757,7 +2787,11 @@ const getEventById = async (req, res) => {
     // Fetch pricing rules
     const pricingRulesResult = await pool.query(
       `SELECT id, ticket_type_id, name, rule_type, discount_type, discount_value,
-              quantity_threshold, min_quantity, valid_from, valid_until, priority, is_active
+              quantity_threshold, min_quantity, valid_from, valid_until, priority, is_active,
+              COALESCE(applies_to, 'all') as applies_to,
+              COALESCE(selected_tickets, '[]'::jsonb) as selected_tickets,
+              max_uses, min_cart_value,
+              COALESCE(stackable, false) as stackable
        FROM pricing_rules 
        WHERE event_id = $1
        ORDER BY priority ASC`,

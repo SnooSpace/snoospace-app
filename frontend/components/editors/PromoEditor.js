@@ -3,25 +3,21 @@
  * Consolidates DiscountCodesEditor + PricingRulesEditor into a single "Add Promo" modal
  * Used in CreateEventModal and EditEventModal
  */
-import React, { useState, useImperativeHandle, useCallback } from "react";
+import React, { useState, useImperativeHandle, useCallback, useMemo } from "react";
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Modal,
   Alert,
   LayoutAnimation,
   UIManager,
   Platform,
+  Dimensions,
 } from "react-native";
-import {
-  KeyboardAwareScrollView,
-  KeyboardStickyView,
-} from "react-native-keyboard-controller";
+import SwipeableModal from "../modals/SwipeableModal";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
 import {
   BadgePercent,
   Zap,
@@ -31,12 +27,23 @@ import {
   Calendar,
   Layers,
   Clock,
+  PlusCircle,
+  X,
+  Check,
+  CheckCircle2,
+  ChevronUp,
+  ChevronDown,
+  XCircle,
+  TrendingUp,
+  Sparkles,
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import CustomDatePicker from "../../components/ui/CustomDatePicker";
 import CustomTimePicker from "../../components/ui/CustomTimePicker";
 import CustomAlertModal from "../../components/ui/CustomAlertModal";
 import { COLORS, SHADOWS, FONTS } from "../../constants/theme";
+
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 if (
   Platform.OS === "android" &&
@@ -76,14 +83,14 @@ const TRIGGER_TYPES = [
   {
     value: "by_date",
     label: "By Date",
-    icon: "time-outline",
+    icon: "Clock",
     color: "#3B82F6", // Blue
     description: "Discount before a specific date",
   },
   {
     value: "by_sales",
     label: "By Sales",
-    icon: "trending-up-outline",
+    icon: "TrendingUp",
     color: "#3B82F6", // Reverted to Blue
     description: "Discount for first X tickets sold",
   },
@@ -112,6 +119,7 @@ const PromoEditor = React.forwardRef(
     const insets = useSafeAreaInsets();
     const [showModal, setShowModal] = useState(false);
     const [editingIndex, setEditingIndex] = useState(null);
+    const [initialPromoSnapshot, setInitialPromoSnapshot] = useState(null);
     const [showValidUntilPicker, setShowValidUntilPicker] = useState(false);
     const [showValidUntilTimePicker, setShowValidUntilTimePicker] = useState(false);
     const [showValidityPicker, setShowValidityPicker] = useState(false);
@@ -126,6 +134,12 @@ const PromoEditor = React.forwardRef(
       setCurrent({ ...DEFAULT_PROMO });
       setEditingIndex(null);
       setShowAdvanced(false);
+      setInitialPromoSnapshot(null);
+    };
+
+    const handleCloseModal = () => {
+      setShowModal(false);
+      resetForm();
     };
 
     const openAddModal = () => {
@@ -135,6 +149,11 @@ const PromoEditor = React.forwardRef(
 
     const openEditModal = (index) => {
       const p = promos[index];
+      const effectiveMinPurchase =
+        p.min_purchase !== undefined && p.min_purchase !== null && p.min_purchase !== ""
+          ? p.min_purchase
+          : p.min_cart_value;
+
       setCurrent({
         offer_type: p.offer_type || "promo_code",
         name: p.name || "",
@@ -148,18 +167,57 @@ const PromoEditor = React.forwardRef(
           ticketTypes.some((t) => t.name === name),
         ),
         max_uses: p.max_uses?.toString() || "",
-        min_purchase: p.min_purchase?.toString() || "",
-        stackable: p.stackable || false,
+        min_purchase:
+          effectiveMinPurchase !== undefined && effectiveMinPurchase !== null
+            ? effectiveMinPurchase.toString()
+            : "",
+        stackable: Boolean(p.stackable),
         valid_from: p.valid_from ? new Date(p.valid_from) : null,
         valid_until: p.valid_until ? new Date(p.valid_until) : null,
         quantity_threshold: p.quantity_threshold?.toString() || "",
         min_quantity: p.min_quantity?.toString() || "2",
         is_active: p.is_active !== false,
       });
+
+      // Snapshot for change detection
+      setInitialPromoSnapshot({
+        offer_type: p.offer_type || "promo_code",
+        code: (p.code || "").trim(),
+        trigger: p.trigger || "by_date",
+        discount_type: p.discount_type || "percentage",
+        discount_value:
+          p.discount_value !== undefined && p.discount_value !== null && p.discount_value !== ""
+            ? parseFloat(p.discount_value)
+            : "",
+        applies_to: p.applies_to || "all",
+        selected_tickets: (p.selected_tickets || [])
+          .filter((name) => ticketTypes.some((t) => t.name === name))
+          .sort(),
+        max_uses:
+          p.max_uses !== undefined && p.max_uses !== null && p.max_uses !== ""
+            ? parseInt(p.max_uses, 10)
+            : null,
+        min_purchase:
+          effectiveMinPurchase !== undefined && effectiveMinPurchase !== null && effectiveMinPurchase !== ""
+            ? parseFloat(effectiveMinPurchase)
+            : null,
+        min_quantity:
+          p.min_quantity !== undefined && p.min_quantity !== null && p.min_quantity !== ""
+            ? parseInt(p.min_quantity, 10)
+            : null,
+        stackable: Boolean(p.stackable),
+        valid_from: p.valid_from ? new Date(p.valid_from).getTime() : null,
+        valid_until: p.valid_until ? new Date(p.valid_until).getTime() : null,
+        quantity_threshold:
+          p.quantity_threshold !== undefined && p.quantity_threshold !== null && p.quantity_threshold !== ""
+            ? parseInt(p.quantity_threshold, 10)
+            : null,
+      });
+
       // Show advanced section if any advanced field has data
       if (
         p.max_uses ||
-        p.min_purchase ||
+        effectiveMinPurchase ||
         p.stackable ||
         p.valid_from ||
         p.valid_until
@@ -302,6 +360,90 @@ const PromoEditor = React.forwardRef(
 
       return true;
     })();
+
+    // Change detection: compare current form state to initial snapshot when editing
+    const isPromoDirty = useMemo(() => {
+      if (editingIndex === null || !initialPromoSnapshot) return true;
+
+      if (current.offer_type !== initialPromoSnapshot.offer_type) return true;
+
+      if (current.offer_type === "promo_code") {
+        if (
+          (current.code || "").trim().toUpperCase() !==
+          (initialPromoSnapshot.code || "").trim().toUpperCase()
+        )
+          return true;
+      }
+
+      if (current.offer_type === "early_bird") {
+        if (current.trigger !== initialPromoSnapshot.trigger) return true;
+        if (current.trigger === "by_sales") {
+          const curThreshold = current.quantity_threshold
+            ? parseInt(current.quantity_threshold, 10)
+            : null;
+          if (curThreshold !== initialPromoSnapshot.quantity_threshold)
+            return true;
+        }
+      }
+
+      if (current.offer_type === "group_discount") {
+        const curMinQ = current.min_quantity
+          ? parseInt(current.min_quantity, 10)
+          : null;
+        if (curMinQ !== initialPromoSnapshot.min_quantity) return true;
+      }
+
+      if (current.discount_type !== initialPromoSnapshot.discount_type)
+        return true;
+      const curDiscountVal = current.discount_value
+        ? parseFloat(current.discount_value)
+        : null;
+      const initDiscountVal =
+        initialPromoSnapshot.discount_value !== ""
+          ? parseFloat(initialPromoSnapshot.discount_value)
+          : null;
+      if (curDiscountVal !== initDiscountVal) return true;
+
+      if (current.applies_to !== initialPromoSnapshot.applies_to) return true;
+      if (current.applies_to === "specific") {
+        const curSelected = [...(current.selected_tickets || [])].sort();
+        const initSelected = [
+          ...(initialPromoSnapshot.selected_tickets || []),
+        ].sort();
+        if (curSelected.length !== initSelected.length) return true;
+        for (let i = 0; i < curSelected.length; i++) {
+          if (curSelected[i] !== initSelected[i]) return true;
+        }
+      }
+
+      const curMaxUses = current.max_uses
+        ? parseInt(current.max_uses, 10)
+        : null;
+      if (curMaxUses !== initialPromoSnapshot.max_uses) return true;
+
+      const curMinPurchase = current.min_purchase
+        ? parseFloat(current.min_purchase)
+        : null;
+      if (curMinPurchase !== initialPromoSnapshot.min_purchase) return true;
+
+      if (Boolean(current.stackable) !== Boolean(initialPromoSnapshot.stackable))
+        return true;
+
+      const curValidFrom = current.valid_from
+        ? new Date(current.valid_from).getTime()
+        : null;
+      if (curValidFrom !== initialPromoSnapshot.valid_from) return true;
+
+      const curValidUntil = current.valid_until
+        ? new Date(current.valid_until).getTime()
+        : null;
+      if (curValidUntil !== initialPromoSnapshot.valid_until) return true;
+
+      return false;
+    }, [current, editingIndex, initialPromoSnapshot]);
+
+    const isSavePromoDisabled =
+      editingIndex !== null ? !isFormValid || !isPromoDirty : !isFormValid;
 
     // Validation & Save
     const handleSave = () => {
@@ -579,7 +721,7 @@ const PromoEditor = React.forwardRef(
         <View style={styles.header}>
           <Text style={styles.label}>Promos & Discounts</Text>
           <TouchableOpacity style={styles.addButton} onPress={openAddModal}>
-            <Ionicons name="add-circle" size={20} color={COLORS.primary} />
+            <PlusCircle size={20} color={COLORS.primary} strokeWidth={1.75} />
             <Text style={styles.addButtonText} numberOfLines={1}>Add</Text>
           </TouchableOpacity>
         </View>
@@ -621,24 +763,17 @@ const PromoEditor = React.forwardRef(
                     },
                   ]}
                 >
-                  {tile.isLucide ? (
-                    tile.name === "Zap" ? (
-                      <Zap
-                        size={20}
-                        color={tile.iconColor}
-                        fill={tile.iconColor}
-                      />
-                    ) : tile.name === "Users" ? (
-                      <Users size={20} color={tile.iconColor} />
-                    ) : (
-                      <BadgePercent size={20} color={tile.iconColor} />
-                    )
-                  ) : (
-                    <Ionicons
-                      name={tile.name}
+                  {tile.name === "Zap" ? (
+                    <Zap
                       size={20}
                       color={tile.iconColor}
+                      fill={tile.iconColor}
+                      strokeWidth={1.75}
                     />
+                  ) : tile.name === "Users" ? (
+                    <Users size={20} color={tile.iconColor} strokeWidth={1.75} />
+                  ) : (
+                    <BadgePercent size={20} color={tile.iconColor} strokeWidth={1.75} />
                   )}
                 </LinearGradient>
               </View>
@@ -763,146 +898,147 @@ const PromoEditor = React.forwardRef(
         })}
 
         {/* ── ADD / EDIT MODAL ── */}
-        <Modal
+        <SwipeableModal
           visible={showModal}
-          animationType="slide"
-          transparent
-          statusBarTranslucent={true}
-          onRequestClose={() => setShowModal(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
+          onClose={handleCloseModal}
+          sheetStyle={styles.modalSheet}
+          avoidKeyboard={false}
+          header={
+            <View collapsable={false} style={styles.modalHeaderContainer}>
               <View style={styles.sheetHandle} />
 
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>
-                  {editingIndex !== null ? "Edit Promo" : "Add Promo"}
-                </Text>
+                <View>
+                  <Text style={styles.modalTitle}>
+                    {editingIndex !== null ? "Edit Promo" : "Add Promo"}
+                  </Text>
+                  <Text style={styles.modalSubtitle}>
+                    {editingIndex !== null
+                      ? "Update promo discount details"
+                      : "Create a new promo code or discount"}
+                  </Text>
+                </View>
                 <TouchableOpacity
-                  onPress={() => setShowModal(false)}
+                  onPress={handleCloseModal}
                   style={styles.closeButton}
                 >
-                  <Ionicons name="close" size={20} color={TEXT_COLOR} />
+                  <X size={20} color={TEXT_COLOR} strokeWidth={2} />
                 </TouchableOpacity>
               </View>
-
-              <KeyboardAwareScrollView
-                style={styles.modalBody}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: 120, paddingTop: 8 }}
-                bottomOffset={80}
-              >
-                {/* ── CARD 1: Offer Type ── */}
-                <View style={styles.card}>
-                  <Text style={styles.cardTitle}>Offer Type</Text>
-                  <View style={styles.typeOptions}>
-                    {OFFER_TYPES.map((type) => (
-                      <TouchableOpacity
-                        key={type.value}
-                        style={[
-                          styles.offerTypeOption,
-                          current.offer_type === type.value &&
-                            styles.offerTypeOptionActive,
-                        ]}
-                        onPress={() => {
-                          LayoutAnimation.configureNext(
-                            LayoutAnimation.Presets.easeInEaseOut,
-                          );
-                          setCurrent((prev) => {
-                            const updates = { ...prev, offer_type: type.value };
-                            // Clear type-specific fields to prevent stale data
-                            if (type.value === "promo_code") {
-                              updates.trigger = "by_date";
-                              updates.quantity_threshold = "";
-                              updates.min_quantity = "";
-                            } else if (type.value === "group_discount") {
-                              updates.code = "";
-                              updates.valid_from = null;
-                              updates.valid_until = null;
-                              updates.quantity_threshold = "";
-                              updates.min_quantity = prev.min_quantity || "2";
-                            } else {
-                              // Early bird — clear promo-specific fields
-                              updates.code = "";
-                              updates.valid_from = null;
-                              updates.min_quantity = "";
+            </View>
+          }
+        >
+          <SwipeableModal.KeyboardAwareScrollView
+            style={styles.modalBody}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 120, paddingTop: 8 }}
+            bottomOffset={80}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* ── CARD 1: Offer Type ── */}
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Offer Type</Text>
+              <View style={styles.typeOptions}>
+                {OFFER_TYPES.map((type) => (
+                  <TouchableOpacity
+                    key={type.value}
+                    style={[
+                      styles.offerTypeOption,
+                      current.offer_type === type.value &&
+                        styles.offerTypeOptionActive,
+                    ]}
+                    onPress={() => {
+                      LayoutAnimation.configureNext(
+                        LayoutAnimation.Presets.easeInEaseOut,
+                      );
+                      setCurrent((prev) => {
+                        const updates = { ...prev, offer_type: type.value };
+                        // Clear type-specific fields to prevent stale data
+                        if (type.value === "promo_code") {
+                          updates.trigger = "by_date";
+                          updates.quantity_threshold = "";
+                          updates.min_quantity = "";
+                        } else if (type.value === "group_discount") {
+                          updates.code = "";
+                          updates.valid_from = null;
+                          updates.valid_until = null;
+                          updates.quantity_threshold = "";
+                          updates.min_quantity = prev.min_quantity || "2";
+                        } else {
+                          // Early bird — clear promo-specific fields
+                          updates.code = "";
+                          updates.valid_from = null;
+                          updates.min_quantity = "";
+                        }
+                        return updates;
+                      });
+                    }}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <View style={styles.offerTypeHeader}>
+                        {type.icon === "BadgePercent" ? (
+                          <BadgePercent
+                            size={20}
+                            color={
+                              current.offer_type === type.value
+                                ? type.color
+                                : LIGHT_TEXT_COLOR
                             }
-                            return updates;
-                          });
-                        }}
-                      >
-                        <View style={{ flex: 1 }}>
-                          <View style={styles.offerTypeHeader}>
-                            {type.icon === "BadgePercent" ? (
-                              <BadgePercent
-                                size={20}
-                                color={
-                                  current.offer_type === type.value
-                                    ? type.color
-                                    : LIGHT_TEXT_COLOR
-                                }
-                              />
-                            ) : type.icon === "Zap" ? (
-                              <Zap
-                                size={20}
-                                color={
-                                  current.offer_type === type.value
-                                    ? type.color
-                                    : LIGHT_TEXT_COLOR
-                                }
-                                fill={
-                                  current.offer_type === type.value
-                                    ? type.color
-                                    : "transparent"
-                                }
-                              />
-                            ) : type.icon === "Users" ? (
-                              <Users
-                                size={20}
-                                color={
-                                  current.offer_type === type.value
-                                    ? type.color
-                                    : LIGHT_TEXT_COLOR
-                                }
-                              />
-                            ) : (
-                              <Ionicons
-                                name={type.icon}
-                                size={20}
-                                color={
-                                  current.offer_type === type.value
-                                    ? type.color
-                                    : LIGHT_TEXT_COLOR
-                                }
-                              />
-                            )}
-                            <Text
-                              style={[
-                                styles.offerTypeLabel,
-                                current.offer_type === type.value &&
-                                  styles.offerTypeLabelActive,
-                              ]}
-                            >
-                              {type.label}
-                            </Text>
-                          </View>
-                          <Text style={styles.offerTypeDesc}>
-                            {type.description}
-                          </Text>
-                        </View>
-                        {current.offer_type === type.value ? (
-                          <Ionicons
-                            name="checkmark-circle"
-                            size={22}
-                            color={type.color}
+                            strokeWidth={1.75}
+                          />
+                        ) : type.icon === "Zap" ? (
+                          <Zap
+                            size={20}
+                            color={
+                              current.offer_type === type.value
+                                ? type.color
+                                : LIGHT_TEXT_COLOR
+                            }
+                            fill={
+                              current.offer_type === type.value
+                                ? type.color
+                                : "transparent"
+                            }
+                            strokeWidth={1.75}
                           />
                         ) : (
-                          <View style={styles.radioPlaceholder} />
+                          <Users
+                            size={20}
+                            color={
+                              current.offer_type === type.value
+                                ? type.color
+                                : LIGHT_TEXT_COLOR
+                            }
+                            strokeWidth={1.75}
+                          />
                         )}
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
+                        <Text
+                          style={[
+                            styles.offerTypeLabel,
+                            current.offer_type === type.value &&
+                              styles.offerTypeLabelActive,
+                          ]}
+                        >
+                          {type.label}
+                        </Text>
+                      </View>
+                      <Text style={styles.offerTypeDesc}>
+                        {type.description}
+                      </Text>
+                    </View>
+                    {current.offer_type === type.value ? (
+                      <CheckCircle2
+                        size={22}
+                        color={type.color}
+                        strokeWidth={2}
+                      />
+                    ) : (
+                      <View style={styles.radioPlaceholder} />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
 
                 {/* ── CARD 2: Promo Code Details (conditional) ── */}
                 {current.offer_type === "promo_code" && (
@@ -928,10 +1064,10 @@ const PromoEditor = React.forwardRef(
                         style={styles.generateBtn}
                         onPress={generateCode}
                       >
-                        <Ionicons
-                          name="sparkles"
+                        <Sparkles
                           size={14}
                           color={COLORS.primary}
+                          strokeWidth={2}
                         />
                         <Text style={styles.generateBtnText}>Generate</Text>
                       </TouchableOpacity>
@@ -963,15 +1099,27 @@ const PromoEditor = React.forwardRef(
                         >
                           <View style={{ flex: 1 }}>
                             <View style={styles.offerTypeHeader}>
-                              <Ionicons
-                                name={type.icon}
-                                size={20}
-                                color={
-                                  current.trigger === type.value
-                                    ? type.color
-                                    : LIGHT_TEXT_COLOR
-                                }
-                              />
+                              {type.value === "by_date" ? (
+                                <Clock
+                                  size={20}
+                                  color={
+                                    current.trigger === type.value
+                                      ? type.color
+                                      : LIGHT_TEXT_COLOR
+                                  }
+                                  strokeWidth={1.75}
+                                />
+                              ) : (
+                                <TrendingUp
+                                  size={20}
+                                  color={
+                                    current.trigger === type.value
+                                      ? type.color
+                                      : LIGHT_TEXT_COLOR
+                                  }
+                                  strokeWidth={1.75}
+                                />
+                              )}
                               <Text
                                 style={[
                                   styles.offerTypeLabel,
@@ -987,10 +1135,10 @@ const PromoEditor = React.forwardRef(
                             </Text>
                           </View>
                           {current.trigger === type.value ? (
-                            <Ionicons
-                              name="checkmark-circle"
+                            <CheckCircle2
                               size={22}
                               color={type.color}
+                              strokeWidth={2}
                             />
                           ) : (
                             <View style={styles.radioPlaceholder} />
@@ -1009,10 +1157,10 @@ const PromoEditor = React.forwardRef(
                             style={[styles.dateButton, { flex: 1 }]}
                             onPress={() => setShowValidUntilPicker(true)}
                           >
-                            <Ionicons
-                              name="calendar-outline"
+                            <Calendar
                               size={18}
                               color="#94A3B8"
+                              strokeWidth={1.75}
                             />
                             <Text
                               style={[
@@ -1368,10 +1516,10 @@ const PromoEditor = React.forwardRef(
                               onPress={() => toggleTicketSelection(t.name)}
                             >
                               {selected && (
-                                <Ionicons
-                                  name="checkmark"
+                                <Check
                                   size={13}
                                   color={COLORS.primary}
+                                  strokeWidth={2.5}
                                 />
                               )}
                               <Text
@@ -1402,11 +1550,11 @@ const PromoEditor = React.forwardRef(
                   <Text style={styles.advancedToggleText}>
                     Advanced Options
                   </Text>
-                  <Ionicons
-                    name={showAdvanced ? "chevron-up" : "chevron-down"}
-                    size={18}
-                    color="#64748B"
-                  />
+                  {showAdvanced ? (
+                    <ChevronUp size={18} color="#64748B" strokeWidth={2} />
+                  ) : (
+                    <ChevronDown size={18} color="#64748B" strokeWidth={2} />
+                  )}
                 </TouchableOpacity>
 
                 {showAdvanced && (
@@ -1478,10 +1626,10 @@ const PromoEditor = React.forwardRef(
                             style={styles.datePillBtn}
                             onPress={() => setShowValidityPicker(true)}
                           >
-                            <Ionicons
-                              name="calendar-outline"
+                            <Calendar
                               size={15}
                               color={COLORS.primary}
+                              strokeWidth={1.75}
                             />
                             <Text
                               style={[
@@ -1507,10 +1655,10 @@ const PromoEditor = React.forwardRef(
                                   })
                                 }
                               >
-                                <Ionicons
-                                  name="close-circle"
+                                <XCircle
                                   size={16}
                                   color="#94A3B8"
+                                  strokeWidth={1.75}
                                 />
                               </TouchableOpacity>
                             )}
@@ -1522,10 +1670,10 @@ const PromoEditor = React.forwardRef(
                             style={styles.datePillBtn}
                             onPress={() => setShowValidityPicker(true)}
                           >
-                            <Ionicons
-                              name="calendar-outline"
+                            <Calendar
                               size={15}
                               color={COLORS.primary}
+                              strokeWidth={1.75}
                             />
                             <Text
                               style={[
@@ -1548,10 +1696,10 @@ const PromoEditor = React.forwardRef(
                                   })
                                 }
                               >
-                                <Ionicons
-                                  name="close-circle"
+                                <XCircle
                                   size={16}
                                   color="#94A3B8"
+                                  strokeWidth={1.75}
                                 />
                               </TouchableOpacity>
                             )}
@@ -1757,51 +1905,46 @@ const PromoEditor = React.forwardRef(
                     setCurrent((prev) => ({ ...prev, valid_until: base }));
                   }}
                 />
-              </KeyboardAwareScrollView>
+              </SwipeableModal.KeyboardAwareScrollView>
 
-              <KeyboardStickyView
-                style={[
-                  styles.floatingFooter,
-                  { paddingBottom: Math.max(insets.bottom, 20) },
-                ]}
-                offset={{ closed: 0, opened: 8 }}
-              >
-                <TouchableOpacity
-                  style={[
-                    styles.saveButton,
-                    !isFormValid && styles.saveButtonDisabled,
-                  ]}
-                  onPress={handleSave}
-                  disabled={!isFormValid}
-                >
-                  {isFormValid ? (
-                    <LinearGradient
-                      colors={COLORS.primaryGradient}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
-                      style={styles.saveButtonGradient}
+              {/* FOOTER CTA WITH BLUR */}
+              <View style={styles.stickyFooterContainer}>
+                <View style={styles.stickyFooterBlur}>
+                  <View
+                    style={[
+                      styles.stickyFooterContent,
+                      { paddingBottom: Math.max(insets.bottom, 20) },
+                    ]}
+                  >
+                    <TouchableOpacity
+                      style={styles.ghostCancelButton}
+                      onPress={handleCloseModal}
                     >
-                      <Text style={styles.saveButtonText}>
-                        {editingIndex !== null ? "Update Promo" : "Add Promo"}
-                      </Text>
-                    </LinearGradient>
-                  ) : (
-                    <View style={styles.saveButtonGradient}>
+                      <Text style={styles.ghostCancelButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.premiumCreateButton,
+                        isSavePromoDisabled && styles.premiumCreateButtonDisabled,
+                      ]}
+                      onPress={handleSave}
+                      disabled={isSavePromoDisabled}
+                      activeOpacity={0.8}
+                    >
                       <Text
                         style={[
-                          styles.saveButtonText,
-                          styles.saveButtonTextDisabled,
+                          styles.premiumCreateButtonText,
+                          isSavePromoDisabled && styles.premiumCreateButtonTextDisabled,
                         ]}
                       >
                         {editingIndex !== null ? "Update Promo" : "Add Promo"}
                       </Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              </KeyboardStickyView>
-            </View>
-          </View>
-        </Modal>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+        </SwipeableModal>
 
         {/* ── CUSTOM ALERT MODAL ── */}
         {alertConfig && (
@@ -1965,16 +2108,16 @@ const styles = StyleSheet.create({
   },
 
   // ── MODAL ──
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
+  modalSheet: {
     backgroundColor: "#F7F9FC",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    height: "90%",
+    height: SCREEN_HEIGHT * 0.9,
+  },
+  modalHeaderContainer: {
+    backgroundColor: "#F7F9FC",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
   },
   sheetHandle: {
     width: 40,
@@ -1996,9 +2139,15 @@ const styles = StyleSheet.create({
     borderBottomColor: "#F0F2F5",
   },
   modalTitle: {
-    fontFamily: "Manrope-Bold",
-    fontSize: 20,
+    fontFamily: FONTS.primary,
+    fontSize: 22,
     color: "#0F172A",
+  },
+  modalSubtitle: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 13,
+    color: "#64748B",
+    marginTop: 2,
   },
   closeButton: {
     width: 36,
@@ -2368,34 +2517,62 @@ const styles = StyleSheet.create({
     color: "#94A3B8",
   },
 
-  // ── FOOTER ──
-  floatingFooter: {
+  // ── STICKY FOOTER WITH BLUR ──
+  stickyFooterContainer: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
+  },
+  stickyFooterBlur: {
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    borderTopWidth: 1,
+    borderTopColor: "rgba(229, 231, 235, 0.6)",
+  },
+  stickyFooterContent: {
     paddingHorizontal: 20,
     paddingTop: 16,
-    backgroundColor: "rgba(255,255,255,0.92)",
-    borderTopWidth: 1,
-    borderTopColor: "#F0F2F5",
-  },
-  saveButton: { borderRadius: 16, overflow: "hidden" },
-  saveButtonDisabled: { opacity: 0.5 },
-  saveButtonGradient: {
-    borderRadius: 16,
-    paddingVertical: 15,
+    flexDirection: "row",
     alignItems: "center",
+    gap: 16,
+  },
+  ghostCancelButton: {
+    flex: 1,
+    height: 52,
     justifyContent: "center",
-    backgroundColor: "#E5E7EB",
+    alignItems: "center",
+    borderRadius: 26,
   },
-  saveButtonText: {
+  ghostCancelButtonText: {
     fontFamily: FONTS.semiBold,
-    color: "#FFFFFF",
     fontSize: 16,
+    color: "#4B5563",
   },
-  saveButtonTextDisabled: {
-    color: "#9CA3AF",
+  premiumCreateButton: {
+    flex: 2,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: COLORS.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  premiumCreateButtonDisabled: {
+    backgroundColor: "#E2E8F0",
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  premiumCreateButtonText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 16,
+    color: "#FFFFFF",
+  },
+  premiumCreateButtonTextDisabled: {
+    color: "#94A3B8",
   },
 
   // ── HELPER & VALIDATION ──

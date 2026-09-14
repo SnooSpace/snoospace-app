@@ -39,7 +39,6 @@ if (
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
 import {
   Ticket,
   Earth,
@@ -57,6 +56,9 @@ import {
   Percent,
   Copy,
   Info,
+  PlusCircle,
+  ArrowRight,
+  EyeOff,
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -182,6 +184,7 @@ const TicketTypesEditor = React.forwardRef(
     const [salesMode, setSalesMode] = useState("duration"); // "duration" | "custom"
     const [genderMode, setGenderMode] = useState("none"); // "none" | "restricted"
     const [showRefundPolicy, setShowRefundPolicy] = useState(false); // collapsed by default
+    const [initialTicketSnapshot, setInitialTicketSnapshot] = useState(null);
 
     const [currentTicket, setCurrentTicket] = useState({
       name: "",
@@ -238,6 +241,7 @@ const TicketTypesEditor = React.forwardRef(
       setCapacityMode("unlimited");
       setSalesMode("duration");
       setGenderMode("none");
+      setInitialTicketSnapshot(null);
     };
 
     const handleCloseModal = () => {
@@ -261,13 +265,23 @@ const TicketTypesEditor = React.forwardRef(
 
     const openEditModal = (index, options = {}) => {
       const ticket = ticketTypes[index] || {};
-      const rp = ticket.refund_policy || { allowed: false, deadline_hours_before: 24, percentage: 100 };
+      let rp = ticket.refund_policy;
+      if (typeof rp === "string") {
+        try {
+          rp = JSON.parse(rp);
+        } catch (e) {
+          rp = null;
+        }
+      }
+      if (!rp || typeof rp !== "object") {
+        rp = { allowed: false, deadline_hours_before: 24, percentage: 100 };
+      }
       // TEMPORARY: backend returns sale_start_at/sale_end_at; accept the
       // legacy sales_start_date/sales_end_date name too until standardized.
       const rawStartDate = ticket.sale_start_at || ticket.sales_start_date || null;
       const rawEndDate = ticket.sale_end_at || ticket.sales_end_date || null;
 
-      setCurrentTicket({
+      const ticketObj = {
         name: ticket.name || "",
         description: ticket.description || "",
         base_price: ticket.base_price?.toString() || "",
@@ -281,19 +295,29 @@ const TicketTypesEditor = React.forwardRef(
         refund_policy_allowed: rp.allowed === true,
         refund_policy_deadline: rp.deadline_hours_before?.toString() ?? "24",
         refund_policy_percentage: rp.percentage?.toString() ?? "100",
-      });
+      };
 
-      setCapacityMode(ticket.total_quantity ? "limited" : "unlimited");
-      setSalesMode(
-        rawStartDate || rawEndDate
-          ? "custom"
-          : "duration",
-      );
-      setGenderMode(
+      const initialCapMode = ticket.total_quantity ? "limited" : "unlimited";
+      const initialSalesMode = rawStartDate || rawEndDate ? "custom" : "duration";
+      const initialGenderMode =
         ticket.gender_restriction && ticket.gender_restriction !== "all"
           ? "restricted"
-          : "none",
-      );
+          : "none";
+
+      setCurrentTicket(ticketObj);
+      setCapacityMode(initialCapMode);
+      setSalesMode(initialSalesMode);
+      setGenderMode(initialGenderMode);
+
+      setInitialTicketSnapshot({
+        ...ticketObj,
+        sales_start_date: rawStartDate ? new Date(rawStartDate).getTime() : null,
+        sales_end_date: rawEndDate ? new Date(rawEndDate).getTime() : null,
+        capacityMode: initialCapMode,
+        salesMode: initialSalesMode,
+        genderMode: initialGenderMode,
+      });
+
       if (options.scrollToRefund) {
         setShowRefundPolicy(true);
         scrollToRefundSection();
@@ -305,6 +329,37 @@ const TicketTypesEditor = React.forwardRef(
       setEditingIndex(index);
       setShowModal(true);
     };
+
+    const isTicketDirty = useMemo(() => {
+      if (editingIndex === null || !initialTicketSnapshot) return true;
+
+      if ((currentTicket.name || "").trim() !== (initialTicketSnapshot.name || "").trim()) return true;
+      if ((currentTicket.description || "").trim() !== (initialTicketSnapshot.description || "").trim()) return true;
+      if ((currentTicket.base_price || "").trim() !== (initialTicketSnapshot.base_price || "").trim()) return true;
+      if (capacityMode !== initialTicketSnapshot.capacityMode) return true;
+      if (capacityMode === "limited" && (currentTicket.total_quantity || "").trim() !== (initialTicketSnapshot.total_quantity || "").trim()) return true;
+      if (currentTicket.visibility !== initialTicketSnapshot.visibility) return true;
+      if (genderMode !== initialTicketSnapshot.genderMode) return true;
+      const effectiveGender = genderMode === "restricted" ? currentTicket.gender_restriction : "all";
+      if (effectiveGender !== initialTicketSnapshot.gender_restriction) return true;
+      if (salesMode !== initialTicketSnapshot.salesMode) return true;
+      if (salesMode === "custom") {
+        const currStart = currentTicket.sales_start_date ? new Date(currentTicket.sales_start_date).getTime() : null;
+        if (currStart !== initialTicketSnapshot.sales_start_date) return true;
+        const currEnd = currentTicket.sales_end_date ? new Date(currentTicket.sales_end_date).getTime() : null;
+        if (currEnd !== initialTicketSnapshot.sales_end_date) return true;
+      }
+      if (currentTicket.refund_policy_allowed !== initialTicketSnapshot.refund_policy_allowed) return true;
+      if (currentTicket.refund_policy_allowed) {
+        if ((currentTicket.refund_policy_deadline || "").trim() !== (initialTicketSnapshot.refund_policy_deadline || "").trim()) return true;
+        if ((currentTicket.refund_policy_percentage || "").trim() !== (initialTicketSnapshot.refund_policy_percentage || "").trim()) return true;
+      }
+      return false;
+    }, [currentTicket, capacityMode, genderMode, salesMode, editingIndex, initialTicketSnapshot]);
+
+    const isSaveDisabled = editingIndex !== null
+      ? !isTicketDirty || !currentTicket.name.trim()
+      : !currentTicket.name.trim();
 
     const handleSave = () => {
       if (!currentTicket.name.trim()) {
@@ -652,13 +707,12 @@ const TicketTypesEditor = React.forwardRef(
               style={styles.addButton}
               onPress={onAddPress || openAddModal}
             >
-              <Ionicons name="add-circle" size={20} color={COLORS.primary} />
+              <PlusCircle size={20} color={COLORS.primary} strokeWidth={1.75} />
               <Text style={styles.addButtonText}>Add Ticket Type</Text>
             </TouchableOpacity>
           )}
         </View>
 
-        {/* Empty State */}
         {/* Empty State */}
         {ticketTypes.length === 0 && (
           <View style={styles.emptyCard}>
@@ -678,7 +732,7 @@ const TicketTypesEditor = React.forwardRef(
               onPress={onAddPress || openAddModal}
             >
               <Text style={styles.emptyAddButtonText}>Add Ticket Type</Text>
-              <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+              <ArrowRight size={16} color="#FFFFFF" strokeWidth={2} />
             </TouchableOpacity>
           </View>
         )}
@@ -776,15 +830,11 @@ const TicketTypesEditor = React.forwardRef(
                   <View style={styles.tileActions}>
                     {ticket.visibility !== "public" && (
                       <View style={styles.visibilityBadge}>
-                        <Ionicons
-                          name={
-                            ticket.visibility === "hidden"
-                              ? "eye-off"
-                              : "lock-closed"
-                          }
-                          size={12}
-                          color="#6B7280"
-                        />
+                        {ticket.visibility === "hidden" ? (
+                          <EyeOff size={12} color="#6B7280" strokeWidth={1.75} />
+                        ) : (
+                          <Lock size={12} color="#6B7280" strokeWidth={1.75} />
+                        )}
                         <Text style={styles.visibilityText}>
                           {ticket.visibility === "hidden"
                             ? "Hidden"
@@ -1919,14 +1969,18 @@ const TicketTypesEditor = React.forwardRef(
                     <TouchableOpacity
                       style={[
                         styles.premiumCreateButton,
-                        !currentTicket.name.trim() &&
-                          styles.premiumCreateButtonDisabled,
+                        isSaveDisabled && styles.premiumCreateButtonDisabled,
                       ]}
                       onPress={handleSave}
-                      disabled={!currentTicket.name.trim()}
+                      disabled={isSaveDisabled}
                       activeOpacity={0.8}
                     >
-                      <Text style={styles.premiumCreateButtonText}>
+                      <Text
+                        style={[
+                          styles.premiumCreateButtonText,
+                          isSaveDisabled && styles.premiumCreateButtonTextDisabled,
+                        ]}
+                      >
                         {editingIndex !== null
                           ? "Update Ticket"
                           : "Create Ticket"}
@@ -2890,13 +2944,17 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   premiumCreateButtonDisabled: {
-    opacity: 0.4,
+    backgroundColor: "#E2E8F0",
     shadowOpacity: 0,
+    elevation: 0,
   },
   premiumCreateButtonText: {
     fontFamily: FONTS.semiBold,
     fontSize: 16,
     color: "#FFFFFF",
+  },
+  premiumCreateButtonTextDisabled: {
+    color: "#94A3B8",
   },
 
   // --- REFUND POLICY REDESIGN ---
