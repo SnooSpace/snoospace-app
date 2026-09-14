@@ -34,7 +34,6 @@ import {
   Edit2,
   FileText,
   Trash2,
-  PauseCircle,
   BarChart3,
   Users,
   ChevronRight,
@@ -528,7 +527,7 @@ export default function CommunityDashboardScreen({ navigation }) {
         // No attendees: allow both cancel and delete
         options.push({
           text: "Cancel Event",
-          icon: <PauseCircle />,
+          icon: <X />,
           onPress: () => {
             setModalConfig((prev) => ({ ...prev, visible: false }));
             setTimeout(() => {
@@ -609,7 +608,7 @@ export default function CommunityDashboardScreen({ navigation }) {
         // Has attendees: cancel only — cannot delete
         options.push({
           text: "Cancel Event",
-          icon: <PauseCircle />,
+          icon: <X />,
           onPress: () => {
             setModalConfig((prev) => ({ ...prev, visible: false }));
             setTimeout(() => {

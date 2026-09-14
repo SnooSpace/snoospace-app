@@ -115,7 +115,7 @@ const DEFAULT_PROMO = {
 };
 
 const PromoEditor = React.forwardRef(
-  ({ promos = [], onChange, ticketTypes = [], eventStartDate }, ref) => {
+  ({ promos = [], onChange, ticketTypes = [], eventStartDate, onPromoUpdated }, ref) => {
     const insets = useSafeAreaInsets();
     const [showModal, setShowModal] = useState(false);
     const [editingIndex, setEditingIndex] = useState(null);
@@ -575,6 +575,7 @@ const PromoEditor = React.forwardRef(
         const updated = [...promos];
         updated[editingIndex] = { ...updated[editingIndex], ...promoData };
         onChange(updated);
+        onPromoUpdated?.();
       } else {
         onChange([...promos, promoData]);
       }

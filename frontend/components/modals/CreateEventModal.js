@@ -82,6 +82,7 @@ import TicketTypesEditor from "../editors/TicketTypesEditor";
 import PromoEditor from "../editors/PromoEditor";
 import CategorySelector from "../editors/CategorySelector";
 import SuccessCard from "../feedback/SuccessCard";
+import CelebrationCheckmarkHUD from "../feedback/CelebrationCheckmarkHUD";
 
 // Draft storage utilities
 import {
@@ -218,6 +219,15 @@ const CreateEventModal = ({
   // Progress calculation
   const progressPercent = useRef(new Animated.Value(0)).current;
 
+  const [celebrationConfig, setCelebrationConfig] = useState({
+    visible: false,
+    message: "Updated",
+  });
+
+  const triggerCelebration = useCallback((message = "Updated") => {
+    setCelebrationConfig({ visible: true, message });
+  }, []);
+
   // Enable LayoutAnimation for Android
   useEffect(() => {
     if (Platform.OS === "android") {
@@ -284,6 +294,25 @@ const CreateEventModal = ({
   const [thingsToKnow, setThingsToKnow] = useState([]);
   const [allowTierSwitching, setAllowTierSwitching] = useState(false);
   const [allowDowngradeRefunds, setAllowDowngradeRefunds] = useState(false);
+
+  const canSwitchTiers = (ticketTypes?.length || 0) >= 2;
+
+  const handleDisabledTierSwitchPress = () => {
+    const count = ticketTypes?.length || 0;
+    if (count === 0) {
+      Alert.alert(
+        "Ticket Switching Unavailable",
+        "Ticket switching allows attendees to switch or upgrade their ticket tier. You must add at least 2 ticket tiers before enabling this feature.",
+        [{ text: "Got it" }]
+      );
+    } else {
+      Alert.alert(
+        "Ticket Switching Unavailable",
+        "Ticket switching requires at least 2 ticket tiers so attendees have another tier to switch between. You currently have only 1 ticket tier. Add another tier above to enable this.",
+        [{ text: "Got it" }]
+      );
+    }
+  };
   // Event visibility
   const [accessType, setAccessType] = useState("public"); // 'public' or 'invite_only'
   const [invitePublicVisibility, setInvitePublicVisibility] = useState(false); // Show in feeds with hidden location
@@ -475,8 +504,8 @@ const CreateEventModal = ({
     things_to_know: thingsToKnow,
     access_type: accessType,
     invite_public_visibility: invitePublicVisibility,
-    allow_tier_switching: allowTierSwitching,
-    allow_downgrade_refunds: allowTierSwitching && allowDowngradeRefunds,
+    allow_tier_switching: canSwitchTiers && allowTierSwitching,
+    allow_downgrade_refunds: canSwitchTiers && allowTierSwitching && allowDowngradeRefunds,
   });
 
   const saveDraft = async (silent = false) => {
@@ -1632,6 +1661,7 @@ const CreateEventModal = ({
                 eventType={eventType}
                 ticketTypes={ticketTypes}
                 onChange={setTicketTypes}
+                onTicketUpdated={() => triggerCelebration("Ticket updated")}
                 onAddPress={() =>
                   setTimeout(() => ticketEditorRef.current?.openAddModal(), 300)
                 }
@@ -1659,29 +1689,70 @@ const CreateEventModal = ({
                   ref={promoEditorRef}
                   promos={promos}
                   onChange={setPromos}
+                  onPromoUpdated={() => triggerCelebration("Promo code updated")}
                   ticketTypes={ticketTypes}
                   eventStartDate={eventDate}
                 />
               )}
 
-              {ticketTypes.length > 0 && (
-                <View style={{ marginTop: 20, paddingTop: 16, borderTopWidth: 1, borderTopColor: MODAL_TOKENS.surface }}>
-                  {/* Allow Ticket Switching Toggle */}
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                    }}
-                  >
-                    <View style={{ flex: 1, paddingRight: 12 }}>
-                      <Text style={styles.label}>Allow Ticket Switching</Text>
-                      <Text style={styles.sectionHeaderHelper}>
-                        Allow attendees to switch or upgrade their ticket tier before the event starts.
-                      </Text>
-                    </View>
+              {/* Ticket Switching Section — Always visible, grayed out when < 2 tiers */}
+              <View
+                style={{
+                  marginTop: 20,
+                  paddingTop: 16,
+                  borderTopWidth: 1,
+                  borderTopColor: MODAL_TOKENS.surface,
+                  opacity: canSwitchTiers ? 1 : 0.55,
+                }}
+              >
+                {/* Allow Ticket Switching Toggle */}
+                <TouchableOpacity
+                  activeOpacity={canSwitchTiers ? 1 : 0.7}
+                  onPress={!canSwitchTiers ? handleDisabledTierSwitchPress : undefined}
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <View style={{ flex: 1, paddingRight: 12 }}>
+                    <Text
+                      style={[
+                        styles.label,
+                        !canSwitchTiers && { color: MODAL_TOKENS.textSecondary },
+                      ]}
+                    >
+                      Allow Ticket Switching
+                    </Text>
+                    <Text style={styles.sectionHeaderHelper}>
+                      Allow attendees to switch or upgrade their ticket tier before the event starts.
+                    </Text>
+                    {!canSwitchTiers && (
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 6,
+                          marginTop: 6,
+                        }}
+                      >
+                        <Info size={14} color={MODAL_TOKENS.textSecondary} strokeWidth={1.8} />
+                        <Text
+                          style={{
+                            fontFamily: MODAL_TOKENS.fonts.medium,
+                            fontSize: 12,
+                            color: MODAL_TOKENS.textSecondary,
+                          }}
+                        >
+                          Requires 2+ ticket tiers ({(ticketTypes?.length || 0)}/2 added)
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  <View pointerEvents={canSwitchTiers ? "auto" : "none"}>
                     <Switch
-                      value={allowTierSwitching}
+                      disabled={!canSwitchTiers}
+                      value={canSwitchTiers && allowTierSwitching}
                       onValueChange={(val) => {
                         LayoutAnimation.configureNext(
                           LayoutAnimation.Presets.easeInEaseOut,
@@ -1694,27 +1765,57 @@ const CreateEventModal = ({
                       ios_backgroundColor="#D1D5DB"
                     />
                   </View>
+                </TouchableOpacity>
 
-                  {/* Allow Refund on Downgrade Toggle */}
+                {/* Allow Refund on Downgrade Toggle */}
+                <TouchableOpacity
+                  activeOpacity={canSwitchTiers && allowTierSwitching ? 1 : 0.7}
+                  onPress={
+                    !canSwitchTiers
+                      ? handleDisabledTierSwitchPress
+                      : !allowTierSwitching
+                      ? () => {
+                          Alert.alert(
+                            "Refund on Downgrade",
+                            "Enable 'Allow Ticket Switching' first to configure downgrade refunds.",
+                            [{ text: "Got it" }]
+                          );
+                        }
+                      : undefined
+                  }
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginTop: 14,
+                    marginLeft: 16,
+                    opacity: canSwitchTiers && allowTierSwitching ? 1 : 0.45,
+                  }}
+                >
+                  <View style={{ flex: 1, paddingRight: 12 }}>
+                    <Text
+                      style={[
+                        styles.label,
+                        { fontSize: 14 },
+                        (!canSwitchTiers || !allowTierSwitching) && {
+                          color: MODAL_TOKENS.textSecondary,
+                        },
+                      ]}
+                    >
+                      Allow Refund on Downgrade
+                    </Text>
+                    <Text style={styles.sectionHeaderHelper}>
+                      Queue a manual review refund request if attendee switches to a lower tier.
+                    </Text>
+                  </View>
                   <View
-                    style={{
-                      flexDirection: "row",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      marginTop: 14,
-                      marginLeft: 16,
-                      opacity: allowTierSwitching ? 1 : 0.45,
-                    }}
+                    pointerEvents={
+                      canSwitchTiers && allowTierSwitching ? "auto" : "none"
+                    }
                   >
-                    <View style={{ flex: 1, paddingRight: 12 }}>
-                      <Text style={[styles.label, { fontSize: 14 }]}>Allow Refund on Downgrade</Text>
-                      <Text style={styles.sectionHeaderHelper}>
-                        Queue a manual review refund request if attendee switches to a lower tier.
-                      </Text>
-                    </View>
                     <Switch
-                      disabled={!allowTierSwitching}
-                      value={allowTierSwitching && allowDowngradeRefunds}
+                      disabled={!canSwitchTiers || !allowTierSwitching}
+                      value={canSwitchTiers && allowTierSwitching && allowDowngradeRefunds}
                       onValueChange={(val) => {
                         LayoutAnimation.configureNext(
                           LayoutAnimation.Presets.easeInEaseOut,
@@ -1726,8 +1827,8 @@ const CreateEventModal = ({
                       ios_backgroundColor="#D1D5DB"
                     />
                   </View>
-                </View>
-              )}
+                </TouchableOpacity>
+              </View>
             </Animated.View>
 
             {/* Categories */}
@@ -2644,6 +2745,15 @@ const CreateEventModal = ({
             }
           }}
           onSecondaryAction={null}
+        />
+
+        {/* Celebration Checkmark HUD */}
+        <CelebrationCheckmarkHUD
+          visible={celebrationConfig.visible}
+          message={celebrationConfig.message}
+          onDismiss={() =>
+            setCelebrationConfig((prev) => ({ ...prev, visible: false }))
+          }
         />
       </SafeAreaView>
     </Modal>
@@ -3663,6 +3773,14 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: MODAL_TOKENS.primary,
     marginLeft: 20,
+    marginTop: 2,
+  },
+
+  sectionHeaderHelper: {
+    fontFamily: MODAL_TOKENS.fonts.regular,
+    fontSize: 13,
+    color: MODAL_TOKENS.textSecondary,
+    lineHeight: 18,
     marginTop: 2,
   },
 });

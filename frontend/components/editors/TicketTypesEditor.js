@@ -144,6 +144,7 @@ const TicketTypesEditor = React.forwardRef(
       ticketTypes = [],
       onChange,
       onAddPress,
+      onTicketUpdated,
       promos = [],
       pricingRules = [],
       eventStartDate,
@@ -494,6 +495,7 @@ const TicketTypesEditor = React.forwardRef(
         const updated = [...ticketTypes];
         updated[editingIndex] = { ...updated[editingIndex], ...ticketData };
         onChange(updated);
+        onTicketUpdated?.();
       } else {
         // Add new
         onChange([...ticketTypes, ticketData]);

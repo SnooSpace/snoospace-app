@@ -26,7 +26,7 @@ const TEXT_COLOR = "#1C1C1E";
 const LIGHT_TEXT_COLOR = "#8E8E93";
 
 const DiscountCodesEditor = React.forwardRef(
-  ({ discountCodes = [], onChange, ticketTypes = [] }, ref) => {
+  ({ discountCodes = [], onChange, ticketTypes = [], onDiscountCodeUpdated }, ref) => {
     const insets = useSafeAreaInsets();
     const [showModal, setShowModal] = useState(false);
     const [editingIndex, setEditingIndex] = useState(null);
@@ -139,6 +139,7 @@ const DiscountCodesEditor = React.forwardRef(
         const updated = [...discountCodes];
         updated[editingIndex] = { ...updated[editingIndex], ...codeData };
         onChange(updated);
+        onDiscountCodeUpdated?.();
       } else {
         onChange([...discountCodes, codeData]);
       }

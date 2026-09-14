@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { StyleSheet, View, Text, FlatList, TouchableOpacity, Image, RefreshControl, Alert, Animated, Easing } from "react-native";
 import { Pressable as GHPressable, GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ArrowLeft, MapPin, CalendarDays, MoreHorizontal, Ticket, Edit2, FileText, Trash2, PauseCircle, BarChart3 } from "lucide-react-native";
+import { ArrowLeft, MapPin, CalendarDays, MoreHorizontal, Ticket, Edit2, FileText, Trash2, X, BarChart3 } from "lucide-react-native";
 import Svg, { Circle, Rect, Path, Ellipse } from "react-native-svg";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SHADOWS } from "../../../constants/theme";
@@ -231,7 +231,7 @@ export default function CommunityEventsListScreen({ navigation, route }) {
         // No attendees: allow both cancel and delete
         options.push({
           text: "Cancel Event",
-          icon: <PauseCircle size={24} strokeWidth={2} />,
+          icon: <X size={24} strokeWidth={2} />,
           onPress: () => {
             setModalConfig((prev) => ({ ...prev, visible: false }));
             setTimeout(() => {
@@ -318,7 +318,7 @@ export default function CommunityEventsListScreen({ navigation, route }) {
         // Has attendees: cancel only — cannot delete
         options.push({
           text: "Cancel Event",
-          icon: <PauseCircle size={24} strokeWidth={2} />,
+          icon: <X size={24} strokeWidth={2} />,
           onPress: () => {
             setModalConfig((prev) => ({ ...prev, visible: false }));
             setTimeout(() => {

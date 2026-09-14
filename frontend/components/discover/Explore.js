@@ -215,6 +215,7 @@ function Explore({
 
   // Selected top-level category filter state
   const [selectedCategory, setSelectedCategory] = useState(null);
+  const [selectedSubcategory, setSelectedSubcategory] = useState("all");
   const [categoryEvents, setCategoryEvents] = useState([]);
   const [categoryEventsLoading, setCategoryEventsLoading] = useState(false);
 
@@ -253,6 +254,7 @@ function Explore({
 
   // Fetch events when a top-level category is selected
   useEffect(() => {
+    setSelectedSubcategory("all");
     if (!selectedCategory) {
       setCategoryEvents([]);
       setCategoryEventsLoading(false);
@@ -479,6 +481,64 @@ function Explore({
     );
   };
 
+  // Filter category events based on active subcategory pill
+  const filteredCategoryEvents = useMemo(() => {
+    if (!categoryEvents || categoryEvents.length === 0) return [];
+    if (selectedSubcategory === "all") return categoryEvents;
+
+    const subLower = selectedSubcategory.toLowerCase();
+    const keywords = [subLower];
+    if (subLower.includes("lan")) keywords.push("lan");
+    if (subLower.includes("tournament")) keywords.push("tournament");
+    if (subLower.includes("esport")) keywords.push("esport");
+    if (subLower.includes("board game")) keywords.push("board game");
+    if (subLower.includes("gaming")) keywords.push("game", "gaming");
+    if (subLower.includes("rpg")) keywords.push("rpg");
+    if (subLower.includes("vr") || subLower.includes("ar")) keywords.push("vr", "ar");
+    if (subLower.includes("hackathon")) keywords.push("hackathon");
+    if (subLower.includes("run")) keywords.push("run", "running");
+    if (subLower.includes("cycling")) keywords.push("cycling", "cycle");
+    if (subLower.includes("yoga")) keywords.push("yoga");
+    if (subLower.includes("concert")) keywords.push("concert");
+    if (subLower.includes("open mic")) keywords.push("open mic");
+    if (subLower.includes("party")) keywords.push("party");
+
+    return categoryEvents.filter((item) => {
+      // 1. Linked discover_categories
+      if (Array.isArray(item.subcategories)) {
+        if (item.subcategories.some((s) => {
+          const sLower = s?.toLowerCase() || "";
+          return sLower === subLower || keywords.some((k) => sLower.includes(k));
+        })) {
+          return true;
+        }
+      }
+
+      // 2. Direct event sub_category field
+      if (item.sub_category) {
+        const itemSub = item.sub_category.toLowerCase();
+        if (itemSub === subLower || keywords.some((k) => itemSub.includes(k))) {
+          return true;
+        }
+      }
+
+      // 3. Event categories array
+      if (Array.isArray(item.categories)) {
+        if (item.categories.some((c) => {
+          const cLower = c?.toLowerCase() || "";
+          return cLower === subLower || keywords.some((k) => cLower.includes(k));
+        })) {
+          return true;
+        }
+      }
+
+      // 4. Content / Title / Description keyword match
+      const titleLower = (item.title || "").toLowerCase();
+      const descLower = (item.description || "").toLowerCase();
+      return keywords.some((k) => titleLower.includes(k) || descLower.includes(k));
+    });
+  }, [categoryEvents, selectedSubcategory]);
+
   // Filtered Category View (shown when a top-level category is selected)
   const renderFilteredCategoryView = () => {
     if (!selectedCategory) return null;
@@ -494,33 +554,80 @@ function Explore({
               {selectedCategory.name}
             </Text>
             <Text style={styles.filteredCategorySubtitle}>
-              Events across all {selectedCategory.name.toLowerCase()} subcategories
+              {selectedSubcategory === "all"
+                ? `Events across all ${selectedCategory.name.toLowerCase()} subcategories`
+                : `Showing ${selectedSubcategory} events (${filteredCategoryEvents.length})`}
             </Text>
           </View>
           <TouchableOpacity
-            style={styles.clearFilterButton}
+            style={styles.categoryCloseButton}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             onPress={() => {
               HapticsService.triggerImpactLight();
               setSelectedCategory(null);
+              setSelectedSubcategory("all");
             }}
           >
-            <Text style={styles.clearFilterButtonText}>Show all</Text>
-            <X size={14} color="#5F5E5A" strokeWidth={2} />
+            <X size={16} color="#52525B" strokeWidth={2.2} />
           </TouchableOpacity>
         </View>
 
-        {/* Subcategories tags preview */}
+        {/* Subcategories tags filter pills */}
         {subcats.length > 0 && (
           <EdgeSwipeScrollView
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.subcatPillsContainer}
             style={{ marginBottom: 16 }}
           >
-            {subcats.map((sub, idx) => (
-              <View key={idx} style={styles.subcatPill}>
-                <Text style={styles.subcatPillText}>{sub}</Text>
-              </View>
-            ))}
+            {/* "All" Pill */}
+            <TouchableOpacity
+              style={[
+                styles.subcatPill,
+                selectedSubcategory === "all" && styles.subcatPillActive,
+              ]}
+              activeOpacity={0.7}
+              onPress={() => {
+                HapticsService.triggerImpactLight();
+                setSelectedSubcategory("all");
+              }}
+            >
+              <Text
+                style={[
+                  styles.subcatPillText,
+                  selectedSubcategory === "all" && styles.subcatPillTextActive,
+                ]}
+              >
+                All
+              </Text>
+            </TouchableOpacity>
+
+            {subcats.map((sub, idx) => {
+              const isActive = selectedSubcategory === sub;
+              return (
+                <TouchableOpacity
+                  key={idx}
+                  style={[
+                    styles.subcatPill,
+                    isActive && styles.subcatPillActive,
+                  ]}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    HapticsService.triggerImpactLight();
+                    setSelectedSubcategory(isActive ? "all" : sub);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.subcatPillText,
+                      isActive && styles.subcatPillTextActive,
+                    ]}
+                  >
+                    {sub}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </EdgeSwipeScrollView>
         )}
 
@@ -538,14 +645,39 @@ function Explore({
             </Text>
             <TouchableOpacity
               style={styles.emptyClearButton}
-              onPress={() => setSelectedCategory(null)}
+              onPress={() => {
+                HapticsService.triggerImpactLight();
+                setSelectedCategory(null);
+                setSelectedSubcategory("all");
+              }}
             >
               <Text style={styles.emptyClearButtonText}>Explore other categories</Text>
             </TouchableOpacity>
           </View>
+        ) : filteredCategoryEvents.length === 0 ? (
+          <View style={styles.emptyCategoryContainer}>
+            <Calendar size={36} color="#B0B0B5" strokeWidth={1.5} />
+            <Text style={styles.emptyCategoryTitle}>
+              No upcoming {selectedSubcategory} events
+            </Text>
+            <Text style={styles.emptyCategorySubtitle}>
+              There are no events matching {selectedSubcategory} right now.
+            </Text>
+            <TouchableOpacity
+              style={styles.emptyClearButton}
+              onPress={() => {
+                HapticsService.triggerImpactLight();
+                setSelectedSubcategory("all");
+              }}
+            >
+              <Text style={styles.emptyClearButtonText}>
+                View all {selectedCategory.name} events
+              </Text>
+            </TouchableOpacity>
+          </View>
         ) : (
           <View style={styles.filteredEventsGrid}>
-            {categoryEvents.map((item) => {
+            {filteredCategoryEvents.map((item) => {
               const id = item.id || item.eventId;
               const isInterested = Boolean(interestMap[id] ?? item.isInterested);
               return (
@@ -1368,6 +1500,14 @@ const styles = StyleSheet.create({
     color: "#71717A",
     marginTop: 2,
   },
+  categoryCloseButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#F4F4F5",
+    justifyContent: "center",
+    alignItems: "center",
+  },
   clearFilterButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -1387,17 +1527,25 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   subcatPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
     borderRadius: 16,
     backgroundColor: "#F4F4F5",
     borderWidth: 1,
     borderColor: "rgba(0, 0, 0, 0.04)",
   },
+  subcatPillActive: {
+    backgroundColor: "#1E293B",
+    borderColor: "#1E293B",
+  },
   subcatPillText: {
     fontFamily: FONTS.medium, // Manrope-Medium
     fontSize: 12,
     color: "#52525B",
+  },
+  subcatPillTextActive: {
+    fontFamily: FONTS.semiBold, // Manrope-SemiBold
+    color: "#FFFFFF",
   },
   categoryLoaderContainer: {
     paddingVertical: 48,

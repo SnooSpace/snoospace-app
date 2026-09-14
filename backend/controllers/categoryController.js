@@ -561,7 +561,16 @@ const getEventsByCategory = async (req, res) => {
           ) m2
         ) as attendee_avatars,
         TO_CHAR(e.start_datetime, 'Dy, DD Mon, HH:MI AM') as formatted_date,
-        TO_CHAR(e.start_datetime, 'HH:MI AM') as formatted_time
+        TO_CHAR(e.start_datetime, 'HH:MI AM') as formatted_time,
+        e.categories,
+        e.category,
+        e.sub_category,
+        (
+          SELECT COALESCE(json_agg(dc.name), '[]'::json)
+          FROM event_discover_categories edc2
+          JOIN discover_categories dc ON edc2.category_id = dc.id
+          WHERE edc2.event_id = e.id
+        ) as subcategories
       FROM events e
       LEFT JOIN event_discover_categories edc ON e.id = edc.event_id
       LEFT JOIN communities c ON COALESCE(e.community_id, e.creator_id) = c.id

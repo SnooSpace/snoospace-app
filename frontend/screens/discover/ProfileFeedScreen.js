@@ -88,7 +88,7 @@ const ScreenHeader = React.memo(({ title = "Meet People", showFilter = true, onB
       </View>
     </TouchableOpacity>
     
-    <Text style={styles.headerTitle}>{title}</Text>
+    <Text style={styles.headerTitle} numberOfLines={1} ellipsizeMode="tail">{title}</Text>
     
     {showFilter ? (
       <TouchableOpacity onPress={onFilter} activeOpacity={0.8}>
@@ -783,16 +783,23 @@ export default function ProfileFeedScreen({ route, navigation }) {
       return (
         <View style={styles.gradientContainer}>
           <ScreenBackground />
-          <SafeAreaView style={styles.container}>
-            <View style={styles.header}>
+          <SafeAreaView style={styles.container} edges={EDGES}>
+            <View style={styles.emptyHeader}>
               <TouchableOpacity
                 onPress={handleBack}
-                style={styles.backBtn}
+                style={styles.emptyBackBtn}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                activeOpacity={0.7}
               >
                 <ArrowLeft size={26} color={COLORS.editorial.textSecondary} />
               </TouchableOpacity>
-              <Text style={styles.headerTitle}>{eventData?.title || "Attendees"}</Text>
-              <View style={{ width: 40 }} />
+              <Text
+                style={styles.emptyHeaderTitle}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {eventData?.title || "Attendees"}
+              </Text>
             </View>
             <View style={styles.center}>
               <Text style={styles.emptyText}>No one here yet.</Text>
@@ -1769,6 +1776,27 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     letterSpacing: -0.5,
   },
+  emptyHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingLeft: 16,
+    paddingRight: 24,
+    paddingVertical: SPACING.m,
+    backgroundColor: "transparent",
+  },
+  emptyBackBtn: {
+    padding: 4,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  emptyHeaderTitle: {
+    flex: 1,
+    fontFamily: "BasicCommercial-Black",
+    fontSize: 28,
+    color: "#FFFFFF",
+    letterSpacing: -0.5,
+    marginLeft: 14,
+  },
   backBtn: {
     padding: 4,
   },
@@ -1828,24 +1856,24 @@ const styles = StyleSheet.create({
     letterSpacing: -0.4,
   },
   interestsGlassContainer: {
-    backgroundColor: "#F7F2D8", // Soft warm buttercup / pastel linen yellow
+    backgroundColor: "#FFF7ED", // Warm soft peach / apricot cream (Tailwind Orange-50)
     borderRadius: 24,
     padding: 18,
     borderWidth: 1.5,
-    borderColor: "#FDE047", // Bright, luminous sunny golden border
+    borderColor: "rgba(249, 115, 22, 0.22)", // Subtle warm terracotta/peach outline
     marginBottom: 24,
-    shadowColor: "#F59E0B",
+    shadowColor: "#EA580C", // Soft warm amber-terracotta glow
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
+    shadowOpacity: 0.08,
     shadowRadius: 12,
     elevation: 2,
   },
   interestsSectionLabel: {
-    fontFamily: FONTS.bricolageExtraBold || "BricolageGrotesque-ExtraBold",
-    fontSize: 19,
-    color: "#8B703C", // Deep golden-ochre / amber brown matching "Files" typography
+    fontFamily: FONTS.primary, // BasicCommercial-Bold
+    fontSize: 18,
+    color: "#9A3412", // Deep warm terracotta / rust
     marginBottom: 12,
-    letterSpacing: -0.4,
+    letterSpacing: -0.3,
   },
   sectionLabel: {
     fontFamily: FONTS.primary, // BasicCommercial-Bold
