@@ -388,31 +388,62 @@ export default function TicketViewScreen({ route, navigation }) {
       >
         {/* Ticket Card */}
         <View style={styles.ticketCard}>
-          {/* QR Code Section */}
-          <View
-            style={[styles.qrSection, isInvalid && styles.qrSectionCancelled]}
-          >
+          {/* QR Code or Virtual Access Section */}
+          {ticket?.accessMode === "virtual" ? (
             <View
-              style={[
-                styles.qrContainer,
-                isInvalid && styles.qrContainerCancelled,
-              ]}
+              style={[styles.qrSection, isInvalid && styles.qrSectionCancelled]}
             >
-              <QRCode
-                value={ticket?.qrCodeData || "INVALID"}
-                size={200}
-                backgroundColor={isInvalid ? "#F3F4F6" : "#FFFFFF"}
-                color={isInvalid ? "#9CA3AF" : "#000000"}
-              />
+              <View
+                style={[
+                  styles.virtualIconContainer,
+                  isInvalid && styles.qrContainerCancelled,
+                ]}
+              >
+                <Video
+                  size={52}
+                  color={isInvalid ? "#9CA3AF" : PRIMARY_COLOR}
+                  strokeWidth={1.8}
+                />
+              </View>
+              {isRevoked ? (
+                <Text style={styles.qrCancelledText}>Ticket Revoked</Text>
+              ) : isCancelled ? (
+                <Text style={styles.qrCancelledText}>Ticket Cancelled</Text>
+              ) : (
+                <>
+                  <Text style={styles.virtualAccessTitle}>Virtual Access</Text>
+                  <Text style={styles.qrHint}>
+                    Online event pass • Scan not required
+                  </Text>
+                </>
+              )}
             </View>
-            {isRevoked ? (
-              <Text style={styles.qrCancelledText}>Ticket Revoked</Text>
-            ) : isCancelled ? (
-              <Text style={styles.qrCancelledText}>Ticket Cancelled</Text>
-            ) : (
-              <Text style={styles.qrHint}>Scan this QR code at entry</Text>
-            )}
-          </View>
+          ) : (
+            <View
+              style={[styles.qrSection, isInvalid && styles.qrSectionCancelled]}
+            >
+              <View
+                style={[
+                  styles.qrContainer,
+                  isInvalid && styles.qrContainerCancelled,
+                ]}
+              >
+                <QRCode
+                  value={ticket?.qrCodeData || "INVALID"}
+                  size={200}
+                  backgroundColor={isInvalid ? "#F3F4F6" : "#FFFFFF"}
+                  color={isInvalid ? "#9CA3AF" : "#000000"}
+                />
+              </View>
+              {isRevoked ? (
+                <Text style={styles.qrCancelledText}>Ticket Revoked</Text>
+              ) : isCancelled ? (
+                <Text style={styles.qrCancelledText}>Ticket Cancelled</Text>
+              ) : (
+                <Text style={styles.qrHint}>Scan this QR code at entry</Text>
+              )}
+            </View>
+          )}
 
           {/* Revoked Banner */}
           {isRevoked && ticket?.revokedReason && (
@@ -1019,6 +1050,22 @@ const styles = StyleSheet.create({
   },
   qrContainerCancelled: {
     opacity: 0.5,
+  },
+  virtualIconContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: "rgba(41, 98, 255, 0.08)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  virtualAccessTitle: {
+    fontSize: 20,
+    fontFamily: FONTS.bold,
+    color: TEXT_COLOR,
+    marginTop: 8,
   },
   qrHint: {
     fontSize: 14,

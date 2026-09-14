@@ -19,6 +19,7 @@ import {
   ArrowLeft,
   Calendar,
   Clock,
+  MapPin,
   Minus,
   Plus,
   ChevronRight,
@@ -224,6 +225,33 @@ const TicketCard = React.memo(({
               {formatDate(displayDate)}  •  {formatTime(displayDate)}
             </Text>
           </View>
+
+          {/* Access Mode Badge */}
+          {(() => {
+            const mode = ticket.access_mode || "in_person";
+            if (mode === "virtual") {
+              return (
+                <View style={styles.accessBadgeVirtual}>
+                  <Video size={12} color="#7C3AED" strokeWidth={2.2} />
+                  <Text style={styles.accessBadgeVirtualText}>Virtual</Text>
+                </View>
+              );
+            } else if (mode === "both") {
+              return (
+                <View style={styles.accessBadgeBoth}>
+                  <Sparkles size={12} color="#0D9488" strokeWidth={2.2} />
+                  <Text style={styles.accessBadgeBothText}>In-Person + Virtual</Text>
+                </View>
+              );
+            } else {
+              return (
+                <View style={styles.accessBadgeInPerson}>
+                  <MapPin size={12} color="#4B5563" strokeWidth={2.2} />
+                  <Text style={styles.accessBadgeInPersonText}>In-Person</Text>
+                </View>
+              );
+            }
+          })()}
 
           {/* Sales Window Urgency / Status Badge */}
           {salesStatus?.status === "closed" ? (
@@ -1344,6 +1372,55 @@ const styles = StyleSheet.create({
     fontFamily: "Manrope-Medium",
     fontSize: 12,
     color: "#D97706",
+    marginLeft: 4,
+  },
+  // Access mode badges
+  accessBadgeInPerson: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    alignSelf: "flex-start",
+    marginTop: 6,
+  },
+  accessBadgeInPersonText: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 12,
+    color: "#4B5563",
+    marginLeft: 4,
+  },
+  accessBadgeVirtual: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F5F3FF",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    alignSelf: "flex-start",
+    marginTop: 6,
+  },
+  accessBadgeVirtualText: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 12,
+    color: "#7C3AED",
+    marginLeft: 4,
+  },
+  accessBadgeBoth: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F0FDFA",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    alignSelf: "flex-start",
+    marginTop: 6,
+  },
+  accessBadgeBothText: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 12,
+    color: "#0D9488",
     marginLeft: 4,
   },
   // Action stub badges when disabled

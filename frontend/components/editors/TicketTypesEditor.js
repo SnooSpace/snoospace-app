@@ -148,6 +148,7 @@ const TicketTypesEditor = React.forwardRef(
       pricingRules = [],
       eventStartDate,
       eventEndDate,
+      eventType = "in-person",
     },
     ref,
   ) => {
@@ -197,6 +198,7 @@ const TicketTypesEditor = React.forwardRef(
       max_per_order: "10",
       sales_start_date: null,
       sales_end_date: null,
+      access_mode: eventType === "virtual" ? "virtual" : "in_person",
       // Refund policy — per-tier, default non-refundable
       refund_policy_allowed: false,
       refund_policy_deadline: "24",
@@ -231,6 +233,7 @@ const TicketTypesEditor = React.forwardRef(
         max_per_order: "10",
         sales_start_date: null,
         sales_end_date: null,
+        access_mode: eventType === "virtual" ? "virtual" : "in_person",
         refund_policy_allowed: false,
         refund_policy_deadline: "24",
         refund_policy_percentage: "100",
@@ -292,6 +295,7 @@ const TicketTypesEditor = React.forwardRef(
         max_per_order: ticket.max_per_order?.toString() || "10",
         sales_start_date: rawStartDate ? new Date(rawStartDate) : null,
         sales_end_date: rawEndDate ? new Date(rawEndDate) : null,
+        access_mode: ticket.access_mode || (eventType === "virtual" ? "virtual" : "in_person"),
         refund_policy_allowed: rp.allowed === true,
         refund_policy_deadline: rp.deadline_hours_before?.toString() ?? "24",
         refund_policy_percentage: rp.percentage?.toString() ?? "100",
@@ -354,6 +358,7 @@ const TicketTypesEditor = React.forwardRef(
         if ((currentTicket.refund_policy_deadline || "").trim() !== (initialTicketSnapshot.refund_policy_deadline || "").trim()) return true;
         if ((currentTicket.refund_policy_percentage || "").trim() !== (initialTicketSnapshot.refund_policy_percentage || "").trim()) return true;
       }
+      if (currentTicket.access_mode !== initialTicketSnapshot.access_mode) return true;
       return false;
     }, [currentTicket, capacityMode, genderMode, salesMode, editingIndex, initialTicketSnapshot]);
 
@@ -459,6 +464,12 @@ const TicketTypesEditor = React.forwardRef(
         min_per_order: parseInt(currentTicket.min_per_order) || 1,
         max_per_order: parseInt(currentTicket.max_per_order) || 10,
         is_active: true,
+        access_mode:
+          eventType === "hybrid"
+            ? currentTicket.access_mode || "in_person"
+            : eventType === "virtual"
+            ? "virtual"
+            : "in_person",
         // TEMPORARY: output both field name pairs so either backend expectation is satisfied
         sale_start_at: salesStartDate,
         sale_end_at: salesEndDate,
@@ -1091,7 +1102,7 @@ const TicketTypesEditor = React.forwardRef(
                   )}
                 </View>
 
-                {/* SECTION 3: ACCESS & AVAILABILITY */}
+                  {/* SECTION 3: ACCESS & AVAILABILITY */}
                 <View style={styles.elevatedCard}>
                   <View style={styles.section3Header}>
                     <Text style={styles.section3Title}>
@@ -1101,6 +1112,84 @@ const TicketTypesEditor = React.forwardRef(
                       Control who can see and buy this ticket
                     </Text>
                   </View>
+
+                  {/* Access Mode Selector (Hybrid events only) */}
+                  {eventType === "hybrid" && (
+                    <View style={{ marginBottom: 16 }}>
+                      <Text style={styles.fieldLabel}>Access Mode</Text>
+                      <View style={styles.segmentedToggleContainer}>
+                        <TouchableOpacity
+                          style={[
+                            styles.segmentToggleButton,
+                            (currentTicket.access_mode || "in_person") === "in_person" &&
+                              styles.segmentToggleButtonActive,
+                          ]}
+                          onPress={() => {
+                            setCurrentTicket((prev) => ({
+                              ...prev,
+                              access_mode: "in_person",
+                            }));
+                          }}
+                        >
+                          <Text
+                            style={[
+                              styles.segmentToggleText,
+                              (currentTicket.access_mode || "in_person") === "in_person" &&
+                                styles.segmentToggleTextActive,
+                            ]}
+                          >
+                            In-Person
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[
+                            styles.segmentToggleButton,
+                            currentTicket.access_mode === "virtual" &&
+                              styles.segmentToggleButtonActive,
+                          ]}
+                          onPress={() => {
+                            setCurrentTicket((prev) => ({
+                              ...prev,
+                              access_mode: "virtual",
+                            }));
+                          }}
+                        >
+                          <Text
+                            style={[
+                              styles.segmentToggleText,
+                              currentTicket.access_mode === "virtual" &&
+                                styles.segmentToggleTextActive,
+                            ]}
+                          >
+                            Virtual
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[
+                            styles.segmentToggleButton,
+                            currentTicket.access_mode === "both" &&
+                              styles.segmentToggleButtonActive,
+                          ]}
+                          onPress={() => {
+                            setCurrentTicket((prev) => ({
+                              ...prev,
+                              access_mode: "both",
+                            }));
+                          }}
+                        >
+                          <Text
+                            style={[
+                              styles.segmentToggleText,
+                              currentTicket.access_mode === "both" &&
+                                styles.segmentToggleTextActive,
+                            ]}
+                          >
+                            Both
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
 
                   {/* Sales Window */}
                   <Text style={styles.fieldLabel}>Sales Window</Text>

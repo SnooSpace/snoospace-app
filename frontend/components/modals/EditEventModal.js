@@ -202,6 +202,8 @@ export default function EditEventModal({
   const [ticketTypes, setTicketTypes] = useState([]);
   const [promos, setPromos] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [allowTierSwitching, setAllowTierSwitching] = useState(false);
+  const [allowDowngradeRefunds, setAllowDowngradeRefunds] = useState(false);
   // Event visibility
   const [accessType, setAccessType] = useState("public"); // 'public' or 'invite_only'
   const [invitePublicVisibility, setInvitePublicVisibility] = useState(false);
@@ -343,6 +345,8 @@ export default function EditEventModal({
       setCategories(categoryIds);
       setAccessType(eventData.access_type || "public");
       setInvitePublicVisibility(eventData.invite_public_visibility || false);
+      setAllowTierSwitching(Boolean(eventData.allow_tier_switching));
+      setAllowDowngradeRefunds(Boolean(eventData.allow_downgrade_refunds));
       console.log(
         "[EditEventModal] Loaded from eventData - access_type:",
         eventData.access_type,
@@ -616,6 +620,8 @@ export default function EditEventModal({
         categories: categories.length > 0 ? categories : [],
         access_type: accessType,
         invite_public_visibility: invitePublicVisibility,
+        allow_tier_switching: allowTierSwitching,
+        allow_downgrade_refunds: allowTierSwitching && allowDowngradeRefunds,
       };
 
       console.log(
@@ -1243,6 +1249,7 @@ export default function EditEventModal({
             {/* Ticketing */}
             <View style={styles.sectionBlock}>
               <TicketTypesEditor
+                eventType={eventType}
                 ticketTypes={ticketTypes}
                 onChange={setTicketTypes}
                 promos={promos}
@@ -1270,6 +1277,71 @@ export default function EditEventModal({
                   ticketTypes={ticketTypes}
                   eventStartDate={eventDate}
                 />
+              )}
+
+              {ticketTypes.length > 0 && (
+                <View style={{ marginTop: 20, paddingTop: 16, borderTopWidth: 1, borderTopColor: "#F3F4F6" }}>
+                  {/* Allow Ticket Switching Toggle */}
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}
+                  >
+                    <View style={{ flex: 1, paddingRight: 12 }}>
+                      <Text style={styles.label}>Allow Ticket Switching</Text>
+                      <Text style={styles.sectionHeaderHelper}>
+                        Allow attendees to switch or upgrade their ticket tier before the event starts.
+                      </Text>
+                    </View>
+                    <Switch
+                      value={allowTierSwitching}
+                      onValueChange={(val) => {
+                        LayoutAnimation.configureNext(
+                          LayoutAnimation.Presets.easeInEaseOut,
+                        );
+                        setAllowTierSwitching(val);
+                        if (!val) setAllowDowngradeRefunds(false);
+                      }}
+                      thumbColor="#FFFFFF"
+                      trackColor={{ false: "#D1D5DB", true: COLORS.primary }}
+                      ios_backgroundColor="#D1D5DB"
+                    />
+                  </View>
+
+                  {/* Allow Refund on Downgrade Toggle */}
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginTop: 14,
+                      marginLeft: 16,
+                      opacity: allowTierSwitching ? 1 : 0.45,
+                    }}
+                  >
+                    <View style={{ flex: 1, paddingRight: 12 }}>
+                      <Text style={[styles.label, { fontSize: 14 }]}>Allow Refund on Downgrade</Text>
+                      <Text style={styles.sectionHeaderHelper}>
+                        Queue a manual review refund request if attendee switches to a lower tier.
+                      </Text>
+                    </View>
+                    <Switch
+                      disabled={!allowTierSwitching}
+                      value={allowTierSwitching && allowDowngradeRefunds}
+                      onValueChange={(val) => {
+                        LayoutAnimation.configureNext(
+                          LayoutAnimation.Presets.easeInEaseOut,
+                        );
+                        setAllowDowngradeRefunds(val);
+                      }}
+                      thumbColor="#FFFFFF"
+                      trackColor={{ false: "#D1D5DB", true: COLORS.primary }}
+                      ios_backgroundColor="#D1D5DB"
+                    />
+                  </View>
+                </View>
               )}
             </View>
 

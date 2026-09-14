@@ -19,6 +19,10 @@ const {
   processKeep,
 } = require("../services/eventPostponementService");
 const { calculateOrderPricing } = require("../utils/pricingCalculator");
+const jwt = require("jsonwebtoken");
+
+const JWT_SECRET =
+  process.env.JWT_SECRET || "your-super-secret-jwt-key-change-in-production";
 
 const pool = createPool();
 
@@ -74,6 +78,8 @@ const createEvent = async (req, res) => {
       pricing_rules, // Array of {name, rule_type, discount_type, discount_value, ...}
       access_type, // Event visibility: 'public' or 'invite_only'
       invite_public_visibility, // For invite_only: show in feeds with hidden location
+      allow_tier_switching,
+      allow_downgrade_refunds,
     } = req.body;
 
     // Validation
@@ -138,9 +144,10 @@ const createEvent = async (req, res) => {
       INSERT INTO events (
         community_id, title, description, event_date, start_datetime, end_datetime, gates_open_time, location_url,
         location_name, max_attendees, banner_url, event_type, virtual_link, meeting_platform, venue_id,
-        creator_id, is_published, ticket_price, access_type, invite_public_visibility, created_at
+        creator_id, is_published, ticket_price, access_type, invite_public_visibility,
+        allow_tier_switching, allow_downgrade_refunds, created_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, NOW())
       RETURNING *
     `;
 
@@ -165,6 +172,8 @@ const createEvent = async (req, res) => {
       ticket_price || null,
       access_type || "public", // Event visibility
       invite_public_visibility || false, // Show in feeds for invite_only
+      allow_tier_switching === true,
+      allow_tier_switching === true && allow_downgrade_refunds === true,
     ];
 
     const result = await pool.query(query, values);
@@ -268,14 +277,25 @@ const createEvent = async (req, res) => {
       Array.isArray(ticket_types) &&
       ticket_types.length > 0
     ) {
-      const ticketInserts = ticket_types.map((ticket, index) =>
-        pool.query(
+      const ticketInserts = ticket_types.map((ticket, index) => {
+        let tierAccessMode = 'in_person';
+        if (event_type === 'virtual') {
+          tierAccessMode = 'virtual';
+        } else if (event_type === 'hybrid') {
+          tierAccessMode = ['in_person', 'virtual', 'both'].includes(ticket.access_mode)
+            ? ticket.access_mode
+            : 'in_person';
+        } else {
+          tierAccessMode = 'in_person';
+        }
+
+        return pool.query(
           `INSERT INTO ticket_types (
             event_id, name, description, base_price, total_quantity,
             sale_start_at, sale_end_at, visibility, access_code,
             min_per_order, max_per_order, max_per_user, refund_policy,
-            display_order, is_active, gender_restriction
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+            display_order, is_active, gender_restriction, access_mode
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
           [
             eventId,
             ticket.name,
@@ -302,22 +322,24 @@ const createEvent = async (req, res) => {
             index,
             ticket.is_active !== false,
             ticket.gender_restriction || "all",
+            tierAccessMode,
           ],
-        ),
-      );
+        );
+      });
       await Promise.all(ticketInserts);
     } else {
       // Default tier auto-creation for events created without explicit multi-tier pricing.
       // Guarantees every event in SnooSpace has at least one valid ticket_type.
       const defaultBasePrice = parseFloat(ticket_price) || 0;
       const defaultQuantity = max_attendees ? parseInt(max_attendees) : null;
+      const defaultAccessMode = event_type === 'virtual' ? 'virtual' : 'in_person';
       await pool.query(
         `INSERT INTO ticket_types (
           event_id, name, description, base_price, total_quantity,
           sale_start_at, sale_end_at, visibility, access_code,
           min_per_order, max_per_order, max_per_user, refund_policy,
-          display_order, is_active, gender_restriction
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+          display_order, is_active, gender_restriction, access_mode
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
         [
           eventId,
           "General Admission",
@@ -339,6 +361,7 @@ const createEvent = async (req, res) => {
           0,
           true,
           "all",
+          defaultAccessMode,
         ],
       );
     }
@@ -1895,6 +1918,8 @@ const updateEvent = async (req, res) => {
       categories, // Array of discover category IDs
       access_type, // 'public' or 'invite_only'
       invite_public_visibility, // Show in feeds with hidden location
+      allow_tier_switching,
+      allow_downgrade_refunds,
     } = req.body;
 
     console.log(
@@ -2018,6 +2043,14 @@ const updateEvent = async (req, res) => {
     if (invite_public_visibility !== undefined) {
       updates.push(`invite_public_visibility = $${paramIndex++}`);
       values.push(invite_public_visibility);
+    }
+    if (allow_tier_switching !== undefined) {
+      updates.push(`allow_tier_switching = $${paramIndex++}`);
+      values.push(allow_tier_switching === true);
+    }
+    if (allow_downgrade_refunds !== undefined) {
+      updates.push(`allow_downgrade_refunds = $${paramIndex++}`);
+      values.push(allow_downgrade_refunds === true);
     }
     // Note: highlights, featured_accounts, things_to_know are in separate tables
     // They are updated after the main query below
@@ -2240,8 +2273,21 @@ const updateEvent = async (req, res) => {
       console.log(`[updateEvent] Existing ticket IDs:`, [...existingIds]);
 
       // Upsert ticket types (update existing, insert new)
+      const resolvedEventMode = event_type !== undefined ? event_type : existingEvent.event_type;
+
       for (let index = 0; index < ticket_types.length; index++) {
         const ticket = ticket_types[index];
+
+        let tierAccessMode = 'in_person';
+        if (resolvedEventMode === 'virtual') {
+          tierAccessMode = 'virtual';
+        } else if (resolvedEventMode === 'hybrid') {
+          tierAccessMode = ['in_person', 'virtual', 'both'].includes(ticket.access_mode)
+            ? ticket.access_mode
+            : 'in_person';
+        } else {
+          tierAccessMode = 'in_person';
+        }
 
         if (ticket.id) {
           // Update existing ticket type
@@ -2255,16 +2301,13 @@ const updateEvent = async (req, res) => {
               name = $1, description = $2, base_price = $3, total_quantity = $4,
               sale_start_at = $5, sale_end_at = $6, visibility = $7, access_code = $8,
               min_per_order = $9, max_per_order = $10, max_per_user = $11, refund_policy = $12,
-              display_order = $13, is_active = $14, gender_restriction = $15, updated_at = NOW()
-            WHERE id = $16 AND event_id = $17`,
+              display_order = $13, is_active = $14, gender_restriction = $15, access_mode = $16, updated_at = NOW()
+            WHERE id = $17 AND event_id = $18`,
             [
               ticket.name,
               ticket.description || null,
               ticket.base_price || 0,
               ticket.total_quantity || null,
-              // TEMPORARY: TicketTypesEditor.js currently sends sales_start_date/
-              // sales_end_date while this backend expects sale_start_at/sale_end_at.
-              // Accept both until the frontend is migrated to one canonical name.
               ticket.sale_start_at || ticket.sales_start_date || null,
               ticket.sale_end_at || ticket.sales_end_date || null,
               ticket.visibility || "public",
@@ -2282,6 +2325,7 @@ const updateEvent = async (req, res) => {
               index,
               ticket.is_active !== false,
               ticket.gender_restriction || "all",
+              tierAccessMode,
               ticketId,
               eventId,
             ],
@@ -2296,17 +2340,14 @@ const updateEvent = async (req, res) => {
               event_id, name, description, base_price, total_quantity,
               sale_start_at, sale_end_at, visibility, access_code,
               min_per_order, max_per_order, max_per_user, refund_policy,
-              display_order, is_active, gender_restriction
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+              display_order, is_active, gender_restriction, access_mode
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
             [
               eventId,
               ticket.name,
               ticket.description || null,
               ticket.base_price || 0,
               ticket.total_quantity || null,
-              // TEMPORARY: TicketTypesEditor.js currently sends sales_start_date/
-              // sales_end_date while this backend expects sale_start_at/sale_end_at.
-              // Accept both until the frontend is migrated to one canonical name.
               ticket.sale_start_at || ticket.sales_start_date || null,
               ticket.sale_end_at || ticket.sales_end_date || null,
               ticket.visibility || "public",
@@ -2324,6 +2365,7 @@ const updateEvent = async (req, res) => {
               index,
               ticket.is_active !== false,
               ticket.gender_restriction || "all",
+              tierAccessMode,
             ],
           );
         }
@@ -2746,7 +2788,8 @@ const getEventById = async (req, res) => {
       `SELECT id, name, description, base_price, total_quantity, sold_count, reserved_count,
               sale_start_at, sale_end_at, visibility, access_code,
               min_per_order, max_per_order, max_per_user, refund_policy,
-              display_order, is_active, gender_restriction
+              display_order, is_active, gender_restriction,
+              COALESCE(access_mode, 'in_person') as access_mode
        FROM ticket_types 
        WHERE event_id = $1 AND is_active = true
        ORDER BY display_order ASC`,
@@ -3683,6 +3726,22 @@ const registerForEvent = async (req, res) => {
       return res.status(400).json({ error: "No tickets selected" });
     }
 
+    // Part 2: Block mixed access_mode in a single order
+    const ticketTypeIds = [...new Set(tickets.map((t) => t.ticketTypeId).filter(Boolean))];
+    if (ticketTypeIds.length > 1) {
+      const modeRows = await client.query(
+        `SELECT id, access_mode FROM ticket_types WHERE id = ANY($1::bigint[])`,
+        [ticketTypeIds]
+      );
+      const modes = new Set(modeRows.rows.map((r) => r.access_mode || 'in_person'));
+      if (modes.has('virtual') && modes.has('in_person')) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({
+          error: "Cannot combine virtual-only and in-person-only tickets in one order. Please purchase them separately.",
+        });
+      }
+    }
+
     // 3. Get event details for validation
     const eventResult = await client.query(
       `SELECT e.*, c.name as community_name, e.location_url
@@ -4507,13 +4566,55 @@ const getMyTicket = async (req, res) => {
     const ticketsResult = await pool.query(
       `SELECT rt.ticket_name, rt.quantity, rt.unit_price, rt.total_price,
               rt.ticket_type_id,
-              tt.refund_policy
+              tt.refund_policy,
+              COALESCE(tt.access_mode, 'in_person') as access_mode
        FROM registration_tickets rt
        LEFT JOIN ticket_types tt ON rt.ticket_type_id = tt.id
        WHERE rt.registration_id = $1
        ORDER BY rt.ticket_name`,
       [registration.registration_id],
     );
+
+    const hasVirtual = ticketsResult.rows.some(
+      (t) => t.access_mode === 'virtual' || t.access_mode === 'both'
+    );
+    const hasInPerson = ticketsResult.rows.some(
+      (t) => t.access_mode === 'in_person' || t.access_mode === 'both'
+    );
+
+    const overallAccessMode = (hasVirtual && hasInPerson)
+      ? 'both'
+      : hasVirtual
+      ? 'virtual'
+      : 'in_person';
+
+    // Generate signed joinUrl if access includes virtual
+    let joinUrl = null;
+    if (hasVirtual) {
+      const eventStart = registration.event_date;
+      const eventEnd = registration.end_datetime
+        ? new Date(registration.end_datetime)
+        : new Date(new Date(eventStart).getTime() + 4 * 60 * 60 * 1000);
+      const now = Date.now();
+      const secondsUntilEnd = Math.max(1, Math.floor((eventEnd.getTime() - now) / 1000));
+
+      const firstVirtualTicket = ticketsResult.rows.find(
+        (t) => t.access_mode === 'virtual' || t.access_mode === 'both'
+      );
+
+      const signedToken = jwt.sign(
+        {
+          registrationId: registration.registration_id,
+          ticketTypeId: firstVirtualTicket?.ticket_type_id || null,
+          type: "virtual_join",
+        },
+        JWT_SECRET,
+        { expiresIn: secondsUntilEnd }
+      );
+
+      const baseUrl = process.env.API_BASE_URL || process.env.BACKEND_URL || (req ? `${req.protocol}://${req.get('host')}` : 'http://localhost:5000');
+      joinUrl = `${baseUrl}/join/${signedToken}`;
+    }
 
     // Generate QR code data string
     const qrCodeData = `SNOO-E${eventId}-R${registration.registration_id}-${registration.qr_code_hash}`;
@@ -4528,11 +4629,13 @@ const getMyTicket = async (req, res) => {
         eventTitle: registration.event_title,
         eventDate: registration.event_date,
         endDate: registration.end_datetime,
-        locationUrl: registration.location_url,
-        locationName: registration.location_name,
+        accessMode: overallAccessMode,
+        locationUrl: hasInPerson ? registration.location_url : null,
+        locationName: hasInPerson ? registration.location_name : null,
         eventType: registration.event_type,
-        virtualLink: registration.virtual_link,
-        meetingPlatform: registration.meeting_platform,
+        joinUrl: hasVirtual ? joinUrl : null,
+        virtualLink: hasVirtual ? joinUrl : null, // Never expose raw virtual_link directly
+        meetingPlatform: hasVirtual ? registration.meeting_platform : null,
         communityId: registration.community_id,
         communityName: registration.community_name,
         communityLogo: registration.community_logo,
@@ -4550,6 +4653,7 @@ const getMyTicket = async (req, res) => {
           unitPrice: parseFloat(t.unit_price),
           totalPrice: parseFloat(t.total_price),
           ticketTypeId: t.ticket_type_id,
+          accessMode: t.access_mode,
           refundPolicy: t.refund_policy || {
             allowed: true,
             deadline_hours_before: 24,
@@ -4694,11 +4798,25 @@ const verifyTicket = async (req, res) => {
       });
     }
 
-    // Get ticket summary
+    // Get ticket summary and verify access_mode
     const ticketsResult = await pool.query(
-      `SELECT ticket_name, quantity FROM registration_tickets WHERE registration_id = $1`,
+      `SELECT rt.ticket_name, rt.quantity, COALESCE(tt.access_mode, 'in_person') as access_mode
+       FROM registration_tickets rt
+       LEFT JOIN ticket_types tt ON rt.ticket_type_id = tt.id
+       WHERE rt.registration_id = $1`,
       [registrationId],
     );
+
+    const hasPhysicalAccess = ticketsResult.rows.some(
+      (t) => t.access_mode === 'in_person' || t.access_mode === 'both'
+    );
+
+    if (ticketsResult.rows.length > 0 && !hasPhysicalAccess) {
+      return res.status(400).json({
+        success: false,
+        error: "This ticket is virtual-only and cannot be checked in at the venue.",
+      });
+    }
 
     const ticketSummary =
       ticketsResult.rows
@@ -5933,6 +6051,22 @@ const reserveTickets = async (req, res) => {
       return res.status(400).json({ error: "No tickets to reserve" });
     }
 
+    // Part 2: Block mixed access_mode in a single order
+    const reserveTicketTypeIds = [...new Set(tickets.map((t) => t.ticketTypeId).filter(Boolean))];
+    if (reserveTicketTypeIds.length > 1) {
+      const modeRows = await client.query(
+        `SELECT id, access_mode FROM ticket_types WHERE id = ANY($1::bigint[])`,
+        [reserveTicketTypeIds]
+      );
+      const modes = new Set(modeRows.rows.map((r) => r.access_mode || 'in_person'));
+      if (modes.has('virtual') && modes.has('in_person')) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({
+          error: "Cannot combine virtual-only and in-person-only tickets in one order. Please purchase them separately.",
+        });
+      }
+    }
+
     // Fetch event start time to evaluate effective sales window
     const eventRow = await client.query(
       `SELECT start_datetime, event_date FROM events WHERE id = $1`,
@@ -6902,7 +7036,404 @@ const getRefundRequest = async (req, res) => {
   }
 };
 
+/**
+ * Handle virtual join link redirect
+ * GET /join/:signedToken
+ */
+const handleJoinRedirect = async (req, res) => {
+  try {
+    const { signedToken } = req.params;
+    if (!signedToken) {
+      return res.status(400).json({ error: "Token is required" });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(signedToken, JWT_SECRET);
+    } catch (jwtErr) {
+      return res.status(400).json({ error: "Invalid or expired join link" });
+    }
+
+    if (!decoded || decoded.type !== "virtual_join" || !decoded.registrationId) {
+      return res.status(400).json({ error: "Invalid join token format" });
+    }
+
+    // Tightened query: exactly 1 row grouped by registration/event, aggregate virtual access check
+    const regResult = await pool.query(
+      `SELECT er.id, er.registration_status, er.event_id,
+              e.title, e.virtual_link, e.start_datetime, e.event_date, e.end_datetime,
+              BOOL_OR(COALESCE(tt.access_mode, 'in_person') IN ('virtual', 'both')) as has_virtual_access,
+              COUNT(rt.id) as ticket_count
+       FROM event_registrations er
+       JOIN events e ON er.event_id = e.id
+       LEFT JOIN registration_tickets rt ON er.id = rt.registration_id
+       LEFT JOIN ticket_types tt ON rt.ticket_type_id = tt.id
+       WHERE er.id = $1
+       GROUP BY er.id, e.id`,
+      [decoded.registrationId]
+    );
+
+    if (regResult.rows.length === 0) {
+      return res.status(404).json({ error: "Registration not found" });
+    }
+
+    const registration = regResult.rows[0];
+
+    // Confirm registration_status is 'registered' or 'attended' (not cancelled/refunded)
+    if (
+      registration.registration_status !== "registered" &&
+      registration.registration_status !== "attended"
+    ) {
+      return res.status(403).json({
+        error: `Registration is not active (status: ${registration.registration_status})`,
+      });
+    }
+
+    // Confirm ticket access_mode includes virtual
+    if (parseInt(registration.ticket_count) > 0 && !registration.has_virtual_access) {
+      return res.status(403).json({ error: "This ticket does not grant virtual access" });
+    }
+
+    if (!registration.virtual_link) {
+      return res.status(404).json({ error: "Virtual link not configured for this event" });
+    }
+
+    // Log the access (timestamp + req.ip)
+    const clientIp = req.ip || req.headers["x-forwarded-for"] || req.connection?.remoteAddress;
+    console.log(
+      `[Virtual Join] Reg #${registration.id} joined Event #${registration.event_id} at ${new Date().toISOString()} from IP: ${clientIp}`
+    );
+
+    let targetUrl = registration.virtual_link.trim();
+    if (!/^https?:\/\//i.test(targetUrl)) {
+      targetUrl = `https://${targetUrl}`;
+    }
+
+    return res.redirect(302, targetUrl);
+  } catch (err) {
+    console.error("[handleJoinRedirect] Error:", err.message);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+/**
+ * Switch ticket tier for an existing registration
+ * POST /events/:eventId/registrations/:registrationId/switch-ticket
+ */
+const switchTicketTier = async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    const { eventId, registrationId } = req.params;
+    const { newTicketTypeId, oldTicketTypeId, quantity: requestedQuantity } = req.body;
+
+    if (!userId || userType !== "member") {
+      await client.query("ROLLBACK");
+      return res.status(403).json({ error: "Only members can switch tickets" });
+    }
+
+    if (!newTicketTypeId) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "Target ticket type ID is required" });
+    }
+
+    // 1. Confirm events.allow_tier_switching = true
+    // 2. Confirm COALESCE(e.start_datetime, e.event_date) > NOW()
+    const eventRes = await client.query(
+      `SELECT id, title, allow_tier_switching, allow_downgrade_refunds,
+              COALESCE(start_datetime, event_date) as effective_start
+       FROM events
+       WHERE id = $1
+       FOR UPDATE`,
+      [eventId]
+    );
+
+    if (eventRes.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    const event = eventRes.rows[0];
+
+    if (!event.allow_tier_switching) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "Ticket switching is not allowed for this event" });
+    }
+
+    if (new Date(event.effective_start) <= new Date()) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "Cannot switch tickets for an event that has already started" });
+    }
+
+    // 3. Confirm registration belongs to requester and is 'registered'
+    const regRes = await client.query(
+      `SELECT id, member_id, registration_status, total_amount
+       FROM event_registrations
+       WHERE id = $1 AND event_id = $2
+       FOR UPDATE`,
+      [registrationId, eventId]
+    );
+
+    if (regRes.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Registration not found" });
+    }
+
+    const registration = regRes.rows[0];
+
+    if (parseInt(registration.member_id) !== parseInt(userId)) {
+      await client.query("ROLLBACK");
+      return res.status(403).json({ error: "You do not own this registration" });
+    }
+
+    if (registration.registration_status !== "registered") {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        error: `Only active registrations can be switched (current status: ${registration.registration_status})`,
+      });
+    }
+
+    // Fetch existing tickets in this registration
+    const currentTicketsRes = await client.query(
+      `SELECT rt.id, rt.ticket_type_id, rt.ticket_name, rt.quantity, rt.unit_price, rt.total_price,
+              COALESCE(tt.access_mode, 'in_person') as access_mode
+       FROM registration_tickets rt
+       LEFT JOIN ticket_types tt ON rt.ticket_type_id = tt.id
+       WHERE rt.registration_id = $1
+       FOR UPDATE OF rt`,
+      [registrationId]
+    );
+
+    if (currentTicketsRes.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "No tickets found for this registration" });
+    }
+
+    let oldTicket = null;
+    if (oldTicketTypeId) {
+      oldTicket = currentTicketsRes.rows.find((t) => parseInt(t.ticket_type_id) === parseInt(oldTicketTypeId));
+    } else {
+      oldTicket = currentTicketsRes.rows[0];
+    }
+
+    if (!oldTicket) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "Current ticket tier not found in registration" });
+    }
+
+    if (parseInt(oldTicket.ticket_type_id) === parseInt(newTicketTypeId)) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "Target ticket tier is the same as the current tier" });
+    }
+
+    const switchQuantity = requestedQuantity
+      ? parseInt(requestedQuantity, 10)
+      : parseInt(oldTicket.quantity, 10);
+
+    if (switchQuantity <= 0 || switchQuantity > oldTicket.quantity) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: `Invalid quantity to switch (maximum ${oldTicket.quantity})` });
+    }
+
+    // 4. Lock and check new tier's capacity (FOR UPDATE)
+    const newTierRes = await client.query(
+      `SELECT id, name, base_price, total_quantity, sold_count, reserved_count,
+              access_mode, is_active
+       FROM ticket_types
+       WHERE id = $1 AND event_id = $2 AND is_active = true
+       FOR UPDATE`,
+      [newTicketTypeId, eventId]
+    );
+
+    if (newTierRes.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "Invalid target ticket tier" });
+    }
+
+    const newTier = newTierRes.rows[0];
+
+    if (newTier.total_quantity !== null && newTier.total_quantity !== undefined) {
+      const available =
+        parseInt(newTier.total_quantity) -
+        (parseInt(newTier.sold_count) || 0) -
+        (parseInt(newTier.reserved_count) || 0);
+
+      if (switchQuantity > available) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({
+          error: "Target ticket tier is sold out or does not have enough capacity",
+        });
+      }
+    }
+
+    // 5. Apply Part 2's mixed-mode validation against target tier
+    const otherTickets = currentTicketsRes.rows.filter(
+      (t) => parseInt(t.id) !== parseInt(oldTicket.id)
+    );
+    const otherModes = otherTickets.map((t) => t.access_mode);
+    const allModes = new Set([...otherModes, newTier.access_mode || "in_person"]);
+
+    if (allModes.has("virtual") && allModes.has("in_person")) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        error: "Cannot combine virtual-only and in-person-only tickets in one order. Please purchase them separately.",
+      });
+    }
+
+    // 6. Compute price difference: new tier vs old tier
+    const oldTierBasePrice = parseFloat(oldTicket.unit_price) || 0;
+    const newTierBasePrice = parseFloat(newTier.base_price) || 0;
+    const priceDifference =
+      Math.round((newTierBasePrice - oldTierBasePrice) * switchQuantity * 100) / 100;
+
+    // 7. If difference > 0 (upgrade): do NOT complete inline.
+    if (priceDifference > 0) {
+      await client.query("ROLLBACK");
+      return res.json({
+        success: true,
+        upgradeRequired: true,
+        requiresPayment: true,
+        difference: priceDifference,
+        amountDue: priceDifference,
+        priceDifference,
+        registrationId: registration.id,
+        eventId: event.id,
+        oldTicket: {
+          ticketTypeId: oldTicket.ticket_type_id,
+          name: oldTicket.ticket_name,
+          unitPrice: oldTierBasePrice,
+        },
+        newTicket: {
+          ticketTypeId: newTier.id,
+          name: newTier.name,
+          unitPrice: newTierBasePrice,
+        },
+        quantity: switchQuantity,
+        message: `An upgrade payment of ₹${priceDifference.toFixed(2)} is required to complete this switch.`,
+      });
+    }
+
+    // Execute the switch for difference <= 0 (downgrade or equal)
+    // Update registration_tickets
+    if (switchQuantity === oldTicket.quantity) {
+      await client.query(
+        `UPDATE registration_tickets
+         SET ticket_type_id = $1, ticket_name = $2, unit_price = $3, total_price = $4
+         WHERE id = $5`,
+        [
+          newTier.id,
+          newTier.name,
+          newTier.base_price,
+          parseFloat(newTier.base_price) * switchQuantity,
+          oldTicket.id,
+        ]
+      );
+    } else {
+      // Partial quantity switch: reduce old line item and insert new line item
+      await client.query(
+        `UPDATE registration_tickets
+         SET quantity = quantity - $1, total_price = total_price - $2
+         WHERE id = $3`,
+        [switchQuantity, oldTierBasePrice * switchQuantity, oldTicket.id]
+      );
+
+      await client.query(
+        `INSERT INTO registration_tickets (registration_id, ticket_type_id, ticket_name, quantity, unit_price, total_price)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          registration.id,
+          newTier.id,
+          newTier.name,
+          switchQuantity,
+          newTier.base_price,
+          parseFloat(newTier.base_price) * switchQuantity,
+        ]
+      );
+    }
+
+    // Adjust sold_count on both tiers
+    await client.query(
+      `UPDATE ticket_types SET sold_count = GREATEST(0, COALESCE(sold_count, 0) - $1) WHERE id = $2`,
+      [switchQuantity, oldTicket.ticket_type_id]
+    );
+
+    await client.query(
+      `UPDATE ticket_types SET sold_count = COALESCE(sold_count, 0) + $1 WHERE id = $2`,
+      [switchQuantity, newTier.id]
+    );
+
+    let refundRequestId = null;
+
+    // 8. If difference < 0 (downgrade) and events.allow_downgrade_refunds = true:
+    // INSERT into refund_requests with status forced to 'manual_review'
+    if (priceDifference < 0 && event.allow_downgrade_refunds === true) {
+      const refundAmount = Math.abs(priceDifference);
+      const refundReason = `Tier downgrade from ${oldTicket.ticket_name} (₹${oldTierBasePrice}) to ${newTier.name} (₹${newTierBasePrice}) — difference: ₹${refundAmount}`;
+
+      const refundResult = await client.query(
+        `INSERT INTO refund_requests (
+           registration_id, member_id, event_id, ticket_type_id,
+           requested_amount, reason, status, policy_snapshot, requested_at
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, 'manual_review', $7, NOW())
+         RETURNING id`,
+        [
+          registration.id,
+          userId,
+          eventId,
+          oldTicket.ticket_type_id,
+          refundAmount,
+          refundReason,
+          JSON.stringify({
+            downgrade: true,
+            old_tier_name: oldTicket.ticket_name,
+            old_tier_id: oldTicket.ticket_type_id,
+            new_tier_name: newTier.name,
+            new_tier_id: newTier.id,
+            quantity: switchQuantity,
+            price_difference: priceDifference,
+          }),
+        ]
+      );
+      refundRequestId = refundResult.rows[0].id;
+    }
+
+    await client.query("COMMIT");
+
+    return res.json({
+      success: true,
+      switched: true,
+      action: "switched",
+      priceDifference,
+      refundQueued: priceDifference < 0 && event.allow_downgrade_refunds === true,
+      refundAmount: Math.abs(priceDifference),
+      refundRequestId,
+      message:
+        priceDifference < 0 && event.allow_downgrade_refunds === true
+          ? `Switched to ${newTier.name}. A refund request for ₹${Math.abs(priceDifference)} has been submitted for manual review.`
+          : `Successfully switched to ${newTier.name}.`,
+      registration: {
+        id: registration.id,
+        newTicketTypeId: newTier.id,
+        newTicketName: newTier.name,
+        quantity: switchQuantity,
+      },
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("[switchTicketTier] Error:", err.message);
+    return res.status(500).json({ error: err.message || "Failed to switch ticket tier" });
+  } finally {
+    client.release();
+  }
+};
+
 module.exports = {
+  handleJoinRedirect,
+  switchTicketTier,
   createEvent,
   getCommunityEvents,
   getMyEvents,

@@ -218,17 +218,49 @@ const handlePaymentCaptured = async (pool, payment, event) => {
     } else {
       registrationId = existingReg.rows[0].id;
 
-      // Ensure registration is in 'registered' status (may have been created speculatively)
-      await client.query(
-        `UPDATE event_registrations
-         SET registration_status = 'registered', total_amount = $3
-         WHERE id = $1 AND member_id = $2`,
-        [registrationId, parsedUserId, payment.amount / 100]
-      );
+      if (notes?.switch_upgrade) {
+        const su = notes.switch_upgrade;
+        const newTierRes = await client.query(
+          `SELECT id, name, base_price FROM ticket_types WHERE id = $1`,
+          [su.newTicketTypeId]
+        );
+        if (newTierRes.rows.length > 0) {
+          const nt = newTierRes.rows[0];
+          await client.query(
+            `UPDATE registration_tickets
+             SET ticket_type_id = $1, ticket_name = $2, unit_price = $3, total_price = $4
+             WHERE registration_id = $5 AND ticket_type_id = $6`,
+            [nt.id, nt.name, nt.base_price, parseFloat(nt.base_price) * su.quantity, registrationId, su.oldTicketTypeId]
+          );
+          await client.query(
+            `UPDATE ticket_types SET sold_count = GREATEST(0, COALESCE(sold_count, 0) - $1) WHERE id = $2`,
+            [su.quantity, su.oldTicketTypeId]
+          );
+          await client.query(
+            `UPDATE ticket_types SET sold_count = COALESCE(sold_count, 0) + $1 WHERE id = $2`,
+            [su.quantity, nt.id]
+          );
+          await client.query(
+            `UPDATE event_registrations
+             SET registration_status = 'registered', total_amount = total_amount + $1
+             WHERE id = $2`,
+            [payment.amount / 100, registrationId]
+          );
+          console.log(`[Razorpay] Upgraded registration ${registrationId} to ${nt.name} for payment ${payment.id}`);
+        }
+      } else {
+        // Ensure registration is in 'registered' status (may have been created speculatively)
+        await client.query(
+          `UPDATE event_registrations
+           SET registration_status = 'registered', total_amount = $3
+           WHERE id = $1 AND member_id = $2`,
+          [registrationId, parsedUserId, payment.amount / 100]
+        );
 
-      console.log(
-        `[Razorpay] Updated existing registration ${registrationId} to registered (idempotent replay — skipping ticket/inventory writes)`
-      );
+        console.log(
+          `[Razorpay] Updated existing registration ${registrationId} to registered (idempotent replay — skipping ticket/inventory writes)`
+        );
+      }
     }
 
     // Link registration back to the order for audit trail

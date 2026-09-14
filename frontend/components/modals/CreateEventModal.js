@@ -282,6 +282,8 @@ const CreateEventModal = ({
   const [highlights, setHighlights] = useState([]);
   const [featuredAccounts, setFeaturedAccounts] = useState([]);
   const [thingsToKnow, setThingsToKnow] = useState([]);
+  const [allowTierSwitching, setAllowTierSwitching] = useState(false);
+  const [allowDowngradeRefunds, setAllowDowngradeRefunds] = useState(false);
   // Event visibility
   const [accessType, setAccessType] = useState("public"); // 'public' or 'invite_only'
   const [invitePublicVisibility, setInvitePublicVisibility] = useState(false); // Show in feeds with hidden location
@@ -384,6 +386,8 @@ const CreateEventModal = ({
     setSelectedVenue(null);
     setPendingPlace(null);
     setMeetingPlatform("");
+    setAllowTierSwitching(false);
+    setAllowDowngradeRefunds(false);
   };
 
   const getCurrentFormData = () => ({
@@ -471,6 +475,8 @@ const CreateEventModal = ({
     things_to_know: thingsToKnow,
     access_type: accessType,
     invite_public_visibility: invitePublicVisibility,
+    allow_tier_switching: allowTierSwitching,
+    allow_downgrade_refunds: allowTierSwitching && allowDowngradeRefunds,
   });
 
   const saveDraft = async (silent = false) => {
@@ -589,6 +595,13 @@ const CreateEventModal = ({
             });
           }
           if (legacyPromos.length > 0) setPromos(legacyPromos);
+        }
+
+        if (draft.data.allow_tier_switching !== undefined) {
+          setAllowTierSwitching(Boolean(draft.data.allow_tier_switching));
+        }
+        if (draft.data.allow_downgrade_refunds !== undefined) {
+          setAllowDowngradeRefunds(Boolean(draft.data.allow_downgrade_refunds));
         }
 
         // Restore hasReachedReview so the Review shortcut button persists
@@ -1616,6 +1629,7 @@ const CreateEventModal = ({
             >
               <TicketTypesEditor
                 ref={ticketEditorRef}
+                eventType={eventType}
                 ticketTypes={ticketTypes}
                 onChange={setTicketTypes}
                 onAddPress={() =>
@@ -1648,6 +1662,71 @@ const CreateEventModal = ({
                   ticketTypes={ticketTypes}
                   eventStartDate={eventDate}
                 />
+              )}
+
+              {ticketTypes.length > 0 && (
+                <View style={{ marginTop: 20, paddingTop: 16, borderTopWidth: 1, borderTopColor: MODAL_TOKENS.surface }}>
+                  {/* Allow Ticket Switching Toggle */}
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}
+                  >
+                    <View style={{ flex: 1, paddingRight: 12 }}>
+                      <Text style={styles.label}>Allow Ticket Switching</Text>
+                      <Text style={styles.sectionHeaderHelper}>
+                        Allow attendees to switch or upgrade their ticket tier before the event starts.
+                      </Text>
+                    </View>
+                    <Switch
+                      value={allowTierSwitching}
+                      onValueChange={(val) => {
+                        LayoutAnimation.configureNext(
+                          LayoutAnimation.Presets.easeInEaseOut,
+                        );
+                        setAllowTierSwitching(val);
+                        if (!val) setAllowDowngradeRefunds(false);
+                      }}
+                      thumbColor="#FFFFFF"
+                      trackColor={{ false: "#D1D5DB", true: MODAL_TOKENS.primary }}
+                      ios_backgroundColor="#D1D5DB"
+                    />
+                  </View>
+
+                  {/* Allow Refund on Downgrade Toggle */}
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginTop: 14,
+                      marginLeft: 16,
+                      opacity: allowTierSwitching ? 1 : 0.45,
+                    }}
+                  >
+                    <View style={{ flex: 1, paddingRight: 12 }}>
+                      <Text style={[styles.label, { fontSize: 14 }]}>Allow Refund on Downgrade</Text>
+                      <Text style={styles.sectionHeaderHelper}>
+                        Queue a manual review refund request if attendee switches to a lower tier.
+                      </Text>
+                    </View>
+                    <Switch
+                      disabled={!allowTierSwitching}
+                      value={allowTierSwitching && allowDowngradeRefunds}
+                      onValueChange={(val) => {
+                        LayoutAnimation.configureNext(
+                          LayoutAnimation.Presets.easeInEaseOut,
+                        );
+                        setAllowDowngradeRefunds(val);
+                      }}
+                      thumbColor="#FFFFFF"
+                      trackColor={{ false: "#D1D5DB", true: MODAL_TOKENS.primary }}
+                      ios_backgroundColor="#D1D5DB"
+                    />
+                  </View>
+                </View>
               )}
             </Animated.View>
 

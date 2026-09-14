@@ -1958,6 +1958,16 @@ router.get(
   authMiddleware,
   EventController.getMyTicket,
 );
+// Virtual event signed join link (unauthenticated redirect)
+router.get("/join/:signedToken", EventController.handleJoinRedirect);
+
+// Tier switching
+router.post(
+  "/events/:eventId/registrations/:registrationId/switch-ticket",
+  authMiddleware,
+  EventController.switchTicketTier,
+);
+
 router.post(
   "/events/:eventId/verify-ticket",
   authMiddleware,

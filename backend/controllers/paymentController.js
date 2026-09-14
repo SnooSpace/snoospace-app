@@ -33,6 +33,7 @@ const createOrder = async (req, res) => {
     promoCode,
     discountAmount,
     sessionId,
+    switchUpgrade,
   } = req.body;
   const userId = req.user?.id;
 
@@ -44,14 +45,38 @@ const createOrder = async (req, res) => {
     return res.status(400).json({ error: 'event_id_required' });
   }
 
-  if (!tickets || !Array.isArray(tickets) || tickets.length === 0) {
+  const switchUpgradeData = switchUpgrade || (req.body.isTierSwitch ? {
+    registrationId: req.body.registrationId,
+    oldTicketTypeId: req.body.oldTicketTypeId,
+    newTicketTypeId: req.body.newTicketTypeId,
+    quantity: req.body.quantity,
+  } : null);
+
+  if (!switchUpgradeData && (!tickets || !Array.isArray(tickets) || tickets.length === 0)) {
     return res.status(400).json({ error: 'tickets_required', message: 'No tickets selected' });
+  }
+
+  // Part 2: Block mixed access_mode in a single order
+  if (Array.isArray(tickets) && tickets.length > 1) {
+    const ticketTypeIds = [...new Set(tickets.map((t) => t.ticketTypeId).filter(Boolean))];
+    if (ticketTypeIds.length > 1) {
+      const modeRows = await pool.query(
+        `SELECT id, access_mode FROM ticket_types WHERE id = ANY($1::bigint[])`,
+        [ticketTypeIds]
+      );
+      const modes = new Set(modeRows.rows.map((r) => r.access_mode || 'in_person'));
+      if (modes.has('virtual') && modes.has('in_person')) {
+        return res.status(400).json({
+          error: "Cannot combine virtual-only and in-person-only tickets in one order. Please purchase them separately.",
+        });
+      }
+    }
   }
 
   try {
     // Fetch event to validate it exists and get title
     const eventResult = await pool.query(
-      `SELECT id, title, community_id FROM events WHERE id = $1`,
+      `SELECT id, title, community_id, allow_tier_switching, COALESCE(start_datetime, event_date) as effective_start FROM events WHERE id = $1`,
       [eventId]
     );
 
@@ -60,6 +85,148 @@ const createOrder = async (req, res) => {
     }
 
     const event = eventResult.rows[0];
+
+    // Fetch user info for prefill
+    const userResult = await pool.query(
+      `SELECT name, email FROM members WHERE id = $1`,
+      [userId]
+    );
+    const user = userResult.rows[0] || {};
+
+    // ── Handle Tier Switch Upgrade Checkout ─────────────────────────────────
+    if (switchUpgradeData) {
+      const { registrationId, oldTicketTypeId, newTicketTypeId, quantity: reqQty } = switchUpgradeData;
+      const quantity = parseInt(reqQty, 10) || 1;
+
+      if (!event.allow_tier_switching) {
+        return res.status(400).json({ error: 'Ticket switching is not allowed for this event' });
+      }
+      if (new Date(event.effective_start) <= new Date()) {
+        return res.status(400).json({ error: 'Cannot switch tickets for an event that has already started' });
+      }
+
+      const regRow = await pool.query(
+        `SELECT id, member_id, registration_status FROM event_registrations
+         WHERE id = $1 AND event_id = $2`,
+        [registrationId, eventId]
+      );
+      if (regRow.rows.length === 0 || parseInt(regRow.rows[0].member_id) !== parseInt(userId)) {
+        return res.status(403).json({ error: 'registration_not_found_or_unauthorized' });
+      }
+      if (regRow.rows[0].registration_status !== 'registered') {
+        return res.status(400).json({ error: 'Registration is not active' });
+      }
+
+      const oldTicketRow = await pool.query(
+        `SELECT rt.*, COALESCE(tt.access_mode, 'in_person') as access_mode
+         FROM registration_tickets rt
+         LEFT JOIN ticket_types tt ON rt.ticket_type_id = tt.id
+         WHERE rt.registration_id = $1 AND rt.ticket_type_id = $2`,
+        [registrationId, oldTicketTypeId]
+      );
+      if (oldTicketRow.rows.length === 0) {
+        return res.status(400).json({ error: 'Current ticket tier not found in registration' });
+      }
+      const oldTicket = oldTicketRow.rows[0];
+
+      const newTierRow = await pool.query(
+        `SELECT * FROM ticket_types WHERE id = $1 AND event_id = $2 AND is_active = true`,
+        [newTicketTypeId, eventId]
+      );
+      if (newTierRow.rows.length === 0) {
+        return res.status(400).json({ error: 'Invalid target ticket tier' });
+      }
+      const newTier = newTierRow.rows[0];
+
+      if (newTier.total_quantity !== null && newTier.total_quantity !== undefined) {
+        const available =
+          parseInt(newTier.total_quantity) -
+          (parseInt(newTier.sold_count) || 0) -
+          (parseInt(newTier.reserved_count) || 0);
+        if (quantity > available) {
+          return res.status(400).json({ error: 'Target ticket tier is sold out' });
+        }
+      }
+
+      const allRegTickets = await pool.query(
+        `SELECT rt.ticket_type_id, COALESCE(tt.access_mode, 'in_person') as access_mode
+         FROM registration_tickets rt
+         LEFT JOIN ticket_types tt ON rt.ticket_type_id = tt.id
+         WHERE rt.registration_id = $1`,
+        [registrationId]
+      );
+      const otherModes = allRegTickets.rows
+        .filter((t) => parseInt(t.ticket_type_id) !== parseInt(oldTicketTypeId))
+        .map((t) => t.access_mode);
+      const allModes = new Set([...otherModes, newTier.access_mode || 'in_person']);
+      if (allModes.has('virtual') && allModes.has('in_person')) {
+        return res.status(400).json({
+          error: "Cannot combine virtual-only and in-person-only tickets in one order. Please purchase them separately.",
+        });
+      }
+
+      const oldPrice = parseFloat(oldTicket.unit_price) * quantity;
+      const newPrice = parseFloat(newTier.base_price) * quantity;
+      const serverDiff = Math.max(0, Math.round((newPrice - oldPrice) * 100) / 100);
+
+      const clientAmountPaise = Math.round(parseFloat(totalAmountRupees || 0) * 100);
+      const serverAmountPaise = Math.round(serverDiff * 100);
+
+      if (clientAmountPaise !== serverAmountPaise) {
+        return res.status(400).json({
+          error: 'price_mismatch',
+          message: 'Pricing has changed, please review your order again.',
+          serverAmount: serverDiff,
+          clientAmount: parseFloat(totalAmountRupees || 0),
+        });
+      }
+
+      const amountPaise = serverAmountPaise;
+      const receipt = `SNS-UPG-${userId}-${eventId}-${Date.now()}`;
+      const razorpayOrder = await razorpay.orders.create({
+        amount: amountPaise,
+        currency: 'INR',
+        receipt,
+        notes: {
+          user_id: String(userId),
+          event_id: String(eventId),
+          event_title: event.title,
+          is_upgrade_switch: 'true',
+          registration_id: String(registrationId),
+        },
+      });
+
+      const fullOrderContext = {
+        razorpay_notes: razorpayOrder.notes,
+        tickets: [{ ticketTypeId: newTier.id, ticketName: newTier.name, quantity, unitPrice: newTier.base_price }],
+        switch_upgrade: {
+          registrationId,
+          oldTicketTypeId,
+          newTicketTypeId,
+          quantity,
+          amountPaid: serverDiff,
+        },
+      };
+
+      await pool.query(
+        `INSERT INTO razorpay_orders (
+           razorpay_order_id, user_id, event_id,
+           amount_paise, currency, status, receipt, notes
+         ) VALUES ($1, $2, $3, $4, 'INR', 'created', $5, $6)
+         ON CONFLICT (razorpay_order_id) DO NOTHING`,
+        [razorpayOrder.id, userId, eventId, amountPaise, receipt, JSON.stringify(fullOrderContext)]
+      );
+
+      return res.json({
+        success: true,
+        orderId: razorpayOrder.id,
+        amount: razorpayOrder.amount,
+        currency: razorpayOrder.currency,
+        key: process.env.RAZORPAY_KEY_ID,
+        isUpgrade: true,
+        user: { name: user.name, email: user.email },
+      });
+    }
 
     // Check if user already has a captured payment for this event
     const existingPayment = await pool.query(
@@ -90,13 +257,6 @@ const createOrder = async (req, res) => {
         message: 'Already registered for this event',
       });
     }
-
-    // Fetch user info for prefill
-    const userResult = await pool.query(
-      `SELECT name, email FROM members WHERE id = $1`,
-      [userId]
-    );
-    const user = userResult.rows[0] || {};
 
     // ── Reconcile tickets against ticket_reservations hold ───────────────────
     let hasValidReservationHold = false;

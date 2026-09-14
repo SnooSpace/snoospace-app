@@ -464,6 +464,7 @@ async function ensureTables(pool) {
         -- Visibility & Access
         visibility TEXT DEFAULT 'public',             -- 'public', 'hidden', 'invite_only'
         access_code TEXT,                             -- Required for hidden/invite_only tickets
+        access_mode TEXT DEFAULT 'in_person' CHECK (access_mode = ANY(ARRAY['in_person', 'virtual', 'both'])),
         
         -- Per-Order Limits
         min_per_order INTEGER DEFAULT 1,
@@ -1531,6 +1532,21 @@ async function ensureTables(pool) {
       ON event_registrations (event_id, member_id)
       WHERE registration_status != 'cancelled';
       -- ── End Migration 087 ──────────────────────────────────────────────────
+
+      -- ── Migration 092: Access Mode and Tier Switching ──────────────────────
+      DO $$ BEGIN
+        ALTER TABLE ticket_types ADD COLUMN IF NOT EXISTS access_mode TEXT DEFAULT 'in_person'
+          CHECK (access_mode = ANY(ARRAY['in_person', 'virtual', 'both']));
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+
+      DO $$ BEGIN
+        ALTER TABLE events ADD COLUMN IF NOT EXISTS allow_tier_switching BOOLEAN DEFAULT false;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+
+      DO $$ BEGIN
+        ALTER TABLE events ADD COLUMN IF NOT EXISTS allow_downgrade_refunds BOOLEAN DEFAULT false;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      -- ── End Migration 092 ──────────────────────────────────────────────────
 
       -- Resynchronize table primary key sequences with MAX(id)
 
