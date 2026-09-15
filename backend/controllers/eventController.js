@@ -3531,11 +3531,16 @@ const toggleEventInterest = async (req, res) => {
       );
       isInterested = false;
     } else {
-      // Add interest
-      await pool.query(
-        "INSERT INTO event_interests (event_id, member_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+      const insertResult = await pool.query(
+        "INSERT INTO event_interests (event_id, member_id) VALUES ($1, $2) ON CONFLICT (event_id, member_id) DO NOTHING RETURNING id",
         [eventId, userId],
       );
+      if (insertResult.rows.length > 0) {
+        await pool.query(
+          "UPDATE events SET total_interested_count = total_interested_count + 1 WHERE id = $1",
+          [eventId],
+        );
+      }
       isInterested = true;
     }
 
@@ -4086,10 +4091,20 @@ const registerForEvent = async (req, res) => {
     }
 
     // 11. Remove from bookmarks (event_interests) if bookmarked
+    const hadInterest = await client.query(
+      "SELECT 1 FROM event_interests WHERE event_id = $1 AND member_id = $2",
+      [eventId, userId]
+    );
     await client.query(
       "DELETE FROM event_interests WHERE event_id = $1 AND member_id = $2",
       [eventId, userId],
     );
+    if (hadInterest.rows.length > 0) {
+      await client.query(
+        "UPDATE events SET total_interested_converted_count = total_interested_converted_count + 1 WHERE id = $1",
+        [eventId]
+      );
+    }
 
     const totalTicketCount = tickets.reduce((sum, t) => sum + t.quantity, 0);
 
@@ -6293,20 +6308,40 @@ const getEventInsights = async (req, res) => {
       return res.status(403).json({ error: "You do not own this event" });
     }
 
-    // 1. Revenue & tickets sold
+    // 1a. Revenue
     const revenueResult = await pool.query(`
       SELECT
-        COUNT(DISTINCT er.id)                 AS tickets_sold,
-        COALESCE(SUM(er.total_amount), 0)     AS total_revenue,
-        COALESCE(SUM(er.discount_amount), 0)  AS total_discounts
+        COALESCE(SUM(er.total_amount), 0)    AS total_revenue,
+        COALESCE(SUM(er.discount_amount), 0) AS total_discounts
       FROM event_registrations er
       WHERE er.event_id = $1
         AND er.registration_status IN ('registered', 'attended', 'confirmed')
     `, [eventId]);
 
-    // 2. Interest / Bookmarks
+    // 1b. Tickets sold (actual sum of quantities across line items)
+    const ticketsSoldResult = await pool.query(`
+      SELECT
+        COALESCE(SUM(COALESCE(rt.quantity, 1)), 0)::INTEGER AS tickets_sold
+      FROM event_registrations er
+      LEFT JOIN registration_tickets rt ON rt.registration_id = er.id
+      WHERE er.event_id = $1
+        AND er.registration_status IN ('registered', 'attended', 'confirmed')
+    `, [eventId]);
+
+    // 2. Interest / Bookmarks & Engagement from events table
+    const eventStatsResult = await pool.query(`
+      SELECT
+        COALESCE(total_interested_count, 0)::INTEGER AS total_interested_count,
+        COALESCE(total_interested_converted_count, 0)::INTEGER AS total_interested_converted_count,
+        COALESCE(like_count, 0)::INTEGER AS like_count,
+        COALESCE(comment_count, 0)::INTEGER AS comment_count,
+        COALESCE(share_count, 0)::INTEGER AS share_count
+      FROM events
+      WHERE id = $1
+    `, [eventId]);
+
     const interestResult = await pool.query(
-      "SELECT COUNT(*) AS interested_count FROM event_interests WHERE event_id = $1",
+      "SELECT COUNT(*)::INTEGER AS currently_interested_count FROM event_interests WHERE event_id = $1",
       [eventId]
     );
 
@@ -6326,7 +6361,7 @@ const getEventInsights = async (req, res) => {
     const ticketTypeResult = await pool.query(`
       SELECT
         COALESCE(tt.name, 'General') AS ticket_name,
-        COUNT(DISTINCT er.id) AS count,
+        COALESCE(SUM(COALESCE(rt.quantity, 1)), 0)::INTEGER AS count,
         COALESCE(AVG(tt.base_price), 0) AS avg_price
       FROM event_registrations er
       LEFT JOIN registration_tickets rt ON rt.registration_id = er.id
@@ -6364,9 +6399,15 @@ const getEventInsights = async (req, res) => {
         )::date AS day
       ),
       daily AS (
-        SELECT DATE(er.created_at) AS day, COUNT(er.id) AS tickets,
+        SELECT DATE(er.created_at) AS day,
+               COALESCE(SUM(COALESCE(rt_agg.qty, 1)), 0)::INTEGER AS tickets,
                COALESCE(SUM(er.total_amount), 0) AS revenue
         FROM event_registrations er
+        LEFT JOIN (
+          SELECT registration_id, SUM(quantity) AS qty
+          FROM registration_tickets
+          GROUP BY registration_id
+        ) rt_agg ON rt_agg.registration_id = er.id
         WHERE er.event_id = $1
           AND er.registration_status IN ('registered', 'attended', 'confirmed')
           AND er.created_at >= CURRENT_DATE - INTERVAL '6 days'
@@ -6377,33 +6418,62 @@ const getEventInsights = async (req, res) => {
       ORDER BY d.day ASC
     `, [eventId]);
 
-    // 7. Attendee list
+    // 7. Attendee list with deduplicated attendees and aggregated ticket line items
     const attendeeResult = await pool.query(`
-      SELECT m.id, m.name, m.nickname, m.username, m.profile_photo_url, m.gender,
-             EXTRACT(YEAR FROM AGE(CURRENT_DATE, m.dob))::int AS age,
-             er.created_at AS registered_at,
-             er.total_amount, er.discount_amount,
-             rt.ticket_type_id, tt.name AS ticket_name, er.registration_status
+      SELECT
+        m.id, m.name, m.nickname, m.username, m.profile_photo_url, m.gender,
+        EXTRACT(YEAR FROM AGE(CURRENT_DATE, m.dob))::int AS age,
+        er.created_at AS registered_at,
+        er.total_amount, er.discount_amount,
+        er.registration_status,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'ticketName', rt.ticket_name,
+              'quantity', rt.quantity,
+              'unitPrice', rt.unit_price
+            )
+          ) FILTER (WHERE rt.id IS NOT NULL),
+          '[]'::json
+        ) AS tickets
       FROM event_registrations er
       INNER JOIN members m ON er.member_id = m.id
       LEFT JOIN registration_tickets rt ON rt.registration_id = er.id
-      LEFT JOIN ticket_types tt ON tt.id = rt.ticket_type_id
       WHERE er.event_id = $1
         AND er.registration_status IN ('registered', 'attended', 'confirmed')
+      GROUP BY m.id, m.name, m.nickname, m.username, m.profile_photo_url, m.gender, m.dob,
+               er.id, er.created_at, er.total_amount, er.discount_amount, er.registration_status
       ORDER BY er.created_at DESC
     `, [eventId]);
 
-    const ticketsSold   = parseInt(revenueResult.rows[0].tickets_sold, 10) || 0;
-    const totalRevenue  = parseFloat(revenueResult.rows[0].total_revenue) || 0;
-    const totalDiscounts = parseFloat(revenueResult.rows[0].total_discounts) || 0;
-    const interestedCount = parseInt(interestResult.rows[0].interested_count, 10) || 0;
-    const conversionRate = interestedCount > 0
-      ? Math.round((ticketsSold / interestedCount) * 100) : 0;
+    const ticketsSold   = parseInt(ticketsSoldResult.rows[0]?.tickets_sold, 10) || 0;
+    const totalRevenue  = parseFloat(revenueResult.rows[0]?.total_revenue) || 0;
+    const totalDiscounts = parseFloat(revenueResult.rows[0]?.total_discounts) || 0;
+    const totalInterestedCount = parseInt(eventStatsResult.rows[0]?.total_interested_count, 10) || 0;
+    const totalInterestedConvertedCount = parseInt(eventStatsResult.rows[0]?.total_interested_converted_count, 10) || 0;
+    const currentlyInterestedCount = parseInt(interestResult.rows[0]?.currently_interested_count, 10) || 0;
+    const likeCount = parseInt(eventStatsResult.rows[0]?.like_count, 10) || 0;
+    const commentCount = parseInt(eventStatsResult.rows[0]?.comment_count, 10) || 0;
+    const shareCount = parseInt(eventStatsResult.rows[0]?.share_count, 10) || 0;
+
+    const conversionRate = totalInterestedCount > 0
+      ? Math.min(100, Math.round((totalInterestedConvertedCount / totalInterestedCount) * 100))
+      : 0;
 
     res.json({
       success: true,
       insights: {
-        totalRevenue, totalDiscounts, ticketsSold, interestedCount, conversionRate,
+        totalRevenue,
+        totalDiscounts,
+        ticketsSold,
+        totalInterestedCount,
+        totalInterestedConvertedCount,
+        currentlyInterestedCount,
+        interestedCount: totalInterestedCount, // For backwards compatibility
+        conversionRate,
+        likeCount,
+        commentCount,
+        shareCount,
         dailyTrend: trendResult.rows.map((r) => ({
           day: r.day, tickets: parseInt(r.tickets, 10), revenue: parseFloat(r.revenue),
         })),
@@ -6418,16 +6488,25 @@ const getEventInsights = async (req, res) => {
           discountValue: parseFloat(r.discount_value),
           timesUsed: parseInt(r.times_used, 10), totalSaved: parseFloat(r.total_saved),
         })),
-        attendees: attendeeResult.rows.map((r) => ({
-          id: r.id, name: r.name, nickname: r.nickname, username: r.username,
-          profile_photo_url: r.profile_photo_url, gender: r.gender, age: r.age,
-          registered_at: r.registered_at,
-          totalPaid: parseFloat(r.total_amount) || 0,
-          discountUsed: parseFloat(r.discount_amount) || 0,
-          ticketName: r.ticket_name,
-          tickets: r.ticket_name ? [{ ticketName: r.ticket_name, quantity: 1 }] : [],
-          registration_status: r.registration_status,
-        })),
+        attendees: attendeeResult.rows.map((r) => {
+          const ticketsList = Array.isArray(r.tickets) ? r.tickets : [];
+          const primaryTicketName = ticketsList.length > 0 ? ticketsList[0].ticketName : "General";
+          return {
+            id: r.id,
+            name: r.name,
+            nickname: r.nickname,
+            username: r.username,
+            profile_photo_url: r.profile_photo_url,
+            gender: r.gender,
+            age: r.age,
+            registered_at: r.registered_at,
+            totalPaid: parseFloat(r.total_amount) || 0,
+            discountUsed: parseFloat(r.discount_amount) || 0,
+            ticketName: primaryTicketName,
+            tickets: ticketsList,
+            registration_status: r.registration_status,
+          };
+        }),
       },
     });
   } catch (error) {

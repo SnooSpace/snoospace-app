@@ -23,6 +23,7 @@ import {
   ShieldCheck,
   Building2,
   Wallet,
+  BadgeCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -43,6 +44,11 @@ const mainNavItems = [
     title: "Verifications",
     href: "/verifications",
     icon: ShieldCheck,
+  },
+  {
+    title: "Community Verifications",
+    href: "/community-verifications",
+    icon: BadgeCheck,
   },
   {
     title: "Posts",

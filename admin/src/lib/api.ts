@@ -1947,3 +1947,87 @@ export async function rejectRefundRequest(
     body: JSON.stringify({ rejection_reason: rejectionReason }),
   });
 }
+
+// ============================================
+// COMMUNITY VERIFICATION API
+// ============================================
+
+export interface CommunityVerificationItem {
+  id: number;
+  community_id: number;
+  tier: "community_verified" | "registered_org";
+  status: "pending" | "approved" | "rejected";
+  document_storage_path: string | null;
+  submitted_at: string;
+  reviewed_at: string | null;
+  reviewed_by: number | null;
+  rejection_reason: string | null;
+  // Joined from communities table
+  community_name: string;
+  community_username: string;
+  community_logo: string | null;
+  community_category: string | null;
+  // Extended fields added in adminGetAll v2
+  community_type: string | null;
+  community_created_at: string;
+  follower_count: number;
+  college_name: string | null;
+  campus_name: string | null;
+}
+
+export interface CommunityVerificationsResponse {
+  verifications: CommunityVerificationItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export async function getCommunityVerifications(params?: {
+  status?: string;
+  tier?: string;
+  page?: number;
+  limit?: number;
+}): Promise<CommunityVerificationsResponse> {
+  const query = new URLSearchParams();
+  if (params?.status) query.append("status", params.status);
+  if (params?.tier && params.tier !== "all") query.append("tier", params.tier);
+  if (params?.page) query.append("page", params.page.toString());
+  if (params?.limit) query.append("limit", params.limit.toString());
+
+  const qs = query.toString();
+  const endpoint = `/communities/admin/verifications${qs ? `?${qs}` : ""}`;
+  const data = await apiRequest<CommunityVerificationsResponse>(endpoint);
+  return {
+    verifications: data.verifications || [],
+    total: data.total ?? (data.verifications?.length || 0),
+    page: data.page || 1,
+    pageSize: data.pageSize || 20,
+    totalPages: data.totalPages || 1,
+  };
+}
+
+export async function reviewCommunityVerification(
+  id: number,
+  status: "approved" | "rejected",
+  rejectionReason?: string
+): Promise<{ verification: CommunityVerificationItem }> {
+  return apiRequest<{ verification: CommunityVerificationItem }>(
+    `/communities/admin/verifications/${id}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        status,
+        rejection_reason: status === "rejected" ? rejectionReason : undefined,
+      }),
+    }
+  );
+}
+
+export async function getCommunityVerificationDocument(
+  id: number
+): Promise<{ url: string }> {
+  return apiRequest<{ url: string }>(
+    `/communities/admin/verifications/${id}/document`
+  );
+}

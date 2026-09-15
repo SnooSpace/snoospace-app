@@ -20,7 +20,6 @@ import {
   ChevronDown,
   Heart,
   MessageCircle,
-  Radio,
   Share2,
   Tag,
   Ticket,
@@ -212,8 +211,12 @@ export default function EventAttendeesScreen({ route, navigation }) {
   // Derived data from insights
   const totalRevenue = insights?.totalRevenue ?? 0;
   const ticketsSold = insights?.ticketsSold ?? 0;
-  const interestedCount = insights?.interestedCount ?? 0;
+  const totalInterestedCount = insights?.totalInterestedCount ?? insights?.interestedCount ?? 0;
+  const currentlyInterestedCount = insights?.currentlyInterestedCount ?? 0;
   const conversionRate = insights?.conversionRate ?? 0;
+  const likeCount = insights?.likeCount ?? 0;
+  const commentCount = insights?.commentCount ?? 0;
+  const shareCount = insights?.shareCount ?? 0;
 
   // Build pie chart data from real breakdown
   const genderPieData = (insights?.genderBreakdown ?? []).map((g, i) => ({
@@ -313,7 +316,7 @@ export default function EventAttendeesScreen({ route, navigation }) {
             </View>
 
             <View style={styles.heroMetricsRow}>
-              <Text style={styles.heroMetricBadge}>Interested: {interestedCount}</Text>
+              <Text style={styles.heroMetricBadge}>Interested: {totalInterestedCount}</Text>
               <Text style={styles.heroMetricBadge}>Conversion: {conversionRate}%</Text>
             </View>
 
@@ -342,10 +345,10 @@ export default function EventAttendeesScreen({ route, navigation }) {
           <View style={styles.discoveryGrid}>
             <View style={styles.discoveryItem}>
               <View style={[styles.iconContainer, { backgroundColor: "#E0F2FE" }]}>
-                <Radio size={20} color="#0284C7" />
+                <Bookmark size={20} color="#0284C7" />
               </View>
-              <Text style={styles.metricValue}>{interestedCount}</Text>
-              <Text style={styles.metricLabel}>Interested</Text>
+              <Text style={styles.metricValue}>{currentlyInterestedCount}</Text>
+              <Text style={styles.metricLabel}>Still Deciding</Text>
             </View>
             <View style={styles.discoveryItem}>
               <View style={[styles.iconContainer, { backgroundColor: "#FEF3C7" }]}>
@@ -353,13 +356,6 @@ export default function EventAttendeesScreen({ route, navigation }) {
               </View>
               <Text style={styles.metricValue}>{ticketsSold}</Text>
               <Text style={styles.metricLabel}>Tickets Sold</Text>
-            </View>
-            <View style={styles.discoveryItem}>
-              <View style={[styles.iconContainer, { backgroundColor: "#FCE7F3" }]}>
-                <TrendingUp size={20} color="#DB2777" />
-              </View>
-              <Text style={styles.metricValue}>{conversionRate}%</Text>
-              <Text style={styles.metricLabel}>Conversion</Text>
             </View>
           </View>
         </Animated.View>
@@ -372,7 +368,7 @@ export default function EventAttendeesScreen({ route, navigation }) {
           <View style={styles.funnelRowWrap}>
             <View style={[styles.funnelBar, { width: "100%", backgroundColor: "#E0F2FE" }]}>
               <Text style={styles.funnelBarLabel}>Interested</Text>
-              <Text style={[styles.funnelBarValue, { color: "#0284C7" }]}>{interestedCount}</Text>
+              <Text style={[styles.funnelBarValue, { color: "#0284C7" }]}>{totalInterestedCount}</Text>
             </View>
           </View>
 
@@ -381,17 +377,25 @@ export default function EventAttendeesScreen({ route, navigation }) {
             <View style={styles.funnelConnectorLine} />
             <View style={styles.funnelConversionBadge}>
               <Text style={styles.funnelConversionBadgeText}>
-                {interestedCount > 0
-                  ? `${Math.min(100, Math.round((ticketsSold / interestedCount) * 100))}%`
-                  : ticketsSold > 0 ? "100%" : "0%"}
+                {conversionRate}%
               </Text>
             </View>
             <View style={styles.funnelConnectorLine} />
           </View>
 
-          {/* Tickets Sold — narrower, 70% width */}
+          {/* Tickets Sold — guarded against division by zero */}
           <View style={styles.funnelRowWrap}>
-            <View style={[styles.funnelBar, { width: "70%", backgroundColor: PRIMARY_COLOR }]}>
+            <View
+              style={[
+                styles.funnelBar,
+                {
+                  width: totalInterestedCount > 0
+                    ? `${Math.max(10, Math.min(100, Math.round((ticketsSold / totalInterestedCount) * 100)))}%`
+                    : ticketsSold > 0 ? "100%" : "0%",
+                  backgroundColor: PRIMARY_COLOR,
+                },
+              ]}
+            >
               <Text style={[styles.funnelBarLabel, { color: "#FFFFFF" }]}>Tickets Sold</Text>
               <Text style={[styles.funnelBarValue, { color: "#FFFFFF" }]}>{ticketsSold}</Text>
             </View>
@@ -408,7 +412,7 @@ export default function EventAttendeesScreen({ route, navigation }) {
               </View>
               <View>
                 <Text style={styles.metricLabel}>Likes</Text>
-                <Text style={styles.metricValue}>245</Text>
+                <Text style={styles.metricValue}>{likeCount}</Text>
               </View>
             </View>
             <View style={styles.engagementCell}>
@@ -417,7 +421,7 @@ export default function EventAttendeesScreen({ route, navigation }) {
               </View>
               <View>
                 <Text style={styles.metricLabel}>Comments</Text>
-                <Text style={styles.metricValue}>34</Text>
+                <Text style={styles.metricValue}>{commentCount}</Text>
               </View>
             </View>
             <View style={styles.engagementCell}>
@@ -426,16 +430,7 @@ export default function EventAttendeesScreen({ route, navigation }) {
               </View>
               <View>
                 <Text style={styles.metricLabel}>Shares</Text>
-                <Text style={styles.metricValue}>21</Text>
-              </View>
-            </View>
-            <View style={styles.engagementCell}>
-              <View style={[styles.iconContainer, { backgroundColor: "#FEF9C3" }]}>
-                <Bookmark size={20} color="#CA8A04" />
-              </View>
-              <View>
-                <Text style={styles.metricLabel}>Saves</Text>
-                <Text style={styles.metricValue}>132</Text>
+                <Text style={styles.metricValue}>{shareCount}</Text>
               </View>
             </View>
           </View>
@@ -587,35 +582,6 @@ const styles = StyleSheet.create({
     color: MUTED_TEXT,
     marginTop: 2,
     textAlign: "center",
-  },
-  filterContainer: {
-    flexDirection: "row",
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    backgroundColor: CARD_BACKGROUND,
-    borderBottomWidth: 1,
-    borderBottomColor: BORDER_COLOR,
-    gap: 8,
-  },
-  filterPill: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: BACKGROUND_COLOR,
-    borderWidth: 1,
-    borderColor: BORDER_COLOR,
-  },
-  filterPillActive: {
-    backgroundColor: TEXT_COLOR,
-    borderColor: TEXT_COLOR,
-  },
-  filterText: {
-    fontFamily: "Manrope-SemiBold",
-    fontSize: 14,
-    color: MUTED_TEXT,
-  },
-  filterTextActive: {
-    color: "#FFFFFF",
   },
   content: {
     flex: 1,
@@ -793,16 +759,16 @@ const styles = StyleSheet.create({
   },
   engagementGrid: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 16,
+    justifyContent: "space-between",
+    gap: 8,
   },
   engagementCell: {
-    width: "47%",
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 8,
     backgroundColor: BACKGROUND_COLOR,
-    padding: 12,
+    padding: 10,
     borderRadius: 12,
   },
   legendContainer: {
@@ -822,25 +788,6 @@ const styles = StyleSheet.create({
     fontFamily: "Manrope-Regular",
     fontSize: 13,
     color: MUTED_TEXT,
-  },
-  growthRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  insightChipOutline: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F0FDF4",
-    borderWidth: 1,
-    borderColor: "#BBF7D0",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  insightChipOutlineText: {
-    fontFamily: "Manrope-Medium",
-    fontSize: 12,
-    color: SUCCESS_COLOR,
   },
   offerRow: {
     flexDirection: "row",
@@ -956,15 +903,5 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: MUTED_TEXT,
     marginTop: 6,
-  },
-  viewAllBtn: {
-    alignItems: "center",
-    paddingVertical: 16,
-    marginTop: 4,
-  },
-  viewAllText: {
-    fontFamily: "Manrope-SemiBold",
-    fontSize: 15,
-    color: PRIMARY_COLOR,
   },
 });

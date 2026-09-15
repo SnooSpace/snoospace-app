@@ -473,10 +473,20 @@ const createOrder = async (req, res) => {
         }
 
         // Remove from bookmarks
+        const hadInterest = await client.query(
+          `SELECT 1 FROM event_interests WHERE event_id = $1 AND member_id = $2`,
+          [eventId, userId]
+        );
         await client.query(
           `DELETE FROM event_interests WHERE event_id = $1 AND member_id = $2`,
           [eventId, userId]
         );
+        if (hadInterest.rows.length > 0) {
+          await client.query(
+            `UPDATE events SET total_interested_converted_count = total_interested_converted_count + 1 WHERE id = $1`,
+            [eventId]
+          );
+        }
 
         await client.query('COMMIT');
 

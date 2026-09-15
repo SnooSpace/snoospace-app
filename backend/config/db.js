@@ -1377,6 +1377,12 @@ async function ensureTables(pool) {
       DO $$ BEGIN
         ALTER TABLE events ADD COLUMN IF NOT EXISTS share_count INT NOT NULL DEFAULT 0;
       EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE events ADD COLUMN IF NOT EXISTS total_interested_count INT NOT NULL DEFAULT 0;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE events ADD COLUMN IF NOT EXISTS total_interested_converted_count INT NOT NULL DEFAULT 0;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
       CREATE TABLE IF NOT EXISTS event_likes (
         id BIGSERIAL PRIMARY KEY,
         event_id BIGINT NOT NULL REFERENCES events(id) ON DELETE CASCADE,

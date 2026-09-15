@@ -286,14 +286,23 @@ async function adminGetAll(req, res) {
          c.name as community_name,
          c.username as community_username,
          c.logo_url as community_logo,
-         c.category as community_category
+         c.category as community_category,
+         c.community_type as community_type,
+         c.created_at as community_created_at,
+         col.name as college_name,
+         cam.campus_name as campus_name,
+         (SELECT COUNT(*)::int FROM follows
+          WHERE following_id = c.id AND following_type = 'community') as follower_count
        FROM community_verifications cv
        JOIN communities c ON c.id = cv.community_id
+       LEFT JOIN colleges col ON c.college_id = col.id
+       LEFT JOIN campuses cam ON c.campus_id = cam.id
        ${whereClause}
        ${orderClause}
        LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
       dataParams
     );
+
 
     const totalPages = Math.ceil(total / limit) || 1;
 
