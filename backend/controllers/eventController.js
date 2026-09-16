@@ -1041,6 +1041,7 @@ const getEventAttendees = async (req, res) => {
           WHERE us_gate.user_id = m.id AND us_gate.is_expired = false
         )
         AND jsonb_array_length(COALESCE(m.openers::jsonb, '[]'::jsonb)) >= 1
+        AND m.verification_tier IN ('selfie_verified', 'id_verified')
         -- Bidirectional block filter: hide blocked users from each other's feed
         AND NOT EXISTS (
           SELECT 1 FROM user_blocks ub

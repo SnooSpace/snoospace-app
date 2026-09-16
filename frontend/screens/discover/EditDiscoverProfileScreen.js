@@ -149,6 +149,9 @@ export default function EditDiscoverProfileScreen({ navigation }) {
   const [incompleteSaveModalVisible, setIncompleteSaveModalVisible] = useState(false);
   const [incompleteMissingMsg, setIncompleteMissingMsg] = useState("");
 
+  // Discover verification gate: null = loading, true = tier is selfie_verified/id_verified, false = not yet
+  const [discoverVerified, setDiscoverVerified] = useState(null);
+
   // Profile data
   const [name, setName] = useState("");
   const [nickname, setNickname] = useState("");
@@ -306,6 +309,11 @@ export default function EditDiscoverProfileScreen({ navigation }) {
         setSpotifyTopTracks(loadedState.spotifyTopTracks);
         setInterests(loadedState.interests);
         setInitialState(loadedState);
+
+        // Derive Discover verification eligibility from the already-fetched profile tier.
+        // The swipe-deck SQL gate uses: m.verification_tier IN ('selfie_verified', 'id_verified')
+        const tier = profile.verification_tier || 'none';
+        setDiscoverVerified(tier === 'selfie_verified' || tier === 'id_verified');
       }
     } catch (error) {
       console.error("Error loading profile:", error);
@@ -952,6 +960,31 @@ export default function EditDiscoverProfileScreen({ navigation }) {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
+        {/* ── Discover Verification Banner ──────────────────────────────── */}
+        {discoverVerified === false && (
+          <View style={styles.verifyBanner}>
+            <View style={styles.verifyBannerIconWrap}>
+              <Shield size={18} color="#1D4ED8" strokeWidth={2} />
+            </View>
+            <View style={styles.verifyBannerBody}>
+              <Text style={styles.verifyBannerTitle}>
+                Not visible in Discover yet
+              </Text>
+              <Text style={styles.verifyBannerDesc}>
+                Get Discover verified to appear in the swipe deck at events. Your profile won’t be shown to others until you do.
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.verifyBannerCta}
+              onPress={() => navigation.navigate('VerificationSubmit')}
+              activeOpacity={0.75}
+            >
+              <Text style={styles.verifyBannerCtaText}>Verify</Text>
+              <ChevronRight size={13} color="#2962FF" strokeWidth={2.5} />
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* SECTION 1: Photos (Edge-to-Edge Editorial) */}
         <Animated.View
           onLayout={(event) => {
@@ -2711,6 +2744,57 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium,
     fontSize: 13,
     color: CONSTANTS_COLORS.error,
+  },
+  // Discover verification status banner (shown when verification_tier is not selfie_verified/id_verified)
+  verifyBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EFF6FF",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 4,
+    padding: 12,
+    gap: 10,
+  },
+  verifyBannerIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: "#DBEAFE",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  verifyBannerBody: {
+    flex: 1,
+    gap: 3,
+  },
+  verifyBannerTitle: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 13,
+    color: "#1E3A5F",
+    lineHeight: 18,
+  },
+  verifyBannerDesc: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: "#3B6CB0",
+    lineHeight: 16,
+  },
+  verifyBannerCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 1,
+    paddingLeft: 4,
+    flexShrink: 0,
+  },
+  verifyBannerCtaText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 13,
+    color: CONSTANTS_COLORS.primaryBlue,
   },
   requiredBadge: {
     display: "none", // Removed "Required" badge visually if strict layout
