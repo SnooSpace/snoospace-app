@@ -10,6 +10,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { followCommunity } from '../../api/communities';
 import { getGradientForName, getInitials } from '../../utils/AvatarGenerator';
 import { COLORS } from '../../constants/theme';
+import VerifiedBadge from '../badges/VerifiedBadge';
 
 /**
  * SuggestedCommunityCard - Card for "Based on your Interests" section
@@ -67,7 +68,12 @@ export default function SuggestedCommunityCard({
       )}
 
       {/* Name */}
-      <Text style={styles.name} numberOfLines={1}>{community.name}</Text>
+      <View style={styles.nameRow}>
+        <Text style={styles.name} numberOfLines={1}>{community.name}</Text>
+        {!!(community.community_verification_tier && community.community_verification_tier !== 'none') && (
+          <VerifiedBadge tier={community.community_verification_tier} size={13} />
+        )}
+      </View>
 
       {/* Category */}
       <View style={styles.categoryPill}>
@@ -124,12 +130,20 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FFFFFF',
   },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    marginBottom: 4,
+    maxWidth: '100%',
+  },
   name: {
     fontSize: 14,
     fontWeight: '600',
     color: '#1D1D1F',
     textAlign: 'center',
-    marginBottom: 4,
+    flexShrink: 1,
   },
   categoryPill: {
     backgroundColor: `${COLORS.primary}15`,

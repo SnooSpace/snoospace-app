@@ -78,11 +78,12 @@ async function submitVerification(req, res) {
         eligibleCount = eligibleRes.rows[0]?.count || 0;
       }
 
-      if (eligibleCount < 2) {
+      if (eligibleCount < 1) {
         return res.status(400).json({
           error: 'insufficient_reference_photos',
+          message: 'At least 1 photo with your face clearly visible is required to get verified. Please update your Discover photos.',
           eligibleCount,
-          minimumRequired: 2,
+          minimumRequired: 1,
         });
       }
     }

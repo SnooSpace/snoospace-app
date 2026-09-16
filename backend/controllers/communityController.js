@@ -342,6 +342,7 @@ async function getProfile(req, res) {
       `SELECT id, name, email, phone, secondary_phone, category, categories, location, username, bio, logo_url, banner_url, sponsor_types, show_heads, created_at,
               community_type, college_id, college_subtype, club_type, community_theme, campus_id,
               follower_count, following_count, instagram_username,
+              community_verification_tier, verification_status,
               (SELECT COUNT(*) FROM community_member_circles WHERE community_id = $1)::int AS circle_count,
               (SELECT COUNT(*) FROM posts WHERE author_id = $1 AND author_type = 'community')::int
                + (SELECT COUNT(*) FROM opportunities WHERE creator_id = $1::text AND creator_type = 'community' AND status != 'closed')::int AS post_count,
@@ -797,6 +798,8 @@ async function searchCommunities(req, res) {
 
     if (isMemberSearcher) {
       query = `SELECT c.id, c.username, c.name, c.bio, c.logo_url, c.category, c.categories,
+                      c.community_verification_tier, c.verification_status,
+                      (c.community_verification_tier != 'none') AS is_verified,
                       (SELECT 1 FROM follows f
                          WHERE f.follower_id = $2 AND f.follower_type = 'member'
                            AND f.following_id = c.id AND f.following_type = 'community'
@@ -809,6 +812,8 @@ async function searchCommunities(req, res) {
       params = [likeParam, userId, limit, offset];
     } else {
       query = `SELECT c.id, c.username, c.name, c.bio, c.logo_url, c.category, c.categories,
+                      c.community_verification_tier, c.verification_status,
+                      (c.community_verification_tier != 'none') AS is_verified,
                       false AS is_following
                FROM communities c
                WHERE (LOWER(c.username) LIKE LOWER($1) OR LOWER(c.name) LIKE LOWER($1))
@@ -855,7 +860,8 @@ async function getPublicCommunity(req, res) {
 
     const communityR = await pool.query(
       `SELECT id, username, name, bio, logo_url, banner_url, category, categories, created_at, sponsor_types, location, show_heads,
-              community_type, college_id, college_subtype, club_type, campus_id, instagram_username
+              community_type, college_id, college_subtype, club_type, campus_id, instagram_username,
+              community_verification_tier, verification_status
        FROM communities
        WHERE id = $1`,
       [targetId],

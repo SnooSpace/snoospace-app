@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
-import { Clock, CircleCheck, CircleX } from 'lucide-react-native';
+import { Clock, CircleCheck, CircleX, ShieldCheck } from 'lucide-react-native';
 import { COLORS, FONTS, SHADOWS } from '../../constants/theme';
 
 function formatDate(dateStr) {
@@ -36,14 +36,38 @@ export default function VerificationStatusCard({
   }
 
   if (status === 'approved') {
+    const isDiscover = tierLabel.toLowerCase().includes('discover');
     return (
-      <View style={[styles.statusCard, styles.statusApproved]}>
-        <View style={styles.iconCircleApproved}>
-          <CircleCheck size={28} color="#2E7D32" strokeWidth={1.8} />
+      <View
+        style={[
+          styles.statusCard,
+          isDiscover ? styles.statusApprovedDiscover : styles.statusApproved,
+        ]}
+      >
+        <View
+          style={[
+            styles.iconCircleApproved,
+            isDiscover && styles.iconCircleApprovedDiscover,
+          ]}
+        >
+          {isDiscover ? (
+            <ShieldCheck size={28} color="#2962FF" strokeWidth={2} />
+          ) : (
+            <CircleCheck size={28} color="#2E7D32" strokeWidth={1.8} />
+          )}
         </View>
-        <Text style={[styles.statusTitle, { color: '#2E7D32' }]}>You're verified!</Text>
+        <Text
+          style={[
+            styles.statusTitle,
+            { color: isDiscover ? '#2962FF' : '#2E7D32' },
+          ]}
+        >
+          {isDiscover ? "You're Discover Verified!" : "You're verified!"}
+        </Text>
         <Text style={styles.statusBody}>
-          Your verified badge is now visible on your profile. You can host and join Open Plans.
+          {isDiscover
+            ? 'Your verified blue badge is now active on your profile and Discover swipe decks. You also have full access to host and join Open Plans.'
+            : 'Your verified badge is now visible on your profile. You can host and join Open Plans.'}
         </Text>
       </View>
     );
@@ -91,6 +115,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(46, 125, 50, 0.15)',
   },
+  statusApprovedDiscover: {
+    backgroundColor: 'rgba(41, 98, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(41, 98, 255, 0.22)',
+  },
   statusRejected: {
     backgroundColor: '#FFEBEE',
     borderWidth: 1,
@@ -113,6 +142,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,
+  },
+  iconCircleApprovedDiscover: {
+    backgroundColor: 'rgba(41, 98, 255, 0.12)',
   },
   iconCircleRejected: {
     width: 48,

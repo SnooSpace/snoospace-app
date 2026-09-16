@@ -49,6 +49,7 @@ import SuggestedCommunityCard from "../../components/cards/SuggestedCommunityCar
 import SnooLoader from "../../components/ui/SnooLoader";
 import CollegeChip from "../../components/ui/CollegeChip";
 import GradientSafeArea from "../../components/ui/GradientSafeArea";
+import VerifiedBadge from "../../components/badges/VerifiedBadge";
 
 // Helper to create rgba from hex
 const hexToRgba = (hex, alpha) => {
@@ -1200,6 +1201,13 @@ export default function SearchScreen({ navigation, route }) {
               <Text style={styles.name} numberOfLines={1}>
                 {displayName}
               </Text>
+              {!!((item.community_verification_tier && item.community_verification_tier !== "none") || (item.verification_tier && item.verification_tier !== "none")) && (
+                <VerifiedBadge
+                  tier={item.community_verification_tier || item.verification_tier}
+                  size={14}
+                  style={{ marginLeft: 2 }}
+                />
+              )}
               {isCreator && (
                 <View style={styles.creatorBadgeInline}>
                   <Text style={styles.creatorBadgeInlineText}>Creator</Text>
@@ -1289,7 +1297,15 @@ export default function SearchScreen({ navigation, route }) {
             </View>
           )}
           <View style={styles.meta}>
-            <Text style={styles.name} numberOfLines={1}>{displayName}</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+              <Text style={styles.name} numberOfLines={1}>{displayName}</Text>
+              {!!((item.community_verification_tier && item.community_verification_tier !== "none") || (item.verification_tier && item.verification_tier !== "none")) && (
+                <VerifiedBadge
+                  tier={item.community_verification_tier || item.verification_tier}
+                  size={13}
+                />
+              )}
+            </View>
             <Text style={styles.username} numberOfLines={1}>@{item.username}</Text>
           </View>
         </TouchableOpacity>

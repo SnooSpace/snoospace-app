@@ -20,6 +20,7 @@ import {
 } from 'lucide-react-native';
 import { COLORS, FONTS, SHADOWS, BORDER_RADIUS } from '../../../constants/theme';
 import { getAuthToken } from '../../../api/auth';
+import { apiGet } from '../../../api/client';
 import { getMyVerification } from '../../../api/plans';
 import { getSocket } from '../../../services/socketService';
 import EventBus from '../../../utils/EventBus';
@@ -75,16 +76,21 @@ export default function VerificationHubScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [plansVerification, setPlansVerification] = useState(null);
   const [discoverVerification, setDiscoverVerification] = useState(null);
+  const [memberProfile, setMemberProfile] = useState(null);
 
   const fetchVerifications = useCallback(async () => {
     try {
       const token = await getAuthToken();
-      const [plansRes, discoverRes] = await Promise.all([
+      const [plansRes, discoverRes, profileRes] = await Promise.all([
         getMyVerification(token, 'plans').catch(() => ({ verification: null })),
         getMyVerification(token, 'discover').catch(() => ({ verification: null })),
+        apiGet('/members/profile', 10000, token).catch(() => null),
       ]);
       setPlansVerification(plansRes.verification);
       setDiscoverVerification(discoverRes.verification);
+      if (profileRes) {
+        setMemberProfile(profileRes.profile || profileRes);
+      }
     } catch (err) {
       console.error('[VerificationHubScreen] error fetching verifications:', err);
     } finally {
@@ -134,11 +140,29 @@ export default function VerificationHubScreen({ navigation }) {
     fetchVerifications();
   }, [fetchVerifications]);
 
-  const plansStatus = plansVerification?.status || 'unverified';
-  const discoverStatus = discoverVerification?.status || 'unverified';
+  const isTier2Approved =
+    discoverVerification?.status === 'approved' ||
+    memberProfile?.verification_tier === 'selfie_verified' ||
+    memberProfile?.verification_tier === 'id_verified';
 
-  const plansStatusInfo = getStatusInfo(plansStatus);
-  const discoverStatusInfo = getStatusInfo(discoverStatus);
+  const isTier1Approved = plansVerification?.status === 'approved';
+
+  let effectivePlansStatus = plansVerification?.status || 'unverified';
+  let plansStatusInfo = getStatusInfo(effectivePlansStatus);
+
+  if (isTier2Approved && !isTier1Approved) {
+    effectivePlansStatus = 'approved';
+    plansStatusInfo = {
+      label: 'Included with Discover',
+      ctaText: 'Included with Discover',
+      color: '#2E7D32',
+      bgColor: 'rgba(46, 125, 50, 0.10)',
+      Icon: CircleCheck,
+    };
+  }
+
+  const effectiveDiscoverStatus = isTier2Approved ? 'approved' : (discoverVerification?.status || 'unverified');
+  const discoverStatusInfo = getStatusInfo(effectiveDiscoverStatus);
 
   return (
     <View style={styles.container}>
@@ -172,6 +196,19 @@ export default function VerificationHubScreen({ navigation }) {
             </Text>
           </View>
 
+          {/* Tier Hierarchy Callout */}
+          <View style={styles.hierarchyInfoCard}>
+            <View style={styles.hierarchyIconCircle}>
+              <ShieldCheck size={18} color="#2962FF" strokeWidth={2} />
+            </View>
+            <View style={styles.hierarchyTextWrap}>
+              <Text style={styles.hierarchyTitle}>Tier 2 includes Tier 1</Text>
+              <Text style={styles.hierarchyBody}>
+                Discover Verification automatically unlocks full Open Plans access. Getting Tier 2 verified means you don't need to complete Tier 1 separately.
+              </Text>
+            </View>
+          </View>
+
           {/* Tier 1: Plans Verification */}
           <SectionLabel title="Tier 1 • Open Plans" />
           <Card>
@@ -193,22 +230,29 @@ export default function VerificationHubScreen({ navigation }) {
             </View>
 
             <Text style={styles.cardDescription}>
-              Upload a face photo and a short live video. Unlocks hosting and joining Open Plans.
+              {isTier2Approved && !isTier1Approved
+                ? 'Open Plans hosting and joining access is fully unlocked via your active Discover Verification.'
+                : 'Upload a face photo and a short live video. Unlocks hosting and joining Open Plans.'}
             </Text>
 
             <TouchableOpacity
               style={[
                 styles.ctaButton,
                 { backgroundColor: COLORS.secondary },
-                plansStatus === 'approved' && styles.ctaButtonApproved,
+                effectivePlansStatus === 'approved' && styles.ctaButtonApproved,
               ]}
-              onPress={() => navigation.navigate('PlansVerification')}
-              activeOpacity={0.85}
+              onPress={() => {
+                if (effectivePlansStatus !== 'approved') {
+                  navigation.navigate('PlansVerification');
+                }
+              }}
+              activeOpacity={effectivePlansStatus === 'approved' ? 1 : 0.85}
+              disabled={effectivePlansStatus === 'approved'}
             >
-              <Text style={[styles.ctaButtonText, plansStatus === 'approved' && styles.ctaButtonTextApproved]}>
+              <Text style={[styles.ctaButtonText, effectivePlansStatus === 'approved' && styles.ctaButtonTextApproved]}>
                 {plansStatusInfo.ctaText}
               </Text>
-              {plansStatus !== 'approved' && (
+              {effectivePlansStatus !== 'approved' && (
                 <ChevronRight size={18} color="#FFFFFF" strokeWidth={2} />
               )}
             </TouchableOpacity>
@@ -242,15 +286,15 @@ export default function VerificationHubScreen({ navigation }) {
               style={[
                 styles.ctaButton,
                 { backgroundColor: COLORS.primary },
-                discoverStatus === 'approved' && styles.ctaButtonApproved,
+                effectiveDiscoverStatus === 'approved' && styles.ctaButtonApprovedDiscover,
               ]}
               onPress={() => navigation.navigate('VerificationSubmit')}
               activeOpacity={0.85}
             >
-              <Text style={[styles.ctaButtonText, discoverStatus === 'approved' && styles.ctaButtonTextApproved]}>
+              <Text style={[styles.ctaButtonText, effectiveDiscoverStatus === 'approved' && styles.ctaButtonTextApprovedDiscover]}>
                 {discoverStatusInfo.ctaText}
               </Text>
-              {discoverStatus !== 'approved' && (
+              {effectiveDiscoverStatus !== 'approved' && (
                 <ChevronRight size={18} color="#FFFFFF" strokeWidth={2} />
               )}
             </TouchableOpacity>
@@ -384,6 +428,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(46, 125, 50, 0.20)',
   },
+  ctaButtonApprovedDiscover: {
+    backgroundColor: 'rgba(41, 98, 255, 0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(41, 98, 255, 0.20)',
+  },
   ctaButtonText: {
     fontFamily: FONTS.semiBold,
     fontSize: 15,
@@ -391,5 +440,43 @@ const styles = StyleSheet.create({
   },
   ctaButtonTextApproved: {
     color: '#2E7D32',
+  },
+  ctaButtonTextApprovedDiscover: {
+    color: '#2962FF',
+  },
+  hierarchyInfoCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(41, 98, 255, 0.06)',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(41, 98, 255, 0.18)',
+    padding: 12,
+    marginBottom: 20,
+    gap: 12,
+  },
+  hierarchyIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(41, 98, 255, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  hierarchyTextWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  hierarchyTitle: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 13,
+    color: '#1E3A5F',
+  },
+  hierarchyBody: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: '#3B6CB0',
+    lineHeight: 17,
   },
 });

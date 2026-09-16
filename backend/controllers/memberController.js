@@ -1202,19 +1202,21 @@ async function patchProfile(req, res) {
 
               await pool.query(
                 `INSERT INTO photo_face_verifications (
-                  member_id, photo_url, face_eligible, face_confidence, face_embedding, checked_at
-                ) VALUES ($1, $2, $3, $4, $5, NOW())
+                  member_id, photo_url, face_eligible, face_confidence, face_embedding, rejection_reason, checked_at
+                ) VALUES ($1, $2, $3, $4, $5, $6, NOW())
                 ON CONFLICT (member_id, photo_url) DO UPDATE SET
-                  face_eligible   = EXCLUDED.face_eligible,
-                  face_confidence = EXCLUDED.face_confidence,
-                  face_embedding  = EXCLUDED.face_embedding,
-                  checked_at      = EXCLUDED.checked_at`,
+                  face_eligible    = EXCLUDED.face_eligible,
+                  face_confidence  = EXCLUDED.face_confidence,
+                  face_embedding   = EXCLUDED.face_embedding,
+                  rejection_reason = EXCLUDED.rejection_reason,
+                  checked_at       = EXCLUDED.checked_at`,
                 [
                   userId,
                   photoUrl,
                   result.faceEligible,
                   result.confidence,
                   embeddingStr,
+                  result.reason || null,
                 ]
               );
             }
@@ -2164,26 +2166,83 @@ async function getFaceEligibility(req, res) {
       return res.json({
         eligiblePhotoCount: 0,
         eligiblePhotoUrls: [],
-        minimumRequired: 2,
+        minimumRequired: 1,
+        photos: [],
       });
     }
 
     const verifResult = await pool.query(
-      `SELECT photo_url
+      `SELECT photo_url, face_eligible, face_confidence, rejection_reason
        FROM photo_face_verifications
        WHERE member_id = $1
-         AND photo_url = ANY($2::text[])
-         AND face_eligible = TRUE`,
+         AND photo_url = ANY($2::text[])`,
       [userId, validPhotoUrls]
     );
 
-    const eligibleSet = new Set(verifResult.rows.map((r) => r.photo_url));
-    const eligiblePhotoUrls = validPhotoUrls.filter((url) => eligibleSet.has(url));
+    const existingMap = new Map(verifResult.rows.map((r) => [r.photo_url, r]));
+
+    // Auto-analyze and tag any legacy photos that missed the background hook or lack rejection_reason
+    const { detectFace } = require("../services/faceDetectionService");
+    for (const url of validPhotoUrls) {
+      const existing = existingMap.get(url);
+      if (!existing || (!existing.face_eligible && !existing.rejection_reason)) {
+        try {
+          const det = await detectFace(url);
+          const embStr = det.embedding ? JSON.stringify(det.embedding) : null;
+          await pool.query(
+            `INSERT INTO photo_face_verifications (
+              member_id, photo_url, face_eligible, face_confidence, face_embedding, rejection_reason, checked_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, NOW())
+            ON CONFLICT (member_id, photo_url) DO UPDATE SET
+              face_eligible    = EXCLUDED.face_eligible,
+              face_confidence  = EXCLUDED.face_confidence,
+              face_embedding   = EXCLUDED.face_embedding,
+              rejection_reason = EXCLUDED.rejection_reason,
+              checked_at       = EXCLUDED.checked_at`,
+            [userId, url, det.faceEligible, det.confidence, embStr, det.reason || null]
+          );
+          existingMap.set(url, {
+            photo_url: url,
+            face_eligible: det.faceEligible,
+            face_confidence: det.confidence,
+            rejection_reason: det.reason || null,
+          });
+        } catch (autoErr) {
+          console.warn("[getFaceEligibility] Auto-tagging error for url:", autoErr.message);
+        }
+      }
+    }
+
+    const photos = validPhotoUrls.map((url) => {
+      const record = existingMap.get(url);
+      const isEligible = record ? Boolean(record.face_eligible) : false;
+      const reason = record ? (record.rejection_reason || (isEligible ? null : 'pending')) : 'pending';
+
+      let label = 'Face verified';
+      if (!isEligible) {
+        if (reason === 'multiple_faces') label = 'Multiple faces detected';
+        else if (reason === 'no_face') label = 'No face detected';
+        else if (reason === 'face_too_small') label = 'Face too far';
+        else if (reason === 'low_confidence') label = 'Face unclear';
+        else label = 'Not verified';
+      }
+
+      return {
+        url,
+        isEligible,
+        reason,
+        label,
+        confidence: record?.face_confidence != null ? Number(record.face_confidence) : null,
+      };
+    });
+
+    const eligiblePhotoUrls = photos.filter((p) => p.isEligible).map((p) => p.url);
 
     return res.json({
       eligiblePhotoCount: eligiblePhotoUrls.length,
       eligiblePhotoUrls,
-      minimumRequired: 2,
+      minimumRequired: 1,
+      photos,
     });
   } catch (err) {
     console.error("[getFaceEligibility] Error:", err && err.stack ? err.stack : err);

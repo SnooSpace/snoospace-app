@@ -1153,11 +1153,13 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
                     {collegeInfo.campus_name && (
                       <Text style={styles.collegeLinkedSub}>{collegeInfo.campus_name} • {collegeInfo.campus_city}</Text>
                     )}
-                    <View style={[styles.statusBadge, collegeInfo.college_status === 'approved' ? styles.statusApproved : styles.statusPending]}>
-                      <Text style={[styles.statusText, collegeInfo.college_status === 'approved' ? styles.statusTextApproved : styles.statusTextPending]}>
-                        {collegeInfo.college_status === 'approved' ? '✓ Verified' : '⏳ Pending verification'}
-                      </Text>
-                    </View>
+                    {collegeInfo.college_status === 'pending' && (
+                      <View style={[styles.statusBadge, styles.statusPending]}>
+                        <Text style={[styles.statusText, styles.statusTextPending]}>
+                          ⏳ Pending college approval
+                        </Text>
+                      </View>
+                    )}
                   </View>
                   <TouchableOpacity
                     onPress={() => setShowCollegeSearch(true)}

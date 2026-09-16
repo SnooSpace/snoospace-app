@@ -1,37 +1,73 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, Alert,
-  ActivityIndicator, ScrollView, Platform,
+  View, Text, TouchableOpacity, StyleSheet, Image,
+  ScrollView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { ArrowLeft, ShieldCheck, Video } from 'lucide-react-native';
+import { ArrowLeft, ShieldCheck, Video, Camera, ShieldAlert, Check, Users, AlertCircle } from 'lucide-react-native';
 import { COLORS, FONTS, SHADOWS } from '../../constants/theme';
 import { getAuthToken } from '../../api/auth';
-import { getMyVerification, submitVerification } from '../../api/plans';
+import { apiGet } from '../../api/client';
+import { getMyVerification, submitVerification, getFaceEligibility } from '../../api/plans';
 import { getSocket } from '../../services/socketService';
 import EventBus from '../../utils/EventBus';
 import VerificationStatusCard from '../../components/verification/VerificationStatusCard';
 import AnimatedVerificationButton from '../../components/verification/AnimatedVerificationButton';
+import CustomAlertModal from '../../components/ui/CustomAlertModal';
 import SnooLoader from '../../components/ui/SnooLoader';
 
 export default function VerificationSubmitScreen({ navigation }) {
   const [verification, setVerification] = useState(null);
+  const [memberProfile, setMemberProfile] = useState(null);
+  const [faceEligibility, setFaceEligibility] = useState(null);
   const [loading, setLoading] = useState(true);
   const [videoUri, setVideoUri] = useState(null);
   const [videoName, setVideoName] = useState(null);
   const [livenessMeta, setLivenessMeta] = useState(null);
   const [buttonStatus, setButtonStatus] = useState('idle'); // 'idle' | 'submitting' | 'success' | 'review' | 'failed'
   const [resubmit, setResubmit] = useState(false);
+  const [alertModal, setAlertModal] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    icon: null,
+    iconColor: '#FF3B30',
+    primaryAction: null,
+    secondaryAction: null,
+  });
   const pendingVerificationRef = useRef(null);
   const debounceRef = useRef(null);
+
+  const navigateToEditPhotos = useCallback(() => {
+    try {
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        navigation.navigate('DiscoverTab', { screen: 'EditDiscoverProfile' });
+      }
+    } catch {
+      navigation.navigate('EditDiscoverProfile');
+    }
+  }, [navigation]);
 
   const loadVerification = useCallback(async () => {
     try {
       setLoading(true);
       const token = await getAuthToken();
-      const data = await getMyVerification(token, 'discover');
-      setVerification(data.verification);
+      const [vData, fData, pData] = await Promise.all([
+        getMyVerification(token, 'discover').catch(() => ({ verification: null })),
+        getFaceEligibility(token).catch(() => null),
+        apiGet('/members/profile', 10000, token).catch(() => null),
+      ]);
+      setVerification(vData?.verification || null);
+      if (fData) {
+        setFaceEligibility(fData);
+      }
+      if (pData) {
+        const profile = pData.profile || pData;
+        setMemberProfile(profile);
+      }
     } catch (err) {
       console.error('[VerificationSubmitScreen]', err.message);
     } finally {
@@ -72,7 +108,7 @@ export default function VerificationSubmitScreen({ navigation }) {
     };
   }, [loadVerification]);
 
-  const handleRecordVideo = () => {
+  const proceedToRecorder = () => {
     navigation.navigate('VerificationRecorder', {
       scope: 'discover',
       onVideoRecorded: (uri, scope, meta) => {
@@ -84,6 +120,38 @@ export default function VerificationSubmitScreen({ navigation }) {
         }
       },
     });
+  };
+
+  const handleRecordVideo = () => {
+    if (faceEligibility && typeof faceEligibility.eligiblePhotoCount === 'number' && faceEligibility.eligiblePhotoCount < 1) {
+      const photoBulletPoints = (faceEligibility.photos || [])
+        .map((p, idx) => `• Photo ${idx + 1}: ${p.label}`)
+        .join('\n');
+
+      setAlertModal({
+        visible: true,
+        title: 'Face Photo Required',
+        message: `None of your Discover photos have a verified face:\n\n${photoBulletPoints}\n\nYou need at least 1 photo with your face clearly visible to get verified.`,
+        icon: Camera,
+        iconColor: COLORS.primary,
+        primaryAction: {
+          text: 'Edit Photos',
+          onPress: () => {
+            setAlertModal((prev) => ({ ...prev, visible: false }));
+            navigateToEditPhotos();
+          },
+        },
+        secondaryAction: {
+          text: 'Record Anyway',
+          onPress: () => {
+            setAlertModal((prev) => ({ ...prev, visible: false }));
+            proceedToRecorder();
+          },
+        },
+      });
+      return;
+    }
+    proceedToRecorder();
   };
 
   const handleSubmit = async () => {
@@ -105,7 +173,51 @@ export default function VerificationSubmitScreen({ navigation }) {
       }
     } catch (err) {
       setButtonStatus('failed');
-      Alert.alert('Upload failed', err.message || 'Please try again');
+      const isPhotosError =
+        err.code === 'insufficient_reference_photos' ||
+        err.message?.toLowerCase().includes('insufficient_reference_photos') ||
+        err.message?.toLowerCase().includes('photo') ||
+        err.message?.toLowerCase().includes('face');
+
+      if (isPhotosError) {
+        const photoBulletPoints = (faceEligibility?.photos || [])
+          .map((p, idx) => `• Photo ${idx + 1}: ${p.label}`)
+          .join('\n');
+
+        const detailsText = photoBulletPoints ? `\n\n${photoBulletPoints}` : '';
+
+        setAlertModal({
+          visible: true,
+          title: 'Face Photo Required',
+          message:
+            `You must have at least 1 photo with your face clearly visible in your Discover profile to get verified.${detailsText}\n\nPlease add a clear photo of yourself and try again.`,
+          icon: Camera,
+          iconColor: COLORS.primary,
+          primaryAction: {
+            text: 'Edit Photos',
+            onPress: () => {
+              setAlertModal((prev) => ({ ...prev, visible: false }));
+              navigateToEditPhotos();
+            },
+          },
+          secondaryAction: {
+            text: 'OK',
+            onPress: () => setAlertModal((prev) => ({ ...prev, visible: false })),
+          },
+        });
+      } else {
+        setAlertModal({
+          visible: true,
+          title: 'Upload Failed',
+          message: err.message || 'Please try again',
+          icon: ShieldAlert,
+          iconColor: '#FF3B30',
+          primaryAction: {
+            text: 'OK',
+            onPress: () => setAlertModal((prev) => ({ ...prev, visible: false })),
+          },
+        });
+      }
     }
   };
 
@@ -121,7 +233,13 @@ export default function VerificationSubmitScreen({ navigation }) {
     setButtonStatus('idle');
   };
 
-  const showUploadForm = !verification || resubmit;
+  const isAlreadyDiscoverVerified =
+    verification?.status === 'approved' ||
+    memberProfile?.verification_tier === 'selfie_verified' ||
+    memberProfile?.verification_tier === 'id_verified';
+
+  const showUploadForm = (!verification && !isAlreadyDiscoverVerified) || resubmit;
+  const effectiveStatus = isAlreadyDiscoverVerified ? 'approved' : verification?.status;
 
   return (
     <View style={styles.container}>
@@ -144,7 +262,7 @@ export default function VerificationSubmitScreen({ navigation }) {
           {/* Status cards */}
           {!showUploadForm && (
             <VerificationStatusCard
-              status={verification?.status}
+              status={effectiveStatus}
               submittedAt={verification?.submitted_at}
               rejectionReason={verification?.rejection_reason}
               tierLabel="Discover"
@@ -162,14 +280,120 @@ export default function VerificationSubmitScreen({ navigation }) {
                 </View>
                 <Text style={styles.explanationTitle}>Verified badge</Text>
                 <Text style={styles.explanationBody}>
-                  Record a quick 12-second selfie video showing your face. We match your video against your Discover photos to confirm your identity. Verified users get a blue badge on their profile and can host and join Open Plans.
+                  Record a quick 8-second selfie video showing your face. We match your video against your Discover photos to confirm your identity. Verified users get a blue badge on their profile and can host and join Open Plans.
                 </Text>
+
+                {/* Face photo requirement callout */}
+                <View style={styles.requirementCard}>
+                  <View style={styles.requirementIconCircle}>
+                    <Camera size={18} color={COLORS.primary} strokeWidth={2} />
+                  </View>
+                  <View style={styles.requirementTextWrap}>
+                    <Text style={styles.requirementTitle}>1 Face Photo Required</Text>
+                    <Text style={styles.requirementBody}>
+                      Make sure at least 1 of your Discover photos clearly shows your face before verifying.
+                    </Text>
+                  </View>
+                </View>
+
                 <View style={styles.guidanceBox}>
-                  <Text style={styles.guidanceItem}>• Good lighting, face clearly visible</Text>
+                  <Text style={styles.guidanceItem}>• At least 1 Discover photo with your face clearly visible</Text>
+                  <Text style={styles.guidanceItem}>• Good lighting, face clearly visible in video</Text>
                   <Text style={styles.guidanceItem}>• No sunglasses or hats</Text>
                   <Text style={styles.guidanceItem}>• Just you in the frame — look directly at camera</Text>
                 </View>
               </View>
+
+              {/* Photo Face Verification Status Card */}
+              {faceEligibility?.photos && faceEligibility.photos.length > 0 && (
+                <View style={styles.photoStatusCard}>
+                  <View style={styles.photoStatusHeader}>
+                    <View style={styles.photoStatusTitleRow}>
+                      <Text style={styles.photoStatusTitle}>Discover Photos</Text>
+                      <View
+                        style={[
+                          styles.eligibleCountBadge,
+                          faceEligibility.eligiblePhotoCount >= 1
+                            ? styles.eligibleCountBadgeSuccess
+                            : styles.eligibleCountBadgeWarning,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.eligibleCountBadgeText,
+                            faceEligibility.eligiblePhotoCount >= 1
+                              ? styles.eligibleCountBadgeTextSuccess
+                              : styles.eligibleCountBadgeTextWarning,
+                          ]}
+                        >
+                          {faceEligibility.eligiblePhotoCount >= 1
+                            ? `${faceEligibility.eligiblePhotoCount} Photo Ready`
+                            : '0 Eligible'}
+                        </Text>
+                      </View>
+                    </View>
+                    <TouchableOpacity onPress={navigateToEditPhotos} hitSlop={10}>
+                      <Text style={styles.photoStatusEditLink}>Edit Photos</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.photoThumbList}
+                  >
+                    {faceEligibility.photos.map((item, idx) => {
+                       const isEligible = item.isEligible;
+                      return (
+                        <View key={item.url || idx} style={styles.photoThumbContainer}>
+                          <Image
+                            source={{ uri: item.url }}
+                            style={[
+                              styles.photoThumb,
+                              isEligible ? styles.photoThumbEligible : styles.photoThumbIneligible,
+                            ]}
+                          />
+                          <View
+                            style={[
+                              styles.photoBadge,
+                              isEligible ? styles.photoBadgeEligible : styles.photoBadgeIneligible,
+                            ]}
+                          >
+                            {isEligible ? (
+                              <Check size={10} color="#FFFFFF" strokeWidth={3} />
+                            ) : item.reason === 'multiple_faces' ? (
+                              <Users size={10} color="#FFFFFF" strokeWidth={2.5} />
+                            ) : (
+                              <AlertCircle size={10} color="#FFFFFF" strokeWidth={2.5} />
+                            )}
+                            <Text style={styles.photoBadgeText}>
+                              {isEligible
+                                ? 'Face Ready'
+                                : item.reason === 'multiple_faces'
+                                ? '2+ Faces'
+                                : item.reason === 'face_too_small'
+                                ? 'Too Far'
+                                : item.reason === 'low_confidence'
+                                ? 'Unclear'
+                                : 'No Face'}
+                            </Text>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </ScrollView>
+
+                  {faceEligibility.eligiblePhotoCount < 1 ? (
+                    <Text style={styles.photoStatusHintWarning}>
+                      None of your photos clearly show only your face. Tap "Edit Photos" to upload a clear face photo.
+                    </Text>
+                  ) : (
+                    <Text style={styles.photoStatusHintSuccess}>
+                      ✓ At least 1 photo with your face is ready. We will match this against your selfie video.
+                    </Text>
+                  )}
+                </View>
+              )}
 
               {/* Video recorder button */}
               <TouchableOpacity
@@ -208,6 +432,18 @@ export default function VerificationSubmitScreen({ navigation }) {
           )}
         </ScrollView>
       )}
+
+      {/* Alert Modal */}
+      <CustomAlertModal
+        visible={alertModal.visible}
+        title={alertModal.title}
+        message={alertModal.message}
+        icon={alertModal.icon}
+        iconColor={alertModal.iconColor}
+        onClose={() => setAlertModal((prev) => ({ ...prev, visible: false }))}
+        primaryAction={alertModal.primaryAction}
+        secondaryAction={alertModal.secondaryAction}
+      />
     </View>
   );
 }
@@ -252,6 +488,40 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.regular, fontSize: 14, color: COLORS.textSecondary,
     textAlign: 'center', lineHeight: 21,
   },
+  requirementCard: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#EEF2FF',
+    borderWidth: 1,
+    borderColor: '#E0E7FF',
+    borderRadius: 14,
+    padding: 12,
+  },
+  requirementIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  requirementTextWrap: {
+    flex: 1,
+  },
+  requirementTitle: {
+    fontFamily: FONTS.primary,
+    fontSize: 13,
+    color: COLORS.textPrimary,
+    marginBottom: 2,
+  },
+  requirementBody: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    lineHeight: 16,
+  },
   guidanceBox: {
     width: '100%',
     paddingTop: 12,
@@ -265,6 +535,115 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.textSecondary,
     lineHeight: 18,
+  },
+
+  photoStatusCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 18,
+    padding: 18,
+    marginBottom: 20,
+    ...SHADOWS.md,
+    shadowOpacity: 0.04,
+  },
+  photoStatusHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  photoStatusTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  photoStatusTitle: {
+    fontFamily: FONTS.primary,
+    fontSize: 16,
+    color: COLORS.textPrimary,
+  },
+  eligibleCountBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  eligibleCountBadgeSuccess: {
+    backgroundColor: '#E8F5E9',
+  },
+  eligibleCountBadgeWarning: {
+    backgroundColor: '#FFF3E0',
+  },
+  eligibleCountBadgeText: {
+    fontFamily: FONTS.medium,
+    fontSize: 11,
+  },
+  eligibleCountBadgeTextSuccess: {
+    color: '#2E7D32',
+  },
+  eligibleCountBadgeTextWarning: {
+    color: '#D97706',
+  },
+  photoStatusEditLink: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 13,
+    color: COLORS.primary,
+  },
+  photoThumbList: {
+    gap: 12,
+    paddingBottom: 4,
+  },
+  photoThumbContainer: {
+    alignItems: 'center',
+    width: 88,
+  },
+  photoThumb: {
+    width: 88,
+    height: 110,
+    borderRadius: 12,
+    backgroundColor: '#F3F4F6',
+  },
+  photoThumbEligible: {
+    borderWidth: 2,
+    borderColor: '#34C759',
+  },
+  photoThumbIneligible: {
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    opacity: 0.85,
+  },
+  photoBadge: {
+    position: 'absolute',
+    bottom: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  photoBadgeEligible: {
+    backgroundColor: '#2E7D32',
+  },
+  photoBadgeIneligible: {
+    backgroundColor: 'rgba(30, 41, 59, 0.85)',
+  },
+  photoBadgeText: {
+    fontFamily: FONTS.medium,
+    fontSize: 10,
+    color: '#FFFFFF',
+  },
+  photoStatusHintSuccess: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: '#2E7D32',
+    marginTop: 12,
+    lineHeight: 17,
+  },
+  photoStatusHintWarning: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: '#D97706',
+    marginTop: 12,
+    lineHeight: 17,
   },
 
   videoPicker: {

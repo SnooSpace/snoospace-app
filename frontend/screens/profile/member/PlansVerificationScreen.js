@@ -304,7 +304,7 @@ export default function PlansVerificationScreen({ navigation }) {
                     <Text style={[styles.stepTitle, !referencePhotoUrl && { color: COLORS.textMuted }]}>
                       Verification Video
                     </Text>
-                    <Text style={styles.stepSublabel}>12-second selfie liveness check</Text>
+                    <Text style={styles.stepSublabel}>8-second selfie liveness check</Text>
                   </View>
                 </View>
 

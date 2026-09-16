@@ -32,6 +32,7 @@ import Svg, { Path, Circle, Rect, G, Defs, LinearGradient as SvgLinearGradient, 
 import { SpotifyArtistsCard } from "../../components/profile/SpotifyArtistsCard";
 import ContentActionsSheet from "../../components/modals/ContentActionsSheet";
 import SwipeableModal from "../../components/modals/SwipeableModal";
+import VerifiedBadge from "../../components/badges/VerifiedBadge";
 
 const { width } = Dimensions.get("window");
 const CARD_RADIUS = 24;
@@ -835,6 +836,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
               age={age}
               gender={gender}
               pronouns={pronouns}
+              verificationTier={currentAttendee?.verification_tier || 'selfie_verified'}
               onCommentPress={() => handleOpenCommentModal({ type: "photo", url: photos[0].url })}
               memberId={currentAttendee?.id}
               memberName={name}
@@ -1453,7 +1455,7 @@ const PromptCard = React.memo(({ item, onCommentPress, memberId, memberName }) =
   </ContentCard>
 ));
 
-const PhotoCard = React.memo(({ url, isHero, name, age, gender, pronouns, shared_communities, onCommunitiesPress, onCommentPress, memberId, memberName }) => (
+const PhotoCard = React.memo(({ url, isHero, name, age, gender, pronouns, shared_communities, onCommunitiesPress, onCommentPress, memberId, memberName, verificationTier }) => (
   <ContentCard
     onPress={onCommentPress}
     style={styles.photoCardContainer}
@@ -1473,9 +1475,15 @@ const PhotoCard = React.memo(({ url, isHero, name, age, gender, pronouns, shared
     />
     {isHero ? (
       <View style={styles.heroOverlayContent}>
-        <Text style={styles.heroNameText} numberOfLines={1}>
-          {name}
-        </Text>
+        <View style={styles.heroNameRow}>
+          <Text style={styles.heroNameText} numberOfLines={1}>
+            {name}
+          </Text>
+          <VerifiedBadge
+            tier={verificationTier || 'selfie_verified'}
+            size={22}
+          />
+        </View>
         <View style={styles.heroVitalsRow}>
           {!!age && (
             <View style={styles.heroAgeChip}>
@@ -2054,6 +2062,11 @@ const styles = StyleSheet.create({
     bottom: 24,
     left: 20,
     right: 70, // Maintain spacing for actionIconBubble
+  },
+  heroNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   heroNameText: {
     fontFamily: FONTS.black, // BasicCommercial-Black

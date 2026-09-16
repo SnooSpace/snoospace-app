@@ -518,6 +518,8 @@ const getCommunityEvents = async (req, res) => {
         c.name AS community_name,
         c.username AS community_username,
         c.logo_url AS community_logo,
+        c.community_verification_tier,
+        (c.community_verification_tier != 'none') AS community_is_verified,
         COALESCE(COUNT(DISTINCT er.member_id) FILTER (WHERE er.registration_status = 'registered'), 0) AS current_attendees,
         (SELECT COUNT(*) FROM event_registrations er3 WHERE er3.event_id = e.id AND er3.registration_status IN ('registered', 'attended', 'confirmed')) AS attendee_count,
         (
@@ -784,6 +786,8 @@ const getMyEvents = async (req, res) => {
         c.name AS community_name,
         c.username AS community_username,
         c.logo_url AS community_logo,
+        c.community_verification_tier,
+        (c.community_verification_tier != 'none') AS community_is_verified,
         -- Venue
         v.name AS venue_name,
         -- Registration
@@ -985,6 +989,8 @@ const getEventAttendees = async (req, res) => {
         m.spotify_connected,
         m.spotify_top_artists,
         m.spotify_top_tracks,
+        m.is_verified,
+        m.verification_tier,
         -- Fetch shared communities via subquery
         COALESCE((
           SELECT json_agg(json_build_object(
@@ -1049,7 +1055,7 @@ const getEventAttendees = async (req, res) => {
              OR (ub.blocker_id = m.id AND ub.blocked_id = $2)
         )
         ${filterClause}
-      GROUP BY m.id, m.name, m.nickname, m.dob, m.gender, m.bio, m.interests, m.profile_photo_url, m.username, m.pronouns, m.show_pronouns, m.discover_photos, m.openers
+      GROUP BY m.id, m.name, m.nickname, m.dob, m.gender, m.bio, m.interests, m.profile_photo_url, m.username, m.pronouns, m.show_pronouns, m.discover_photos, m.openers, m.is_verified, m.verification_tier
       ORDER BY m.name
     `;
 
@@ -1551,6 +1557,7 @@ const discoverEvents = async (req, res) => {
           c.name as community_name,
           c.username as community_username,
           c.logo_url as community_logo,
+          c.community_verification_tier,
           c.category as community_category,
           COALESCE(
             (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status = 'registered'),
@@ -1792,6 +1799,7 @@ const searchEvents = async (req, res) => {
         c.name as community_name,
         c.username as community_username,
         c.logo_url as community_logo,
+        c.community_verification_tier,
         c.category as community_category,
         COALESCE(
           (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status = 'registered'),
@@ -2687,6 +2695,8 @@ const getEventById = async (req, res) => {
         c.name as community_name,
         c.logo_url as community_logo,
         c.id as community_id,
+        c.community_verification_tier,
+        (c.community_verification_tier != 'none') as community_is_verified,
         COALESCE(COUNT(DISTINCT er.member_id) FILTER (WHERE er.registration_status IN ('registered', 'attended', 'confirmed')), 0) as attendee_count,
         (SELECT COUNT(*) FROM events WHERE creator_id = e.creator_id) as community_events_count
       FROM events e
@@ -3591,6 +3601,7 @@ const getInterestedEvents = async (req, res) => {
         c.name AS community_name,
         c.username AS community_username,
         c.logo_url AS community_logo,
+        c.community_verification_tier,
         ei.created_at AS interested_at,
         -- Engagement counts
         COALESCE(e.like_count, 0)    AS like_count,
@@ -5816,6 +5827,7 @@ const getCommunityPublicEvents = async (req, res) => {
         c.name AS community_name,
         c.username AS community_username,
         c.logo_url AS community_logo,
+        c.community_verification_tier,
         (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status IN ('registered', 'attended', 'confirmed')) AS current_attendees,
         (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status IN ('registered', 'attended', 'confirmed')) AS attendee_count,
         (

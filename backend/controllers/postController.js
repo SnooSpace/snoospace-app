@@ -709,10 +709,12 @@ const getFeed = async (req, res) => {
         END as author_is_creator,
         CASE 
           WHEN p.author_type = 'member' THEN COALESCE(m.is_verified, false)
+          WHEN p.author_type = 'community' THEN COALESCE(c.community_verification_tier != 'none', false)
           ELSE false
         END as is_verified,
         CASE 
           WHEN p.author_type = 'member' THEN COALESCE(m.verification_tier, 'none')
+          WHEN p.author_type = 'community' THEN COALESCE(c.community_verification_tier, 'none')
           ELSE 'none'
         END as verification_tier,
         CASE 
@@ -1347,10 +1349,12 @@ const getExplore = async (req, res) => {
         END as author_is_creator,
         CASE 
           WHEN p.author_type = 'member' THEN COALESCE(m.is_verified, false)
+          WHEN p.author_type = 'community' THEN COALESCE(c.community_verification_tier != 'none', false)
           ELSE false
         END as is_verified,
         CASE 
           WHEN p.author_type = 'member' THEN COALESCE(m.verification_tier, 'none')
+          WHEN p.author_type = 'community' THEN COALESCE(c.community_verification_tier, 'none')
           ELSE 'none'
         END as verification_tier,
         CASE 
@@ -1846,10 +1850,12 @@ const getPost = async (req, res) => {
         END as author_is_creator,
         CASE 
           WHEN p.author_type = 'member' THEN COALESCE(m.is_verified, false)
+          WHEN p.author_type = 'community' THEN COALESCE(c.community_verification_tier != 'none', false)
           ELSE false
         END as is_verified,
         CASE 
           WHEN p.author_type = 'member' THEN COALESCE(m.verification_tier, 'none')
+          WHEN p.author_type = 'community' THEN COALESCE(c.community_verification_tier, 'none')
           ELSE 'none'
         END as verification_tier,
         CASE WHEN $2::int IS NOT NULL AND $3::text IS NOT NULL THEN EXISTS (
@@ -2124,10 +2130,12 @@ const getUserPosts = async (req, res) => {
         END as author_is_creator,
         CASE 
           WHEN p.author_type = 'member' THEN COALESCE(m.is_verified, false)
+          WHEN p.author_type = 'community' THEN COALESCE(c.community_verification_tier != 'none', false)
           ELSE false
         END as is_verified,
         CASE 
           WHEN p.author_type = 'member' THEN COALESCE(m.verification_tier, 'none')
+          WHEN p.author_type = 'community' THEN COALESCE(c.community_verification_tier, 'none')
           ELSE 'none'
         END as verification_tier,
         CASE 
@@ -3429,10 +3437,12 @@ const getDiscoveryPosts = async (req, res) => {
         END AS author_is_creator,
         CASE 
           WHEN p.author_type = 'member' THEN COALESCE(m.is_verified, false)
+          WHEN p.author_type = 'community' THEN COALESCE(c.community_verification_tier != 'none', false)
           ELSE false
         END as is_verified,
         CASE 
           WHEN p.author_type = 'member' THEN COALESCE(m.verification_tier, 'none')
+          WHEN p.author_type = 'community' THEN COALESCE(c.community_verification_tier, 'none')
           ELSE 'none'
         END as verification_tier,
         -- Viewer interaction states
@@ -3868,10 +3878,12 @@ const getPromoTargeted = async (req, res) => {
         END AS author_photo_url,
         CASE 
           WHEN p.author_type = 'member' THEN COALESCE(m.is_verified, false)
+          WHEN p.author_type = 'community' THEN COALESCE(c.community_verification_tier != 'none', false)
           ELSE false
         END as is_verified,
         CASE 
           WHEN p.author_type = 'member' THEN COALESCE(m.verification_tier, 'none')
+          WHEN p.author_type = 'community' THEN COALESCE(c.community_verification_tier, 'none')
           ELSE 'none'
         END as verification_tier,
         false AS is_backlog_post,

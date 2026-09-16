@@ -129,6 +129,8 @@ async function globalSearch(req, res) {
       // Member searching for communities - no self-exclusion needed (different tables)
       communitiesQuery = `SELECT c.id, c.username, c.name, c.bio, c.logo_url, c.category, c.categories,
                                 c.community_type, c.campus_id, c.college_subtype, c.club_type,
+                                c.community_verification_tier, c.verification_status,
+                                (c.community_verification_tier != 'none') AS is_verified,
                                 (SELECT 1 FROM follows f
                                    WHERE f.follower_id = $2 AND f.follower_type = 'member'
                                      AND f.following_id = c.id AND f.following_type = 'community'
@@ -141,6 +143,8 @@ async function globalSearch(req, res) {
     } else if (isCommunitySearcher) {
       communitiesQuery = `SELECT c.id, c.username, c.name, c.bio, c.logo_url, c.category, c.categories,
                                 c.community_type, c.campus_id, c.college_subtype, c.club_type,
+                                c.community_verification_tier, c.verification_status,
+                                (c.community_verification_tier != 'none') AS is_verified,
                                 (SELECT 1 FROM follows f
                                    WHERE f.follower_id = $2 AND f.follower_type = 'community'
                                      AND f.following_id = c.id AND f.following_type = 'community'
@@ -154,6 +158,8 @@ async function globalSearch(req, res) {
     } else {
       communitiesQuery = `SELECT c.id, c.username, c.name, c.bio, c.logo_url, c.category, c.categories,
                                 c.community_type, c.campus_id, c.college_subtype, c.club_type,
+                                c.community_verification_tier, c.verification_status,
+                                (c.community_verification_tier != 'none') AS is_verified,
                                 false AS is_following
                          FROM communities c
                          WHERE (LOWER(COALESCE(c.username, '')) LIKE LOWER($1) OR LOWER(c.name) LIKE LOWER($1))
@@ -267,6 +273,9 @@ async function globalSearch(req, res) {
       campus_id: row.campus_id || null,
       college_subtype: row.college_subtype || null,
       club_type: row.club_type || null,
+      community_verification_tier: row.community_verification_tier || 'none',
+      verification_status: row.verification_status || 'not_requested',
+      is_verified: row.community_verification_tier ? row.community_verification_tier !== 'none' : false,
       college_info: null, // populated below
       type: "community",
     }));
@@ -612,6 +621,9 @@ async function unifiedSearch(req, res) {
           c.logo_url as logo_url,
           c.bio,
           c.category,
+          c.community_verification_tier,
+          c.verification_status,
+          (c.community_verification_tier != 'none') as is_verified,
           'community' as type,
           EXISTS(
             SELECT 1 FROM follows f

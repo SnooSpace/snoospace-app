@@ -17,6 +17,7 @@ import {
 } from "../../constants/theme";
 import HapticsService from "../../services/HapticsService";
 import ImageUploader from "../../components/media/ImageUploader";
+import VerifiedBadge from "../../components/badges/VerifiedBadge";
 import {
   Lock,
   Plus,
@@ -344,16 +345,45 @@ export default function EditDiscoverProfileScreen({ navigation }) {
         if (Array.isArray(res.top_artists)) {
           setSpotifyTopArtists(res.top_artists);
         }
+        // Keep initialState in sync so background Spotify queries don't trigger false dirty state
+        setInitialState((prev) =>
+          prev
+            ? {
+                ...prev,
+                spotifyConnected: res.connected,
+                spotifyTopArtists: Array.isArray(res.top_artists)
+                  ? res.top_artists
+                  : prev.spotifyTopArtists,
+              }
+            : prev
+        );
       }
     } catch (err) {
       // Non-blocking background sync
     }
   }, []);
 
+  // Re-fetch verification tier on screen focus (e.g. return from VerificationSubmitScreen)
+  const refreshVerificationStatus = useCallback(async () => {
+    try {
+      const token = await getAuthToken();
+      if (!token) return;
+      const response = await apiGet("/members/profile", 8000, token);
+      const profile = response.profile || response;
+      if (profile) {
+        const tier = profile.verification_tier || 'none';
+        setDiscoverVerified(tier === 'selfie_verified' || tier === 'id_verified');
+      }
+    } catch (err) {
+      // Non-blocking background verification check
+    }
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       refreshSpotifyStatus();
-    }, [refreshSpotifyStatus])
+      refreshVerificationStatus();
+    }, [refreshSpotifyStatus, refreshVerificationStatus])
   );
 
   useEffect(() => {
@@ -421,11 +451,9 @@ export default function EditDiscoverProfileScreen({ navigation }) {
       appearInDiscover !== initialState.appearInDiscover ||
       JSON.stringify(pronouns) !== JSON.stringify(initialState.pronouns) ||
       nickname !== initialState.nickname ||
-      spotifyConnected !== initialState.spotifyConnected ||
-      JSON.stringify(spotifyTopArtists) !== JSON.stringify(initialState.spotifyTopArtists) ||
       JSON.stringify(interests) !== JSON.stringify(initialState.interests)
     );
-  }, [photos, goalBadges, openers, showPronouns, appearInDiscover, pronouns, nickname, spotifyConnected, spotifyTopArtists, interests, initialState]);
+  }, [photos, goalBadges, openers, showPronouns, appearInDiscover, pronouns, nickname, interests, initialState]);
 
   // Handle back button with unsaved changes confirmation
   const handleBackPress = useCallback(() => {
@@ -985,6 +1013,30 @@ export default function EditDiscoverProfileScreen({ navigation }) {
           </View>
         )}
 
+        {discoverVerified === true && (
+          <View style={styles.verifiedBanner}>
+            <View style={styles.verifiedBannerIconWrap}>
+              <VerifiedBadge tier="selfie_verified" size={20} />
+            </View>
+            <View style={styles.verifiedBannerBody}>
+              <Text style={styles.verifiedBannerTitle}>
+                Discover Verified
+              </Text>
+              <Text style={styles.verifiedBannerDesc}>
+                Your profile is active and visible to others in event Discover swipe decks.
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.verifiedBannerCta}
+              onPress={() => navigation.navigate('VerificationHub')}
+              activeOpacity={0.75}
+            >
+              <Text style={styles.verifiedBannerCtaText}>Active</Text>
+              <ChevronRight size={13} color="#2962FF" strokeWidth={2.5} />
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* SECTION 1: Photos (Edge-to-Edge Editorial) */}
         <Animated.View
           onLayout={(event) => {
@@ -1068,6 +1120,9 @@ export default function EditDiscoverProfileScreen({ navigation }) {
                 <Text style={styles.identityLabel}>Name</Text>
                 <View style={styles.identityValueRow}>
                   <Text style={styles.identityValue}>{name}</Text>
+                  {discoverVerified && (
+                    <VerifiedBadge tier="selfie_verified" size={16} />
+                  )}
                   <Lock size={16} color={CONSTANTS_COLORS.disabledIcon} />
                 </View>
               </View>
@@ -2795,6 +2850,57 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.semiBold,
     fontSize: 13,
     color: CONSTANTS_COLORS.primaryBlue,
+  },
+  // Discover verified active status banner
+  verifiedBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(41, 98, 255, 0.06)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(41, 98, 255, 0.20)",
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 4,
+    padding: 12,
+    gap: 10,
+  },
+  verifiedBannerIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: "rgba(41, 98, 255, 0.10)",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  verifiedBannerBody: {
+    flex: 1,
+    gap: 3,
+  },
+  verifiedBannerTitle: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 13,
+    color: "#1E3A5F",
+    lineHeight: 18,
+  },
+  verifiedBannerDesc: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: "#3B6CB0",
+    lineHeight: 16,
+  },
+  verifiedBannerCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 1,
+    paddingLeft: 4,
+    flexShrink: 0,
+  },
+  verifiedBannerCtaText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 13,
+    color: "#2962FF",
   },
   requiredBadge: {
     display: "none", // Removed "Required" badge visually if strict layout

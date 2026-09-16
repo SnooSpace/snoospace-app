@@ -153,6 +153,7 @@ import CommunityVoiceBox, {
   VoicePostCard,
 } from "../../../components/feed/CommunityVoiceBox";
 import InstagramRow from "../../../components/ui/InstagramRow";
+import VerifiedBadge from "../../../components/badges/VerifiedBadge";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const BANNER_HEIGHT = screenHeight * 0.28; // 28% of screen height
@@ -270,7 +271,16 @@ const CommunityProfileHeaderBioSection = React.memo(
               )}
             </View>
             {/* Identity Block: Name → Username (with dropdown) → Categories → Bio */}
-            <Text style={styles.communityName}>{profile.name}</Text>
+            <View style={styles.communityNameRow}>
+              <Text style={styles.communityName}>{profile.name}</Text>
+              {!!(profile?.community_verification_tier && profile.community_verification_tier !== "none") && (
+                <VerifiedBadge
+                  tier={profile.community_verification_tier}
+                  size={20}
+                  style={styles.communityVerifiedBadge}
+                />
+              )}
+            </View>
             <TouchableOpacity
               style={styles.usernameRow}
               onPress={onShowAccountSwitcher}
@@ -3659,11 +3669,20 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: "#3B82F6",
   },
+  communityNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
   communityName: {
     fontFamily: FONTS.primary,
     fontSize: 24,
     color: "#0F172A",
     textAlign: "center",
+  },
+  communityVerifiedBadge: {
+    marginTop: 2,
   },
   categoriesRow: {
     flexDirection: "row",

@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
-import { GraduationCap, BadgeCheck, Clock } from "lucide-react-native";
+import { GraduationCap, Clock } from "lucide-react-native";
 import { FONTS } from "../../constants/theme";
 
 /**
@@ -76,19 +76,12 @@ export default function CollegeChip({ collegeInfo, onPress, compact = false }) {
         )}
       </View>
 
-      {/* Status indicator */}
-      {isPending ? (
+      {/* Status indicator — only show Pending if college is pending admin approval */}
+      {isPending && (
         <View style={styles.pendingBadge}>
           <Clock size={10} color="#D97706" strokeWidth={2.5} />
           <Text style={styles.pendingText}>Pending</Text>
         </View>
-      ) : (
-        <BadgeCheck
-          size={compact ? 12 : 14}
-          color="#16A34A"
-          strokeWidth={2}
-          style={styles.verifiedIcon}
-        />
       )}
     </TouchableOpacity>
   );

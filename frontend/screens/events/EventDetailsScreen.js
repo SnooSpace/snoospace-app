@@ -158,6 +158,7 @@ import { COLORS } from "../../constants/theme";
 import { useLocationName } from "../../utils/locationNameCache";
 import { getActiveAccount } from "../../api/auth";
 import HapticsService from "../../services/HapticsService";
+import VerifiedBadge from "../../components/badges/VerifiedBadge";
 import EventBus from "../../utils/EventBus";
 import { NotificationConsumptionService } from "../../services/NotificationConsumptionService";
 import AttendanceConfirmationModal from "../../components/modals/AttendanceConfirmationModal";
@@ -1793,20 +1794,23 @@ const EventDetailsScreen = ({ route, navigation }) => {
                       </LinearGradient>
                     )}
                     <View style={styles.hostInfoPremium}>
-                      <Text style={styles.hostNamePremium} numberOfLines={1}>
-                        {event.community_name || "Community"}
-                      </Text>
+                      <View style={{ flexDirection: "row", alignItems: "center" }}>
+                        <Text style={styles.hostNamePremium} numberOfLines={1}>
+                          {event.community_name || "Community"}
+                        </Text>
+                        {!!(event.community_verification_tier && event.community_verification_tier !== "none") && (
+                          <VerifiedBadge
+                            tier={event.community_verification_tier}
+                            size={14}
+                            style={{ marginLeft: 4 }}
+                          />
+                        )}
+                      </View>
                       <View
                         style={{ flexDirection: "row", alignItems: "center" }}
                       >
                         <Text style={styles.hostStatsPremium}>
-                          {event.community_events_count || "0"} Events •{" "}
-                        </Text>
-                        <BadgeCheck size={14} color={COLORS.primary} />
-                        <Text
-                          style={[styles.hostStatsPremium, { marginLeft: 4 }]}
-                        >
-                          Verified
+                          {event.community_events_count || "0"} Events
                         </Text>
                       </View>
                     </View>

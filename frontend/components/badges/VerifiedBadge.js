@@ -41,6 +41,20 @@ export const TIER_CONFIG = {
     color: "#2962FF",
     badgeBg: "rgba(41, 98, 255, 0.10)",
   },
+  community_verified: {
+    key: "community_verified",
+    title: "Community verified",
+    body: "Confirms this community is established and verified by SnooSpace.",
+    color: "#7C3AED",
+    badgeBg: "rgba(124, 58, 237, 0.10)",
+  },
+  registered_org: {
+    key: "registered_org",
+    title: "Registered Organization",
+    body: "Verified as an officially registered organization, club, or legal entity by SnooSpace.",
+    color: "#0284C7",
+    badgeBg: "rgba(2, 132, 199, 0.10)",
+  },
 };
 
 /**

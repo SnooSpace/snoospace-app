@@ -135,6 +135,10 @@ export async function getMyVerification(token, scope) {
   return apiGet(`/verifications/me${query}`, 15000, token);
 }
 
+export async function getFaceEligibility(token) {
+  return apiGet('/members/profile/face-eligibility', 15000, token);
+}
+
 export async function submitVerification(videoUri, token, options = {}) {
   const { scope, referencePhotoUrl, livenessAction, livenessCode } = options;
   const formData = new FormData();
@@ -163,6 +167,19 @@ export async function submitVerification(videoUri, token, options = {}) {
     body: formData,
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.message || data?.error || 'Upload failed');
+  if (!res.ok) {
+    let errorMsg = data?.message;
+    if (!errorMsg) {
+      if (data?.error === 'insufficient_reference_photos') {
+        errorMsg = 'At least 1 photo with your face clearly visible is required to get verified. Please update your Discover photos.';
+      } else {
+        errorMsg = data?.error || 'Upload failed';
+      }
+    }
+    const err = new Error(errorMsg);
+    err.code = data?.error;
+    err.data = data;
+    throw err;
+  }
   return data;
 }

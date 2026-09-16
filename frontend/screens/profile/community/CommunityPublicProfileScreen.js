@@ -66,6 +66,7 @@ import CollegeHubSheet from "../../../components/modals/CollegeHubSheet";
 import EventCard from "../../../components/cards/EventCard";
 import HapticsService from "../../../services/HapticsService";
 import InstagramRow from "../../../components/ui/InstagramRow";
+import VerifiedBadge from "../../../components/badges/VerifiedBadge";
 
 import {
   getPublicCommunity,
@@ -221,11 +222,20 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: "#3B82F6",
   },
+  communityNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
   communityName: {
     fontFamily: FONTS.primary,
     fontSize: 24,
     color: "#0F172A",
     textAlign: "center",
+  },
+  communityVerifiedBadge: {
+    marginTop: 2,
   },
   categoriesRow: {
     flexDirection: "row",
@@ -2060,9 +2070,18 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               )}
             </View>
             {/* Identity Block */}
-            <Text style={styles.communityName}>
-              {profile?.name || "Community"}
-            </Text>
+            <View style={styles.communityNameRow}>
+              <Text style={styles.communityName}>
+                {profile?.name || "Community"}
+              </Text>
+              {!!(profile?.community_verification_tier && profile.community_verification_tier !== "none") && (
+                <VerifiedBadge
+                  tier={profile.community_verification_tier}
+                  size={20}
+                  style={styles.communityVerifiedBadge}
+                />
+              )}
+            </View>
             {profile?.username && (
               <View style={styles.usernameRow}>
                 <Text style={styles.usernameText}>@{profile.username}</Text>

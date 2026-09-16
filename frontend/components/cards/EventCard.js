@@ -60,6 +60,7 @@ import { getOptimizedImageUrl } from "../../utils/imageUtils";
 import { apiGet } from "../../api/client";
 import ViewInsightsSheet from "../ui/ViewInsightsSheet";
 import { viewQueueService } from "../../services/ViewQueueService";
+import VerifiedBadge from "../badges/VerifiedBadge";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH - 40; // 20px padding on each side
@@ -530,6 +531,7 @@ function EventCard({
     community_username,
     community_logo,
     community_id,
+    community_verification_tier,
     location_url,
     event_type,
     attendee_count,
@@ -990,6 +992,13 @@ function EventCard({
               >
                 {community_name}
               </Text>
+              {!!(community_verification_tier && community_verification_tier !== "none") && (
+                <VerifiedBadge
+                  tier={community_verification_tier}
+                  size={compact ? 12 : 14}
+                  style={{ marginLeft: 4 }}
+                />
+              )}
               {!!is_following_community && (
                 <View style={styles.followingBadge}>
                   <Text style={styles.followingText}>Following</Text>

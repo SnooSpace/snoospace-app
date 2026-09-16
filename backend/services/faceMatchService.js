@@ -140,8 +140,8 @@ async function matchVideoToReferences(videoPublicId, memberId, pool, options = {
       embedding: parseEmbedding(row.face_embedding),
     })).filter((r) => r.embedding.length === 128);
 
-    // 2. Gating for discover scope: require at least 2 eligible reference photos
-    if (referenceSet.length < 2) {
+    // 2. Gating for discover scope: require at least 1 eligible reference photo
+    if (referenceSet.length < 1) {
       return { status: 'insufficient_references' };
     }
   }
