@@ -21,7 +21,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useIsFocused } from "@react-navigation/native";
 import { searchMembers, globalSearch } from "../../api/search";
-import { searchEvents } from "../../api/events";
+import { searchEvents, discoverEvents } from "../../api/events";
 import { getDiscoverFeed, getSuggestedCommunities } from "../../api/discover";
 import { searchCommunities } from "../../api/communities";
 import {
@@ -148,9 +148,15 @@ export default function SearchScreen({ navigation, route }) {
       } else {
         setExploreFeedLoading(true);
       }
-      const res = await getExploreFeed();
+      const [res, recEventsRes] = await Promise.all([
+        getExploreFeed(),
+        discoverEvents({ limit: 10 }).catch(() => ({ events: [] })),
+      ]);
       if (res?.success) {
-        setExploreFeedData(res);
+        setExploreFeedData({
+          ...res,
+          recommendedEvents: recEventsRes?.events || [],
+        });
       }
     } catch (err) {
       console.error("Error loading explore feed:", err);

@@ -3,7 +3,8 @@ import {
   View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { Plus, Clock, MapPin, Users, ArrowRight, Pencil, ChevronRight } from 'lucide-react-native';
+import { Plus, Clock, MapPin, Users, ArrowRight, Pencil, ChevronRight, Compass } from 'lucide-react-native';
+import Svg, { Circle, Path, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
 import { COLORS, FONTS, SPACING, SHADOWS } from '../../constants/theme';
 import { getAuthToken, getActiveAccount } from '../../api/auth';
 import { getPlans } from '../../api/plans';
@@ -319,10 +320,47 @@ export default function OpenPlansSection({ navigation, currentUserId, refreshKey
       {loading ? (
         <ActivityIndicator style={{ marginVertical: 24 }} color={COLORS.primary} />
       ) : plans.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyText}>
-            No open plans in your communities yet. Be the first to host one.
-          </Text>
+        <View style={styles.emptyCardContainer}>
+          <View style={styles.emptyCardSvgWrapper} pointerEvents="none">
+            <Svg width="100%" height="100%" viewBox="0 0 320 120" preserveAspectRatio="none">
+              <Defs>
+                <SvgLinearGradient id="openPlanGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <Stop offset="0%" stopColor="#059669" stopOpacity="0.08" />
+                  <Stop offset="100%" stopColor="#059669" stopOpacity="0.01" />
+                </SvgLinearGradient>
+                <SvgLinearGradient id="openPlanGrad2" x1="100%" y1="0%" x2="0%" y2="100%">
+                  <Stop offset="0%" stopColor="#059669" stopOpacity="0.06" />
+                  <Stop offset="100%" stopColor="#059669" stopOpacity="0.0" />
+                </SvgLinearGradient>
+              </Defs>
+              <Circle cx="290" cy="15" r="55" fill="url(#openPlanGrad1)" />
+              <Circle cx="30" cy="105" r="45" fill="url(#openPlanGrad2)" />
+              <Path
+                d="M -15,55 Q 75,10 160,50 T 335,25"
+                fill="none"
+                stroke="#059669"
+                strokeWidth="1"
+                strokeOpacity="0.08"
+                strokeDasharray="4 4"
+              />
+            </Svg>
+          </View>
+          <View style={styles.emptyCardContent}>
+            <View style={styles.emptyIconCircle}>
+              <Compass size={22} color="#059669" strokeWidth={2} />
+            </View>
+            <Text style={styles.emptyCardTitle}>No Open Plans Right Now</Text>
+            <Text style={styles.emptyCardSubtitle}>
+              Nobody has hosted a hangout recently. Create a plan to get people together!
+            </Text>
+            <TouchableOpacity
+              style={styles.emptyCardActionBtn}
+              onPress={() => setHostSheetOpen(true)}
+              activeOpacity={0.82}
+            >
+              <Text style={styles.emptyCardActionText}>Host a Plan</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       ) : (
         <ScrollView
@@ -643,5 +681,62 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  emptyCardContainer: {
+    marginHorizontal: SPACING.l,
+    borderRadius: 20,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: "#F1F5F9",
+    overflow: "hidden",
+    position: "relative",
+    ...SHADOWS.sm,
+  },
+  emptyCardSvgWrapper: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  emptyCardContent: {
+    paddingVertical: 22,
+    paddingHorizontal: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#D1FAE5",
+    backgroundColor: "#ECFDF5",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+  },
+  emptyCardTitle: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 15,
+    color: COLORS.textPrimary,
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  emptyCardSubtitle: {
+    fontFamily: FONTS.regular,
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    textAlign: "center",
+    lineHeight: 18,
+    paddingHorizontal: 12,
+  },
+  emptyCardActionBtn: {
+    marginTop: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: "#059669",
+  },
+  emptyCardActionText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 13,
+    color: "#FFFFFF",
   },
 });

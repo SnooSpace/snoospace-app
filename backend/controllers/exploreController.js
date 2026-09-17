@@ -108,10 +108,7 @@ const getExploreFeed = async (req, res) => {
         ORDER BY e.start_datetime ASC
       `;
       const result = await pool.query(q, [userId]);
-      return result.rows.map(row => ({
-        ...row,
-        title: row.title ? (row.title.length > 10 ? row.title.substring(0, 10) + "..." : row.title) : ""
-      }));
+      return result.rows;
     };
 
     // 2. Hero

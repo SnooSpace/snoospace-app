@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Dimensions, Alert, InteractionManager, RefreshControl } from "react-native";
 import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { BarChart3, User, Calendar, Users, Clock, MapPin, Sparkles, ChevronRight } from "lucide-react-native";
+import { BarChart3, User, Calendar, Users, Clock, MapPin, Sparkles, ChevronRight, CalendarX, UserCheck } from "lucide-react-native";
+import Svg, { Circle, Path, Defs, LinearGradient as SvgLinearGradient, Stop } from "react-native-svg";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
 import { apiGet } from "../../api/client";
@@ -36,7 +37,6 @@ const formatDate = (dateString) => {
 
 export default function DiscoverScreen({ navigation }) {
   const [events, setEvents] = useState([]);
-  const [exploreEvents, setExploreEvents] = useState([]);
   const [suggestedCommunities, setSuggestedCommunities] = useState([]);
   const [people, setPeople] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -57,12 +57,9 @@ export default function DiscoverScreen({ navigation }) {
       const token = await getAuthToken();
 
       if (token) {
-        const [eventsResponse, exploreResponse, suggestionsResponse, recommendationsResponse] =
+        const [eventsResponse, suggestionsResponse, recommendationsResponse] =
           await Promise.all([
             apiGet("/events/my-events", 15000, token).catch(() => ({
-              events: [],
-            })),
-            apiGet("/events/discover?limit=10", 15000, token).catch(() => ({
               events: [],
             })),
             apiGet("/discover/suggestions", 15000, token).catch(() => ({
@@ -74,7 +71,6 @@ export default function DiscoverScreen({ navigation }) {
           ]);
 
         setEvents(eventsResponse.events || []);
-        setExploreEvents(exploreResponse.events || []);
         setSuggestedCommunities(suggestionsResponse.suggestions || []);
 
         const recs = recommendationsResponse.recommendations || [];
@@ -165,13 +161,6 @@ export default function DiscoverScreen({ navigation }) {
     });
   }, [navigation]);
 
-  const handleBrowseEventsPress = useCallback(() => {
-    navigation.navigate("Search", {
-      screen: "SearchMain",
-      params: { filter: "events", autoFocus: true },
-    });
-  }, [navigation]);
-
   const handleInsightsPress = useCallback(() => {
     navigation.navigate("ActivityInsights");
   }, [navigation]);
@@ -181,46 +170,65 @@ export default function DiscoverScreen({ navigation }) {
   }, [navigation]);
 
   const slicedEvents = useMemo(() => events.slice(0, 5), [events]);
-  const slicedExploreEvents = useMemo(() => exploreEvents.slice(0, 10), [exploreEvents]);
 
   const renderReconnectSection = () => {
-    if (slicedEvents.length === 0) return null;
+    const hasEvents = slicedEvents.length > 0;
     return (
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Catch the Ones You Missed</Text>
-          <TouchableOpacity
-            style={styles.browseAllButton}
-            onPress={handlePastEventsPress}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Text style={styles.browseAllText}>See all</Text>
-            <ChevronRight size={18} color={COLORS.primary} strokeWidth={2.2} />
-          </TouchableOpacity>
+          {hasEvents && (
+            <TouchableOpacity
+              style={styles.browseAllButton}
+              onPress={handlePastEventsPress}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Text style={styles.browseAllText}>See all</Text>
+              <ChevronRight size={18} color={COLORS.primary} strokeWidth={2.2} />
+            </TouchableOpacity>
+          )}
         </View>
-        <EdgeSwipeScrollView
-          showsHorizontalScrollIndicator={false}
-          snapToInterval={175 + SPACING.m}
-          decelerationRate="fast"
-          snapToAlignment="start"
-          contentContainerStyle={styles.horizontalList}
-        >
-          {slicedEvents.map((event) => (
-            <View key={event.id} style={{ width: 175 }}>
-              <CompactEventCard
-                event={event}
-                onPress={handleEventPress}
-                isPast={true}
-              />
-            </View>
-          ))}
-        </EdgeSwipeScrollView>
+        {hasEvents ? (
+          <EdgeSwipeScrollView
+            showsHorizontalScrollIndicator={false}
+            snapToInterval={175 + SPACING.m}
+            decelerationRate="fast"
+            snapToAlignment="start"
+            contentContainerStyle={styles.horizontalList}
+          >
+            {slicedEvents.map((event) => (
+              <View key={event.id} style={{ width: 175 }}>
+                <CompactEventCard
+                  event={event}
+                  onPress={handleEventPress}
+                  isPast={true}
+                />
+              </View>
+            ))}
+          </EdgeSwipeScrollView>
+        ) : (
+          <DiscoverEmptySectionCard
+            icon={CalendarX}
+            iconColor="#4F46E5"
+            iconBg="#EEF2FF"
+            iconBorder="#E0E7FF"
+            title="No Past Events Yet"
+            subtitle="Events you attend will appear here so you can easily reconnect with people you met."
+            actionLabel="Browse Events"
+            onAction={() =>
+              navigation.navigate("Search", {
+                screen: "SearchMain",
+                params: { filter: "events", autoFocus: true },
+              })
+            }
+          />
+        )}
       </View>
     );
   };
 
   const renderTribeSection = () => {
-    if (suggestedCommunities.length === 0) return null;
+    const hasTribes = suggestedCommunities.length > 0;
     return (
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
@@ -239,84 +247,77 @@ export default function DiscoverScreen({ navigation }) {
             <ChevronRight size={18} color={COLORS.primary} strokeWidth={2.2} />
           </TouchableOpacity>
         </View>
-        <EdgeSwipeScrollView
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalList}
-        >
-          {suggestedCommunities.map((community, index) => (
-            <TribeCard
-              key={community.id}
-              community={community}
-              index={index}
-              onPress={handleCommunityPress}
-            />
-          ))}
-        </EdgeSwipeScrollView>
-        <View style={styles.vibeMatchContainer}>
-          <View style={styles.vibeMatchPill}>
-            <Sparkles size={18} color="#2962FF" style={styles.vibeMatchIcon} />
-            <Text style={styles.vibeMatchText}>
-              Picked using your <Text style={styles.vibeMatchHighlight}>My Vibes</Text> and <Text style={styles.vibeMatchHighlight}>{collegeInfo?.college_abbreviation || "your"} campus</Text>
-            </Text>
-          </View>
-        </View>
+        {hasTribes ? (
+          <EdgeSwipeScrollView
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.horizontalList}
+          >
+            {suggestedCommunities.map((community, index) => (
+              <TribeCard
+                key={community.id}
+                community={community}
+                index={index}
+                onPress={handleCommunityPress}
+              />
+            ))}
+          </EdgeSwipeScrollView>
+        ) : (
+          <DiscoverEmptySectionCard
+            icon={Users}
+            iconColor="#EA580C"
+            iconBg="#FFF7ED"
+            iconBorder="#FFEDD5"
+            title="No Tribes Matched Yet"
+            subtitle="Pick your vibes and interests in your profile to discover campus communities."
+            actionLabel="Explore Communities"
+            onAction={handleBrowseTribesPress}
+          />
+        )}
       </View>
     );
   };
 
   const renderPeopleSection = () => {
-    if (people.length === 0) return null;
+    const hasPeople = people.length > 0;
     return (
       <View style={styles.section}>
         <Text style={styles.sectionTitleContainer}>People You Should Meet</Text>
-        <EdgeSwipeScrollView
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalList}
-        >
-          {people.map((person) => (
-            <DiscoverScreenPersonCard
-              key={person.id}
-              person={person}
-              onPress={() => navigation.navigate("MemberPublicProfile", { memberId: person.id })}
-            />
-          ))}
-        </EdgeSwipeScrollView>
-      </View>
-    );
-  };
-
-  const renderEventsSection = () => {
-    if (slicedExploreEvents.length === 0) return null;
-    return (
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Recommended Events</Text>
-          <TouchableOpacity
-            style={styles.browseAllButton}
-            onPress={handleBrowseEventsPress}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        {hasPeople ? (
+          <EdgeSwipeScrollView
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.horizontalList}
           >
-            <Text style={styles.browseAllText}>See all</Text>
-            <ChevronRight size={18} color={COLORS.primary} strokeWidth={2.2} />
-          </TouchableOpacity>
-        </View>
-        <EdgeSwipeScrollView
-          showsHorizontalScrollIndicator={false}
-          snapToInterval={175 + SPACING.m}
-          decelerationRate="fast"
-          snapToAlignment="start"
-          contentContainerStyle={styles.horizontalList}
-        >
-          {slicedExploreEvents.map((event) => (
-            <View key={event.id} style={{ width: 175 }}>
-              <CompactEventCard
-                event={event}
-                onPress={handleEventPress}
-                isPast={false}
+            {people.map((person) => (
+              <DiscoverScreenPersonCard
+                key={person.id}
+                person={person}
+                onPress={() => navigation.navigate("MemberPublicProfile", { memberId: person.id })}
               />
-            </View>
-          ))}
-        </EdgeSwipeScrollView>
+            ))}
+          </EdgeSwipeScrollView>
+        ) : profileComplete ? (
+          <DiscoverEmptySectionCard
+            icon={UserCheck}
+            iconColor="#2962FF"
+            iconBg="#EFF6FF"
+            iconBorder="#DBEAFE"
+            title="No Matching Profiles Right Now"
+            subtitle="Your Discover profile is all set. We're actively scanning for people with aligned interests, shared tribes, and mutual connections."
+            actionLabel="Explore Communities"
+            onAction={handleBrowseTribesPress}
+          />
+        ) : (
+          <DiscoverEmptySectionCard
+            icon={UserCheck}
+            iconColor="#2962FF"
+            iconBg="#EFF6FF"
+            iconBorder="#DBEAFE"
+            title="Unlock People Recommendations"
+            subtitle="Add at least 3 photos, 1 spark, and 1 icebreaker to your Discover profile to unlock tailored recommendations."
+            actionLabel="Complete Profile"
+            onAction={handleEditProfilePress}
+          />
+        )}
       </View>
     );
   };
@@ -387,7 +388,6 @@ export default function DiscoverScreen({ navigation }) {
         <View style={styles.sectionDivider} />
         {renderTribeSection()}
         {renderPeopleSection()}
-        {renderEventsSection()}
         <View style={{ height: 40 }} />
       </ScrollView>
     </View>
@@ -595,7 +595,66 @@ const DiscoverScreenPersonCard = React.memo(({ person, onPress }) => {
   );
 });
 
+const DiscoverEmptySectionCard = React.memo(({
+  icon: IconComponent,
+  iconColor = "#2962FF",
+  iconBg = "#EFF6FF",
+  iconBorder = "#DBEAFE",
+  title,
+  subtitle,
+  actionLabel,
+  onAction,
+}) => {
+  return (
+    <View style={styles.emptyCardContainer}>
+      {/* Subtle Custom Illustrated SVG Geometry Backdrop */}
+      <View style={styles.emptyCardSvgWrapper} pointerEvents="none">
+        <Svg width="100%" height="100%" viewBox="0 0 320 120" preserveAspectRatio="none">
+          <Defs>
+            <SvgLinearGradient id={`emptyGrad1_${title.replace(/\s+/g, '')}`} x1="0%" y1="0%" x2="100%" y2="100%">
+              <Stop offset="0%" stopColor={iconColor} stopOpacity="0.08" />
+              <Stop offset="100%" stopColor={iconColor} stopOpacity="0.01" />
+            </SvgLinearGradient>
+            <SvgLinearGradient id={`emptyGrad2_${title.replace(/\s+/g, '')}`} x1="100%" y1="0%" x2="0%" y2="100%">
+              <Stop offset="0%" stopColor={iconColor} stopOpacity="0.06" />
+              <Stop offset="100%" stopColor={iconColor} stopOpacity="0.0" />
+            </SvgLinearGradient>
+          </Defs>
+          <Circle cx="290" cy="15" r="55" fill={`url(#emptyGrad1_${title.replace(/\s+/g, '')})`} />
+          <Circle cx="30" cy="105" r="45" fill={`url(#emptyGrad2_${title.replace(/\s+/g, '')})`} />
+          <Path
+            d="M -15,55 Q 75,10 160,50 T 335,25"
+            fill="none"
+            stroke={iconColor}
+            strokeWidth="1"
+            strokeOpacity="0.08"
+            strokeDasharray="4 4"
+          />
+        </Svg>
+      </View>
 
+      {/* Card Content */}
+      <View style={styles.emptyCardContent}>
+        <View style={[styles.emptyIconCircle, { backgroundColor: iconBg, borderColor: iconBorder }]}>
+          <IconComponent size={22} color={iconColor} strokeWidth={2} />
+        </View>
+
+        <Text style={styles.emptyCardTitle}>{title}</Text>
+        <Text style={styles.emptyCardSubtitle}>{subtitle}</Text>
+
+        {actionLabel && onAction && (
+          <TouchableOpacity
+            style={[styles.emptyCardActionBtn, { backgroundColor: iconColor }]}
+            onPress={onAction}
+            activeOpacity={0.82}
+          >
+            <Text style={styles.emptyCardActionText}>{actionLabel}</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -813,35 +872,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.primary,
   },
-  vibeMatchContainer: {
-    paddingHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  vibeMatchPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#18181B",
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    alignSelf: "flex-start",
-    borderWidth: 1,
-    borderColor: "#27272A",
-  },
-  vibeMatchIcon: {
-    marginRight: 8,
-  },
-  vibeMatchText: {
-    fontFamily: FONTS.regular,
-    fontSize: 12,
-    color: "#A1A1AA",
-    lineHeight: 16,
-  },
-  vibeMatchHighlight: {
-    fontFamily: FONTS.semiBold,
-    color: "#FFFFFF",
-  },
 
   // People You Should Meet — card
   personCard: {
@@ -891,7 +921,62 @@ const styles = StyleSheet.create({
     lineHeight: 15,
   },
 
-  // Recommended Events Section
+  // Empty State Styles
+  emptyCardContainer: {
+    marginHorizontal: SPACING.l,
+    borderRadius: 20,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: "#F1F5F9",
+    overflow: "hidden",
+    position: "relative",
+    ...SHADOWS.sm,
+  },
+  emptyCardSvgWrapper: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  emptyCardContent: {
+    paddingVertical: 22,
+    paddingHorizontal: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+  },
+  emptyCardTitle: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 15,
+    color: COLORS.textPrimary,
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  emptyCardSubtitle: {
+    fontFamily: FONTS.regular,
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    textAlign: "center",
+    lineHeight: 18,
+    paddingHorizontal: 12,
+  },
+  emptyCardActionBtn: {
+    marginTop: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  emptyCardActionText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 13,
+    color: "#FFFFFF",
+  },
+
   sectionDivider: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: "#E5E7EB",

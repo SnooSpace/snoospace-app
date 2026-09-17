@@ -207,6 +207,8 @@ export default function PlansVerificationScreen({ navigation }) {
               rejectionReason={verification?.rejection_reason}
               tierLabel="Plans"
               onResubmit={() => setResubmit(true)}
+              onDone={() => navigation.goBack()}
+              actionLabel="Done"
             />
           )}
 

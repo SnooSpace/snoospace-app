@@ -1004,7 +1004,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
             </View>
             <TouchableOpacity
               style={styles.verifyBannerCta}
-              onPress={() => navigation.navigate('VerificationSubmit')}
+              onPress={() => navigation.navigate('VerificationSubmit', { from: 'EditDiscoverProfile' })}
               activeOpacity={0.75}
             >
               <Text style={styles.verifyBannerCtaText}>Verify</Text>

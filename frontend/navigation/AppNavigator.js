@@ -30,6 +30,7 @@ import ChallengeVideoRecorderScreen from "../screens/home/ChallengeVideoRecorder
 
 import EventDetailsScreen from "../screens/events/EventDetailsScreen";
 import ProfileFeedScreen from "../screens/discover/ProfileFeedScreen";
+import EditDiscoverProfileScreen from "../screens/discover/EditDiscoverProfileScreen";
 import TicketSelectionScreen from "../screens/events/TicketSelectionScreen";
 import CheckoutScreen from "../screens/events/CheckoutScreen";
 import TicketViewScreen from "../screens/events/TicketViewScreen";
@@ -159,6 +160,10 @@ export default function AppNavigator({ initialRouteName }) {
       <Stack.Screen
         name="ProfileFeed"
         component={ProfileFeedScreen}
+      />
+      <Stack.Screen
+        name="EditDiscoverProfile"
+        component={EditDiscoverProfileScreen}
       />
       <Stack.Screen
         name="TicketSelection"

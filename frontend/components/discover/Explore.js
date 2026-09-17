@@ -33,6 +33,8 @@ import CompactEventCard from "../cards/CompactEventCard";
 import EdgeSwipeScrollView from "../ui/EdgeSwipeScrollView";
 import SnooLoader from "../ui/SnooLoader";
 
+const LIVE_GRADIENT_COLORS = ["#FF1E56", "#FF5E3A"];
+
 const FALLBACK_MAIN_CATEGORIES = [
   { id: "music", name: "Music", slug: "music", iconName: "music", subcategories: ["Live Concerts", "DJ Nights", "Open Mic Nights", "EDM & Electronic"] },
   { id: "food-dining", name: "Food & Dining", slug: "food-dining", iconName: "utensils-crossed", subcategories: ["Food Festivals", "Coffee Meetups", "Cooking Classes"] },
@@ -90,7 +92,7 @@ const RAIL_CARD_WIDTH = 168;
 const RAIL_CARD_GAP = 14;
 const OPEN_PLAN_GRID_GAP = 8;
 const OPEN_PLAN_TILE_WIDTH = Math.floor((SCREEN_WIDTH - 32 - (3 * OPEN_PLAN_GRID_GAP)) / 4);
-const BENTO_LARGE_WIDTH = (SCREEN_WIDTH - 40) * 0.58;
+const BENTO_LARGE_WIDTH = (SCREEN_WIDTH - 40) * 0.52;
 
 const FILTER_OPTIONS = [
   { id: "all", label: "All" },
@@ -162,10 +164,15 @@ const StatusBadge = ({ isLiveNow, spotsLeft, isFree, eventType }) => {
 
   if (isLiveNow) {
     return (
-      <View style={[styles.statusBadgeContainer, styles.statusLive]}>
+      <LinearGradient
+        colors={LIVE_GRADIENT_COLORS}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.statusBadgeContainer}
+      >
         <View style={styles.statusLiveDot} />
         <Text style={styles.statusLiveText}>LIVE</Text>
-      </View>
+      </LinearGradient>
     );
   }
   if (spotsLeft !== null && spotsLeft !== undefined && spotsLeft <= 5 && spotsLeft > 0) {
@@ -211,7 +218,8 @@ function Explore({
     categoryRails = [],
     somethingDifferent = [],
     curatedLists = [],
-    creatorOpportunities = null
+    creatorOpportunities = null,
+    recommendedEvents = []
   } = feedData;
 
   const activeCategories = categories || [];
@@ -223,6 +231,7 @@ function Explore({
   const activeSomethingDifferent = somethingDifferent || [];
   const activeCuratedLists = curatedLists || [];
   const activeCreatorOpportunities = creatorOpportunities;
+  const activeRecommendedEvents = recommendedEvents || [];
 
   // Active rail filter pill state
   const [activeFilter, setActiveFilter] = useState("all");
@@ -732,8 +741,15 @@ function Explore({
     return (
       <View style={styles.sectionContainer}>
         <View style={styles.liveHeader}>
-          <View style={styles.liveIndicator} />
-          <Text style={styles.sectionTitle}>Live now</Text>
+          <View style={styles.liveIndicatorWrapper}>
+            <LinearGradient
+              colors={LIVE_GRADIENT_COLORS}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.liveIndicatorDot}
+            />
+          </View>
+          <Text style={styles.sectionTitleWithoutMargin}>Live now</Text>
         </View>
         <EdgeSwipeScrollView
           showsHorizontalScrollIndicator={false}
@@ -746,19 +762,28 @@ function Explore({
               activeOpacity={0.8}
               onPress={() => handleEventPress(item.eventId, item)}
             >
-              <View style={styles.liveRingOuter}>
-                {item.coverUrl ? (
-                  <Image
-                    source={{ uri: getOptimizedImageUrl(item.coverUrl, { width: 48 }) }}
-                    style={styles.liveThumbnail}
-                  />
-                ) : (
-                  <View style={[styles.liveThumbnail, { backgroundColor: item.title === "Open mic" ? "#E28E72" : item.title === "Run club" ? "#EE9C7D" : "#F5C7B5", justifyContent: "center", alignItems: "center" }]}>
-                    {item.title === "Open mic" && <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: "#000000" }} />}
+              <View style={styles.liveAvatarWrapper}>
+                <LinearGradient
+                  colors={LIVE_GRADIENT_COLORS}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.liveRingGradient}
+                >
+                  <View style={styles.liveRingWhiteGap}>
+                    {item.coverUrl ? (
+                      <Image
+                        source={{ uri: getOptimizedImageUrl(item.coverUrl, { width: 120 }) }}
+                        style={styles.liveThumbnail}
+                      />
+                    ) : (
+                      <View style={[styles.liveThumbnail, styles.liveThumbnailFallback]}>
+                        <Video size={18} color="#FF1E56" />
+                      </View>
+                    )}
                   </View>
-                )}
+                </LinearGradient>
               </View>
-              <Text style={styles.liveBubbleLabel} numberOfLines={1}>
+              <Text style={styles.liveBubbleLabel} numberOfLines={2} ellipsizeMode="tail">
                 {item.title}
               </Text>
             </TouchableOpacity>
@@ -940,6 +965,22 @@ function Explore({
     const largeColors = getCategoryColor(largeEvent.category_slug, largeEvent.eventId);
     const largeInterested = Boolean(interestMap[largeEvent.eventId] ?? largeEvent.isInterested);
 
+    const small1Colors = getCategoryColor(smallEvent1.category_slug, smallEvent1.eventId);
+    const small2Colors = getCategoryColor(smallEvent2.category_slug, smallEvent2.eventId);
+
+    const formatWeekendDay = (iso) => {
+      if (!iso) return "";
+      try {
+        const d = new Date(iso);
+        if (isNaN(d.getTime())) return "";
+        const day = d.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase();
+        const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+        return `${day} • ${time}`;
+      } catch (e) {
+        return "";
+      }
+    };
+
     return (
       <View style={styles.sectionContainer}>
         <View style={styles.railHeader}>
@@ -955,85 +996,147 @@ function Explore({
           </TouchableOpacity>
         </View>
         <View style={styles.bentoRow}>
-          {/* Large Left Card (~58%) */}
+          {/* Large Left Card (~52%) with Full-Bleed Image & Text Overlay */}
           <TouchableOpacity
             style={styles.bentoLargeCard}
-            activeOpacity={0.8}
+            activeOpacity={0.88}
             onPress={() => handleEventPress(largeEvent.eventId, largeEvent)}
           >
-            <View style={styles.bentoLargeImageContainer}>
-              {largeEvent.coverUrl ? (
-                <Image
-                  source={{ uri: getOptimizedImageUrl(largeEvent.coverUrl, { width: BENTO_LARGE_WIDTH }) }}
-                  style={styles.bentoLargeImage}
-                />
-              ) : (
-                <View style={[styles.bentoLargeImage, { backgroundColor: largeColors.bg || "#A7E2CE" }]} />
-              )}
-              {largeEvent.category ? (
-                <View style={[styles.cardCategoryBadge, { backgroundColor: largeColors.bg || "#FFFFFF" }]}>
-                  <Text style={[styles.cardCategoryBadgeText, { color: largeColors.text || "#1E5844" }]}>
-                    {largeEvent.category}
-                  </Text>
-                </View>
-              ) : null}
-              <BookmarkButton
-                eventId={largeEvent.eventId}
-                isInterested={largeInterested}
-                onToggle={handleToggleInterest}
+            {largeEvent.coverUrl ? (
+              <Image
+                source={{ uri: getOptimizedImageUrl(largeEvent.coverUrl, { width: 340 }) }}
+                style={StyleSheet.absoluteFill}
+                resizeMode="cover"
               />
-              <StatusBadge
-                isLiveNow={largeEvent.isLiveNow}
-                spotsLeft={largeEvent.spotsLeft}
-                isFree={largeEvent.isFree}
-                eventType={largeEvent.eventType || largeEvent.event_type}
-              />
-            </View>
-            <View style={styles.bentoContent}>
-              <Text style={styles.bentoLargeTitle} numberOfLines={2}>
+            ) : (
+              <View style={[StyleSheet.absoluteFill, { backgroundColor: largeColors.bg || "#1A1826" }]} />
+            )}
+            <LinearGradient
+              colors={["rgba(0,0,0,0.25)", "rgba(0,0,0,0.15)", "rgba(0,0,0,0.92)"]}
+              locations={[0, 0.35, 1]}
+              style={StyleSheet.absoluteFill}
+            />
+            {largeEvent.category ? (
+              <View style={[styles.cardCategoryBadge, { backgroundColor: largeColors.bg || "#FFFFFF" }]}>
+                <Text style={[styles.cardCategoryBadgeText, { color: largeColors.text || "#1E5844" }]} numberOfLines={1}>
+                  {largeEvent.category}
+                </Text>
+              </View>
+            ) : null}
+            <BookmarkButton
+              eventId={largeEvent.eventId}
+              isInterested={largeInterested}
+              onToggle={handleToggleInterest}
+            />
+
+            <View style={styles.bentoLargeBottomContent}>
+              <Text style={styles.bentoOverlayDayText}>
+                {formatWeekendDay(largeEvent.startDatetime) || "THIS WEEKEND"}
+              </Text>
+              <Text style={styles.bentoLargeOverlayTitle} numberOfLines={2}>
                 {largeEvent.title}
               </Text>
-              <Text style={styles.railCardMetadata}>
-                {largeEvent.attendeeCount > 0 ? `${largeEvent.attendeeCount} going` : ""}
-              </Text>
+              <View style={styles.bentoOverlayMetaRow}>
+                <Text style={styles.bentoOverlayMetaText}>
+                  {largeEvent.attendeeCount > 0 ? `${largeEvent.attendeeCount} going` : ""}
+                </Text>
+                <StatusBadge
+                  isLiveNow={largeEvent.isLiveNow}
+                  spotsLeft={largeEvent.spotsLeft}
+                  isFree={largeEvent.isFree}
+                  eventType={largeEvent.eventType || largeEvent.event_type}
+                />
+              </View>
             </View>
           </TouchableOpacity>
 
-          {/* Stacked Right Column (~42%) */}
+          {/* Stacked Right Column (~48%) with Full-Bleed Image & Text Overlay */}
           <View style={styles.bentoRightColumn}>
             {/* Small Card 1 */}
             <TouchableOpacity
               style={styles.bentoSmallCard}
-              activeOpacity={0.8}
+              activeOpacity={0.88}
               onPress={() => handleEventPress(smallEvent1.eventId, smallEvent1)}
             >
-              <View style={styles.bentoSmallContent}>
-                <Text style={styles.bentoSmallTitle} numberOfLines={2}>
-                  {smallEvent1.title}
-                </Text>
-                {smallEvent1.attendeeCount > 0 && (
-                  <Text style={styles.bentoSmallMetadata}>
-                    {smallEvent1.attendeeCount} going
+              {smallEvent1.coverUrl ? (
+                <Image
+                  source={{ uri: getOptimizedImageUrl(smallEvent1.coverUrl, { width: 280 }) }}
+                  style={StyleSheet.absoluteFill}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={[StyleSheet.absoluteFill, { backgroundColor: small1Colors.bg || "#1A1826" }]} />
+              )}
+              <LinearGradient
+                colors={["rgba(0,0,0,0.35)", "rgba(0,0,0,0.5)", "rgba(0,0,0,0.92)"]}
+                locations={[0, 0.35, 1]}
+                style={StyleSheet.absoluteFill}
+              />
+              <View style={styles.bentoSmallOverlay}>
+                <View style={styles.bentoSmallTopRow}>
+                  <Text style={[styles.bentoSmallOverlayDay, { color: small1Colors.bg || "#93C5FD" }]} numberOfLines={1}>
+                    {formatWeekendDay(smallEvent1.startDatetime) || "SATURDAY"}
                   </Text>
-                )}
+                  {smallEvent1.category ? (
+                    <View style={styles.bentoSmallCatBadge}>
+                      <Text style={styles.bentoSmallCatText} numberOfLines={1}>
+                        {smallEvent1.category}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+                <View>
+                  <Text style={styles.bentoSmallOverlayTitle} numberOfLines={2}>
+                    {smallEvent1.title}
+                  </Text>
+                  <Text style={styles.bentoSmallOverlayMeta}>
+                    {smallEvent1.attendeeCount > 0 ? `${smallEvent1.attendeeCount} going` : ""}
+                  </Text>
+                </View>
               </View>
             </TouchableOpacity>
 
             {/* Small Card 2 */}
             <TouchableOpacity
               style={styles.bentoSmallCard}
-              activeOpacity={0.8}
+              activeOpacity={0.88}
               onPress={() => handleEventPress(smallEvent2.eventId, smallEvent2)}
             >
-              <View style={styles.bentoSmallContent}>
-                <Text style={styles.bentoSmallTitle} numberOfLines={2}>
-                  {smallEvent2.title}
-                </Text>
-                {smallEvent2.attendeeCount > 0 && (
-                  <Text style={styles.bentoSmallMetadata}>
-                    {smallEvent2.attendeeCount} going
+              {smallEvent2.coverUrl ? (
+                <Image
+                  source={{ uri: getOptimizedImageUrl(smallEvent2.coverUrl, { width: 280 }) }}
+                  style={StyleSheet.absoluteFill}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={[StyleSheet.absoluteFill, { backgroundColor: small2Colors.bg || "#1A1826" }]} />
+              )}
+              <LinearGradient
+                colors={["rgba(0,0,0,0.35)", "rgba(0,0,0,0.5)", "rgba(0,0,0,0.92)"]}
+                locations={[0, 0.35, 1]}
+                style={StyleSheet.absoluteFill}
+              />
+              <View style={styles.bentoSmallOverlay}>
+                <View style={styles.bentoSmallTopRow}>
+                  <Text style={[styles.bentoSmallOverlayDay, { color: small2Colors.bg || "#FCA5A5" }]} numberOfLines={1}>
+                    {formatWeekendDay(smallEvent2.startDatetime) || "SUNDAY"}
                   </Text>
-                )}
+                  {smallEvent2.category ? (
+                    <View style={styles.bentoSmallCatBadge}>
+                      <Text style={styles.bentoSmallCatText} numberOfLines={1}>
+                        {smallEvent2.category}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+                <View>
+                  <Text style={styles.bentoSmallOverlayTitle} numberOfLines={2}>
+                    {smallEvent2.title}
+                  </Text>
+                  <Text style={styles.bentoSmallOverlayMeta}>
+                    {smallEvent2.attendeeCount > 0 ? `${smallEvent2.attendeeCount} going` : ""}
+                  </Text>
+                </View>
               </View>
             </TouchableOpacity>
           </View>
@@ -1120,6 +1223,63 @@ function Explore({
                   </View>
                 )}
               </TouchableOpacity>
+            );
+          })}
+        </EdgeSwipeScrollView>
+      </View>
+    );
+  };
+
+  // 3a-2. Recommended Events (Prioritized by community following and trending interest)
+  const renderRecommendedEvents = () => {
+    if (!activeRecommendedEvents || activeRecommendedEvents.length === 0) return null;
+
+    return (
+      <View style={styles.sectionContainer}>
+        <View style={styles.railHeader}>
+          <View style={styles.titleWithIconRow}>
+            <Sparkles size={19} color="#2962FF" strokeWidth={2.2} />
+            <Text style={styles.sectionTitleWithoutMargin}>Recommended Events</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.seeAllButton}
+            onPress={() => {
+              if (navigation) {
+                navigation.navigate("Search", {
+                  screen: "SearchMain",
+                  params: { filter: "events", autoFocus: false },
+                });
+              }
+            }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={styles.seeAllText}>See all</Text>
+            <ChevronRight size={16} color="#5F5E5A" strokeWidth={2.2} style={styles.seeAllChevron} />
+          </TouchableOpacity>
+        </View>
+
+        <EdgeSwipeScrollView
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.horizontalScrollPadding}
+        >
+          {activeRecommendedEvents.map((event) => {
+            const eventId = event.id || event.eventId;
+            const isInterested = Boolean(interestMap[eventId] ?? event.isInterested);
+            return (
+              <View key={eventId} style={styles.railCardWrapper}>
+                <CompactEventCard
+                  event={{
+                    ...event,
+                    id: eventId,
+                    is_featured: event.isFeatured || event.is_featured,
+                  }}
+                  width={RAIL_CARD_WIDTH}
+                  showBookmark={true}
+                  isInterested={isInterested}
+                  onToggleInterest={handleToggleInterest}
+                  onPress={() => handleEventPress(eventId, event)}
+                />
+              </View>
             );
           })}
         </EdgeSwipeScrollView>
@@ -1400,6 +1560,7 @@ function Explore({
           {renderLiveNow()}
           {renderHero()}
           {renderWeekend()}
+          {renderRecommendedEvents()}
           {renderWhatsHot()}
           {renderCuratedLists()}
           {renderOpenPlansQuickNav()}
@@ -1725,7 +1886,7 @@ const styles = StyleSheet.create({
     zIndex: 5
   },
   statusLive: {
-    backgroundColor: "rgba(216, 90, 48, 0.95)"
+    backgroundColor: "rgba(255, 30, 86, 0.95)"
   },
   statusLiveDot: {
     width: 5,
@@ -1814,42 +1975,64 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginLeft: 16,
-    marginBottom: 12
+    marginBottom: 12,
   },
-  liveIndicator: {
+  liveIndicatorWrapper: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: "rgba(255, 30, 86, 0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 8,
+  },
+  liveIndicatorDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#D85A30",
-    marginRight: 8
   },
   liveBubbleContainer: {
     alignItems: "center",
-    marginRight: 16,
-    width: 64
+    marginRight: 14,
+    width: 76,
   },
-  liveRingOuter: {
+  liveAvatarWrapper: {
+    position: "relative",
+    marginBottom: 6,
+  },
+  liveRingGradient: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    padding: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  liveRingWhiteGap: {
     width: 54,
     height: 54,
     borderRadius: 27,
-    borderWidth: 2,
-    borderColor: "#D85A30",
+    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#F0997B"
   },
   liveThumbnail: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: "#FFFFFF"
+    backgroundColor: "#F3F4F6",
+  },
+  liveThumbnailFallback: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFF1F2",
   },
   liveBubbleLabel: {
-    fontFamily: "Manrope-Medium",
-    fontSize: 11,
-    color: "#5F5E5A",
-    marginTop: 4,
-    textAlign: "center"
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 11.5,
+    lineHeight: 14.5,
+    color: "#1A1A1A",
+    textAlign: "center",
   },
 
   // Hero Card styling
@@ -1933,72 +2116,108 @@ const styles = StyleSheet.create({
     color: "#FFFFFF"
   },
 
-  // Bento Weekend styling
+  // Bento Weekend styling (Full-Bleed Image Poster Style)
   bentoRow: {
     flexDirection: "row",
     marginHorizontal: 16,
-    height: 140
+    height: 180,
   },
   bentoLargeCard: {
-    flex: 0.58,
-    backgroundColor: "#FFFFFF",
+    flex: 0.52,
+    backgroundColor: "#1A1826",
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "rgba(0, 0, 0, 0.04)",
-    ...SHADOWS.sm,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+    ...SHADOWS.md,
     overflow: "hidden",
-    marginRight: 8
-  },
-  bentoLargeImageContainer: {
-    height: 70,
-    width: "100%",
     position: "relative",
-    backgroundColor: "#F3F4F6"
+    marginRight: 8,
+    justifyContent: "flex-end",
   },
-  bentoLargeImage: {
-    height: "100%",
-    width: "100%",
-    resizeMode: "cover"
+  bentoLargeBottomContent: {
+    padding: 10,
+    justifyContent: "flex-end",
   },
-  bentoContent: {
-    flex: 1,
-    padding: 8,
-    justifyContent: "space-between"
+  bentoOverlayDayText: {
+    fontFamily: "Manrope-Bold",
+    fontSize: 10,
+    color: "#FDE047",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    marginBottom: 3,
   },
-  bentoLargeTitle: {
+  bentoLargeOverlayTitle: {
     fontFamily: FONTS.primary, // BasicCommercial-Bold
-    fontSize: 13,
-    color: "#2C2C2A",
-    lineHeight: 17
+    fontSize: 14,
+    color: "#FFFFFF",
+    lineHeight: 18,
+    letterSpacing: -0.2,
+    marginBottom: 4,
+  },
+  bentoOverlayMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  bentoOverlayMetaText: {
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 11,
+    color: "rgba(255, 255, 255, 0.9)",
   },
   bentoRightColumn: {
-    flex: 0.42,
-    justifyContent: "space-between"
+    flex: 0.48,
+    justifyContent: "space-between",
   },
   bentoSmallCard: {
-    height: 66,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
+    height: 86,
+    backgroundColor: "#1A1826",
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(0, 0, 0, 0.04)",
-    ...SHADOWS.sm,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+    ...SHADOWS.md,
+    overflow: "hidden",
+    position: "relative",
+  },
+  bentoSmallOverlay: {
+    ...StyleSheet.absoluteFillObject,
     padding: 8,
-    justifyContent: "center"
-  },
-  bentoSmallContent: {
     justifyContent: "space-between",
-    flex: 1
   },
-  bentoSmallTitle: {
+  bentoSmallTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  bentoSmallOverlayDay: {
+    fontFamily: "Manrope-Bold",
+    fontSize: 9.5,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+  bentoSmallCatBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    backgroundColor: "rgba(255, 255, 255, 0.22)",
+    maxWidth: "50%",
+  },
+  bentoSmallCatText: {
     fontFamily: "Manrope-SemiBold",
-    fontSize: 12,
-    color: "#2C2C2A",
-    lineHeight: 16
+    fontSize: 8.5,
+    color: "rgba(255, 255, 255, 0.95)",
   },
-  bentoSmallMetadata: {
-    fontFamily: "Manrope-Medium",
+  bentoSmallOverlayTitle: {
+    fontFamily: FONTS.primary, // BasicCommercial-Bold
+    fontSize: 12,
+    color: "#FFFFFF",
+    lineHeight: 15.5,
+    letterSpacing: -0.1,
+    marginBottom: 2,
+  },
+  bentoSmallOverlayMeta: {
+    fontFamily: "Manrope-SemiBold",
     fontSize: 10,
-    color: "#888780"
+    color: "rgba(255, 255, 255, 0.85)",
   },
 
   // Curated Editorial Card styling (Part B)

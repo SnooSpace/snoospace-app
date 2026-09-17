@@ -17,7 +17,7 @@ import AnimatedVerificationButton from '../../components/verification/AnimatedVe
 import CustomAlertModal from '../../components/ui/CustomAlertModal';
 import SnooLoader from '../../components/ui/SnooLoader';
 
-export default function VerificationSubmitScreen({ navigation }) {
+export default function VerificationSubmitScreen({ navigation, route }) {
   const [verification, setVerification] = useState(null);
   const [memberProfile, setMemberProfile] = useState(null);
   const [faceEligibility, setFaceEligibility] = useState(null);
@@ -39,17 +39,50 @@ export default function VerificationSubmitScreen({ navigation }) {
   const pendingVerificationRef = useRef(null);
   const debounceRef = useRef(null);
 
-  const navigateToEditPhotos = useCallback(() => {
-    try {
-      if (navigation.canGoBack()) {
+  const handleBack = useCallback(() => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.navigate('MemberHome');
+    }
+  }, [navigation]);
+
+  const navigateToEditProfile = useCallback(() => {
+    if (route?.params?.from === 'EditDiscoverProfile' && navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+
+    const state = navigation.getState?.();
+    if (state && state.routes && state.index > 0) {
+      const prevRoute = state.routes[state.index - 1];
+      if (prevRoute?.name === 'EditDiscoverProfile') {
         navigation.goBack();
-      } else {
-        navigation.navigate('DiscoverTab', { screen: 'EditDiscoverProfile' });
+        return;
       }
+      if (prevRoute?.name === 'MemberHome') {
+        const tabRoute = prevRoute.state?.routes?.[prevRoute.state?.index ?? -1];
+        if (tabRoute?.name === 'Discover') {
+          const stackRoute = tabRoute.state?.routes?.[tabRoute.state?.index ?? -1];
+          if (stackRoute?.name === 'EditDiscoverProfile') {
+            navigation.goBack();
+            return;
+          }
+        }
+      }
+    }
+
+    try {
+      navigation.navigate('MemberHome', {
+        screen: 'Discover',
+        params: {
+          screen: 'EditDiscoverProfile',
+        },
+      });
     } catch {
       navigation.navigate('EditDiscoverProfile');
     }
-  }, [navigation]);
+  }, [navigation, route?.params?.from]);
 
   const loadVerification = useCallback(async () => {
     try {
@@ -138,7 +171,7 @@ export default function VerificationSubmitScreen({ navigation }) {
           text: 'Edit Photos',
           onPress: () => {
             setAlertModal((prev) => ({ ...prev, visible: false }));
-            navigateToEditPhotos();
+            navigateToEditProfile();
           },
         },
         secondaryAction: {
@@ -245,7 +278,7 @@ export default function VerificationSubmitScreen({ navigation }) {
     <View style={styles.container}>
       <SafeAreaView edges={['top']} style={styles.safeArea}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={12}>
+          <TouchableOpacity onPress={handleBack} hitSlop={12}>
             <ArrowLeft size={24} color={COLORS.textPrimary} strokeWidth={2} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Discover Verification</Text>
@@ -267,6 +300,10 @@ export default function VerificationSubmitScreen({ navigation }) {
               rejectionReason={verification?.rejection_reason}
               tierLabel="Discover"
               onResubmit={() => setResubmit(true)}
+              onDone={handleBack}
+              actionLabel="Done"
+              onSecondaryAction={navigateToEditProfile}
+              secondaryActionLabel="Edit Discover Profile"
             />
           )}
 
