@@ -194,21 +194,28 @@ export default function CompactEventCard({
         {/* Poster Half */}
         <View style={styles.poster}>
           {imageUrl ? (
-            <Image
-              source={{ uri: imageUrl }}
-              style={styles.posterImage}
-              contentFit="cover"
-            />
+            <View style={StyleSheet.absoluteFill}>
+              <Image
+                source={{ uri: imageUrl }}
+                style={styles.posterImage}
+                contentFit="cover"
+              />
+              <LinearGradient
+                colors={['transparent', 'rgba(0, 0, 0, 0.22)']}
+                style={StyleSheet.absoluteFill}
+              />
+            </View>
           ) : (
             <View style={styles.placeholderPoster}>
               <LinearGradient
-                colors={['#0F172A', '#1E293B', '#334155']}
+                colors={['#0B0F19', '#1E1B4B', '#0F172A']}
                 style={StyleSheet.absoluteFill}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
               />
-              <View style={styles.geometricAccent} />
-              <Calendar size={28} color="rgba(255, 255, 255, 0.7)" strokeWidth={1.5} />
+              <View style={styles.placeholderIconContainer}>
+                <Calendar size={22} color="rgba(255, 255, 255, 0.85)" strokeWidth={1.8} />
+              </View>
             </View>
           )}
 
@@ -271,11 +278,11 @@ export default function CompactEventCard({
 
           <View style={styles.metaRow}>
             {iconName === 'Layers' ? (
-              <Layers size={11} color="#475569" strokeWidth={2} />
+              <Layers size={11.5} color="#64748B" strokeWidth={1.8} />
             ) : iconName === 'Video' ? (
-              <Video size={11} color="#475569" strokeWidth={2} />
+              <Video size={11.5} color="#64748B" strokeWidth={1.8} />
             ) : (
-              <MapPin size={11} color="#475569" strokeWidth={2} />
+              <MapPin size={11.5} color="#64748B" strokeWidth={1.8} />
             )}
             <Text style={styles.metaText} numberOfLines={1}>
               {locationText}
@@ -283,7 +290,7 @@ export default function CompactEventCard({
           </View>
 
           <View style={styles.metaRow}>
-            <Clock size={11} color="#475569" strokeWidth={2} />
+            <Clock size={11.5} color="#64748B" strokeWidth={1.8} />
             <Text style={styles.metaText} numberOfLines={1}>
               {formatEventTime(dateStr, formattedTimeStr)}
             </Text>
@@ -349,7 +356,7 @@ export default function CompactEventCard({
 
                 {remainingCount > 0 && (
                   <View style={styles.moreAttendeesBadge}>
-                    <Plus size={8} color="#475569" strokeWidth={2.6} />
+                    <Plus size={8} color="#64748B" strokeWidth={2.6} />
                     <Text style={styles.moreAttendeesText}>{remainingCount}</Text>
                   </View>
                 )}
@@ -370,96 +377,99 @@ const styles = StyleSheet.create({
   cardOuter: {
     borderRadius: 20,
     backgroundColor: '#FFFFFF',
-    height: 236,
+    height: 242,
     width: '100%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.07,
+    shadowRadius: 10,
+    elevation: 3,
   },
   cardInner: {
     borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: 'rgba(0, 0, 0, 0.06)',
     backgroundColor: '#FFFFFF',
     flex: 1,
   },
   poster: {
-    height: 112,
+    height: 114,
     width: '100%',
     position: 'relative',
     backgroundColor: '#0F172A',
   },
   posterImage: {
     width: '100%',
-    height: 112,
+    height: 114,
   },
   placeholderPoster: {
     width: '100%',
-    height: 112,
+    height: 114,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
     overflow: 'hidden',
   },
-  geometricAccent: {
-    position: 'absolute',
+  placeholderIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.12)',
-    borderRadius: 8,
-    width: 60,
-    height: 60,
-    top: -10,
-    right: -10,
-    transform: [{ rotate: '15deg' }],
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   dateBadge: {
     position: 'absolute',
     top: 8,
     left: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    paddingHorizontal: 7,
-    paddingVertical: 3.5,
+    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+    paddingHorizontal: 7.5,
+    paddingVertical: 3,
     borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.8)',
     alignItems: 'center',
     minWidth: 34,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
-    elevation: 1,
+    elevation: 2,
   },
   dateMonth: {
     fontSize: 8,
-    fontFamily: FONTS.semiBold,
-    color: COLORS.primary,
+    fontFamily: 'Manrope-Bold',
+    color: '#2563EB',
     lineHeight: 10,
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
   },
   dateDay: {
-    fontSize: 12,
-    fontFamily: FONTS.primary,
-    color: COLORS.textPrimary,
-    lineHeight: 14,
+    fontSize: 13,
+    fontFamily: 'Manrope-Bold',
+    color: '#0F172A',
+    lineHeight: 15,
   },
   bookmarkBtn: {
     position: 'absolute',
     top: 8,
     right: 8,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.8)',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
+    shadowRadius: 3,
+    elevation: 2,
   },
   statusBadge: {
     position: 'absolute',
@@ -492,7 +502,8 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   content: {
-    padding: 10,
+    paddingHorizontal: 11,
+    paddingVertical: 10,
     flex: 1,
     justifyContent: 'space-between',
     backgroundColor: '#FFFFFF',
@@ -500,56 +511,60 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: FONTS.primary,
     fontSize: 13.5,
-    lineHeight: 17.5,
-    color: COLORS.textPrimary,
+    lineHeight: 18,
+    color: '#0F172A',
     marginBottom: 2,
   },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
     marginTop: 2,
   },
   metaText: {
     fontFamily: FONTS.medium,
     fontSize: 11,
-    color: '#334155',
+    color: '#64748B',
     flex: 1,
   },
   bottomRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 4,
-    paddingTop: 4,
+    marginTop: 6,
+    paddingTop: 6,
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
   },
   pricePill: {
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 7,
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: 8,
   },
   pricePillFree: {
     backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
   },
   pricePillPaid: {
-    backgroundColor: '#0F172A',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   pricePillText: {
     fontFamily: FONTS.semiBold,
     fontSize: 10,
   },
   pricePillTextFree: {
-    color: '#059669',
+    color: '#047857',
   },
   pricePillTextPaid: {
-    color: '#F1F5F9',
+    color: '#1E293B',
   },
   categoryText: {
     fontFamily: FONTS.medium,
     fontSize: 9.5,
-    color: COLORS.textMuted,
+    color: '#64748B',
     maxWidth: '45%',
   },
   attendeesContainer: {
@@ -563,9 +578,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   attendeeAvatar: {
-    width: 19,
-    height: 19,
-    borderRadius: 9.5,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     borderWidth: 1.5,
     borderColor: '#FFFFFF',
   },
@@ -588,7 +603,7 @@ const styles = StyleSheet.create({
   moreAttendeesText: {
     fontFamily: FONTS.medium,
     fontSize: 10,
-    color: '#475569',
+    color: '#64748B',
     lineHeight: 12,
   },
 });

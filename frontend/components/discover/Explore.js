@@ -60,8 +60,8 @@ const getLucideIcon = (iconName) => {
   return LucideIcons[pascalName] || LucideIcons.Compass || LucideIcons.Tags;
 };
 
-// Curated Open Plans quick-nav activities
-const OPEN_PLAN_QUICK_ACTIVITIES = [
+// Comprehensive Open Plans quick-nav activities pool
+const ALL_OPEN_PLAN_ACTIVITIES = [
   { key: "sports", label: "Sports", emoji: "⚽", bg: "#FFF3E0", text: "#E65100" },
   { key: "food", label: "Food", emoji: "🍔", bg: "#FFF8E1", text: "#F57F17" },
   { key: "hangout", label: "Hangout", emoji: "🌿", bg: "#E8F5E9", text: "#1B5E20" },
@@ -70,12 +70,26 @@ const OPEN_PLAN_QUICK_ACTIVITIES = [
   { key: "hiking", label: "Hiking", emoji: "🥾", bg: "#E8F5E9", text: "#2E7D32" },
   { key: "cafe", label: "Cafe", emoji: "☕", bg: "#EFEBE9", text: "#4E342E" },
   { key: "house_party", label: "House Party", emoji: "🏠", bg: "#FBE9E7", text: "#D84315" },
-  { key: "all", label: "All Plans", emoji: "✨", bg: "#EEF2FF", text: "#2962FF" },
+  { key: "movies", label: "Movies", emoji: "🍿", bg: "#F3E5F5", text: "#6A1B9A" },
+  { key: "bowling", label: "Bowling", emoji: "🎳", bg: "#EDE7F6", text: "#512DA8" },
+  { key: "gokarting", label: "Go-karting", emoji: "🏎️", bg: "#FFF3E0", text: "#D84315" },
+  { key: "swimming", label: "Swimming", emoji: "🏊", bg: "#E0F7FA", text: "#00838F" },
+  { key: "bar", label: "Bar", emoji: "🍻", bg: "#E8EAF6", text: "#303F9F" },
+  { key: "club", label: "Club", emoji: "🪩", bg: "#EDE7F6", text: "#5E35B1" },
+  { key: "pilates", label: "Pilates", emoji: "🤸‍♀️", bg: "#FCE4EC", text: "#C2185B" },
 ];
+
+const getRandomActivities = (count = 8) => {
+  const shuffled = [...ALL_OPEN_PLAN_ACTIVITIES].sort(() => 0.5 - Math.random());
+  return shuffled.slice(0, count);
+};
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const HERO_WIDTH = SCREEN_WIDTH - 32;
-const RAIL_CARD_WIDTH = 160;
+const RAIL_CARD_WIDTH = 168;
+const RAIL_CARD_GAP = 14;
+const OPEN_PLAN_GRID_GAP = 8;
+const OPEN_PLAN_TILE_WIDTH = Math.floor((SCREEN_WIDTH - 32 - (3 * OPEN_PLAN_GRID_GAP)) / 4);
 const BENTO_LARGE_WIDTH = (SCREEN_WIDTH - 40) * 0.58;
 
 const FILTER_OPTIONS = [
@@ -221,6 +235,15 @@ function Explore({
 
   // Local interest / bookmark state map keyed by eventId
   const [interestMap, setInterestMap] = useState({});
+
+  // 8 random Open Plan activities (stable during interaction, re-randomized on pull-to-refresh)
+  const [randomActivities, setRandomActivities] = useState(() => getRandomActivities(8));
+
+  useEffect(() => {
+    if (refreshing) {
+      setRandomActivities(getRandomActivities(8));
+    }
+  }, [refreshing]);
 
   useEffect(() => {
     const map = {};
@@ -922,9 +945,13 @@ function Explore({
         <View style={styles.railHeader}>
           <Text style={styles.sectionTitle}>This weekend</Text>
           <TouchableOpacity
+            style={styles.seeAllButton}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             onPress={() => handleSeeAll("weekend", "This Weekend")}
           >
             <Text style={styles.seeAllText}>See all</Text>
+            <ChevronRight size={14} color="#71717A" strokeWidth={2.2} style={styles.seeAllChevron} />
           </TouchableOpacity>
         </View>
         <View style={styles.bentoRow}>
@@ -1144,13 +1171,16 @@ function Explore({
     );
   };
 
-  // 4b. Open Plans Activity-Type Quick-Nav
+  // 4b. Open Plans Activity-Type Quick-Nav (2 rows x 4 cards non-scrollable grid)
   const renderOpenPlansQuickNav = () => {
     return (
       <View style={styles.sectionContainer}>
         <View style={styles.railHeader}>
           <Text style={styles.sectionTitle}>Open Plans by Activity</Text>
           <TouchableOpacity
+            style={styles.seeAllButton}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             onPress={() => {
               HapticsService.triggerImpactLight();
               if (navigation) {
@@ -1159,19 +1189,17 @@ function Explore({
             }}
           >
             <Text style={styles.seeAllText}>See all</Text>
+            <ChevronRight size={14} color="#71717A" strokeWidth={2.2} style={styles.seeAllChevron} />
           </TouchableOpacity>
         </View>
 
-        <EdgeSwipeScrollView
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalScrollPadding}
-        >
-          {OPEN_PLAN_QUICK_ACTIVITIES.map((activity) => (
+        <View style={styles.openPlansGridContainer}>
+          {randomActivities.map((activity) => (
             <TouchableOpacity
               key={activity.key}
               style={[
-                styles.planActivityTile,
-                { backgroundColor: activity.bg, borderColor: "rgba(0, 0, 0, 0.04)" }
+                styles.openPlanGridTile,
+                { backgroundColor: activity.bg }
               ]}
               activeOpacity={0.75}
               onPress={() => {
@@ -1192,7 +1220,7 @@ function Explore({
               </Text>
             </TouchableOpacity>
           ))}
-        </EdgeSwipeScrollView>
+        </View>
       </View>
     );
   };
@@ -1242,9 +1270,13 @@ function Explore({
               <View style={styles.railHeader}>
                 <Text style={styles.sectionTitle}>{rail.category}</Text>
                 <TouchableOpacity
+                  style={styles.seeAllButton}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   onPress={() => handleSeeAll(rail.categorySlug, rail.category)}
                 >
                   <Text style={styles.seeAllText}>See all</Text>
+                  <ChevronRight size={14} color="#71717A" strokeWidth={2.2} style={styles.seeAllChevron} />
                 </TouchableOpacity>
               </View>
               <EdgeSwipeScrollView
@@ -1261,8 +1293,8 @@ function Explore({
                         id: event.eventId,
                         category: rail.category,
                       }}
-                      width={168}
-                      style={{ marginRight: 12 }}
+                      width={RAIL_CARD_WIDTH}
+                      style={{ marginRight: RAIL_CARD_GAP }}
                       showBookmark={true}
                       isInterested={isInterested}
                       onToggleInterest={handleToggleInterest}
@@ -1299,8 +1331,8 @@ function Explore({
                   id: event.eventId,
                   category: event.categoryName,
                 }}
-                width={168}
-                style={{ marginRight: 12 }}
+                width={RAIL_CARD_WIDTH}
+                style={{ marginRight: RAIL_CARD_GAP }}
                 showBookmark={true}
                 isInterested={isInterested}
                 onToggleInterest={handleToggleInterest}
@@ -1414,10 +1446,21 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: "#2C2C2A"
   },
+  seeAllButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    paddingVertical: 4,
+    paddingLeft: 6,
+    marginBottom: 12,
+  },
   seeAllText: {
     fontFamily: "Manrope-SemiBold",
-    fontSize: 14,
+    fontSize: 13.5,
     color: "#5F5E5A"
+  },
+  seeAllChevron: {
+    marginTop: 1.5,
   },
   railHeader: {
     flexDirection: "row",
@@ -1425,9 +1468,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingRight: 16
   },
+  railCardWrapper: {
+    marginRight: RAIL_CARD_GAP,
+  },
   horizontalScrollPadding: {
     paddingLeft: 16,
-    paddingRight: 8,
+    paddingRight: 16,
     paddingTop: 4,
     paddingBottom: 14
   },
@@ -1594,26 +1640,33 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
 
-  // Open Plans Activity Tiles
-  planActivityTile: {
-    width: 82,
-    height: 68,
+  // Open Plans Activity 2x4 Grid
+  openPlansGridContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    paddingHorizontal: 16,
+    justifyContent: "space-between",
+    rowGap: 10,
+  },
+  openPlanGridTile: {
+    width: OPEN_PLAN_TILE_WIDTH,
+    height: 72,
     borderRadius: 16,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 8,
     borderWidth: 1,
+    borderColor: "rgba(0, 0, 0, 0.05)",
     paddingHorizontal: 4,
-    ...SHADOWS.sm
+    ...SHADOWS.sm,
   },
   planActivityEmoji: {
-    fontSize: 20,
-    marginBottom: 3
+    fontSize: 22,
+    marginBottom: 4,
   },
   planActivityLabel: {
-    fontFamily: FONTS.semiBold,
+    fontFamily: "Manrope-SemiBold",
     fontSize: 11,
-    textAlign: "center"
+    textAlign: "center",
   },
 
   // Filter Pills
@@ -1958,7 +2011,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(0, 0, 0, 0.04)",
     ...SHADOWS.md,
     overflow: "hidden",
-    marginRight: 12
+    marginRight: RAIL_CARD_GAP
   },
   curatedCardBackground: {
     flex: 1,
@@ -2019,7 +2072,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(0, 0, 0, 0.04)",
     ...SHADOWS.sm,
     overflow: "hidden",
-    marginRight: 12,
+    marginRight: RAIL_CARD_GAP,
     marginBottom: 4
   },
   railCardImageContainer: {

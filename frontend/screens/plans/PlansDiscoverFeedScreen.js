@@ -418,10 +418,9 @@ export default function PlansDiscoverFeedScreen({ navigation, route }) {
                     {
                       backgroundColor: filter.bg,
                       borderColor: isActive ? filter.text : 'rgba(0, 0, 0, 0.05)',
-                      borderWidth: isActive ? 2 : 1,
+                      borderWidth: isActive ? 1.5 : 1,
                     },
                     isActive && styles.planActivityTileActive,
-                    !isActive && activeActivityType !== 'all' && styles.planActivityTileDimmed,
                   ]}
                   activeOpacity={0.75}
                   onPress={() => {
@@ -730,40 +729,38 @@ const styles = StyleSheet.create({
 
   // Activity Filter Tiles (matching Explore Open Plans by Activity)
   filterPillsContainer: {
-    paddingVertical: 10,
+    paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-    backgroundColor: '#FFFFFF',
+    borderBottomColor: 'rgba(0, 0, 0, 0.04)',
+    backgroundColor: '#F9FAFB',
   },
   filterScrollPadding: {
     paddingLeft: 16,
-    paddingRight: 8,
-    paddingTop: 2,
-    paddingBottom: 6,
+    paddingRight: 10,
+    paddingTop: 4,
+    paddingBottom: 10,
   },
   planActivityTile: {
-    width: 82,
-    height: 68,
+    width: 84,
+    height: 72,
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 8,
     borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.05)',
     paddingHorizontal: 4,
     ...SHADOWS.sm,
   },
   planActivityTileActive: {
     ...SHADOWS.md,
   },
-  planActivityTileDimmed: {
-    opacity: 0.65,
-  },
   planActivityEmoji: {
-    fontSize: 20,
-    marginBottom: 3,
+    fontSize: 22,
+    marginBottom: 4,
   },
   planActivityLabel: {
-    fontFamily: FONTS.semiBold,
+    fontFamily: 'Manrope-SemiBold',
     fontSize: 11,
     textAlign: 'center',
   },
