@@ -13,6 +13,7 @@ import {
   Keyboard,
   ScrollView,
   Dimensions,
+  useWindowDimensions,
 } from "react-native";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -23,6 +24,7 @@ import {
   Trophy,
   Music,
   Utensils,
+  CupSoda,
   Gift,
   Users,
   Heart,
@@ -75,12 +77,12 @@ const popularIcons = [
   { name: "Trophy", icon: Trophy, label: "Trophy" },
   { name: "Music", icon: Music, label: "Music" },
   { name: "Utensils", icon: Utensils, label: "Food" },
+  { name: "CupSoda", icon: CupSoda, label: "Drinks" },
   { name: "Gift", icon: Gift, label: "Gift" },
   { name: "Users", icon: Users, label: "People" },
   { name: "Heart", icon: Heart, label: "Heart" },
   { name: "Sparkles", icon: Sparkles, label: "Sparkles" },
   { name: "Ticket", icon: Ticket, label: "Ticket" },
-  { name: "Ribbon", icon: Ribbon, label: "Ribbon" },
   { name: "Megaphone", icon: Megaphone, label: "Megaphone" },
   { name: "Zap", icon: Zap, label: "Flash" },
 ];
@@ -109,6 +111,12 @@ export const HIGHLIGHT_ICON_THEMES = {
     bgColor: "#FFEDD5",
     activeBg: "#F97316",
     borderColor: "#FED7AA",
+  },
+  CupSoda: {
+    color: "#059669",
+    bgColor: "#D1FAE5",
+    activeBg: "#10B981",
+    borderColor: "#A7F3D0",
   },
   Gift: {
     color: "#DB2777",
@@ -166,6 +174,9 @@ export const getHighlightTheme = (iconName) => {
     "trophy-outline": "Trophy",
     "musical-notes-outline": "Music",
     "restaurant-outline": "Utensils",
+    "cup-soda": "CupSoda",
+    "drinks-outline": "CupSoda",
+    Drinks: "CupSoda",
     "gift-outline": "Gift",
     "people-outline": "Users",
     "heart-outline": "Heart",
@@ -194,6 +205,11 @@ const getIconComponent = (iconName) => {
     Music: Music,
     "restaurant-outline": Utensils,
     Utensils: Utensils,
+    Food: Utensils,
+    "cup-soda": CupSoda,
+    "drinks-outline": CupSoda,
+    CupSoda: CupSoda,
+    Drinks: CupSoda,
     "gift-outline": Gift,
     Gift: Gift,
     "people-outline": Users,
@@ -215,6 +231,10 @@ const getIconComponent = (iconName) => {
 };
 
 const HighlightsEditor = ({ highlights = [], onChange, maxHighlights = 5 }) => {
+  const { width: windowWidth } = useWindowDimensions();
+  // 4 columns, 20px sheet padding each side (40px), 3 gaps of 10px (30px)
+  const itemSize = Math.floor((windowWidth - 40 - 30) / 4);
+
   const [showModal, setShowModal] = useState(false);
   const [showIconPicker, setShowIconPicker] = useState(false);
   const [editingIndex, setEditingIndex] = useState(null);
@@ -555,6 +575,8 @@ const HighlightsEditor = ({ highlights = [], onChange, maxHighlights = 5 }) => {
                   style={[
                     styles.iconOption,
                     {
+                      width: itemSize,
+                      height: itemSize,
                       backgroundColor: isSelected
                         ? theme.activeBg
                         : theme.bgColor,
@@ -582,11 +604,9 @@ const HighlightsEditor = ({ highlights = [], onChange, maxHighlights = 5 }) => {
                       styles.iconLabel,
                       {
                         color: isSelected ? "#FFFFFF" : theme.color,
-                        fontFamily: isSelected
-                          ? TOKENS.fonts.semibold
-                          : TOKENS.fonts.medium,
                       },
                     ]}
+                    numberOfLines={1}
                   >
                     {icon.label}
                   </Text>
@@ -878,10 +898,9 @@ const styles = StyleSheet.create({
     marginTop: 10,
     gap: 10,
     justifyContent: "space-between",
+    alignItems: "center",
   },
   iconOption: {
-    width: "22.5%",
-    aspectRatio: 1,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 16,
@@ -889,7 +908,10 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   iconLabel: {
+    fontFamily: TOKENS.fonts.medium,
     fontSize: 11,
+    lineHeight: 14,
+    includeFontPadding: false,
     marginTop: 4,
     textAlign: "center",
   },

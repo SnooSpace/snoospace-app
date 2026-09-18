@@ -56,6 +56,7 @@ import {
   SEMANTIC_THEMES,
 } from "../../utils/ticketVisuals";
 import { getSalesStatus } from "../../utils/salesTiming";
+import { useLocationName } from "../../utils/locationNameCache";
 
 // Premium Theme Colors
 const BACKGROUND_COLOR = "#F8F9FA";
@@ -112,6 +113,9 @@ const TicketCard = React.memo(({
   displayDate,
   pricingRules,
   salesStatus,
+  eventLocation,
+  eventMode,
+  virtualPlatform,
   onAdd,
   onRemove,
   onLockedPress,
@@ -136,6 +140,59 @@ const TicketCard = React.memo(({
 
   const shape = TICKET_SHAPES[theme?.shapeVariant] || TICKET_SHAPES.classic;
   const IconComponent = theme?.iconName ? ICON_MAP[theme.iconName] : null;
+
+  // Disallow Men/Women pass tags and redundant tags that duplicate ticket name
+  const isMenOrWomenTag = (tag) => {
+    if (!tag) return false;
+    const t = tag.toLowerCase().trim();
+    return (
+      t.includes("men") ||
+      t.includes("women") ||
+      t.includes("male") ||
+      t.includes("female") ||
+      t.includes("boy") ||
+      t.includes("girl") ||
+      t.includes("stag") ||
+      t.includes("ladies") ||
+      t.includes("gents")
+    );
+  };
+
+  const isRedundantTag = (tag, ticketName) => {
+    if (!tag || !ticketName) return false;
+    const t = tag.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const n = ticketName.toLowerCase().replace(/[^a-z0-9]/g, "");
+    return n.includes(t) || t.includes(n);
+  };
+
+  const shouldShowTag = Boolean(
+    theme?.tag &&
+    !isMenOrWomenTag(theme.tag) &&
+    !isRedundantTag(theme.tag, ticket.name)
+  );
+
+  // Inventory metrics for 3-color progress bar
+  const totalQty = ticket.total_quantity || 0;
+  const soldCount = (ticket.sold_count || 0) + (ticket.reserved_count || 0);
+  const hasStockLimit = Boolean(totalQty > 0 || (available > 0 && available <= 25));
+
+  const percentSold = totalQty > 0
+    ? Math.min(100, Math.max(0, Math.round((soldCount / totalQty) * 100)))
+    : available <= 5
+    ? 90
+    : available <= 10
+    ? 80
+    : 50;
+
+  const isCriticalStock = available <= 10 || percentSold >= 75;
+  const isModerateStock = !isCriticalStock && (available <= 25 || percentSold >= 40);
+
+  // Segment 1 (Green / Healthy): 0% to 33.33%
+  const seg1Fill = Math.min(100, Math.max(0, Math.round((percentSold / 33.33) * 100)));
+  // Segment 2 (Orange / Moderate): 33.33% to 66.66%
+  const seg2Fill = Math.min(100, Math.max(0, Math.round(((percentSold - 33.33) / 33.33) * 100)));
+  // Segment 3 (Red / Critical): 66.66% to 100%
+  const seg3Fill = Math.min(100, Math.max(0, Math.round(((percentSold - 66.66) / 33.34) * 100)));
 
   return (
     <View
@@ -184,11 +241,11 @@ const TicketCard = React.memo(({
         />
       </Svg>
 
-      {/* Content Overlay Layout */}
+      {/* Content Layout */}
       <View style={styles.cardContent}>
         {/* Left Section (Main Info) */}
         <View style={styles.leftStub}>
-          {theme.tag ? (
+          {shouldShowTag ? (
             <View
               style={[
                 styles.headerTagPill,
@@ -226,31 +283,54 @@ const TicketCard = React.memo(({
             </Text>
           </View>
 
-          {/* Access Mode Badge */}
+          {/* Mode of Event & Location Row */}
           {(() => {
-            const mode = ticket.access_mode || "in_person";
-            if (mode === "virtual") {
-              return (
-                <View style={styles.accessBadgeVirtual}>
-                  <Video size={12} color="#7C3AED" strokeWidth={2.2} />
-                  <Text style={styles.accessBadgeVirtualText}>Virtual</Text>
-                </View>
-              );
-            } else if (mode === "both") {
-              return (
-                <View style={styles.accessBadgeBoth}>
-                  <Sparkles size={12} color="#0D9488" strokeWidth={2.2} />
-                  <Text style={styles.accessBadgeBothText}>In-Person + Virtual</Text>
-                </View>
-              );
-            } else {
-              return (
-                <View style={styles.accessBadgeInPerson}>
-                  <MapPin size={12} color="#4B5563" strokeWidth={2.2} />
-                  <Text style={styles.accessBadgeInPersonText}>In-Person</Text>
-                </View>
-              );
+            const mode = ticket.access_mode || eventMode || "in_person";
+            const isVirtual = mode === "virtual";
+            const isBoth = mode === "both" || mode === "hybrid";
+
+            let ModeIcon = MapPin;
+            let modeLabel = "In-Person";
+            let badgeStyle = styles.accessBadgeInPerson;
+            let badgeTextStyle = styles.accessBadgeInPersonText;
+            let iconColor = "#4B5563";
+
+            if (isVirtual) {
+              ModeIcon = Video;
+              modeLabel = "Virtual";
+              badgeStyle = styles.accessBadgeVirtual;
+              badgeTextStyle = styles.accessBadgeVirtualText;
+              iconColor = "#7C3AED";
+            } else if (isBoth) {
+              ModeIcon = Sparkles;
+              modeLabel = "In-Person + Virtual";
+              badgeStyle = styles.accessBadgeBoth;
+              badgeTextStyle = styles.accessBadgeBothText;
+              iconColor = "#0D9488";
             }
+
+            const resolvedLocation = isVirtual
+              ? virtualPlatform
+                ? `On ${virtualPlatform}`
+                : "Online Event"
+              : eventLocation || "";
+
+            return (
+              <View style={styles.modeAndLocationRow}>
+                <View style={badgeStyle}>
+                  <ModeIcon size={11} color={iconColor} strokeWidth={2.2} />
+                  <Text style={badgeTextStyle}>{modeLabel}</Text>
+                </View>
+                {resolvedLocation ? (
+                  <View style={styles.locationDetailWrap}>
+                    <MapPin size={11} color="#64748B" strokeWidth={2.2} />
+                    <Text style={styles.locationDetailText} numberOfLines={1}>
+                      {resolvedLocation}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            );
           })()}
 
           {/* Sales Window Urgency / Status Badge */}
@@ -279,13 +359,96 @@ const TicketCard = React.memo(({
             </View>
           ) : null}
 
-          {/* Stock counter warning */}
-          {ticket.total_quantity && available > 0 && available <= 10 && (
-            <View style={styles.stockRow}>
-              <Clock size={12} color="#EA580C" strokeWidth={2.5} />
-              <Text style={styles.remainingBadge}>
-                Only {available} passes left
-              </Text>
+          {/* 3-Color Inventory Progress Bar (Green, Orange, Red in Premium Shades) */}
+          {hasStockLimit && available > 0 && (
+            <View style={styles.stockProgressContainer}>
+              <View style={styles.stockProgressHeader}>
+                <View style={styles.stockProgressLabelWrap}>
+                  <View
+                    style={[
+                      styles.stockStatusDot,
+                      {
+                        backgroundColor: isCriticalStock
+                          ? "#EF4444"
+                          : isModerateStock
+                          ? "#F59E0B"
+                          : "#10B981",
+                      },
+                    ]}
+                  />
+                  <Text
+                    style={[
+                      styles.stockProgressText,
+                      {
+                        color: isCriticalStock
+                          ? "#DC2626"
+                          : isModerateStock
+                          ? "#D97706"
+                          : "#059669",
+                      },
+                    ]}
+                  >
+                    {isCriticalStock
+                      ? `Only ${available} ${available === 1 ? "pass" : "passes"} left`
+                      : isModerateStock
+                      ? `Filling fast • ${available} left`
+                      : `${available} passes available`}
+                  </Text>
+                </View>
+
+                {totalQty > 0 && (
+                  <Text style={styles.stockProgressCounter}>
+                    {percentSold}% claimed
+                  </Text>
+                )}
+              </View>
+
+              <View style={styles.segmentedProgressBar}>
+                {/* Tier 1: Premium Emerald Green */}
+                <View
+                  style={[
+                    styles.progressSegmentTrack,
+                    { backgroundColor: "rgba(16, 185, 129, 0.16)" },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.progressSegmentFill,
+                      { width: `${seg1Fill}%`, backgroundColor: "#10B981" },
+                    ]}
+                  />
+                </View>
+
+                {/* Tier 2: Premium Amber Orange */}
+                <View
+                  style={[
+                    styles.progressSegmentTrack,
+                    { backgroundColor: "rgba(245, 158, 11, 0.16)" },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.progressSegmentFill,
+                      { width: `${seg2Fill}%`, backgroundColor: "#F59E0B" },
+                    ]}
+                  />
+                </View>
+
+                {/* Tier 3: Premium Crimson Red */}
+                <View
+                  style={[
+                    styles.progressSegmentTrack,
+                    { backgroundColor: "rgba(239, 68, 68, 0.16)" },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.progressSegmentFill,
+                      { width: `${seg3Fill}%`, backgroundColor: "#EF4444" },
+                    ]}
+                  />
+                </View>
+              </View>
             </View>
           )}
 
@@ -687,6 +850,13 @@ export default function TicketSelectionScreen({ route, navigation }) {
 
   const displayDate = event.start_datetime || event.event_date;
 
+  // Resolve location name with fallback
+  const decodedLocationName = useLocationName(event?.location_url, {
+    fallback: event?.venue_name || "",
+  });
+  const displayLocationName =
+    event?.location_name || decodedLocationName || event?.venue_name || "";
+
   return (
     <View style={styles.container}>
       {/* Dynamic Status Bar */}
@@ -711,6 +881,14 @@ export default function TicketSelectionScreen({ route, navigation }) {
               {formatDate(displayDate)}  •  {formatTime(displayDate)}
             </Text>
           </View>
+          {displayLocationName ? (
+            <View style={styles.headerLocationRow}>
+              <MapPin size={12} color={MUTED_TEXT} strokeWidth={2} />
+              <Text style={styles.headerLocationText} numberOfLines={1}>
+                {displayLocationName}
+              </Text>
+            </View>
+          ) : null}
         </View>
       </View>
 
@@ -798,6 +976,9 @@ export default function TicketSelectionScreen({ route, navigation }) {
               displayDate={displayDate}
               pricingRules={event.pricing_rules}
               salesStatus={salesStatus}
+              eventLocation={displayLocationName}
+              eventMode={event?.mode}
+              virtualPlatform={event?.virtual_platform}
               onAdd={handleAdd}
               onRemove={handleRemove}
               onLockedPress={handleLockedPress}
@@ -878,6 +1059,18 @@ const styles = StyleSheet.create({
     color: MUTED_TEXT,
     marginLeft: 6,
   },
+  headerLocationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 3,
+  },
+  headerLocationText: {
+    fontSize: 12,
+    fontFamily: "Manrope-Medium",
+    color: MUTED_TEXT,
+    marginLeft: 6,
+    flex: 1,
+  },
   content: {
     flex: 1,
     paddingHorizontal: 20,
@@ -925,39 +1118,38 @@ const styles = StyleSheet.create({
     lineHeight: 15,
   },
   ticketCard: {
-    flexDirection: "row",
-    marginBottom: 16,
-    minHeight: 144, // 2.5 aspect ratio support
     position: "relative",
+    marginBottom: 16,
+    minHeight: 164,
     backgroundColor: "transparent",
     borderWidth: 0,
     overflow: "visible",
     ...Platform.select({
       ios: {
         shadowColor: "#000000",
-        shadowOffset: { width: 0, height: 8 },
+        shadowOffset: { width: 0, height: 6 },
         shadowOpacity: 0.08,
-        shadowRadius: 12,
+        shadowRadius: 10,
       },
-      android: {},
+      android: {
+        elevation: 3,
+      },
     }),
   },
   ticketCardDisabled: {
     opacity: 0.65,
   },
   cardContent: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
     flexDirection: "row",
+    minHeight: 164,
+    width: "100%",
   },
   leftStub: {
     flex: 4.6, // matches SVG split ratio (460/600)
-    paddingLeft: 24,
-    paddingRight: 16,
-    paddingVertical: 16,
+    paddingLeft: 22,
+    paddingRight: 14,
+    paddingTop: 16,
+    paddingBottom: 16,
     justifyContent: "center",
   },
   headerTagPill: {
@@ -1175,16 +1367,68 @@ const styles = StyleSheet.create({
     fontFamily: "Manrope-SemiBold",
     fontSize: 11,
   },
-  stockRow: {
+  modeAndLocationRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 4,
-    gap: 4,
+    marginTop: 6,
+    gap: 6,
   },
-  remainingBadge: {
+  locationDetailWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    flex: 1,
+  },
+  locationDetailText: {
+    fontSize: 11.5,
+    fontFamily: "Manrope-Medium",
+    color: "#64748B",
+    flex: 1,
+  },
+  stockProgressContainer: {
+    marginTop: 8,
+    marginBottom: 2,
+  },
+  stockProgressHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 5,
+  },
+  stockProgressLabelWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  stockStatusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  stockProgressText: {
     fontSize: 11,
-    color: "#EA580C",
     fontFamily: "Manrope-SemiBold",
+  },
+  stockProgressCounter: {
+    fontSize: 11,
+    fontFamily: "Manrope-Medium",
+    color: "#64748B",
+  },
+  segmentedProgressBar: {
+    flexDirection: "row",
+    height: 5,
+    gap: 4,
+    alignItems: "center",
+  },
+  progressSegmentTrack: {
+    flex: 1,
+    height: 5,
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  progressSegmentFill: {
+    height: "100%",
+    borderRadius: 3,
   },
   descBlock: {
     marginTop: 8,
@@ -1383,11 +1627,10 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 8,
     alignSelf: "flex-start",
-    marginTop: 6,
   },
   accessBadgeInPersonText: {
     fontFamily: "Manrope-Medium",
-    fontSize: 12,
+    fontSize: 11.5,
     color: "#4B5563",
     marginLeft: 4,
   },
@@ -1399,11 +1642,10 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 8,
     alignSelf: "flex-start",
-    marginTop: 6,
   },
   accessBadgeVirtualText: {
     fontFamily: "Manrope-Medium",
-    fontSize: 12,
+    fontSize: 11.5,
     color: "#7C3AED",
     marginLeft: 4,
   },
@@ -1415,11 +1657,10 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 8,
     alignSelf: "flex-start",
-    marginTop: 6,
   },
   accessBadgeBothText: {
     fontFamily: "Manrope-Medium",
-    fontSize: 12,
+    fontSize: 11.5,
     color: "#0D9488",
     marginLeft: 4,
   },

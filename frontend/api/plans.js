@@ -59,7 +59,7 @@ export async function withdrawRequest(planId, reqId, token) {
 }
 
 export async function getApprovedAttendees(planId, token) {
-  return apiGet(`/plans/${planId}/members`, 15000, token);
+  return apiGet(`/plans/${planId}/approved-attendees`, 15000, token);
 }
 
 // ─── Engagement ─────────────────────────────────────────────────────────────

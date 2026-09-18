@@ -208,74 +208,62 @@ const getExploreFeed = async (req, res) => {
       return result.rows;
     };
 
-    // 4. Category Rails
+    // 4. Category Rails (Maps all main categories and their subcategories, returning rails for all active categories)
     const queryCategoryRails = async () => {
-      // Find top categories
-      const topCatQuery = `
-        SELECT category, raw_score 
-        FROM user_interest_vectors 
-        WHERE user_id = $1 
-        ORDER BY raw_score DESC 
-        LIMIT 5
-      `;
-      const topCatRes = await pool.query(topCatQuery, [userId]);
-      let activeSlugs = topCatRes.rows.map(r => r.category);
+      // 1. Get all active discover categories
+      const allSubcatsRes = await pool.query(
+        `SELECT id, name, slug FROM discover_categories WHERE is_active = true`
+      );
+      const allSubcats = allSubcatsRes.rows;
 
-      // Pad up to 5 categories prioritizing those with active upcoming events
-      if (activeSlugs.length < 5) {
-        const defaultCatQuery = `
-          SELECT dc.slug FROM discover_categories dc 
-          WHERE dc.is_active = true 
-          ORDER BY (
-            CASE WHEN EXISTS (
-              SELECT 1 FROM event_discover_categories edc
-              INNER JOIN events e ON e.id = edc.event_id
-              WHERE edc.category_id = dc.id
-                AND e.start_datetime > NOW()
-                AND e.is_published = true
-                AND e.is_cancelled IS NOT TRUE
-            ) THEN 1 ELSE 0 END
-          ) DESC, dc.display_order ASC
-        `;
-        const defaultCatRes = await pool.query(defaultCatQuery);
-        for (const r of defaultCatRes.rows) {
-          if (!activeSlugs.includes(r.slug)) {
-            activeSlugs.push(r.slug);
-            if (activeSlugs.length >= 5) break;
-          }
-        }
-      }
+      // 2. Fetch user interest vectors for personalized rail ordering
+      const topCatRes = await pool.query(
+        `SELECT category, raw_score FROM user_interest_vectors WHERE user_id = $1 ORDER BY raw_score DESC`,
+        [userId]
+      );
+      const userScoreMap = new Map(topCatRes.rows.map(r => [r.category, Number(r.raw_score)]));
 
-      if (activeSlugs.length === 0) return [];
+      // 3. Map each curated main category to its subcategories in discover_categories
+      const valueTuples = [];
+      const mainCatMap = new Map();
 
-      // Fetch category metadata and preserve priority order
-      const catDetailsQuery = `
-        SELECT id, name, slug FROM discover_categories 
-        WHERE slug = ANY($1::text[]) AND is_active = true
-      `;
-      const catDetailsRes = await pool.query(catDetailsQuery, [activeSlugs]);
-      if (catDetailsRes.rows.length === 0) return [];
+      MAIN_EVENT_CATEGORIES.forEach((mainCat, index) => {
+        const subcatNamesLower = mainCat.subcategories.map(s => s.toLowerCase());
+        const matchingRows = allSubcats.filter(row => 
+          subcatNamesLower.includes(row.name.toLowerCase()) || 
+          row.slug === mainCat.slug ||
+          row.name.toLowerCase() === mainCat.name.toLowerCase()
+        );
+        const primaryId = matchingRows.find(r => r.slug === mainCat.slug)?.id || matchingRows[0]?.id || (index + 1);
+        const userScore = userScoreMap.get(mainCat.slug) || 0;
+        const displayOrder = index + 1;
 
-      const catMap = new Map(catDetailsRes.rows.map(c => [c.slug, c]));
-      const orderedCategories = activeSlugs
-        .map(slug => catMap.get(slug))
-        .filter(Boolean);
+        mainCatMap.set(mainCat.slug, {
+          id: primaryId,
+          name: mainCat.name,
+          slug: mainCat.slug,
+          displayOrder,
+          userScore
+        });
 
-      if (orderedCategories.length === 0) return [];
+        matchingRows.forEach(row => {
+          const escapedSlug = mainCat.slug.replace(/'/g, "''");
+          valueTuples.push(`(${parseInt(row.id, 10)}, '${escapedSlug}')`);
+        });
+      });
 
-      // Build VALUES(category_id, priority) clause
-      const valuesClause = orderedCategories
-        .map((cat, idx) => `(${parseInt(cat.id, 10)}, ${idx + 1})`)
-        .join(", ");
+      if (valueTuples.length === 0) return [];
+
+      const valuesClause = valueTuples.join(", ");
 
       const eventsQuery = `
-        SELECT DISTINCT ON (e.id)
+        SELECT DISTINCT ON (cp.main_slug, e.id)
           e.id as "eventId", 
           e.title, 
           e.banner_url as "coverUrl",
           e.start_datetime as "startDatetime",
           e.event_type as "eventType",
-          cp.category_id as "categoryId",
+          cp.main_slug as "mainSlug",
           COALESCE((
             SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status = 'registered'
           ), 0)::int as "attendeeCount",
@@ -288,68 +276,66 @@ const getExploreFeed = async (req, res) => {
         INNER JOIN event_discover_categories edc ON e.id = edc.event_id
         INNER JOIN (
           VALUES ${valuesClause}
-        ) AS cp(category_id, priority) ON edc.category_id = cp.category_id
+        ) AS cp(subcat_id, main_slug) ON edc.category_id = cp.subcat_id
         WHERE e.start_datetime > NOW()
           AND e.is_published = true
           AND e.is_cancelled IS NOT TRUE
-        ORDER BY e.id, cp.priority ASC, score DESC
+        ORDER BY cp.main_slug, e.id, score DESC, e.start_datetime ASC
       `;
+
       const eventsRes = await pool.query(eventsQuery, [userId]);
 
-      // Group results in JS by category
-      const categoryEventsMap = new Map();
-      for (const cat of orderedCategories) {
-        categoryEventsMap.set(String(cat.id), []);
-      }
-
+      // Group events by mainSlug
+      const eventsBySlug = new Map();
       for (const row of eventsRes.rows) {
-        const list = categoryEventsMap.get(String(row.categoryId));
-        if (list) {
-          list.push({
-            eventId: row.eventId,
-            title: row.title,
-            coverUrl: row.coverUrl,
-            attendeeCount: row.attendeeCount,
-            isInterested: Boolean(row.isInterested),
-            spotsLeft: row.spotsLeft !== null ? Number(row.spotsLeft) : null,
-            isLiveNow: Boolean(row.isLiveNow),
-            isFree: Boolean(row.isFree),
-            eventType: row.eventType || "in-person",
-            score: Number(row.score) || 0,
-            startDatetime: row.startDatetime
-          });
+        if (!eventsBySlug.has(row.mainSlug)) {
+          eventsBySlug.set(row.mainSlug, []);
         }
+        eventsBySlug.get(row.mainSlug).push(row);
       }
 
       const rails = [];
-      for (const cat of orderedCategories) {
-        const events = categoryEventsMap.get(String(cat.id)) || [];
-        if (events.length > 0) {
-          // Sort by score DESC, then startDatetime ASC
-          events.sort((a, b) => {
-            if (b.score !== a.score) {
-              return b.score - a.score;
-            }
-            const timeA = a.startDatetime ? new Date(a.startDatetime).getTime() : 0;
-            const timeB = b.startDatetime ? new Date(b.startDatetime).getTime() : 0;
-            return timeA - timeB;
-          });
+      for (const [slug, meta] of mainCatMap.entries()) {
+        const rawEvents = eventsBySlug.get(slug) || [];
+        if (rawEvents.length === 0) continue;
 
-          const cappedEvents = events.slice(0, 10).map(({ startDatetime, ...rest }) => ({
-            ...rest,
-            startDatetime,
-            category: cat.name,
-            category_slug: cat.slug
-          }));
+        // Sort by score DESC, then startDatetime ASC
+        const sorted = rawEvents.sort((a, b) => {
+          if (b.score !== a.score) return b.score - a.score;
+          const timeA = a.startDatetime ? new Date(a.startDatetime).getTime() : 0;
+          const timeB = b.startDatetime ? new Date(b.startDatetime).getTime() : 0;
+          return timeA - timeB;
+        }).slice(0, 10).map(row => ({
+          eventId: row.eventId,
+          title: row.title,
+          coverUrl: row.coverUrl,
+          attendeeCount: row.attendeeCount,
+          isInterested: Boolean(row.isInterested),
+          spotsLeft: row.spotsLeft !== null ? Number(row.spotsLeft) : null,
+          isLiveNow: Boolean(row.isLiveNow),
+          isFree: Boolean(row.isFree),
+          eventType: row.eventType || "in-person",
+          score: Number(row.score) || 0,
+          startDatetime: row.startDatetime,
+          category: meta.name,
+          category_slug: meta.slug
+        }));
 
-          rails.push({
-            category: cat.name,
-            categorySlug: cat.slug,
-            categoryColor: getCategoryColor(cat.slug, cat.id),
-            events: cappedEvents
-          });
-        }
+        rails.push({
+          category: meta.name,
+          categorySlug: meta.slug,
+          categoryColor: getCategoryColor(meta.slug, meta.id),
+          userScore: meta.userScore,
+          displayOrder: meta.displayOrder,
+          events: sorted
+        });
       }
+
+      // Sort rails by userScore DESC, then displayOrder ASC
+      rails.sort((a, b) => {
+        if (b.userScore !== a.userScore) return b.userScore - a.userScore;
+        return a.displayOrder - b.displayOrder;
+      });
 
       return rails;
     };

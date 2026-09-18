@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Modal,
   View,
@@ -62,6 +62,7 @@ import { detectMeetingPlatform } from "../../utils/meetingPlatformUtils";
 import CustomTimePicker from "../ui/CustomTimePicker";
 import PropTypes from "prop-types";
 import { createEvent } from "../../api/events";
+import EventBus from "../../utils/EventBus";
 import { isValidGoogleMapsUrl } from "../../utils/validateGoogleMapsUrl";
 import { useLocationName } from "../../utils/locationNameCache";
 import { getDiscoverCategories } from "../../api/categories";
@@ -886,6 +887,8 @@ const CreateEventModal = ({
       if (response?.event) {
         setCreatedEvent(response.event);
         setShowSuccessModal(true);
+        EventBus.emit("event:created", response.event);
+        EventBus.emit("event-created", response.event);
       }
     } catch (error) {
       console.error(error);

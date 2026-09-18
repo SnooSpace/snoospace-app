@@ -785,26 +785,46 @@ async function getApprovedAttendees(req, res) {
       }
     }
 
-    // Fetch host + all currently-approved attendees (removed attendees automatically excluded)
-    const attendeesR = await pool.query(
-      `SELECT m.id AS requester_id, op.created_at AS responded_at,
-              m.name, m.profile_photo_url, m.is_verified, m.verification_tier,
-              m.created_at AS member_created_at, m.interests,
-              TRUE AS is_host
-       FROM open_plans op
-       JOIN members m ON m.id = op.created_by
-       WHERE op.id = $1
-       UNION ALL
-       SELECT r.requester_id, r.responded_at,
-              m.name, m.profile_photo_url, m.is_verified, m.verification_tier,
-              m.created_at AS member_created_at, m.interests,
-              FALSE AS is_host
-       FROM open_plan_requests r
-       JOIN members m ON m.id = r.requester_id
-       WHERE r.plan_id = $1 AND r.status = 'approved'
-       ORDER BY responded_at ASC`,
-      [planId]
-    );
+    const isApprovedAttendeesRoute = req.path.endsWith('/approved-attendees') || (req.originalUrl && req.originalUrl.includes('/approved-attendees'));
+    const includeHost = req.query.include_host === 'true' ||
+      (req.query.include_host !== 'false' && req.query.exclude_host !== 'true' && !isApprovedAttendeesRoute);
+
+    let attendeesR;
+    if (includeHost) {
+      // Fetch host + all currently-approved attendees (removed attendees automatically excluded)
+      attendeesR = await pool.query(
+        `SELECT m.id AS requester_id, op.created_at AS responded_at,
+                m.name, m.profile_photo_url, m.is_verified, m.verification_tier,
+                m.created_at AS member_created_at, m.interests,
+                TRUE AS is_host
+         FROM open_plans op
+         JOIN members m ON m.id = op.created_by
+         WHERE op.id = $1
+         UNION ALL
+         SELECT r.requester_id, r.responded_at,
+                m.name, m.profile_photo_url, m.is_verified, m.verification_tier,
+                m.created_at AS member_created_at, m.interests,
+                FALSE AS is_host
+         FROM open_plan_requests r
+         JOIN members m ON m.id = r.requester_id
+         WHERE r.plan_id = $1 AND r.status = 'approved'
+         ORDER BY responded_at ASC`,
+        [planId]
+      );
+    } else {
+      // Fetch ONLY currently-approved attendees (excludes host)
+      attendeesR = await pool.query(
+        `SELECT r.requester_id, r.responded_at,
+                m.name, m.profile_photo_url, m.is_verified, m.verification_tier,
+                m.created_at AS member_created_at, m.interests,
+                FALSE AS is_host
+         FROM open_plan_requests r
+         JOIN members m ON m.id = r.requester_id
+         WHERE r.plan_id = $1 AND r.status = 'approved'
+         ORDER BY r.responded_at ASC`,
+        [planId]
+      );
+    }
 
     // N+1 note: computeTrustStats is called once per attendee. Acceptable for
     // Open Plans' small guest counts (max 50). If attendee caps grow

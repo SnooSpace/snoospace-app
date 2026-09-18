@@ -91,10 +91,18 @@ export default function CategoryEventsScreen({ navigation, route }) {
         }));
       }
     });
+    const unsubCreated = EventBus.on("event:created", () => {
+      loadEvents(true);
+    });
+    const unsubCreatedAlt = EventBus.on("event-created", () => {
+      loadEvents(true);
+    });
     return () => {
       if (unsub) unsub();
+      if (unsubCreated) unsubCreated();
+      if (unsubCreatedAlt) unsubCreatedAlt();
     };
-  }, []);
+  }, [loadEvents]);
 
   const handleRefresh = () => loadEvents(true);
 

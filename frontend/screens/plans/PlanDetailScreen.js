@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, Profiler } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef, Profiler } from 'react';
 import {
   View,
   Text,
@@ -290,12 +290,24 @@ export default function PlanDetailScreen({ navigation, route }) {
       try {
         const token = await getAuthToken();
         const data = await getApprovedAttendees(plan.id, token);
-        setAttendees(data?.attendees || []);
+        const hostId = plan.created_by != null ? String(plan.created_by) : null;
+        const attendeesList = (data?.attendees || []).filter(
+          (a) => !a.is_host && String(a.id || a.member_id) !== hostId
+        );
+        setAttendees(attendeesList);
       } catch {
         // Non-fatal — attendees section just stays empty
       }
     })();
   }, [plan?.id, plan?.created_by, plan?.my_request_status, currentUserId]);
+
+  // Host should NEVER be shown under "Who's Coming"
+  const displayAttendees = useMemo(() => {
+    const hostId = plan?.created_by != null ? String(plan.created_by) : null;
+    return (attendees || []).filter(
+      (a) => !a.is_host && String(a.id || a.member_id) !== hostId
+    );
+  }, [attendees, plan?.created_by]);
 
   const handleLike = useCallback(async () => {
     const prev = { isLiked, likeCount };
@@ -881,13 +893,13 @@ export default function PlanDetailScreen({ navigation, route }) {
             </View>
 
             {/* Who's Coming Section (Approved Attendees) */}
-            {(isOwner || isApproved) && attendees && attendees.length > 0 ? (
+            {(isOwner || isApproved) && displayAttendees && displayAttendees.length > 0 ? (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>
-                  Who's Coming ({attendees.length})
+                  Who's Coming ({displayAttendees.length})
                 </Text>
                 <View style={styles.attendeesList}>
-                  {attendees.map((attendee) => (
+                  {displayAttendees.map((attendee) => (
                     <TouchableOpacity
                       key={attendee.id || attendee.member_id}
                       style={styles.attendeeCard}

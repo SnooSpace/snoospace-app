@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -248,11 +248,61 @@ function Explore({
   // 8 random Open Plan activities (stable during interaction, re-randomized on pull-to-refresh)
   const [randomActivities, setRandomActivities] = useState(() => getRandomActivities(8));
 
+  const fetchCategoryEvents = useCallback(async () => {
+    if (!selectedCategory) {
+      setCategoryEvents([]);
+      setCategoryEventsLoading(false);
+      return;
+    }
+
+    setCategoryEventsLoading(true);
+    try {
+      const identifier = selectedCategory.slug || selectedCategory.id;
+      const res = await getEventsByCategory(identifier);
+      if (res?.events) {
+        setCategoryEvents(res.events);
+        const map = {};
+        res.events.forEach((evt) => {
+          const id = evt.id || evt.eventId;
+          if (id) {
+            map[id] = Boolean(evt.is_interested || evt.isInterested);
+            map[String(id)] = Boolean(evt.is_interested || evt.isInterested);
+          }
+        });
+        setInterestMap((prev) => ({ ...map, ...prev }));
+      }
+    } catch (err) {
+      console.error("[Explore] Failed to load category events:", err);
+    } finally {
+      setCategoryEventsLoading(false);
+    }
+  }, [selectedCategory]);
+
   useEffect(() => {
     if (refreshing) {
       setRandomActivities(getRandomActivities(8));
+      if (selectedCategory) {
+        fetchCategoryEvents();
+      }
     }
-  }, [refreshing]);
+  }, [refreshing, selectedCategory, fetchCategoryEvents]);
+
+  useEffect(() => {
+    const unsubCreated = EventBus.on("event:created", () => {
+      if (selectedCategory) {
+        fetchCategoryEvents();
+      }
+    });
+    const unsubCreatedAlt = EventBus.on("event-created", () => {
+      if (selectedCategory) {
+        fetchCategoryEvents();
+      }
+    });
+    return () => {
+      if (unsubCreated) unsubCreated();
+      if (unsubCreatedAlt) unsubCreatedAlt();
+    };
+  }, [selectedCategory, fetchCategoryEvents]);
 
   useEffect(() => {
     const map = {};
@@ -287,44 +337,8 @@ function Explore({
   // Fetch events when a top-level category is selected
   useEffect(() => {
     setSelectedSubcategory("all");
-    if (!selectedCategory) {
-      setCategoryEvents([]);
-      setCategoryEventsLoading(false);
-      return;
-    }
-
-    let isMounted = true;
-    const fetchEvents = async () => {
-      setCategoryEventsLoading(true);
-      try {
-        const identifier = selectedCategory.slug || selectedCategory.id;
-        const res = await getEventsByCategory(identifier);
-        if (isMounted && res?.events) {
-          setCategoryEvents(res.events);
-          const map = {};
-          res.events.forEach((evt) => {
-            const id = evt.id || evt.eventId;
-            if (id) {
-              map[id] = Boolean(evt.is_interested || evt.isInterested);
-              map[String(id)] = Boolean(evt.is_interested || evt.isInterested);
-            }
-          });
-          setInterestMap((prev) => ({ ...map, ...prev }));
-        }
-      } catch (err) {
-        console.error("[Explore] Failed to load category events:", err);
-      } finally {
-        if (isMounted) {
-          setCategoryEventsLoading(false);
-        }
-      }
-    };
-
-    fetchEvents();
-    return () => {
-      isMounted = false;
-    };
-  }, [selectedCategory]);
+    fetchCategoryEvents();
+  }, [selectedCategory, fetchCategoryEvents]);
 
   const handleToggleInterest = async (eventId) => {
     if (!eventId) return;

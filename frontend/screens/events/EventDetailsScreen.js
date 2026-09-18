@@ -79,6 +79,7 @@ import {
   Music,
   Sparkles,
   Ribbon,
+  CupSoda,
   Megaphone,
   DoorOpen,
   ChevronRight,
@@ -137,6 +138,7 @@ const THINGS_ICON_MAP = {
   Music,
   Sparkles,
   Ribbon,
+  CupSoda,
   Megaphone,
 };
 import { LinearGradient } from "expo-linear-gradient";

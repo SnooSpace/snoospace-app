@@ -454,14 +454,22 @@ export default function SearchScreen({ navigation, route }) {
       }
     };
 
+    const handleEventCreated = () => {
+      loadExploreFeed(true);
+    };
+
     const unsubscribeFollow = EventBus.on("follow-updated", handleFollowUpdate);
     const unsubscribeCircleLeft = EventBus.on("circle:left", handleCircleRemoved);
     const unsubscribeCircleRemoved = EventBus.on("my:circle-member-removed", handleCircleRemoved);
+    const unsubscribeEventCreated = EventBus.on("event:created", handleEventCreated);
+    const unsubscribeEventCreatedAlt = EventBus.on("event-created", handleEventCreated);
 
     return () => {
       if (unsubscribeFollow) unsubscribeFollow();
       if (unsubscribeCircleLeft) unsubscribeCircleLeft();
       if (unsubscribeCircleRemoved) unsubscribeCircleRemoved();
+      if (unsubscribeEventCreated) unsubscribeEventCreated();
+      if (unsubscribeEventCreatedAlt) unsubscribeEventCreatedAlt();
     };
   }, []);
 
