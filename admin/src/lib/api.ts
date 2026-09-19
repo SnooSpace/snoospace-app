@@ -1973,6 +1973,10 @@ export interface CommunityVerificationItem {
   follower_count: number;
   college_name: string | null;
   campus_name: string | null;
+  // Reliability metrics (Step 3)
+  cancellation_flagged?: boolean;
+  non_genuine_cancellation_count?: number;
+  total_disruptions_90d?: number;
 }
 
 export interface CommunityVerificationsResponse {
@@ -2030,4 +2034,72 @@ export async function getCommunityVerificationDocument(
   return apiRequest<{ url: string }>(
     `/communities/admin/verifications/${id}/document`
   );
+}
+
+// ============================================
+// COMMUNITY DISRUPTIONS & RELIABILITY API
+// ============================================
+
+export interface CommunityDisruptionItem {
+  id: number;
+  community_id: number;
+  community_name: string;
+  community_username?: string;
+  community_logo?: string | null;
+  event_id: number;
+  event_title: string;
+  disruption_type: "cancellation" | "postponement";
+  attendee_count: number;
+  reason_category: string;
+  reason_text: string | null;
+  is_genuine: boolean;
+  needs_manual_review: boolean;
+  reviewed_by: number | null;
+  reviewed_at: string | null;
+  reviewer_name?: string | null;
+  created_at: string;
+}
+
+export interface CommunityDisruptionsResponse {
+  success: boolean;
+  disruptions: CommunityDisruptionItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export async function getCommunityDisruptions(params?: {
+  status?: "needs_review" | "reviewed" | "all";
+  page?: number;
+  pageSize?: number;
+}): Promise<CommunityDisruptionsResponse> {
+  const query = new URLSearchParams();
+  if (params?.status) query.append("status", params.status);
+  if (params?.page) query.append("page", params.page.toString());
+  if (params?.pageSize) query.append("pageSize", params.pageSize.toString());
+
+  const qs = query.toString();
+  return apiRequest<CommunityDisruptionsResponse>(
+    `/admin/community-disruptions${qs ? `?${qs}` : ""}`
+  );
+}
+
+export async function reclassifyDisruption(
+  id: number,
+  payload: { is_genuine: boolean; review_notes?: string }
+): Promise<{
+  success: boolean;
+  disruption: CommunityDisruptionItem;
+  community_reliability: {
+    total_disruptions_90d: number;
+    non_genuine_90d: number;
+    cancellation_flagged: boolean;
+    non_genuine_cancellation_count: number;
+  };
+}> {
+  return apiRequest(`/admin/community-disruptions/${id}/reclassify`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
 }

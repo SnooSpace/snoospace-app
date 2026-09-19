@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState, useCallback } from "react";
 import {
@@ -49,6 +49,7 @@ import {
   Users,
   GraduationCap,
   Calendar,
+  AlertTriangle,
 } from "lucide-react";
 import {
   getCommunityVerifications,
@@ -542,8 +543,21 @@ export default function CommunityVerificationsPage() {
 
               {/* Community context block */}
               <div className="rounded-lg border p-4 space-y-4">
-                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  Community Context
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    Community Context
+                  </div>
+                  {/* Reliability status pill (Step 3) */}
+                  {selected.cancellation_flagged ? (
+                    <Badge variant="destructive" className="gap-1 font-medium text-xs">
+                      <AlertTriangle className="h-3 w-3" />
+                      Flagged: {selected.total_disruptions_90d || 0} disruptions in 90 days ({selected.non_genuine_cancellation_count || 0} non-genuine)
+                    </Badge>
+                  ) : (selected.total_disruptions_90d || 0) > 0 ? (
+                    <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-800 text-xs font-medium">
+                      {selected.total_disruptions_90d} disruption{selected.total_disruptions_90d === 1 ? "" : "s"} in 90 days ({selected.non_genuine_cancellation_count || 0} non-genuine)
+                    </Badge>
+                  ) : null}
                 </div>
 
                 {/* Identity row */}

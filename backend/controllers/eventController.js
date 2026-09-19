@@ -3326,6 +3326,7 @@ const cancelEvent = async (req, res) => {
   const userId   = req.user?.id;
   const userType = req.user?.type;
   const { eventId } = req.params;
+  const { reason_category, reason_text } = req.body || {};
 
   // Auth guard: only community accounts
   if (!userId || userType !== "community") {
@@ -3334,18 +3335,27 @@ const cancelEvent = async (req, res) => {
 
   // Ownership guard: verify this community owns the event
   const ownerCheck = await pool.query(
-    `SELECT id, creator_id FROM events WHERE id = $1`,
+    `SELECT id, creator_id, community_id FROM events WHERE id = $1`,
     [eventId],
   );
   if (ownerCheck.rows.length === 0) {
     return res.status(404).json({ error: "Event not found" });
   }
-  if (parseInt(ownerCheck.rows[0].creator_id) !== parseInt(userId)) {
+  const isOwner =
+    parseInt(ownerCheck.rows[0].creator_id) === parseInt(userId) ||
+    parseInt(ownerCheck.rows[0].community_id) === parseInt(userId);
+  if (!isOwner) {
     return res.status(403).json({ error: "You don't have permission to cancel this event" });
   }
 
   try {
-    const summary = await cancelEventWithRefunds(pool, eventId, userId, "community");
+    const summary = await cancelEventWithRefunds(
+      pool,
+      eventId,
+      userId,
+      "community",
+      { reason_category, reason_text }
+    );
     return res.json(summary);
   } catch (err) {
     if (err.statusCode === 400 && err.code === "ALREADY_CANCELLED") {
@@ -3371,6 +3381,7 @@ const postponeEvent = async (req, res) => {
   const userId   = req.user?.id;
   const userType = req.user?.type;
   const { eventId } = req.params;
+  const { reason_category, reason_text } = req.body || {};
 
   if (!userId || userType !== "community") {
     return res.status(403).json({ error: "Only communities can postpone events" });
@@ -3386,7 +3397,13 @@ const postponeEvent = async (req, res) => {
     return res.status(403).json({ error: "You don't have permission to postpone this event" });
 
   try {
-    const summary = await declarePostponement(pool, eventId, userId, "community");
+    const summary = await declarePostponement(
+      pool,
+      eventId,
+      userId,
+      "community",
+      { reason_category, reason_text },
+    );
     return res.json(summary);
   } catch (err) {
     if (err.code === "ALREADY_POSTPONED") return res.status(400).json({ error: err.message });

@@ -128,10 +128,33 @@ export async function deleteEvent(eventId) {
  * @param {string|number} eventId - Event ID
  * @returns {Promise<Object>} Cancelled event details with notification count
  */
-export async function cancelEvent(eventId) {
+export async function cancelEvent(eventId, { reason_category, reason_text } = {}) {
   const { apiPatch } = await import("./client");
   const token = await (await import("./auth")).getAuthToken();
-  return apiPatch(`/events/${eventId}/cancel`, {}, 15000, token);
+  return apiPatch(
+    `/events/${eventId}/cancel`,
+    { reason_category, reason_text },
+    15000,
+    token,
+  );
+}
+
+/**
+ * Postpone an event (community owner only)
+ * Places event in postponed state, halts payouts, and notifies attendees.
+ * @param {string|number} eventId - Event ID
+ * @param {Object} options - { reason_category, reason_text }
+ * @returns {Promise<Object>} Postponement summary
+ */
+export async function postponeEvent(eventId, { reason_category, reason_text } = {}) {
+  const { apiPost } = await import("./client");
+  const token = await (await import("./auth")).getAuthToken();
+  return apiPost(
+    `/events/${eventId}/postpone`,
+    { reason_category, reason_text },
+    15000,
+    token,
+  );
 }
 
 /**

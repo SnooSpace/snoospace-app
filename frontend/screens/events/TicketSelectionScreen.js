@@ -171,28 +171,46 @@ const TicketCard = React.memo(({
     !isRedundantTag(theme.tag, ticket.name)
   );
 
-  // Inventory metrics for 3-color progress bar
+  // Inventory metrics for 3-color continuous progress bar
   const totalQty = ticket.total_quantity || 0;
   const soldCount = (ticket.sold_count || 0) + (ticket.reserved_count || 0);
   const hasStockLimit = Boolean(totalQty > 0 || (available > 0 && available <= 25));
 
   const percentSold = totalQty > 0
     ? Math.min(100, Math.max(0, Math.round((soldCount / totalQty) * 100)))
-    : available <= 5
-    ? 90
-    : available <= 10
-    ? 80
-    : 50;
+    : 0;
 
-  const isCriticalStock = available <= 10 || percentSold >= 75;
-  const isModerateStock = !isCriticalStock && (available <= 25 || percentSold >= 40);
+  // Stock urgency tiers:
+  // Critical: only when genuinely low stock (<= 3 passes left, or >= 80% sold)
+  const isCriticalStock = totalQty > 0
+    ? (soldCount > 0 && (percentSold >= 80 || available <= 3))
+    : (available > 0 && available <= 3);
 
-  // Segment 1 (Green / Healthy): 0% to 33.33%
-  const seg1Fill = Math.min(100, Math.max(0, Math.round((percentSold / 33.33) * 100)));
-  // Segment 2 (Orange / Moderate): 33.33% to 66.66%
-  const seg2Fill = Math.min(100, Math.max(0, Math.round(((percentSold - 33.33) / 33.33) * 100)));
-  // Segment 3 (Red / Critical): 66.66% to 100%
-  const seg3Fill = Math.min(100, Math.max(0, Math.round(((percentSold - 66.66) / 33.34) * 100)));
+  // Moderate: 40% - 79% sold, or partially sold with <= 10 left
+  const isModerateStock = !isCriticalStock && (
+    totalQty > 0
+      ? (soldCount > 0 && (percentSold >= 40 || available <= 10))
+      : (available > 0 && available <= 10)
+  );
+
+  // Status colors & labels (SnooSpace premium palette)
+  const statusDotColor = isCriticalStock
+    ? "#EF4444"
+    : isModerateStock
+    ? "#F59E0B"
+    : "#10B981";
+
+  const statusTextColor = isCriticalStock
+    ? "#EA580C"
+    : isModerateStock
+    ? "#D97706"
+    : "#059669";
+
+  const statusLabel = isCriticalStock
+    ? `Only ${available} ${available === 1 ? "pass" : "passes"} left`
+    : isModerateStock
+    ? `Filling fast • ${available} left`
+    : `${available} passes available`;
 
   return (
     <View
@@ -359,7 +377,7 @@ const TicketCard = React.memo(({
             </View>
           ) : null}
 
-          {/* 3-Color Inventory Progress Bar (Green, Orange, Red in Premium Shades) */}
+          {/* 3-Color Continuous Inventory Progress Bar */}
           {hasStockLimit && available > 0 && (
             <View style={styles.stockProgressContainer}>
               <View style={styles.stockProgressHeader}>
@@ -367,87 +385,50 @@ const TicketCard = React.memo(({
                   <View
                     style={[
                       styles.stockStatusDot,
-                      {
-                        backgroundColor: isCriticalStock
-                          ? "#EF4444"
-                          : isModerateStock
-                          ? "#F59E0B"
-                          : "#10B981",
-                      },
+                      { backgroundColor: statusDotColor },
                     ]}
                   />
                   <Text
                     style={[
                       styles.stockProgressText,
-                      {
-                        color: isCriticalStock
-                          ? "#DC2626"
-                          : isModerateStock
-                          ? "#D97706"
-                          : "#059669",
-                      },
+                      { color: statusTextColor },
                     ]}
                   >
-                    {isCriticalStock
-                      ? `Only ${available} ${available === 1 ? "pass" : "passes"} left`
-                      : isModerateStock
-                      ? `Filling fast • ${available} left`
-                      : `${available} passes available`}
+                    {statusLabel}
                   </Text>
                 </View>
-
-                {totalQty > 0 && (
-                  <Text style={styles.stockProgressCounter}>
-                    {percentSold}% claimed
-                  </Text>
-                )}
               </View>
 
-              <View style={styles.segmentedProgressBar}>
-                {/* Tier 1: Premium Emerald Green */}
-                <View
-                  style={[
-                    styles.progressSegmentTrack,
-                    { backgroundColor: "rgba(16, 185, 129, 0.16)" },
+              {/* Continuous unbroken 3-color progress line */}
+              <View style={styles.continuousProgressBar}>
+                {/* Base continuous 3-color track */}
+                <LinearGradient
+                  colors={[
+                    "#A7F3D0", // Soft Emerald
+                    "#FDE68A", // Soft Amber
+                    "#FECDD3", // Soft Rose
                   ]}
-                >
-                  <View
-                    style={[
-                      styles.progressSegmentFill,
-                      { width: `${seg1Fill}%`, backgroundColor: "#10B981" },
-                    ]}
-                  />
-                </View>
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={StyleSheet.absoluteFillObject}
+                />
 
-                {/* Tier 2: Premium Amber Orange */}
-                <View
-                  style={[
-                    styles.progressSegmentTrack,
-                    { backgroundColor: "rgba(245, 158, 11, 0.16)" },
-                  ]}
-                >
+                {/* Active progress fill in vivid saturated gradient */}
+                {percentSold > 0 && (
                   <View
                     style={[
-                      styles.progressSegmentFill,
-                      { width: `${seg2Fill}%`, backgroundColor: "#F59E0B" },
+                      styles.continuousProgressFill,
+                      { width: `${percentSold}%` },
                     ]}
-                  />
-                </View>
-
-                {/* Tier 3: Premium Crimson Red */}
-                <View
-                  style={[
-                    styles.progressSegmentTrack,
-                    { backgroundColor: "rgba(239, 68, 68, 0.16)" },
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.progressSegmentFill,
-                      { width: `${seg3Fill}%`, backgroundColor: "#EF4444" },
-                    ]}
-                  />
-                </View>
+                  >
+                    <LinearGradient
+                      colors={["#10B981", "#F59E0B", "#EF4444"]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.fillGradient}
+                    />
+                  </View>
+                )}
               </View>
             </View>
           )}
@@ -1131,9 +1112,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.08,
         shadowRadius: 10,
       },
-      android: {
-        elevation: 3,
-      },
+      android: {},
     }),
   },
   ticketCardDisabled: {
@@ -1409,26 +1388,21 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: "Manrope-SemiBold",
   },
-  stockProgressCounter: {
-    fontSize: 11,
-    fontFamily: "Manrope-Medium",
-    color: "#64748B",
-  },
-  segmentedProgressBar: {
-    flexDirection: "row",
+  continuousProgressBar: {
     height: 5,
-    gap: 4,
-    alignItems: "center",
+    borderRadius: 2.5,
+    overflow: "hidden",
+    position: "relative",
+    width: "100%",
   },
-  progressSegmentTrack: {
-    flex: 1,
-    height: 5,
-    borderRadius: 3,
+  continuousProgressFill: {
+    height: "100%",
+    borderRadius: 2.5,
     overflow: "hidden",
   },
-  progressSegmentFill: {
+  fillGradient: {
+    width: "100%",
     height: "100%",
-    borderRadius: 3,
   },
   descBlock: {
     marginTop: 8,

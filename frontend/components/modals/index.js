@@ -6,6 +6,7 @@ export { default as ActionSheet } from './ActionSheet';
 export { default as AddAccountModal } from './AddAccountModal';
 export { default as AgeConfirmationModal } from './AgeConfirmationModal';
 export { default as AttendanceConfirmationModal } from './AttendanceConfirmationModal';
+export { default as CancelEventModal, PostponeEventModal } from './CancelEventModal';
 export { default as CancelSignupModal } from './CancelSignupModal';
 export { default as CelebrationModal } from './CelebrationModal';
 export { default as CollegeEntityListSheet } from './CollegeEntityListSheet';

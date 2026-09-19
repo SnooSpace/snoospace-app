@@ -289,6 +289,11 @@ async function adminGetAll(req, res) {
          c.category as community_category,
          c.community_type as community_type,
          c.created_at as community_created_at,
+         c.cancellation_flagged as cancellation_flagged,
+         c.non_genuine_cancellation_count as non_genuine_cancellation_count,
+         (SELECT COUNT(*)::int FROM community_disruptions cd
+          WHERE cd.community_id = c.id
+            AND cd.created_at >= NOW() - INTERVAL '90 days') as total_disruptions_90d,
          col.name as college_name,
          cam.campus_name as campus_name,
          (SELECT COUNT(*)::int FROM follows

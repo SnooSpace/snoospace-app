@@ -1554,6 +1554,34 @@ async function ensureTables(pool) {
       EXCEPTION WHEN duplicate_column THEN NULL; END $$;
       -- ── End Migration 092 ──────────────────────────────────────────────────
 
+      -- ── Migration 094: Community Disruptions & Cancellation Reliability ─────
+      CREATE TABLE IF NOT EXISTS community_disruptions (
+        id                  BIGSERIAL PRIMARY KEY,
+        community_id        BIGINT NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+        event_id            BIGINT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+        disruption_type     TEXT NOT NULL CHECK (disruption_type IN ('cancellation', 'postponement')),
+        attendee_count      INT NOT NULL DEFAULT 0,
+        reason_category     TEXT NOT NULL,
+        reason_text         TEXT,
+        is_genuine          BOOLEAN NOT NULL DEFAULT false,
+        needs_manual_review BOOLEAN NOT NULL DEFAULT false,
+        reviewed_by         BIGINT REFERENCES admins(id) ON DELETE SET NULL,
+        reviewed_at         TIMESTAMPTZ,
+        created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_community_disruptions_comm_genuine_date
+        ON community_disruptions (community_id, is_genuine, created_at);
+
+      DO $$ BEGIN
+        ALTER TABLE communities ADD COLUMN IF NOT EXISTS non_genuine_cancellation_count INT NOT NULL DEFAULT 0;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+
+      DO $$ BEGIN
+        ALTER TABLE communities ADD COLUMN IF NOT EXISTS cancellation_flagged BOOLEAN NOT NULL DEFAULT false;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      -- ── End Migration 094 ──────────────────────────────────────────────────
+
       -- Resynchronize table primary key sequences with MAX(id)
 
 

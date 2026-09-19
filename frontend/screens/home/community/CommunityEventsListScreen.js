@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { StyleSheet, View, Text, FlatList, TouchableOpacity, Image, RefreshControl, Alert, Animated, Easing } from "react-native";
 import { Pressable as GHPressable, GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ArrowLeft, MapPin, CalendarDays, MoreHorizontal, Ticket, Edit2, FileText, Trash2, X, BarChart3 } from "lucide-react-native";
+import { ArrowLeft, MapPin, CalendarDays, MoreHorizontal, Ticket, Edit2, FileText, Trash2, X, BarChart3, Clock } from "lucide-react-native";
 import Svg, { Circle, Rect, Path, Ellipse } from "react-native-svg";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SHADOWS } from "../../../constants/theme";
@@ -10,8 +10,10 @@ import {
   getCommunityEvents,
   deleteEvent,
   cancelEvent,
+  postponeEvent,
 } from "../../../api/events";
 import ActionModal from "../../../components/modals/ActionModal";
+import CancelEventModal, { PostponeEventModal } from "../../../components/modals/CancelEventModal";
 import EditEventModal from "../../../components/modals/EditEventModal";
 import SnooLoader from "../../../components/ui/SnooLoader";
 
@@ -29,6 +31,8 @@ export default function CommunityEventsListScreen({ navigation, route }) {
   const [actionLoading, setActionLoading] = useState(null); // eventId of event being acted on
   const [showEditEventModal, setShowEditEventModal] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [cancelEventData, setCancelEventData] = useState(null);
+  const [postponeEventData, setPostponeEventData] = useState(null);
   const [modalConfig, setModalConfig] = useState({
     visible: false,
     title: "",
@@ -227,6 +231,23 @@ export default function CommunityEventsListScreen({ navigation, route }) {
       });
     } else if (!event.is_cancelled) {
       // Upcoming, non-cancelled events
+      if (!event.is_postponed) {
+        options.push({
+          text: "Postpone Event",
+          icon: <Clock size={24} strokeWidth={2} />,
+          onPress: () => {
+            setModalConfig((prev) => ({ ...prev, visible: false }));
+            setTimeout(() => {
+              setPostponeEventData({
+                ...event,
+                attendeeCount,
+              });
+            }, 300);
+          },
+          style: "warning",
+        });
+      }
+
       if (attendeeCount === 0) {
         // No attendees: allow both cancel and delete
         options.push({
@@ -235,37 +256,9 @@ export default function CommunityEventsListScreen({ navigation, route }) {
           onPress: () => {
             setModalConfig((prev) => ({ ...prev, visible: false }));
             setTimeout(() => {
-              setModalConfig({
-                visible: true,
-                title: "Cancel Event",
-                message: `Are you sure you want to cancel "${event.title}"? All registered attendees will be notified.`,
-                actions: [
-                  {
-                    text: "Yes, Cancel Event",
-                    style: "warning",
-                    onPress: async () => {
-                      setModalConfig((prev) => ({ ...prev, visible: false }));
-                      try {
-                        setActionLoading(event.id);
-                        await cancelEvent(event.id);
-                        loadEvents();
-                      } catch (err) {
-                        Alert.alert(
-                          "Error",
-                          "Failed to cancel event. Please try again.",
-                        );
-                      } finally {
-                        setActionLoading(null);
-                      }
-                    },
-                  },
-                  {
-                    text: "No",
-                    style: "cancel",
-                    onPress: () =>
-                      setModalConfig((prev) => ({ ...prev, visible: false })),
-                  },
-                ],
+              setCancelEventData({
+                ...event,
+                attendeeCount,
               });
             }, 300);
           },
@@ -322,37 +315,9 @@ export default function CommunityEventsListScreen({ navigation, route }) {
           onPress: () => {
             setModalConfig((prev) => ({ ...prev, visible: false }));
             setTimeout(() => {
-              setModalConfig({
-                visible: true,
-                title: "Cancel Event",
-                message: `"${event.title}" has ${attendeeCount} registered attendee${attendeeCount !== 1 ? "s" : ""}. Cancelling will notify all of them. Do you want to proceed?`,
-                actions: [
-                  {
-                    text: "Yes, Cancel Event",
-                    style: "warning",
-                    onPress: async () => {
-                      setModalConfig((prev) => ({ ...prev, visible: false }));
-                      try {
-                        setActionLoading(event.id);
-                        await cancelEvent(event.id);
-                        loadEvents();
-                      } catch (err) {
-                        Alert.alert(
-                          "Error",
-                          "Failed to cancel event. Please try again.",
-                        );
-                      } finally {
-                        setActionLoading(null);
-                      }
-                    },
-                  },
-                  {
-                    text: "No",
-                    style: "cancel",
-                    onPress: () =>
-                      setModalConfig((prev) => ({ ...prev, visible: false })),
-                  },
-                ],
+              setCancelEventData({
+                ...event,
+                attendeeCount,
               });
             }, 300);
           },
@@ -680,6 +645,46 @@ export default function CommunityEventsListScreen({ navigation, route }) {
         message={modalConfig.message}
         actions={modalConfig.actions}
         onClose={() => setModalConfig((prev) => ({ ...prev, visible: false }))}
+      />
+      <CancelEventModal
+        visible={!!cancelEventData}
+        event={cancelEventData}
+        onClose={() => setCancelEventData(null)}
+        onConfirm={async ({ reason_category, reason_text }) => {
+          try {
+            setActionLoading(cancelEventData.id);
+            await cancelEvent(cancelEventData.id, { reason_category, reason_text });
+            setCancelEventData(null);
+            loadEvents();
+          } catch (err) {
+            Alert.alert(
+              "Error",
+              "Failed to cancel event. Please try again.",
+            );
+          } finally {
+            setActionLoading(null);
+          }
+        }}
+      />
+      <PostponeEventModal
+        visible={!!postponeEventData}
+        event={postponeEventData}
+        onClose={() => setPostponeEventData(null)}
+        onConfirm={async ({ reason_category, reason_text }) => {
+          try {
+            setActionLoading(postponeEventData.id);
+            await postponeEvent(postponeEventData.id, { reason_category, reason_text });
+            setPostponeEventData(null);
+            loadEvents();
+          } catch (err) {
+            Alert.alert(
+              "Error",
+              "Failed to postpone event. Please try again.",
+            );
+          } finally {
+            setActionLoading(null);
+          }
+        }}
       />
       <EditEventModal
         visible={showEditEventModal}

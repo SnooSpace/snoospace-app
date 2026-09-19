@@ -38,6 +38,7 @@ import {
   Users,
   ChevronRight,
   Megaphone,
+  Clock,
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
@@ -52,6 +53,7 @@ import Svg, {
 import CreateEventModal from "../../../components/modals/CreateEventModal";
 import EditEventModal from "../../../components/modals/EditEventModal";
 import ActionModal from "../../../components/modals/ActionModal";
+import CancelEventModal, { PostponeEventModal } from "../../../components/modals/CancelEventModal";
 import PromoteSheet from "../../../components/posts/PromoteSheet";
 import CustomAlertModal from "../../../components/ui/CustomAlertModal";
 import GradientSafeArea from "../../../components/ui/GradientSafeArea";
@@ -73,6 +75,7 @@ import {
   getCommunityEvents,
   deleteEvent,
   cancelEvent,
+  postponeEvent,
 } from "../../../api/events";
 
 // --- Design Tokens (Founder Dashboard) ---
@@ -208,6 +211,8 @@ export default function CommunityDashboardScreen({ navigation }) {
   // Modals
   const [showCreateEventModal, setShowCreateEventModal] = useState(false);
   const [showEditEventModal, setShowEditEventModal] = useState(false);
+  const [cancelEventData, setCancelEventData] = useState(null);
+  const [postponeEventData, setPostponeEventData] = useState(null);
   const [modalConfig, setModalConfig] = useState({
     visible: false,
     title: "",
@@ -523,6 +528,23 @@ export default function CommunityDashboardScreen({ navigation }) {
       });
     } else if (!event.is_cancelled) {
       // Upcoming, non-cancelled events
+      if (!event.is_postponed) {
+        options.push({
+          text: "Postpone Event",
+          icon: <Clock />,
+          onPress: () => {
+            setModalConfig((prev) => ({ ...prev, visible: false }));
+            setTimeout(() => {
+              setPostponeEventData({
+                ...event,
+                attendeeCount,
+              });
+            }, 300);
+          },
+          style: "warning",
+        });
+      }
+
       if (attendeeCount === 0) {
         // No attendees: allow both cancel and delete
         options.push({
@@ -531,34 +553,9 @@ export default function CommunityDashboardScreen({ navigation }) {
           onPress: () => {
             setModalConfig((prev) => ({ ...prev, visible: false }));
             setTimeout(() => {
-              setModalConfig({
-                visible: true,
-                title: "Cancel Event",
-                message: `Are you sure you want to cancel "${event.title}"? All registered attendees will be notified.`,
-                actions: [
-                  {
-                    text: "Yes, Cancel Event",
-                    style: "warning",
-                    onPress: async () => {
-                      setModalConfig((prev) => ({ ...prev, visible: false }));
-                      try {
-                        await cancelEvent(event.id);
-                        loadDashboard(true);
-                      } catch (err) {
-                        Alert.alert(
-                          "Error",
-                          "Failed to cancel event. Please try again.",
-                        );
-                      }
-                    },
-                  },
-                  {
-                    text: "No",
-                    style: "cancel",
-                    onPress: () =>
-                      setModalConfig((prev) => ({ ...prev, visible: false })),
-                  },
-                ],
+              setCancelEventData({
+                ...event,
+                attendeeCount,
               });
             }, 300);
           },
@@ -612,34 +609,9 @@ export default function CommunityDashboardScreen({ navigation }) {
           onPress: () => {
             setModalConfig((prev) => ({ ...prev, visible: false }));
             setTimeout(() => {
-              setModalConfig({
-                visible: true,
-                title: "Cancel Event",
-                message: `"${event.title}" has ${attendeeCount} registered attendee${attendeeCount !== 1 ? "s" : ""}. Cancelling will notify all of them. Do you want to proceed?`,
-                actions: [
-                  {
-                    text: "Yes, Cancel Event",
-                    style: "warning",
-                    onPress: async () => {
-                      setModalConfig((prev) => ({ ...prev, visible: false }));
-                      try {
-                        await cancelEvent(event.id);
-                        loadDashboard(true);
-                      } catch (err) {
-                        Alert.alert(
-                          "Error",
-                          "Failed to cancel event. Please try again.",
-                        );
-                      }
-                    },
-                  },
-                  {
-                    text: "No",
-                    style: "cancel",
-                    onPress: () =>
-                      setModalConfig((prev) => ({ ...prev, visible: false })),
-                  },
-                ],
+              setCancelEventData({
+                ...event,
+                attendeeCount,
               });
             }, 300);
           },
@@ -1223,6 +1195,34 @@ export default function CommunityDashboardScreen({ navigation }) {
           }
         />
       )}
+      <CancelEventModal
+        visible={!!cancelEventData}
+        event={cancelEventData}
+        onClose={() => setCancelEventData(null)}
+        onConfirm={async ({ reason_category, reason_text }) => {
+          try {
+            await cancelEvent(cancelEventData.id, { reason_category, reason_text });
+            setCancelEventData(null);
+            loadDashboard(true);
+          } catch (err) {
+            Alert.alert("Error", "Failed to cancel event. Please try again.");
+          }
+        }}
+      />
+      <PostponeEventModal
+        visible={!!postponeEventData}
+        event={postponeEventData}
+        onClose={() => setPostponeEventData(null)}
+        onConfirm={async ({ reason_category, reason_text }) => {
+          try {
+            await postponeEvent(postponeEventData.id, { reason_category, reason_text });
+            setPostponeEventData(null);
+            loadDashboard(true);
+          } catch (err) {
+            Alert.alert("Error", "Failed to postpone event. Please try again.");
+          }
+        }}
+      />
 
       {/* Promote Event Sheet */}
       <PromoteSheet

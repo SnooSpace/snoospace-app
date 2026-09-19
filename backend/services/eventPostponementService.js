@@ -24,6 +24,8 @@
 
 const pushService         = require('./pushService');
 const { executeRazorpayRefund } = require('../utils/razorpayRefundExecutor');
+const { isGenuineDisruption, needsManualReview } = require('../constants/disruptionReasons');
+const { recomputeCommunityReliability } = require('./communityReliabilityService');
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -128,10 +130,14 @@ const checkAndReleasePayoutHold = async (pool, eventId) => {
   );
   if (parseInt(pending.rows[0].count) === 0) {
     await pool.query(
-      `UPDATE events SET payout_hold = false WHERE id = $1 AND is_cancelled = false`,
+      `UPDATE events
+       SET payout_hold = false,
+           is_postponed = false,
+           updated_at = NOW()
+       WHERE id = $1 AND is_cancelled = false`,
       [eventId],
     );
-    console.log(`[PostponementService] payout_hold released for event ${eventId} — all decisions resolved`);
+    console.log(`[PostponementService] payout_hold released and is_postponed reset for event ${eventId} — all decisions resolved`);
     return true;
   }
   return false;
@@ -139,10 +145,16 @@ const checkAndReleasePayoutHold = async (pool, eventId) => {
 
 // ─── Part 2: Declare postponement ─────────────────────────────────────────────
 
-const declarePostponement = async (pool, eventId, postponedById, postponedByType) => {
+const declarePostponement = async (
+  pool,
+  eventId,
+  postponedById,
+  postponedByType,
+  { reason_category, reason_text } = {},
+) => {
   // Fetch event
   const evResult = await pool.query(
-    `SELECT e.id, e.title, e.is_cancelled, e.is_postponed, e.start_datetime,
+    `SELECT e.id, e.title, e.is_cancelled, e.is_postponed, e.start_datetime, e.creator_id,
             c.name AS community_name
      FROM events e LEFT JOIN communities c ON c.id = e.creator_id
      WHERE e.id = $1`,
@@ -182,9 +194,10 @@ const declarePostponement = async (pool, eventId, postponedById, postponedByType
     [eventId],
   );
 
+  const attendeeCount = regs.rows.length;
   const declaredAt = new Date().toISOString();
 
-  // Create one decision row per registration
+  // Create one decision row per registration (if any)
   for (const reg of regs.rows) {
     await pool.query(
       `INSERT INTO event_postponement_decisions
@@ -196,7 +209,7 @@ const declarePostponement = async (pool, eventId, postponedById, postponedByType
   }
 
   // Push: "postponed, new date TBD" — distinct from event_rescheduled
-  if (regs.rows.length > 0) {
+  if (attendeeCount > 0) {
     const pushUsers = regs.rows.map(r => ({ userId: r.member_id, userType: 'member' }));
     pushService.sendBulkPushNotifications(
       pool, pushUsers,
@@ -207,15 +220,60 @@ const declarePostponement = async (pool, eventId, postponedById, postponedByType
     ).catch(e => console.warn('[PostponementService] Push failed (non-critical):', e.message));
   }
 
-  console.log(`[PostponementService] Event ${eventId} postponed by ${postponedByType}_${postponedById}. ${regs.rows.length} decision rows created.`);
+  // Track community disruption if attendeeCount >= 1
+  let disruption = null;
+  const communityId = event.creator_id;
+
+  if (attendeeCount >= 1 && communityId) {
+    const safeReasonCategory = reason_category || 'other';
+    const isGenuine = isGenuineDisruption(safeReasonCategory);
+    const needsReview = needsManualReview(safeReasonCategory);
+
+    const disruptionInsert = await pool.query(
+      `INSERT INTO community_disruptions (
+         community_id,
+         event_id,
+         disruption_type,
+         attendee_count,
+         reason_category,
+         reason_text,
+         is_genuine,
+         needs_manual_review,
+         created_at
+       ) VALUES ($1, $2, 'postponement', $3, $4, $5, $6, $7, NOW())
+       RETURNING id, is_genuine, needs_manual_review`,
+      [
+        communityId,
+        eventId,
+        attendeeCount,
+        safeReasonCategory,
+        reason_text || null,
+        isGenuine,
+        needsReview,
+      ],
+    );
+
+    disruption = disruptionInsert.rows[0];
+
+    // Recompute trailing 90-day reliability metrics across BOTH cancellations and postponements
+    await recomputeCommunityReliability(pool, communityId);
+  } else if (attendeeCount === 0) {
+    console.log(
+      `[PostponementService] Event ${eventId} had 0 active attendees. Skipping community_disruptions logging.`,
+    );
+  }
+
+  console.log(`[PostponementService] Event ${eventId} postponed by ${postponedByType}_${postponedById}. ${attendeeCount} decision rows created.`);
 
   return {
     success: true,
     event_id: parseInt(eventId),
     event_title: event.title,
-    decision_rows_created: regs.rows.length,
+    decision_rows_created: attendeeCount,
+    attendee_count: attendeeCount,
     payout_hold_set: true,
     postponed_at: declaredAt,
+    disruption,
   };
 };
 
@@ -224,6 +282,33 @@ const declarePostponement = async (pool, eventId, postponedById, postponedByType
 const setPostponementNewDate = async (pool, eventId, newStartDatetime, communityName, eventTitle) => {
   const now = new Date();
   const optOutDeadline = new Date(now.getTime() + 72 * 60 * 60 * 1000);
+
+  // Check active registrations directly (do not rely on decision-row count)
+  const regCountRes = await pool.query(
+    `SELECT COUNT(*)::int AS count
+     FROM event_registrations
+     WHERE event_id = $1
+       AND registration_status IN ('registered', 'attended')`,
+    [eventId],
+  );
+  const regCount = parseInt(regCountRes.rows[0]?.count || 0, 10);
+
+  if (regCount === 0) {
+    // Zero-registration case: directly release is_postponed and payout_hold
+    await pool.query(
+      `UPDATE events
+       SET is_postponed = false,
+           payout_hold  = false,
+           updated_at   = NOW()
+       WHERE id = $1 AND is_cancelled = false`,
+      [eventId],
+    );
+    console.log(`[PostponementService] Event ${eventId} had 0 registrations. Reset is_postponed=false and payout_hold=false on new date set.`);
+    return {
+      decisions_updated: 0,
+      zero_attendee_resolved: true,
+    };
+  }
 
   // Update all pending decision rows that don't have a date set yet (OR reset if already set)
   // Re-postponement: if organiser changes date again while window is open, window resets.
@@ -238,7 +323,8 @@ const setPostponementNewDate = async (pool, eventId, newStartDatetime, community
   );
 
   if (updateResult.rows.length === 0) {
-    // No pending decisions — nothing to do (free event or all resolved)
+    // No pending decisions — check if payout_hold and is_postponed can be released
+    await checkAndReleasePayoutHold(pool, eventId);
     return { decisions_updated: 0 };
   }
 

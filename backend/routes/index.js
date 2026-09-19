@@ -50,6 +50,7 @@ const CommunityVoiceController = require("../controllers/communityVoiceControlle
 const PaymentController = require("../controllers/paymentController");
 const SessionController = require("../controllers/sessionController");
 const FinancialController = require("../controllers/financialController");
+const CommunityDisruptionAdminController = require("../controllers/communityDisruptionAdminController");
 const videoInsightsRouter = require('./videoInsights');
 const { adminAuthMiddleware } = require("../middleware/adminAuth");
 const { requireBehavioralConsent, requireBrandConsent, requireBrandAcknowledgment, checkCreatorEventConsent } = require("../middleware/consentGate");
@@ -113,6 +114,8 @@ router.patch("/admin/communities/:communityId/payout-settings", adminAuthMiddlew
 router.get("/admin/refund-requests",                    adminAuthMiddleware, FinancialController.listRefundRequests);
 router.post("/admin/refund-requests/:requestId/approve", adminAuthMiddleware, FinancialController.approveRefundRequest);
 router.post("/admin/refund-requests/:requestId/reject",  adminAuthMiddleware, FinancialController.rejectRefundRequest);
+router.get("/admin/community-disruptions",                  adminAuthMiddleware, CommunityDisruptionAdminController.listDisruptions);
+router.patch("/admin/community-disruptions/:id/reclassify", adminAuthMiddleware, CommunityDisruptionAdminController.reclassifyDisruption);
 
 // ============================================
 // ADMIN ANALYTICS (Protected)

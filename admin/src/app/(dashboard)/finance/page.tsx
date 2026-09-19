@@ -60,10 +60,13 @@ import {
   rejectRefundRequest,
   getCommunityPayoutSettings,
   updateCommunityPayoutSettings,
+  getCommunityDisruptions,
+  reclassifyDisruption,
   type EventPayout,
   type RefundRequest,
   type CommunityPayoutSetting,
   type LedgerTier,
+  type CommunityDisruptionItem,
 } from "@/lib/api";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -472,6 +475,258 @@ function RefundQueueTab() {
   );
 }
 
+// ─── DISRUPTIONS REVIEW TAB ──────────────────────────────────────────────────
+
+function DisruptionsQueueTab() {
+  const [disruptions, setDisruptions] = useState<CommunityDisruptionItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<"needs_review" | "reviewed" | "all">("needs_review");
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  // Review Dialog state
+  const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
+  const [selectedDisruption, setSelectedDisruption] = useState<CommunityDisruptionItem | null>(null);
+  const [decisionIsGenuine, setDecisionIsGenuine] = useState(true);
+  const [reviewNotes, setReviewNotes] = useState("");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await getCommunityDisruptions({ status: statusFilter });
+      setDisruptions(data.disruptions);
+      setTotal(data.total);
+    } catch (e: unknown) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }, [statusFilter]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const openReviewModal = (item: CommunityDisruptionItem, isGenuine: boolean) => {
+    setSelectedDisruption(item);
+    setDecisionIsGenuine(isGenuine);
+    setReviewNotes("");
+    setActionError(null);
+    setReviewDialogOpen(true);
+  };
+
+  const handleReviewSubmit = async () => {
+    if (!selectedDisruption) return;
+    setActionLoading(true);
+    setActionError(null);
+    try {
+      await reclassifyDisruption(selectedDisruption.id, {
+        is_genuine: decisionIsGenuine,
+        review_notes: reviewNotes.trim() || undefined,
+      });
+      setReviewDialogOpen(false);
+      setSelectedDisruption(null);
+      await load();
+    } catch (e: unknown) {
+      setActionError(e instanceof Error ? e.message : "Reclassification failed");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {actionError && (
+        <div className="rounded-md bg-red-50 border border-red-200 p-3 text-red-800 text-sm dark:bg-red-900/20 dark:border-red-800 dark:text-red-300">
+          {actionError}
+        </div>
+      )}
+
+      <div className="flex items-center gap-3 flex-wrap">
+        <Select value={statusFilter} onValueChange={(val) => setStatusFilter(val as "needs_review" | "reviewed" | "all")}>
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="Filter by status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="needs_review">Needs Review</SelectItem>
+            <SelectItem value="reviewed">Reviewed</SelectItem>
+            <SelectItem value="all">All Disruptions</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button variant="outline" size="sm" onClick={load}>
+          <RefreshCw className="h-4 w-4 mr-2" />Refresh
+        </Button>
+        <span className="text-sm text-muted-foreground ml-auto">{total} disruption(s)</span>
+      </div>
+
+      {loading ? (
+        <div className="text-center py-12 text-muted-foreground">Loading...</div>
+      ) : disruptions.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground">No disruptions found for this filter</div>
+      ) : (
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Type</TableHead>
+                <TableHead>Community</TableHead>
+                <TableHead>Event</TableHead>
+                <TableHead>Reason</TableHead>
+                <TableHead>Explanation / Text</TableHead>
+                <TableHead>Attendees</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {disruptions.map((d) => (
+                <TableRow key={d.id} className="hover:bg-muted/50">
+                  <TableCell>
+                    <Badge
+                      variant="outline"
+                      className={
+                        d.disruption_type === "cancellation"
+                          ? "border-red-300 bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
+                          : "border-amber-300 bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+                      }
+                    >
+                      {d.disruption_type}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="font-medium">{d.community_name || `Community #${d.community_id}`}</div>
+                    <div className="text-xs text-muted-foreground">ID: {d.community_id}</div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="max-w-[200px] truncate font-medium">{d.event_title || `Event #${d.event_id}`}</div>
+                    <div className="text-xs text-muted-foreground">ID: {d.event_id}</div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="secondary" className="text-xs font-mono">
+                      {d.reason_category}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="max-w-[240px] text-xs text-muted-foreground break-words line-clamp-2" title={d.reason_text || "—"}>
+                      {d.reason_text || "—"}
+                    </div>
+                  </TableCell>
+                  <TableCell className="font-semibold text-center">{d.attendee_count}</TableCell>
+                  <TableCell>
+                    {d.reviewed_at ? (
+                      <Badge className={d.is_genuine ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300" : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"}>
+                        {d.is_genuine ? "Genuine (Approved)" : "Non-Genuine"}
+                      </Badge>
+                    ) : d.needs_manual_review ? (
+                      <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                        Needs Review
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline">
+                        {d.is_genuine ? "Auto-Genuine" : "Non-Genuine"}
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                    {fmtDate(d.created_at)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {!d.reviewed_at && d.needs_manual_review ? (
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs border-green-300 text-green-700 hover:bg-green-50 hover:text-green-800"
+                          onClick={() => openReviewModal(d, true)}
+                          disabled={actionLoading}
+                        >
+                          Mark Genuine
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs border-red-300 text-red-700 hover:bg-red-50 hover:text-red-800"
+                          onClick={() => openReviewModal(d, false)}
+                          disabled={actionLoading}
+                        >
+                          Confirm Non-Genuine
+                        </Button>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        {d.reviewed_at ? `Reviewed by #${d.reviewed_by}` : "No action needed"}
+                      </span>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      {/* Review Dialog */}
+      <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {decisionIsGenuine ? "Approve Disruption as Genuine" : "Confirm Disruption as Non-Genuine"}
+            </DialogTitle>
+            <DialogDescription>
+              {decisionIsGenuine
+                ? "This will classify the disruption as genuine. The community's non-genuine disruption count will be updated, and if it drops below 2 in the 90-day window, any cancellation flag will automatically be cleared."
+                : "This confirms the disruption as non-genuine. It will count towards the community's 2-strike cancellation reliability threshold."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedDisruption && (
+            <div className="space-y-3 py-2 text-sm">
+              <div className="bg-muted/50 p-3 rounded-md space-y-1 text-xs">
+                <div><span className="font-semibold">Community:</span> {selectedDisruption.community_name}</div>
+                <div><span className="font-semibold">Event:</span> {selectedDisruption.event_title}</div>
+                <div><span className="font-semibold">Type:</span> {selectedDisruption.disruption_type}</div>
+                <div><span className="font-semibold">Submitted Reason:</span> {selectedDisruption.reason_text || "—"}</div>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">
+                  Review Notes (Optional)
+                </label>
+                <Textarea
+                  placeholder="e.g. Validated host hospital emergency note via support email"
+                  value={reviewNotes}
+                  onChange={(e) => setReviewNotes(e.target.value)}
+                  className="text-xs resize-none"
+                  rows={3}
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReviewDialogOpen(false)} disabled={actionLoading}>
+              Cancel
+            </Button>
+            <Button
+              variant={decisionIsGenuine ? "default" : "destructive"}
+              onClick={handleReviewSubmit}
+              disabled={actionLoading}
+            >
+              {actionLoading
+                ? "Saving..."
+                : decisionIsGenuine
+                ? "Approve as Genuine"
+                : "Confirm Non-Genuine"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 // ─── PAYOUT LEDGER TAB ───────────────────────────────────────────────────────
 
 function PayoutLedgerTab() {
@@ -799,9 +1054,24 @@ export default function FinancePage() {
       <Tabs defaultValue="refunds" className="space-y-4">
         <TabsList>
           <TabsTrigger value="refunds">Refund Queue</TabsTrigger>
+          <TabsTrigger value="disruptions">Disruptions Review</TabsTrigger>
           <TabsTrigger value="payouts">Payout Ledger</TabsTrigger>
           <TabsTrigger value="settings">Community Settings</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="disruptions">
+          <Card>
+            <CardHeader>
+              <CardTitle>Disruptions Review Queue</CardTitle>
+              <CardDescription>
+                Review cancellations and postponements submitted with &quot;Other&quot; reasons. Approving as genuine removes them from the non-genuine disruption tally and auto-clears cancellation flags if the 90-day threshold drops below 2.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <DisruptionsQueueTab />
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="refunds">
           <Card>

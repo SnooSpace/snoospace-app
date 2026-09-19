@@ -39,6 +39,8 @@
 const notificationService = require('./notificationService');
 const pushService = require('./pushService');
 const { executeRazorpayRefund } = require('../utils/razorpayRefundExecutor');
+const { isGenuineDisruption, needsManualReview } = require('../constants/disruptionReasons');
+const { recomputeCommunityReliability } = require('./communityReliabilityService');
 
 /**
  * Cancel an event and initiate full refunds for all paid registrations.
@@ -47,15 +49,19 @@ const { executeRazorpayRefund } = require('../utils/razorpayRefundExecutor');
  * @param {number} eventId         - The event to cancel
  * @param {number} cancelledById   - ID of the actor (community ID or admin ID)
  * @param {string} cancelledByType - 'community' | 'admin'
+ * @param {Object} [reasonPayload] - { reason_category, reason_text }
  * @returns {Promise<Object>} Summary of the cancellation result
  */
-const cancelEventWithRefunds = async (pool, eventId, cancelledById, cancelledByType) => {
+const cancelEventWithRefunds = async (pool, eventId, cancelledById, cancelledByType, reasonPayload = {}) => {
+  const reasonCategory = reasonPayload?.reason_category || (typeof reasonPayload === 'string' ? reasonPayload : null);
+  const reasonText = reasonPayload?.reason_text || null;
+
   // ── 1. Fetch event and guard: already-cancelled ────────────────────────────
   const eventResult = await pool.query(
-    `SELECT e.id, e.title, e.is_cancelled, e.end_datetime, e.creator_id,
+    `SELECT e.id, e.title, e.is_cancelled, e.end_datetime, e.creator_id, e.community_id,
             c.name AS community_name, c.logo_url AS community_logo
      FROM events e
-     LEFT JOIN communities c ON c.id = e.creator_id
+     LEFT JOIN communities c ON c.id = COALESCE(e.community_id, e.creator_id)
      WHERE e.id = $1`,
     [eventId],
   );
@@ -79,23 +85,67 @@ const cancelEventWithRefunds = async (pool, eventId, cancelledById, cancelledByT
   // Admin may legitimately cancel a past event retroactively.
   const isPastEvent = event.end_datetime && new Date(event.end_datetime) < new Date();
 
-  // ── 2. Mark event as cancelled (single atomic UPDATE) ─────────────────────
+  // ── 2. Count active attendees before updating status (scoring only applies if count >= 1) ──
+  const attendeeCountResult = await pool.query(
+    `SELECT COUNT(*)::int AS count
+     FROM event_registrations
+     WHERE event_id = $1
+       AND registration_status IN ('registered', 'attended')`,
+    [eventId],
+  );
+  const attendeeCount = attendeeCountResult.rows[0]?.count || 0;
+
+  // ── 3. Mark event as cancelled (single atomic UPDATE) ─────────────────────
   await pool.query(
     `UPDATE events
-     SET is_cancelled = true,
-         cancelled_at = NOW(),
-         payout_hold  = true,
-         updated_at   = NOW()
+     SET is_cancelled        = true,
+         cancelled_at        = NOW(),
+         cancellation_reason = $2,
+         payout_hold         = true,
+         updated_at          = NOW()
      WHERE id = $1`,
-    [eventId],
+    [eventId, reasonCategory || null],
   );
 
   console.log(
     `[CancellationService] Event ${eventId} ("${event.title}") marked cancelled` +
-    ` by ${cancelledByType}_${cancelledById}. payout_hold=true.`,
+    ` by ${cancelledByType}_${cancelledById}. reason=${reasonCategory}. attendee_count=${attendeeCount}. payout_hold=true.`,
   );
 
-  // ── 3. Fetch all affected registrations ───────────────────────────────────
+  // ── 4. Record community disruption & reliability scoring if attendee_count >= 1 ──
+  const communityId = event.community_id || event.creator_id;
+  let disruptionRecorded = false;
+
+  if (attendeeCount >= 1 && communityId) {
+    const isGenuine = isGenuineDisruption(reasonCategory);
+    const requiresManualReview = needsManualReview(reasonCategory);
+
+    await pool.query(
+      `INSERT INTO community_disruptions (
+         community_id, event_id, disruption_type, attendee_count,
+         reason_category, reason_text, is_genuine, needs_manual_review
+       ) VALUES ($1, $2, 'cancellation', $3, $4, $5, $6, $7)`,
+      [
+        communityId,
+        eventId,
+        attendeeCount,
+        reasonCategory || 'unspecified',
+        reasonText,
+        isGenuine,
+        requiresManualReview,
+      ],
+    );
+    disruptionRecorded = true;
+
+    // Recompute community reliability metrics from source
+    await recomputeCommunityReliability(pool, communityId);
+  } else if (attendeeCount === 0) {
+    console.log(
+      `[CancellationService] Event ${eventId} had 0 active attendees. Skipping community_disruptions logging.`,
+    );
+  }
+
+  // ── 5. Fetch all affected registrations ───────────────────────────────────
   // Include 'attended' — see module-level comment for rationale.
   const registrationsResult = await pool.query(
     `SELECT er.id AS registration_id,
@@ -344,6 +394,9 @@ const cancelEventWithRefunds = async (pool, eventId, cancelledById, cancelledByT
     failures,
     payout_hold_set:       true,
     cancelled_at:          new Date().toISOString(),
+    attendee_count:        attendeeCount,
+    reason_category:       reasonCategory || null,
+    disruption_recorded:   disruptionRecorded,
   };
 
   console.log(
