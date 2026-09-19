@@ -340,9 +340,15 @@ const NotificationRow = ({
           bg: "rgba(255, 149, 0, 0.12)",
         };
       case "plan_host_ver_takedown":
+      case "verification_rejected":
         return {
           icon: <CircleX size={18} color="#FF3B30" strokeWidth={2} />,
           bg: "rgba(255, 59, 48, 0.1)",
+        };
+      case "verification_approved":
+        return {
+          icon: <CheckCircle2 size={18} color="#34C759" strokeWidth={2} />,
+          bg: "rgba(52, 199, 89, 0.1)",
         };
       case "review_prompt":
         return {
@@ -1034,6 +1040,46 @@ const NotificationRow = ({
         </Text>
       );
       break;
+
+    case "verification_rejected": {
+      const isPlans = payload.scope === "plans";
+      isNavigable = true;
+      onPress = () => {
+        if (isPlans) {
+          navigation.navigate("PlansVerification");
+        } else {
+          navigation.navigate("VerificationSubmit");
+        }
+      };
+      const scopeLabel = isPlans ? "Plans" : "Discover";
+      title = (
+        <Text style={styles.title}>
+          Your <Text style={styles.bold}>{scopeLabel}</Text> verification was not approved.
+        </Text>
+      );
+      subtitle = payload.reason || "Please review the guidelines and try again.";
+      break;
+    }
+
+    case "verification_approved": {
+      const isPlans = payload.scope === "plans";
+      isNavigable = true;
+      onPress = () => {
+        if (isPlans) {
+          navigation.navigate("PlansVerification");
+        } else {
+          navigation.navigate("VerificationSubmit");
+        }
+      };
+      const scopeLabel = isPlans ? "Plans" : "Discover";
+      title = (
+        <Text style={styles.title}>
+          Your <Text style={styles.bold}>{scopeLabel}</Text> verification was approved!
+        </Text>
+      );
+      subtitle = "Your identity badge is now active.";
+      break;
+    }
 
   }
 

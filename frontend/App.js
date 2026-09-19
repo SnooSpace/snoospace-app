@@ -178,6 +178,11 @@ function AppContent() {
                   name: screen,
                   params,
                 });
+              } else if (data.type === "verification_rejected" || data.type === "verification_approved") {
+                const screen = data.scope === "plans" ? "PlansVerification" : "VerificationSubmit";
+                routes.push({
+                  name: screen,
+                });
               }
 
               // Safely handle navigation readiness
@@ -228,6 +233,14 @@ function AppContent() {
           CommonActions.navigate({
             name: screen,
             params,
+          })
+        );
+      } else if (data.type === "verification_rejected" || data.type === "verification_approved") {
+        console.log("[App] Deep linking to verification screen:", data);
+        const screen = data.scope === "plans" ? "PlansVerification" : "VerificationSubmit";
+        navigationRef.current?.dispatch(
+          CommonActions.navigate({
+            name: screen,
           })
         );
       }

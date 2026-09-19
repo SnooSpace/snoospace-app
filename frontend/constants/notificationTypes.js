@@ -237,6 +237,16 @@ export const NotificationTypes = {
     channel: "system",
     icon: "🚫",
   },
+  verification_rejected: {
+    category: "system",
+    channel: "system",
+    icon: "❌",
+  },
+  verification_approved: {
+    category: "system",
+    channel: "system",
+    icon: "✅",
+  },
   removal_request: {
     category: "system",
     channel: "moderation",

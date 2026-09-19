@@ -1750,7 +1750,7 @@ export async function getAdminVerifications(params?: {
     page: data.page || 1,
     pageSize: data.pageSize || 20,
     totalPages: data.totalPages || 1,
-    thresholds: data.thresholds || { match: 0.55, noMatch: 0.85 },
+    thresholds: data.thresholds || { match: 0.55, noMatch: 0.66 },
   };
 }
 

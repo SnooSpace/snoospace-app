@@ -904,7 +904,7 @@ async function patchProfile(req, res) {
 
     if (openers !== undefined) {
       if (Array.isArray(openers)) {
-        // Store as JSONB array of {prompt, response} objects
+        // Store as JSONB array of {prompt, response, category, theme, is_custom} objects
         const sanitized = openers
           .filter(
             (o) =>
@@ -913,10 +913,22 @@ async function patchProfile(req, res) {
               typeof o.response === "string"
           )
           .slice(0, 3) // Max 3 openers
-          .map((o) => ({
-            prompt: o.prompt.trim().substring(0, 200),
-            response: o.response.trim().substring(0, 200),
-          }));
+          .map((o) => {
+            const entry = {
+              prompt: o.prompt.trim().substring(0, 200),
+              response: o.response.trim().substring(0, 200),
+            };
+            if (typeof o.category === "string" && o.category.trim()) {
+              entry.category = o.category.trim().substring(0, 50);
+            }
+            if (typeof o.theme === "string" && o.theme.trim()) {
+              entry.theme = o.theme.trim().substring(0, 30);
+            }
+            if (typeof o.is_custom === "boolean") {
+              entry.is_custom = o.is_custom;
+            }
+            return entry;
+          });
         updates.push(`openers = $${paramIndex++}::jsonb`);
         values.push(JSON.stringify(sanitized));
       }

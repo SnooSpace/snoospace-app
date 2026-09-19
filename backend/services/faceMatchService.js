@@ -195,7 +195,7 @@ async function matchVideoToReferences(videoPublicId, memberId, pool, options = {
 
   // 7. Classify outcome based on distance thresholds
   // distance <= MATCH_THRESHOLD (0.55) -> match
-  // distance >= NO_MATCH_THRESHOLD (0.85) -> no_match
+  // distance >= NO_MATCH_THRESHOLD (0.66) -> no_match
   // otherwise -> uncertain (manual review queue)
   let classification = 'uncertain';
   if (roundedDistance <= MATCH_THRESHOLD) {
@@ -214,7 +214,7 @@ async function matchVideoToReferences(videoPublicId, memberId, pool, options = {
 }
 
 const MATCH_THRESHOLD = 0.55;
-const NO_MATCH_THRESHOLD = 0.85;
+const NO_MATCH_THRESHOLD = 0.66;
 
 module.exports = {
   matchVideoToReferences,

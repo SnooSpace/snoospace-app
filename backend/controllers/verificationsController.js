@@ -2,6 +2,8 @@ const { uploadImage } = require('../config/cloudinary');
 const { detectFace } = require('../services/faceDetectionService');
 const { getFaceDetectionMessage } = require('../config/faceDetectionMessages');
 const { handleVerificationRejection } = require('../services/verificationRejectionService');
+const { createSimpleNotification } = require('../services/notificationService');
+const pushService = require('../services/pushService');
 
 const ALLOWED_MIME_TYPES = ['video/mp4', 'video/quicktime', 'video/webm'];
 
@@ -11,6 +13,7 @@ const ALLOWED_MIME_TYPES = ['video/mp4', 'video/quicktime', 'video/webm'];
 async function submitVerification(req, res) {
   try {
     const pool = req.app.locals.pool;
+    const io = req.app.locals.io;
     const userId = req.user.id;
 
     if (!req.file) {
@@ -132,7 +135,6 @@ async function submitVerification(req, res) {
           }
         );
 
-        const io = req.app.locals.io;
         const verId = insertR.rows[0].id;
 
         if (matchResult.status === 'match') {
@@ -164,22 +166,54 @@ async function submitVerification(req, res) {
             [userId]
           );
           if (io && freshMem.rows[0]) {
+            console.log(`[verificationsController] Emitting verification_status_updated to user_${userId} (approved)`);
             io.to(`user_${userId}`).emit('verification_status_updated', {
               status: 'approved',
               tier: freshMem.rows[0].verification_tier,
               scope,
             });
           }
+
+          // Notify member: in-app & push notification
+          try {
+            const scopeName = scope === 'plans' ? 'Plans' : 'Discover';
+            await createSimpleNotification(pool, {
+              recipientId: userId,
+              recipientType: 'member',
+              actorId: 0,
+              actorType: 'system',
+              type: 'verification_approved',
+              payload: {
+                scope,
+                title: `Your ${scopeName} verification was approved!`,
+                message: 'Your identity has been verified successfully. Your badge is now active.',
+              },
+            });
+            await pushService.sendPushNotification(
+              pool,
+              userId,
+              'member',
+              `${scopeName} Verification Approved`,
+              'Your identity has been verified successfully. Your verification badge is now active.',
+              {
+                type: 'verification_approved',
+                scope,
+              }
+            );
+          } catch (notifErr) {
+            console.error('[verificationsController.submitVerification] Approval notification error (non-fatal):', notifErr);
+          }
         } else if (matchResult.status === 'no_match') {
+          const autoRejectionReason = 'The face in your video did not match your profile photos.';
           await pool.query(
             `UPDATE user_verifications
              SET status = 'rejected',
                  decision_source = 'automated',
                  match_score = $1,
-                 rejection_reason = 'The face in your video did not match your profile photos.',
+                 rejection_reason = $2,
                  reviewed_at = NOW()
-             WHERE id = $2`,
-            [matchResult.distance, verId]
+             WHERE id = $3`,
+            [matchResult.distance, autoRejectionReason, verId]
           );
 
           const freshMem = await pool.query(
@@ -187,11 +221,44 @@ async function submitVerification(req, res) {
             [userId]
           );
           if (io && freshMem.rows[0]) {
+            console.log(`[verificationsController] Emitting verification_status_updated to user_${userId} (rejected)`);
             io.to(`user_${userId}`).emit('verification_status_updated', {
               status: 'rejected',
               tier: freshMem.rows[0].verification_tier,
               scope,
             });
+          }
+
+          // Notify member: in-app & push notification with rejection reason
+          try {
+            const scopeName = scope === 'plans' ? 'Plans' : 'Discover';
+            await createSimpleNotification(pool, {
+              recipientId: userId,
+              recipientType: 'member',
+              actorId: 0,
+              actorType: 'system',
+              type: 'verification_rejected',
+              payload: {
+                scope,
+                reason: autoRejectionReason,
+                title: `Your ${scopeName} verification was not approved.`,
+                message: autoRejectionReason,
+              },
+            });
+            await pushService.sendPushNotification(
+              pool,
+              userId,
+              'member',
+              `${scopeName} Verification Not Approved`,
+              autoRejectionReason,
+              {
+                type: 'verification_rejected',
+                scope,
+                reason: autoRejectionReason,
+              }
+            );
+          } catch (notifErr) {
+            console.error('[verificationsController.submitVerification] Rejection notification error (non-fatal):', notifErr);
           }
 
           // Trigger downstream cascade: block access, cancel/notify hosted plans,
@@ -392,6 +459,7 @@ async function adminReview(req, res) {
 
     const io = req.app.locals.io;
     if (io && freshMem.rows[0]) {
+      console.log(`[verificationsController.adminReview] Emitting verification_status_updated to user_${userId} (${updatedVer.status})`);
       io.to(`user_${userId}`).emit('verification_status_updated', {
         status: updatedVer.status,
         tier: freshMem.rows[0].verification_tier,
@@ -399,12 +467,86 @@ async function adminReview(req, res) {
       });
     }
 
-    // If this is a rejection, trigger the downstream cascade.
+    const scopeName = scope === 'plans' ? 'Plans' : 'Discover';
+
     if (status === 'rejected') {
+      // In-app notification with rejection reason
+      try {
+        await createSimpleNotification(pool, {
+          recipientId: userId,
+          recipientType: 'member',
+          actorId: 0,
+          actorType: 'system',
+          type: 'verification_rejected',
+          payload: {
+            scope,
+            reason: rejection_reason,
+            title: `Your ${scopeName} verification was not approved.`,
+            message: rejection_reason,
+          },
+        });
+      } catch (notifErr) {
+        console.error('[verificationsController.adminReview] In-app notification error (non-fatal):', notifErr);
+      }
+
+      // Push notification with rejection reason
+      try {
+        await pushService.sendPushNotification(
+          pool,
+          userId,
+          'member',
+          `${scopeName} Verification Not Approved`,
+          rejection_reason,
+          {
+            type: 'verification_rejected',
+            scope,
+            reason: rejection_reason,
+          }
+        );
+      } catch (pushErr) {
+        console.error('[verificationsController.adminReview] Push notification error (non-fatal):', pushErr);
+      }
+
+      // Trigger downstream cascade: block plans access, take down plans, etc.
       try {
         await handleVerificationRejection(pool, io, userId, scope);
       } catch (cascadeErr) {
         console.error('[verificationsController.adminReview] Rejection cascade error (non-fatal):', cascadeErr);
+      }
+    } else if (status === 'approved') {
+      // In-app notification for approval
+      try {
+        await createSimpleNotification(pool, {
+          recipientId: userId,
+          recipientType: 'member',
+          actorId: 0,
+          actorType: 'system',
+          type: 'verification_approved',
+          payload: {
+            scope,
+            title: `Your ${scopeName} verification was approved!`,
+            message: 'Your identity has been verified successfully. Your badge is now active.',
+          },
+        });
+      } catch (notifErr) {
+        console.error('[verificationsController.adminReview] In-app notification error (non-fatal):', notifErr);
+      }
+
+      // Push notification for approval
+      try {
+        await pushService.sendPushNotification(
+          pool,
+          userId,
+          'member',
+          `${scopeName} Verification Approved`,
+          'Your identity has been verified successfully. Your verification badge is now active.',
+          {
+            type: 'verification_approved',
+            scope,
+          }
+        );
+      } catch (pushErr) {
+        console.error('[verificationsController.adminReview] Push notification error (non-fatal):', pushErr);
       }
     }
 

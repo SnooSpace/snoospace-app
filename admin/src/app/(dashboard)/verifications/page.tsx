@@ -60,7 +60,7 @@ export default function VerificationsPage() {
   const [verifications, setVerifications] = useState<VerificationItem[]>([]);
   const [thresholds, setThresholds] = useState<{ match: number; noMatch: number }>({
     match: 0.55,
-    noMatch: 0.85,
+    noMatch: 0.66,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -499,7 +499,7 @@ export default function VerificationsPage() {
                     <span>Liveness Video</span>
                     <span className="text-xs font-normal text-muted-foreground">Selfie video</span>
                   </div>
-                  <div className="rounded-lg overflow-hidden border bg-black aspect-[3/4] max-h-[360px] flex items-center justify-center">
+                  <div className="rounded-lg overflow-hidden border bg-black aspect-[9/16] max-h-[380px] w-auto mx-auto flex items-center justify-center">
                     {selectedVerification.media_purged_at || videoError ? (
                       <div className="p-6 text-center text-sm text-muted-foreground bg-muted/20 w-full h-full flex flex-col items-center justify-center gap-2">
                         <ShieldAlert className="h-8 w-8 text-amber-500/80" />

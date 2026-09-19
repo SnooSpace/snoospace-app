@@ -219,14 +219,24 @@ export default function VerificationRecorderScreen({ navigation, route }) {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#000" />
 
-      {/* ── Camera feed (front-facing selfie, unmirrored) ────────────────── */}
+      {/* ── Camera feed (front-facing selfie, mirrored to match preview) ── */}
       <CameraView
         ref={cameraRef}
         style={StyleSheet.absoluteFill}
         facing="front"
-        mirror={false}
+        mirror={true}
         mode="video"
       />
+
+      {/* ── Centered Face Framing Guide ── */}
+      <View style={styles.faceGuideWrapper} pointerEvents="none">
+        <View style={[styles.faceOval, isRecording && styles.faceOvalRecording]} />
+        <View style={styles.faceGuidePill}>
+          <Text style={styles.faceGuideText}>
+            {isRecording ? "Keep your face in frame" : "Center your face in the oval"}
+          </Text>
+        </View>
+      </View>
 
       {/* ── Overlay UI ──────────────────────────────────────────────────── */}
       <SafeAreaView style={styles.overlay} edges={["top", "bottom"]}>
@@ -332,10 +342,45 @@ const styles = StyleSheet.create({
     backgroundColor: "#000",
   },
 
+  // ── Centered Face Guide ──────────────────────────────────────────────────
+  faceGuideWrapper: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1,
+  },
+  faceOval: {
+    width: Math.min(SCREEN_WIDTH * 0.58, 230),
+    height: Math.min(SCREEN_WIDTH * 0.78, 310),
+    borderRadius: Math.min(SCREEN_WIDTH * 0.29, 115),
+    borderWidth: 2,
+    borderColor: "rgba(255, 255, 255, 0.45)",
+    borderStyle: "dashed",
+    backgroundColor: "transparent",
+  },
+  faceOvalRecording: {
+    borderColor: "rgba(52, 199, 89, 0.75)",
+    borderStyle: "solid",
+  },
+  faceGuidePill: {
+    marginTop: 12,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    paddingHorizontal: 14,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  faceGuideText: {
+    fontFamily: "Manrope-Regular",
+    fontSize: 13,
+    color: "rgba(255, 255, 255, 0.85)",
+    textAlign: "center",
+  },
+
   // ── Overlay ──────────────────────────────────────────────────────────────
   overlay: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: "space-between",
+    zIndex: 2,
   },
 
   // ── Top Bar ──────────────────────────────────────────────────────────────

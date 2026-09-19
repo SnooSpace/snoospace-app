@@ -116,18 +116,34 @@ export default function VerificationHubScreen({ navigation }) {
       socket.on('verification_status_updated', handleStatusUpdated);
     }
 
-    const unsubReconnect = EventBus.on('socket:reconnected', () => {
-      fetchVerifications();
-    });
+    const unsubStatus = EventBus.on('verification:status_updated', handleStatusUpdated);
+    const unsubNotif = EventBus.on('new_notification', handleStatusUpdated);
+    const unsubReconnect = EventBus.on('socket:reconnected', () => fetchVerifications());
+    const unsubConnect = EventBus.on('socket:connected', () => fetchVerifications());
 
     return () => {
       if (socket) {
         socket.off('verification_status_updated', handleStatusUpdated);
       }
+      unsubStatus?.();
+      unsubNotif?.();
       unsubReconnect?.();
+      unsubConnect?.();
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [fetchVerifications]);
+
+  // Active polling if either tier verification is pending
+  const hasPending = plansVerification?.status === 'pending' || discoverVerification?.status === 'pending';
+  useEffect(() => {
+    if (!hasPending) return;
+
+    const interval = setInterval(() => {
+      fetchVerifications();
+    }, 2500);
+
+    return () => clearInterval(interval);
+  }, [hasPending, fetchVerifications]);
 
   useFocusEffect(
     useCallback(() => {

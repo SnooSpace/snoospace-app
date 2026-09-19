@@ -84,9 +84,11 @@ export default function VerificationSubmitScreen({ navigation, route }) {
     }
   }, [navigation, route?.params?.from]);
 
-  const loadVerification = useCallback(async () => {
+  const navigateToEditPhotos = navigateToEditProfile;
+
+  const loadVerification = useCallback(async (isSilent = false) => {
     try {
-      setLoading(true);
+      if (!isSilent) setLoading(true);
       const token = await getAuthToken();
       const [vData, fData, pData] = await Promise.all([
         getMyVerification(token, 'discover').catch(() => ({ verification: null })),
@@ -104,7 +106,7 @@ export default function VerificationSubmitScreen({ navigation, route }) {
     } catch (err) {
       console.error('[VerificationSubmitScreen]', err.message);
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   }, []);
 
@@ -120,23 +122,27 @@ export default function VerificationSubmitScreen({ navigation, route }) {
     const handleStatusUpdated = () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
-        loadVerification();
-      }, 300);
+        loadVerification(true);
+      }, 200);
     };
 
     if (socket) {
       socket.on('verification_status_updated', handleStatusUpdated);
     }
 
-    const unsubReconnect = EventBus.on('socket:reconnected', () => {
-      loadVerification();
-    });
+    const unsubStatus = EventBus.on('verification:status_updated', handleStatusUpdated);
+    const unsubNotif = EventBus.on('new_notification', handleStatusUpdated);
+    const unsubReconnect = EventBus.on('socket:reconnected', () => loadVerification(true));
+    const unsubConnect = EventBus.on('socket:connected', () => loadVerification(true));
 
     return () => {
       if (socket) {
         socket.off('verification_status_updated', handleStatusUpdated);
       }
+      unsubStatus?.();
+      unsubNotif?.();
       unsubReconnect?.();
+      unsubConnect?.();
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [loadVerification]);
@@ -273,6 +279,17 @@ export default function VerificationSubmitScreen({ navigation, route }) {
 
   const showUploadForm = (!verification && !isAlreadyDiscoverVerified) || resubmit;
   const effectiveStatus = isAlreadyDiscoverVerified ? 'approved' : verification?.status;
+
+  // Active polling while verification is under review (every 2.5 seconds)
+  useEffect(() => {
+    if (effectiveStatus !== 'pending') return;
+
+    const interval = setInterval(() => {
+      loadVerification(true);
+    }, 2500);
+
+    return () => clearInterval(interval);
+  }, [effectiveStatus, loadVerification]);
 
   return (
     <View style={styles.container}>

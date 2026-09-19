@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { StyleSheet, View, Text, TouchableOpacity, Platform, InteractionManager } from "react-native";
 import { FlashList } from "@shopify/flash-list";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft, Users, ChevronRight, Lock } from "lucide-react-native";
 import { Image } from "expo-image";
+import { useFocusEffect } from "@react-navigation/native";
 import { apiGet } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS, FONTS } from "../../constants/theme";
@@ -22,6 +23,13 @@ export default function DiscoverPeopleScreen({ route, navigation }) {
   const [errorMsg, setErrorMsg] = useState("");
   const [profileComplete, setProfileComplete] = useState(true);
 
+  const profileCompleteRef = useRef(true);
+  const hasLoadedRef = useRef(false);
+
+  useEffect(() => {
+    profileCompleteRef.current = profileComplete;
+  }, [profileComplete]);
+
   const loadAttendees = useCallback(async () => {
     if (!event?.id) return;
 
@@ -38,6 +46,7 @@ export default function DiscoverPeopleScreen({ route, navigation }) {
         const ownOpeners = Array.isArray(profile.openers) ? profile.openers : [];
         const isComplete = ownPhotos.length >= 3 && ownSparks.length >= 1 && ownOpeners.length >= 1;
         setProfileComplete(isComplete);
+        profileCompleteRef.current = isComplete;
 
         if (isComplete) {
           const response = await apiGet(
@@ -56,12 +65,23 @@ export default function DiscoverPeopleScreen({ route, navigation }) {
     }
   }, [event?.id]);
 
-  useEffect(() => {
-    const task = InteractionManager.runAfterInteractions(() => {
-      loadAttendees();
-    });
-    return () => task.cancel();
-  }, [loadAttendees]);
+  useFocusEffect(
+    useCallback(() => {
+      let isSubscribed = true;
+      const task = InteractionManager.runAfterInteractions(() => {
+        if (isSubscribed) {
+          if (!hasLoadedRef.current || !profileCompleteRef.current) {
+            hasLoadedRef.current = true;
+            loadAttendees();
+          }
+        }
+      });
+      return () => {
+        isSubscribed = false;
+        task.cancel();
+      };
+    }, [loadAttendees])
+  );
 
   const handlePersonPress = useCallback((attendee) => {
     navigation.navigate("NetworkingProfile", { attendee, event });

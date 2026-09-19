@@ -3,6 +3,7 @@ import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Dimensions, Modal
 import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
+import { useFocusEffect } from "@react-navigation/native";
 import {
   MessageCircle,
   ArrowLeft,
@@ -130,6 +131,18 @@ export default function ProfileFeedScreen({ route, navigation }) {
   const [sharedCommSheetOpen, setSharedCommSheetOpen] = useState(false);
   const [selectedAttendeeCommunities, setSelectedAttendeeCommunities] = useState([]);
 
+  const profileGatedRef = useRef(false);
+  const hasLoadedRef = useRef(false);
+  const eventDataRef = useRef(eventData);
+
+  useEffect(() => {
+    profileGatedRef.current = profileGated;
+  }, [profileGated]);
+
+  useEffect(() => {
+    eventDataRef.current = eventData;
+  }, [eventData]);
+
   const renderCount = useRef(0);
   useEffect(() => {
     console.log("[ProfileFeedScreen] Mounted");
@@ -190,8 +203,8 @@ export default function ProfileFeedScreen({ route, navigation }) {
       if (!token) { setLoading(false); return; }
 
       // 0. Fetch full event details if title is missing
-      let currentEvent = initialEvent || null;
-      const targetEventId = initialEvent?.id;
+      let currentEvent = eventDataRef.current || initialEvent || null;
+      const targetEventId = currentEvent?.id || initialEvent?.id;
       if (targetEventId && (!currentEvent || !currentEvent.title)) {
         try {
           console.log("[ProfileFeedScreen] Fetching full event details for ID:", targetEventId);
@@ -199,6 +212,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
           if (response?.event) {
             currentEvent = response.event;
             setEventData(response.event);
+            eventDataRef.current = response.event;
           }
         } catch (err) {
           console.error("[ProfileFeedScreen] Error fetching event details:", err);
@@ -221,9 +235,13 @@ export default function ProfileFeedScreen({ route, navigation }) {
 
       if (!isComplete) {
         setProfileGated(true);
+        profileGatedRef.current = true;
         setLoading(false);
         return;
       }
+
+      setProfileGated(false);
+      profileGatedRef.current = false;
 
       // 2. Load attendees (initial load, so show global loader)
       if (currentEvent) {
@@ -239,12 +257,23 @@ export default function ProfileFeedScreen({ route, navigation }) {
     }
   }, [initialEvent, loadAttendees]);
 
-  useEffect(() => {
-    const task = InteractionManager.runAfterInteractions(() => {
-      checkAndLoadAttendees();
-    });
-    return () => task.cancel();
-  }, [checkAndLoadAttendees]);
+  useFocusEffect(
+    useCallback(() => {
+      let isSubscribed = true;
+      const task = InteractionManager.runAfterInteractions(() => {
+        if (isSubscribed) {
+          if (!hasLoadedRef.current || profileGatedRef.current) {
+            hasLoadedRef.current = true;
+            checkAndLoadAttendees();
+          }
+        }
+      });
+      return () => {
+        isSubscribed = false;
+        task.cancel();
+      };
+    }, [checkAndLoadAttendees])
+  );
 
   useEffect(() => {
     const checkSkipInfo = async () => {
@@ -1340,12 +1369,22 @@ const hexToRgba = (hex, alpha) => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
-const ContentCard = React.memo(({ children, onPress, style, innerStyle, variant, seed }) => {
+const THEME_PALETTES = {
+  sunset: ["#FF5E62", "#FF9966", "#FFA07A"],
+  cosmic: ["#6366F1", "#8B5CF6", "#D946EF"],
+  emerald: ["#059669", "#10B981", "#34D399"],
+  cyber: ["#0284C7", "#0EA5E9", "#38BDF8"],
+  amber: ["#D97706", "#F59E0B", "#FBBF24"],
+  slate: ["#334155", "#475569", "#64748B"],
+};
+
+const ContentCard = React.memo(({ children, onPress, style, innerStyle, variant, seed, theme }) => {
   const isPrompt = variant === "prompt";
-  // Prompt: warm horizontal amber→magenta→cyan→blue
+  const customColors = isPrompt && theme && THEME_PALETTES[theme] ? THEME_PALETTES[theme] : null;
+  // Prompt: custom theme or default warm horizontal amber→magenta→cyan→blue
   // Photo: soft vertical pastel mint green→pastel yellow→soft sky blue (base aurora flow)
   const baseColors = isPrompt
-    ? ["#f59e0b", "#d150e0", "#3db4f4", "#2b3ca7"]
+    ? (customColors || ["#f59e0b", "#d150e0", "#3db4f4", "#2b3ca7"])
     : ["#A7F3D0", "#FED7AA", "#BAE6FD", "#C4B5FD"];
   
   // Deterministic shuffle for photo variant based on unique seed (like url)
@@ -1363,7 +1402,7 @@ const ContentCard = React.memo(({ children, onPress, style, innerStyle, variant,
       result[j] = temp;
     }
     return result;
-  }, [isPrompt, seed]);
+  }, [isPrompt, seed, baseColors]);
 
   const locations = useMemo(() => {
     if (isPrompt) return null;
@@ -1426,34 +1465,49 @@ const ContentCard = React.memo(({ children, onPress, style, innerStyle, variant,
 });
 
 
-const PromptCard = React.memo(({ item, onCommentPress, memberId, memberName }) => (
-  <ContentCard onPress={onCommentPress} style={styles.promptCardContainer} variant="prompt">
-    <View style={styles.promptContent}>
-      <Text style={styles.promptLabel}>{item.data.prompt}</Text>
-      <Text style={styles.promptAnswer}>{item.data.response}</Text>
-    </View>
-    <TouchableOpacity 
-      style={styles.actionIconBubble}
+const PromptCard = React.memo(({ item, onCommentPress, memberId, memberName }) => {
+  const theme = item?.data?.theme;
+  const category = item?.data?.category;
+
+  return (
+    <ContentCard
       onPress={onCommentPress}
-      activeOpacity={0.8}
+      style={styles.promptCardContainer}
+      variant="prompt"
+      theme={theme}
     >
-      <MessageCircle size={20} color={COLORS.primary} strokeWidth={2} />
-    </TouchableOpacity>
-    {memberId && (
-      <View style={styles.cardReportButton}>
-        <ContentActionsSheet
-          type="member"
-          targetId={memberId}
-          targetName={memberName}
-          label="Person"
-          iconColor="#475569"
-          iconSize={18}
-          triggerStyle={styles.cardReportButtonInner}
-        />
+      <View style={styles.promptContent}>
+        {category ? (
+          <View style={styles.feedPromptCategoryBadge}>
+            <Text style={styles.feedPromptCategoryText}>{category.toUpperCase()}</Text>
+          </View>
+        ) : null}
+        <Text style={styles.promptLabel}>{item.data.prompt}</Text>
+        <Text style={styles.promptAnswer}>{item.data.response}</Text>
       </View>
-    )}
-  </ContentCard>
-));
+      <TouchableOpacity 
+        style={styles.actionIconBubble}
+        onPress={onCommentPress}
+        activeOpacity={0.8}
+      >
+        <MessageCircle size={20} color={COLORS.primary} strokeWidth={2} />
+      </TouchableOpacity>
+      {memberId && (
+        <View style={styles.cardReportButton}>
+          <ContentActionsSheet
+            type="member"
+            targetId={memberId}
+            targetName={memberName}
+            label="Person"
+            iconColor="#475569"
+            iconSize={18}
+            triggerStyle={styles.cardReportButtonInner}
+          />
+        </View>
+      )}
+    </ContentCard>
+  );
+});
 
 const PhotoCard = React.memo(({ url, isHero, name, age, gender, pronouns, shared_communities, onCommunitiesPress, onCommentPress, memberId, memberName, verificationTier }) => (
   <ContentCard
@@ -2109,6 +2163,22 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium, // Manrope-Medium
     fontSize: 13,
     color: "#FFFFFF",
+  },
+  feedPromptCategoryBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(255, 255, 255, 0.88)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "rgba(226, 232, 240, 0.8)",
+  },
+  feedPromptCategoryText: {
+    fontFamily: FONTS.medium,
+    fontSize: 11,
+    color: COLORS.primary,
+    letterSpacing: 0.6,
   },
   promptContent: {
     backgroundColor: "transparent",

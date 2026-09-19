@@ -16,8 +16,18 @@ export const getSocket = () => {
       transports: ['websocket'],
     });
 
-    socket.on('connect', () => {
+    socket.on('connect', async () => {
       console.log('[SocketService] Socket connected successfully:', socket.id);
+      try {
+        const activeAccount = await getActiveAccount();
+        if (activeAccount?.id) {
+          console.log(`[SocketService] Registering user ${activeAccount.id} on connect`);
+          socket.emit('register_user', activeAccount.id);
+        }
+      } catch (err) {
+        console.error('[SocketService] Failed to register user on connect:', err);
+      }
+      EventBus.emit('socket:connected');
     });
 
     socket.on('disconnect', (reason) => {
@@ -51,6 +61,16 @@ export const getSocket = () => {
       if (data?.planId) {
         EventBus.emit('plan-view-updated', data);
       }
+    });
+
+    // Real-time verification and notification events
+    socket.on('verification_status_updated', (data) => {
+      console.log('[SocketService] verification_status_updated received:', data);
+      EventBus.emit('verification:status_updated', data);
+    });
+
+    socket.on('new_notification', (data) => {
+      EventBus.emit('new_notification', data);
     });
 
     // On reconnect: re-join user personal room and notify listeners.

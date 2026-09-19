@@ -49,6 +49,7 @@ import {
   BookOpen,
   Compass,
   Check,
+  Pencil,
 } from "lucide-react-native";
 import { INTEREST_CATEGORIES, getInterestStyle } from "../profile/member/EditProfileConstants";
 import { useLocationSearch } from "../../services/location/useLocationSearch";
@@ -688,6 +689,20 @@ export default function EditDiscoverProfileScreen({ navigation }) {
     });
   }, [navigation, openers.length]);
 
+  const handleEditOpener = useCallback((index, opener) => {
+    navigation.navigate("OpenerSelection", {
+      initialOpener: opener,
+      openerIndex: index,
+      onSelect: (updatedOpener) => {
+        setOpeners((prev) => {
+          const next = [...prev];
+          next[index] = updatedOpener;
+          return next;
+        });
+      },
+    });
+  }, [navigation]);
+
   const handleRemoveOpener = useCallback((index) => {
     setOpeners((prev) => {
       const newOpeners = [...prev];
@@ -872,87 +887,90 @@ export default function EditDiscoverProfileScreen({ navigation }) {
       >
         <View style={styles.header}>
           <View style={styles.headerTopRow}>
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={handleBackPress}
-              hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
-            >
-              <ArrowLeft size={22} color={TEXT_COLOR} strokeWidth={2.5} />
-            </TouchableOpacity>
-            <View style={styles.headerTextContainer}>
-              <Text style={styles.headerTitle}>My Discover Profile</Text>
-            </View>
-            {/* Circular Progress Indicator */}
-            {!loading && (
-              <View style={styles.progressContainer}>
-                <Svg width="44" height="44" viewBox="0 0 44 44">
-                  <Defs>
-                    <LinearGradient
-                      id="progressGradient"
-                      x1="0%"
-                      y1="0%"
-                      x2="100%"
-                      y2="100%"
-                    >
-                      <Stop offset="0%" stopColor="#2962FF" />
-                      <Stop offset="100%" stopColor="#60A5FA" />
-                    </LinearGradient>
-                  </Defs>
-                  {/* Background Ring */}
-                  <Circle
-                    cx="22"
-                    cy="22"
-                    r="18"
-                    stroke="#F1F5F9"
-                    strokeWidth="4"
-                    fill="transparent"
-                  />
+            <View style={styles.headerLeft}>
+              <TouchableOpacity
+                style={styles.backButton}
+                onPress={handleBackPress}
+                hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+              >
+                <ArrowLeft size={22} color={TEXT_COLOR} strokeWidth={2.5} />
+              </TouchableOpacity>
+              <Text
+                style={styles.headerTitle}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                My Discover Profile
+              </Text>
+              {/* Circular Progress Indicator */}
+              {!loading && (
+                <View style={styles.progressContainer}>
+                  <Svg width="36" height="36" viewBox="0 0 36 36">
+                    <Defs>
+                      <LinearGradient
+                        id="progressGradient"
+                        x1="0%"
+                        y1="0%"
+                        x2="100%"
+                        y2="100%"
+                      >
+                        <Stop offset="0%" stopColor="#2962FF" />
+                        <Stop offset="100%" stopColor="#60A5FA" />
+                      </LinearGradient>
+                    </Defs>
+                    {/* Background Ring */}
+                    <Circle
+                      cx="18"
+                      cy="18"
+                      r="14"
+                      stroke="#F1F5F9"
+                      strokeWidth="3.5"
+                      fill="transparent"
+                    />
 
-                  {/* Outer Glow (Subtle expansion) */}
-                  <Circle
-                    cx="22"
-                    cy="22"
-                    r="18"
-                    stroke={CONSTANTS_COLORS.primaryBlue}
-                    strokeWidth="6"
-                    strokeDasharray={`${2 * Math.PI * 18}`}
-                    strokeDashoffset={`${
-                      2 * Math.PI * 18 * (1 - completionPercentage / 100)
-                    }`}
-                    fill="transparent"
-                    strokeLinecap="round"
-                    opacity={0.15}
-                    rotation="-90"
-                    origin="22, 22"
-                  />
+                    {/* Outer Glow (Subtle expansion) */}
+                    <Circle
+                      cx="18"
+                      cy="18"
+                      r="14"
+                      stroke={CONSTANTS_COLORS.primaryBlue}
+                      strokeWidth="5"
+                      strokeDasharray={`${2 * Math.PI * 14}`}
+                      strokeDashoffset={`${
+                        2 * Math.PI * 14 * (1 - completionPercentage / 100)
+                      }`}
+                      fill="transparent"
+                      strokeLinecap="round"
+                      opacity={0.15}
+                      rotation="-90"
+                      origin="18, 18"
+                    />
 
-                  {/* Main Progress Ring */}
-                  <Circle
-                    cx="22"
-                    cy="22"
-                    r="18"
-                    stroke="url(#progressGradient)"
-                    strokeWidth="4.5"
-                    strokeDasharray={`${2 * Math.PI * 18}`}
-                    strokeDashoffset={`${
-                      2 * Math.PI * 18 * (1 - completionPercentage / 100)
-                    }`}
-                    fill="transparent"
-                    strokeLinecap="round"
-                    rotation="-90"
-                    origin="22, 22"
-                  />
-                </Svg>
-                <View style={styles.progressTextContainer}>
-                  <Text style={styles.progressText}>
-                    {Math.round(completionPercentage)}
-                  </Text>
+                    {/* Main Progress Ring */}
+                    <Circle
+                      cx="18"
+                      cy="18"
+                      r="14"
+                      stroke="url(#progressGradient)"
+                      strokeWidth="3.5"
+                      strokeDasharray={`${2 * Math.PI * 14}`}
+                      strokeDashoffset={`${
+                        2 * Math.PI * 14 * (1 - completionPercentage / 100)
+                      }`}
+                      fill="transparent"
+                      strokeLinecap="round"
+                      rotation="-90"
+                      origin="18, 18"
+                    />
+                  </Svg>
+                  <View style={styles.progressTextContainer}>
+                    <Text style={styles.progressText}>
+                      {Math.round(completionPercentage)}
+                    </Text>
+                  </View>
                 </View>
-              </View>
-            )}
-
-            {/* Spacer to push Save button to the right */}
-            <View style={{ flex: 1 }} />
+              )}
+            </View>
 
             {!loading && (
               <TouchableOpacity
@@ -2282,14 +2300,36 @@ export default function EditDiscoverProfileScreen({ navigation }) {
             <View style={styles.cardContent}>
               {openers.map((opener, index) => (
                 <View key={index} style={styles.openerCardFormatted}>
-                  <View style={styles.openerContent}>
-                    <Text style={styles.openerPromptSmall}>
-                      {opener.prompt}
-                    </Text>
+                  <TouchableOpacity
+                    style={styles.openerContent}
+                    onPress={() => handleEditOpener(index, opener)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.openerHeaderRow}>
+                      <Text style={styles.openerPromptSmall} numberOfLines={2}>
+                        {opener.prompt}
+                      </Text>
+                      {opener.category && (
+                        <View style={styles.openerTagPill}>
+                          <Text style={styles.openerTagText}>
+                            {opener.category.toUpperCase()}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
                     <Text style={styles.openerResponseBold}>
                       {opener.response}
                     </Text>
-                  </View>
+                    <View style={styles.openerTapToEditRow}>
+                      <Pencil
+                        size={12}
+                        color="#64748B"
+                        strokeWidth={2}
+                        style={{ marginRight: 4 }}
+                      />
+                      <Text style={styles.openerTapToEditText}>Tap to edit</Text>
+                    </View>
+                  </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.openerRemove}
                     onPress={() => handleRemoveOpener(index)}
@@ -2562,30 +2602,36 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: CONSTANTS_COLORS.surface,
     paddingTop: SPACING.m,
-    paddingBottom: SPACING.m, // Added padding for better height
-    borderBottomWidth: 0, // No border as per cleaner look request, or keep? "Neutral Border" specified in rules.
+    paddingBottom: SPACING.m,
+    borderBottomWidth: 0,
     borderBottomColor: CONSTANTS_COLORS.border,
-    paddingHorizontal: SPACING.m, // Ensure horizontal padding for flex layout
-    flexDirection: "row", // Horizontal layout for the whole header
+    paddingHorizontal: SPACING.m,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  headerTopRow: {
+    flex: 1,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  headerTopRow: {
-    flex: 1, // Take up remaining space
+  headerLeft: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    marginRight: 10,
+    minWidth: 0,
   },
   backButton: {
     padding: 4,
-  },
-  headerTextContainer: {
-    marginLeft: 8,
+    marginRight: 8,
+    flexShrink: 0,
   },
   headerTitle: {
     fontFamily: "BasicCommercial-Black",
-    fontSize: 20,
+    fontSize: 18,
     color: TEXT_COLOR,
+    flexShrink: 1,
   },
   headerSubtitle: {
     display: "none", // Hidden as per "Circular Progress" driving status
@@ -2597,6 +2643,8 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.pill,
     justifyContent: "center",
     alignItems: "center",
+    flexShrink: 0,
+    minWidth: 64,
   },
   saveButtonDisabled: {
     backgroundColor: CONSTANTS_COLORS.border,
@@ -2612,11 +2660,12 @@ const styles = StyleSheet.create({
 
   // Header Progress
   progressContainer: {
-    // Space handled by gap in headerTopRow
-    width: 44,
-    height: 44,
+    width: 36,
+    height: 36,
+    marginLeft: 8,
     justifyContent: "center",
     alignItems: "center",
+    flexShrink: 0,
   },
   progressTextContainer: {
     position: "absolute",
@@ -2628,7 +2677,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   progressText: {
-    fontSize: 11,
+    fontSize: 10,
     fontFamily: FONTS.medium,
     color: CONSTANTS_COLORS.primaryBlue,
   },
@@ -3163,24 +3212,56 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
+    borderWidth: 1,
+    borderColor: "#F1F5F9",
   },
   openerContent: {
     flex: 1,
     marginRight: 12,
   },
+  openerHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+    flexWrap: "wrap",
+    gap: 6,
+  },
   openerPromptSmall: {
     fontFamily: FONTS.medium,
     fontSize: 11,
     color: "#94A3B8",
-    marginBottom: 8,
     textTransform: "uppercase",
     letterSpacing: 0.8,
+    flex: 1,
+  },
+  openerTagPill: {
+    backgroundColor: "#EFF6FF",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  openerTagText: {
+    fontSize: 10,
+    fontFamily: FONTS.medium,
+    color: "#2563EB",
+    letterSpacing: 0.5,
   },
   openerResponseBold: {
     fontFamily: FONTS.semiBold,
     fontSize: 18,
     color: "#0F172A",
     lineHeight: 26,
+  },
+  openerTapToEditRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 8,
+  },
+  openerTapToEditText: {
+    fontSize: 12,
+    fontFamily: FONTS.medium,
+    color: "#64748B",
   },
   openerRemove: {
     padding: 4,
