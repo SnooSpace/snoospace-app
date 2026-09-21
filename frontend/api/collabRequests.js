@@ -111,13 +111,14 @@ export async function getCollabReputation(entityType, entityId) {
 /**
  * GET /board-posts
  * Returns paginated public board posts.
- * Query params: status?, collab_type?, page?, limit?
+ * Query params: status?, collab_type?, poster_type?, page?, limit?
  */
-export async function getBoardPosts({ status = 'open', collab_type, page = 1, limit = 20 } = {}) {
+export async function getBoardPosts({ status = 'open', collab_type, poster_type, page = 1, limit = 20 } = {}) {
   const token = await getAuthToken();
   const params = new URLSearchParams({ page, limit });
   if (status) params.set('status', status);
   if (collab_type) params.set('collab_type', collab_type);
+  if (poster_type) params.set('poster_type', poster_type);
   return apiGet(`/board-posts?${params.toString()}`, 15000, token);
 }
 

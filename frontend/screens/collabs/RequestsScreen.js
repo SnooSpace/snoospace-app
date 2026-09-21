@@ -24,7 +24,11 @@ import {
   TouchableOpacity,
   StatusBar,
 } from 'react-native';
-import { Pressable as GHPressable, GestureHandlerRootView } from 'react-native-gesture-handler';
+import {
+  Pressable as GHPressable,
+  GestureHandlerRootView,
+  ScrollView as GHScrollView,
+} from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   ArrowLeft,
@@ -32,6 +36,7 @@ import {
   TriangleAlert,
   Plus,
   Users,
+  User,
   X,
 } from 'lucide-react-native';
 import Reanimated, {
@@ -86,8 +91,9 @@ function StatusFilterChips({ selected, onChange }) {
       onTouchEnd={() => EventBus.emit('enable-tab-swipe')}
       onTouchCancel={() => EventBus.emit('enable-tab-swipe')}
     >
-      <ScrollView
+      <GHScrollView
         horizontal
+        disallowInterruption={true}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.filterScrollContent}
         nestedScrollEnabled={true}
@@ -111,7 +117,7 @@ function StatusFilterChips({ selected, onChange }) {
             </GHPressable>
           );
         })}
-      </ScrollView>
+      </GHScrollView>
     </View>
   );
 }
@@ -131,8 +137,9 @@ function BoardTypeFilterChips({ selected, onChange }) {
       onTouchEnd={() => EventBus.emit('enable-tab-swipe')}
       onTouchCancel={() => EventBus.emit('enable-tab-swipe')}
     >
-      <ScrollView
+      <GHScrollView
         horizontal
+        disallowInterruption={true}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.filterScrollContent}
         nestedScrollEnabled={true}
@@ -156,15 +163,38 @@ function BoardTypeFilterChips({ selected, onChange }) {
             </GHPressable>
           );
         })}
-      </ScrollView>
+      </GHScrollView>
     </View>
   );
 }
 
 // ─── Empty state ──────────────────────────────────────────────────────────────
 
-function EmptyState({ tab, status, onActionPress }) {
+function EmptyState({ tab, status, hasFilters, onActionPress, onClearFilters }) {
   if (tab === 'board') {
+    if (hasFilters) {
+      return (
+        <View style={styles.emptyState}>
+          <View style={styles.emptyIconBox}>
+            <Handshake size={32} color={TEAL} strokeWidth={1.8} />
+          </View>
+          <Text style={styles.emptyTitle}>No matching openings</Text>
+          <Text style={styles.emptySubtitle}>
+            No collab spots found for the selected filters. Try changing or clearing filters.
+          </Text>
+          {onClearFilters && (
+            <TouchableOpacity
+              style={styles.emptyActionBtn}
+              onPress={onClearFilters}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.emptyActionBtnText}>Clear Filters</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      );
+    }
+
     return (
       <View style={styles.emptyState}>
         <View style={styles.emptyIconBox}>
@@ -239,6 +269,9 @@ export default function RequestsScreen({
 
   // Collab type filter for Board
   const [boardTypeFilter, setBoardTypeFilter] = useState(null);
+
+  // Poster type filter for Board ('member' | 'community' | null)
+  const [posterTypeFilter, setPosterTypeFilter] = useState(null);
 
   // Filter Received tab by specific Board Post ID
   const [boardPostFilterId, setBoardPostFilterId] = useState(initialPostId || null);
@@ -328,13 +361,19 @@ export default function RequestsScreen({
   };
 
   // ── Data Loading: Board Feed ──
-  const loadBoard = useCallback(async ({ page = 1, collab_type = boardTypeFilter, append = false } = {}) => {
+  const loadBoard = useCallback(async ({
+    page = 1,
+    collab_type = boardTypeFilter,
+    poster_type = posterTypeFilter,
+    append = false,
+  } = {}) => {
     if (page === 1) setBoardLoading(true);
     else setBoardLoadingMore(true);
     try {
       const data = await getBoardPosts({
         status: 'open',
         collab_type: collab_type || undefined,
+        poster_type: poster_type || undefined,
         page,
         limit: PAGE_LIMIT,
       });
@@ -348,7 +387,7 @@ export default function RequestsScreen({
       setBoardLoading(false);
       setBoardLoadingMore(false);
     }
-  }, [boardTypeFilter]);
+  }, [boardTypeFilter, posterTypeFilter]);
 
   // Load top-level badge count (pending applicants for own posts)
   const loadPendingApplicationsCount = useCallback(async () => {
@@ -408,27 +447,27 @@ export default function RequestsScreen({
   // Trigger loads when tab or filters change
   useEffect(() => {
     if (activeTab === 'board') {
-      loadBoard({ page: 1, collab_type: boardTypeFilter });
+      loadBoard({ page: 1, collab_type: boardTypeFilter, poster_type: posterTypeFilter });
       loadPendingApplicationsCount();
     } else if (activeTab === 'received') {
       loadReceived({ page: 1, status: statusFilter, board_post_id: boardPostFilterId });
     } else if (activeTab === 'sent') {
       loadSent({ page: 1, status: statusFilter });
     }
-  }, [activeTab, statusFilter, boardTypeFilter, boardPostFilterId, loadBoard, loadPendingApplicationsCount, loadReceived, loadSent]);
+  }, [activeTab, statusFilter, boardTypeFilter, posterTypeFilter, boardPostFilterId, loadBoard, loadPendingApplicationsCount, loadReceived, loadSent]);
 
   // Refresh listener from EventBus
   useEffect(() => {
     const unsubBoard = EventBus.on('board-posts:refresh', () => {
       if (activeTab === 'board') {
-        loadBoard({ page: 1, collab_type: boardTypeFilter });
+        loadBoard({ page: 1, collab_type: boardTypeFilter, poster_type: posterTypeFilter });
         loadPendingApplicationsCount();
       }
     });
     return () => {
       if (unsubBoard) unsubBoard();
     };
-  }, [activeTab, boardTypeFilter, loadBoard, loadPendingApplicationsCount]);
+  }, [activeTab, boardTypeFilter, posterTypeFilter, loadBoard, loadPendingApplicationsCount]);
 
   const handleTabSwitch = useCallback((tab) => {
     HapticsService.triggerImpactLight();
@@ -440,7 +479,7 @@ export default function RequestsScreen({
     setRefreshing(true);
     if (activeTab === 'board') {
       await Promise.all([
-        loadBoard({ page: 1, collab_type: boardTypeFilter }),
+        loadBoard({ page: 1, collab_type: boardTypeFilter, poster_type: posterTypeFilter }),
         loadPendingApplicationsCount(),
       ]);
     } else if (activeTab === 'received') {
@@ -449,14 +488,14 @@ export default function RequestsScreen({
       await loadSent({ page: 1, status: statusFilter });
     }
     setRefreshing(false);
-  }, [activeTab, boardTypeFilter, statusFilter, boardPostFilterId, loadBoard, loadPendingApplicationsCount, loadReceived, loadSent]);
+  }, [activeTab, boardTypeFilter, posterTypeFilter, statusFilter, boardPostFilterId, loadBoard, loadPendingApplicationsCount, loadReceived, loadSent]);
 
   // Pagination / infinite scroll
   const handleEndReached = useCallback(() => {
     if (activeTab === 'board') {
       if (boardLoadingMore) return;
       if (boardItems.length >= boardTotal) return;
-      loadBoard({ page: boardPage + 1, collab_type: boardTypeFilter, append: true });
+      loadBoard({ page: boardPage + 1, collab_type: boardTypeFilter, poster_type: posterTypeFilter, append: true });
     } else if (activeTab === 'received') {
       if (receivedLoadingMore) return;
       if (receivedItems.length >= receivedTotal) return;
@@ -466,7 +505,7 @@ export default function RequestsScreen({
       if (sentItems.length >= sentTotal) return;
       loadSent({ page: sentPage + 1, status: statusFilter, append: true });
     }
-  }, [activeTab, boardLoadingMore, boardItems, boardTotal, boardPage, boardTypeFilter, receivedLoadingMore, receivedItems, receivedTotal, receivedPage, statusFilter, boardPostFilterId, sentLoadingMore, sentItems, sentTotal, sentPage, loadBoard, loadReceived, loadSent]);
+  }, [activeTab, boardLoadingMore, boardItems, boardTotal, boardPage, boardTypeFilter, posterTypeFilter, receivedLoadingMore, receivedItems, receivedTotal, receivedPage, statusFilter, boardPostFilterId, sentLoadingMore, sentItems, sentTotal, sentPage, loadBoard, loadReceived, loadSent]);
 
   // ── Actions: Board Join ──
   const handleRequestJoin = useCallback((post) => {
@@ -698,7 +737,12 @@ export default function RequestsScreen({
 
         {/* Board Tab Sub-header: Manage Applications + Post an opening */}
         {activeTab === 'board' && (
-          <View style={styles.boardActionRow}>
+          <View
+            style={[
+              styles.boardActionRow,
+              boardItems.length === 0 && styles.boardActionRowEmpty,
+            ]}
+          >
             <TouchableOpacity
               style={styles.manageApplicationsBtn}
               onPress={() => {
@@ -716,16 +760,75 @@ export default function RequestsScreen({
               )}
             </TouchableOpacity>
 
+            {boardItems.length > 0 && (
+              <TouchableOpacity
+                style={styles.postOpeningBtn}
+                onPress={() => {
+                  HapticsService.triggerImpactLight();
+                  setCreateBoardModalVisible(true);
+                }}
+                activeOpacity={0.85}
+              >
+                <Plus size={15} color="#FFFFFF" strokeWidth={2.5} />
+                <Text style={styles.postOpeningText}>Post Opening</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {/* Board Poster Type Filter (Creators / Community) */}
+        {activeTab === 'board' && (
+          <View style={styles.posterTypeFilterRow}>
             <TouchableOpacity
-              style={styles.postOpeningBtn}
+              style={[
+                styles.posterTypeChip,
+                posterTypeFilter === 'member' && styles.posterTypeChipActive,
+              ]}
               onPress={() => {
                 HapticsService.triggerImpactLight();
-                setCreateBoardModalVisible(true);
+                setPosterTypeFilter((prev) => (prev === 'member' ? null : 'member'));
               }}
-              activeOpacity={0.85}
+              activeOpacity={0.75}
             >
-              <Plus size={15} color="#FFFFFF" strokeWidth={2.5} />
-              <Text style={styles.postOpeningText}>Post Opening</Text>
+              <User
+                size={14}
+                color={posterTypeFilter === 'member' ? TEAL : COLORS.textSecondary}
+                strokeWidth={2}
+              />
+              <Text
+                style={[
+                  styles.posterTypeChipText,
+                  posterTypeFilter === 'member' && styles.posterTypeChipTextActive,
+                ]}
+              >
+                Creators
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.posterTypeChip,
+                posterTypeFilter === 'community' && styles.posterTypeChipActive,
+              ]}
+              onPress={() => {
+                HapticsService.triggerImpactLight();
+                setPosterTypeFilter((prev) => (prev === 'community' ? null : 'community'));
+              }}
+              activeOpacity={0.75}
+            >
+              <Users
+                size={14}
+                color={posterTypeFilter === 'community' ? TEAL : COLORS.textSecondary}
+                strokeWidth={2}
+              />
+              <Text
+                style={[
+                  styles.posterTypeChipText,
+                  posterTypeFilter === 'community' && styles.posterTypeChipTextActive,
+                ]}
+              >
+                Community
+              </Text>
             </TouchableOpacity>
           </View>
         )}
@@ -791,6 +894,12 @@ export default function RequestsScreen({
             ListEmptyComponent={
               <EmptyState
                 tab="board"
+                hasFilters={Boolean(boardTypeFilter || posterTypeFilter)}
+                onClearFilters={() => {
+                  HapticsService.triggerImpactLight();
+                  setBoardTypeFilter(null);
+                  setPosterTypeFilter(null);
+                }}
                 onActionPress={() => setCreateBoardModalVisible(true)}
               />
             }
@@ -1003,6 +1112,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     gap: 10,
   },
+  boardActionRowEmpty: {
+    justifyContent: 'flex-end',
+  },
   manageApplicationsBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1051,6 +1163,40 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.semiBold,
     fontSize: 13,
     color: '#FFFFFF',
+  },
+
+  // Poster type filter row (Creators / Community)
+  posterTypeFilterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 2,
+    gap: 8,
+  },
+  posterTypeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 13,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
+    gap: 6,
+  },
+  posterTypeChipActive: {
+    borderColor: TEAL,
+    backgroundColor: TEAL_BG,
+  },
+  posterTypeChipText: {
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+    color: COLORS.textSecondary,
+  },
+  posterTypeChipTextActive: {
+    color: TEAL,
+    fontFamily: FONTS.semiBold,
   },
 
   // Filter chips wrapper
@@ -1166,7 +1312,7 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     textAlign: 'center',
     lineHeight: 19,
-    marginBottom: 18,
+    marginBottom: 0,
   },
   emptyActionBtn: {
     flexDirection: 'row',
@@ -1181,6 +1327,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 6,
     elevation: 3,
+    marginTop: 18,
   },
   emptyActionBtnText: {
     fontFamily: FONTS.semiBold,

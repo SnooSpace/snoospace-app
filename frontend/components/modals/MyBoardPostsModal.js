@@ -29,7 +29,6 @@ import {
   ChevronRight,
   Plus,
   TriangleAlert,
-  Handshake,
 } from 'lucide-react-native';
 import SwipeableModal from './SwipeableModal';
 import CustomAlertModal from '../ui/CustomAlertModal';
@@ -261,15 +260,12 @@ export default function MyBoardPostsModal({
             </View>
 
             <TouchableOpacity
-              style={styles.newPostHeaderBtn}
-              onPress={() => {
-                onClose();
-                onCreateNewPress?.();
-              }}
-              activeOpacity={0.8}
+              style={styles.closeHeaderBtn}
+              onPress={onClose}
+              activeOpacity={0.7}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
-              <Plus size={15} color="#FFFFFF" strokeWidth={2.5} />
-              <Text style={styles.newPostHeaderText}>New</Text>
+              <X size={18} color={COLORS.textSecondary} strokeWidth={2.2} />
             </TouchableOpacity>
           </View>
 
@@ -281,11 +277,11 @@ export default function MyBoardPostsModal({
           ) : posts.length === 0 ? (
             <View style={styles.emptyContainer}>
               <View style={styles.emptyIconBox}>
-                <Handshake size={32} color={COLORS.textMuted} strokeWidth={1.5} />
+                <Users size={28} color={TEAL} strokeWidth={1.8} />
               </View>
-              <Text style={styles.emptyTitle}>No openings posted yet</Text>
+              <Text style={styles.emptyTitle}>No Openings Posted Yet</Text>
               <Text style={styles.emptySubtitle}>
-                Create an opening on the Board to receive collab pitches from creators and communities.
+                Openings you post on the Board will appear here. You can track applicant counts, review collab pitches, and manage open spots.
               </Text>
               <TouchableOpacity
                 style={styles.emptyCreateBtn}
@@ -394,19 +390,13 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     marginTop: 1,
   },
-  newPostHeaderBtn: {
-    flexDirection: 'row',
+  closeHeaderBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F3F4F6',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: TEAL,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 14,
-  },
-  newPostHeaderText: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 13,
-    color: '#FFFFFF',
+    justifyContent: 'center',
   },
   listContent: {
     padding: 16,
@@ -444,8 +434,8 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.textSecondary,
     textAlign: 'center',
-    lineHeight: 19,
-    marginBottom: 20,
+    lineHeight: 20,
+    marginBottom: 0,
   },
   emptyCreateBtn: {
     flexDirection: 'row',
@@ -455,6 +445,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: BORDER_RADIUS.pill,
+    marginTop: 18,
   },
   emptyCreateBtnText: {
     fontFamily: FONTS.semiBold,

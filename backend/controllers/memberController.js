@@ -1199,38 +1199,50 @@ async function patchProfile(req, res) {
           try {
             const { detectFace } = require("../services/faceDetectionService");
 
-            for (const photoUrl of newPhotoUrls) {
-              // Check if already processed in photo_face_verifications for this member
-              const existing = await pool.query(
-                `SELECT id FROM photo_face_verifications WHERE member_id = $1 AND photo_url = $2 LIMIT 1`,
-                [userId, photoUrl]
-              );
-              if (existing.rows.length > 0) {
-                continue;
-              }
+            await Promise.all(
+              newPhotoUrls.map(async (photoUrl) => {
+                try {
+                  const existing = await pool.query(
+                    `SELECT id FROM photo_face_verifications WHERE member_id = $1 AND photo_url = $2 LIMIT 1`,
+                    [userId, photoUrl]
+                  );
+                  if (existing.rows.length > 0) {
+                    return;
+                  }
 
-              const result = await detectFace(photoUrl);
-              const embeddingStr = result.embedding ? JSON.stringify(result.embedding) : null;
+                  const result = await detectFace(photoUrl);
+                  const embeddingStr = result.embedding ? JSON.stringify(result.embedding) : null;
 
-              await pool.query(
-                `INSERT INTO photo_face_verifications (
-                  member_id, photo_url, face_eligible, face_confidence, face_embedding, rejection_reason, checked_at
-                ) VALUES ($1, $2, $3, $4, $5, $6, NOW())
-                ON CONFLICT (member_id, photo_url) DO UPDATE SET
-                  face_eligible    = EXCLUDED.face_eligible,
-                  face_confidence  = EXCLUDED.face_confidence,
-                  face_embedding   = EXCLUDED.face_embedding,
-                  rejection_reason = EXCLUDED.rejection_reason,
-                  checked_at       = EXCLUDED.checked_at`,
-                [
-                  userId,
-                  photoUrl,
-                  result.faceEligible,
-                  result.confidence,
-                  embeddingStr,
-                  result.reason || null,
-                ]
-              );
+                  await pool.query(
+                    `INSERT INTO photo_face_verifications (
+                      member_id, photo_url, face_eligible, face_confidence, face_embedding, rejection_reason, checked_at
+                    ) VALUES ($1, $2, $3, $4, $5, $6, NOW())
+                    ON CONFLICT (member_id, photo_url) DO UPDATE SET
+                      face_eligible    = EXCLUDED.face_eligible,
+                      face_confidence  = EXCLUDED.face_confidence,
+                      face_embedding   = EXCLUDED.face_embedding,
+                      rejection_reason = EXCLUDED.rejection_reason,
+                      checked_at       = EXCLUDED.checked_at`,
+                    [
+                      userId,
+                      photoUrl,
+                      result.faceEligible,
+                      result.confidence,
+                      embeddingStr,
+                      result.reason || null,
+                    ]
+                  );
+                } catch (singleErr) {
+                  console.warn(`[patchProfile] Face detection failed for ${photoUrl}:`, singleErr.message);
+                }
+              })
+            );
+
+            const io = req.app.locals.io;
+            if (io) {
+              io.to(`user_${userId}`).emit('discover_photos_processed', {
+                count: newPhotoUrls.length,
+              });
             }
           } catch (faceErr) {
             console.error("[patchProfile] Face detection background error (non-fatal):", faceErr.message);
@@ -2195,35 +2207,37 @@ async function getFaceEligibility(req, res) {
 
     // Auto-analyze and tag any legacy photos that missed the background hook or lack rejection_reason
     const { detectFace } = require("../services/faceDetectionService");
-    for (const url of validPhotoUrls) {
-      const existing = existingMap.get(url);
-      if (!existing || (!existing.face_eligible && !existing.rejection_reason)) {
-        try {
-          const det = await detectFace(url);
-          const embStr = det.embedding ? JSON.stringify(det.embedding) : null;
-          await pool.query(
-            `INSERT INTO photo_face_verifications (
-              member_id, photo_url, face_eligible, face_confidence, face_embedding, rejection_reason, checked_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, NOW())
-            ON CONFLICT (member_id, photo_url) DO UPDATE SET
-              face_eligible    = EXCLUDED.face_eligible,
-              face_confidence  = EXCLUDED.face_confidence,
-              face_embedding   = EXCLUDED.face_embedding,
-              rejection_reason = EXCLUDED.rejection_reason,
-              checked_at       = EXCLUDED.checked_at`,
-            [userId, url, det.faceEligible, det.confidence, embStr, det.reason || null]
-          );
-          existingMap.set(url, {
-            photo_url: url,
-            face_eligible: det.faceEligible,
-            face_confidence: det.confidence,
-            rejection_reason: det.reason || null,
-          });
-        } catch (autoErr) {
-          console.warn("[getFaceEligibility] Auto-tagging error for url:", autoErr.message);
+    await Promise.all(
+      validPhotoUrls.map(async (url) => {
+        const existing = existingMap.get(url);
+        if (!existing || (!existing.face_eligible && !existing.rejection_reason)) {
+          try {
+            const det = await detectFace(url);
+            const embStr = det.embedding ? JSON.stringify(det.embedding) : null;
+            await pool.query(
+              `INSERT INTO photo_face_verifications (
+                member_id, photo_url, face_eligible, face_confidence, face_embedding, rejection_reason, checked_at
+              ) VALUES ($1, $2, $3, $4, $5, $6, NOW())
+              ON CONFLICT (member_id, photo_url) DO UPDATE SET
+                face_eligible    = EXCLUDED.face_eligible,
+                face_confidence  = EXCLUDED.face_confidence,
+                face_embedding   = EXCLUDED.face_embedding,
+                rejection_reason = EXCLUDED.rejection_reason,
+                checked_at       = EXCLUDED.checked_at`,
+              [userId, url, det.faceEligible, det.confidence, embStr, det.reason || null]
+            );
+            existingMap.set(url, {
+              photo_url: url,
+              face_eligible: det.faceEligible,
+              face_confidence: det.confidence,
+              rejection_reason: det.reason || null,
+            });
+          } catch (autoErr) {
+            console.warn("[getFaceEligibility] Auto-tagging error for url:", autoErr.message);
+          }
         }
-      }
-    }
+      })
+    );
 
     const photos = validPhotoUrls.map((url) => {
       const record = existingMap.get(url);

@@ -138,25 +138,47 @@ async function submitVerification(req, res) {
         const verId = insertR.rows[0].id;
 
         if (matchResult.status === 'match') {
-          await pool.query(
-            `UPDATE user_verifications
-             SET status = 'approved',
-                 decision_source = 'automated',
-                 match_score = $1,
-                 matched_photo_url = $2,
-                 reviewed_at = NOW()
-             WHERE id = $3`,
-            [matchResult.distance, matchResult.matchedPhotoUrl, verId]
-          );
-
-          // Only store verified_reference_photos for discover scope (which uses public discover_photos).
-          // Plans scope uses a private manual reference selfie, which must not be tracked in discover photo refs.
-          if (scope === 'discover' && matchResult.referencePhotoUrls && matchResult.referencePhotoUrls.length > 0) {
+          if (scope === 'discover') {
             await pool.query(
-              `UPDATE members
-               SET verified_reference_photos = $1
-               WHERE id = $2`,
-              [matchResult.referencePhotoUrls, userId]
+              `UPDATE user_verifications
+               SET status = 'approved',
+                   decision_source = 'automated',
+                   match_score = $1,
+                   matched_photo_url = $2,
+                   matched_photo_urls = $3,
+                   match_diagnostics = $4,
+                   reviewed_at = NOW()
+               WHERE id = $5`,
+              [
+                matchResult.distance,
+                matchResult.matchedPhotoUrl,
+                matchResult.matchedPhotoUrls || (matchResult.matchedPhotoUrl ? [matchResult.matchedPhotoUrl] : []),
+                matchResult.matchDiagnostics ? JSON.stringify(matchResult.matchDiagnostics) : null,
+                verId,
+              ]
+            );
+
+            // Only store verified_reference_photos for discover scope (which uses public discover_photos).
+            // Crucial fix: store ONLY matchedPhotoUrls, never the whole referenceSet candidate array!
+            if (matchResult.matchedPhotoUrls && matchResult.matchedPhotoUrls.length > 0) {
+              await pool.query(
+                `UPDATE members
+                 SET verified_reference_photos = $1
+                 WHERE id = $2`,
+                [matchResult.matchedPhotoUrls, userId]
+              );
+            }
+          } else {
+            // Plans scope unchanged
+            await pool.query(
+              `UPDATE user_verifications
+               SET status = 'approved',
+                   decision_source = 'automated',
+                   match_score = $1,
+                   matched_photo_url = $2,
+                   reviewed_at = NOW()
+               WHERE id = $3`,
+              [matchResult.distance, matchResult.matchedPhotoUrl, verId]
             );
           }
 
@@ -203,18 +225,106 @@ async function submitVerification(req, res) {
           } catch (notifErr) {
             console.error('[verificationsController.submitVerification] Approval notification error (non-fatal):', notifErr);
           }
-        } else if (matchResult.status === 'no_match') {
-          const autoRejectionReason = 'The face in your video did not match your profile photos.';
+        } else if (matchResult.status === 'mismatch_detected') {
+          // Discover scope only: mild "photo hygiene" outcome
+          const photoHygieneReason = "One or more of your Discover photos doesn't match your verification video and may show a different person. Remove the mismatched photo(s) and resubmit.";
           await pool.query(
             `UPDATE user_verifications
              SET status = 'rejected',
                  decision_source = 'automated',
+                 rejection_type = 'photo_hygiene',
                  match_score = $1,
-                 rejection_reason = $2,
+                 match_diagnostics = $2,
+                 rejection_reason = $3,
                  reviewed_at = NOW()
-             WHERE id = $3`,
-            [matchResult.distance, autoRejectionReason, verId]
+             WHERE id = $4`,
+            [
+              matchResult.distance,
+              matchResult.matchDiagnostics ? JSON.stringify(matchResult.matchDiagnostics) : null,
+              photoHygieneReason,
+              verId,
+            ]
           );
+
+          // Do NOT update members.verified_reference_photos
+          // Do NOT call handleVerificationRejection (skips Open Plans consequence cascade)
+
+          const freshMem = await pool.query(
+            `SELECT is_verified, verification_tier FROM members WHERE id = $1`,
+            [userId]
+          );
+          if (io && freshMem.rows[0]) {
+            console.log(`[verificationsController] Emitting verification_status_updated to user_${userId} (rejected - photo_hygiene)`);
+            io.to(`user_${userId}`).emit('verification_status_updated', {
+              status: 'rejected',
+              tier: freshMem.rows[0].verification_tier,
+              scope,
+            });
+          }
+
+          // Notify member: in-app & push notification with photo hygiene reason
+          try {
+            await createSimpleNotification(pool, {
+              recipientId: userId,
+              recipientType: 'member',
+              actorId: 0,
+              actorType: 'system',
+              type: 'verification_rejected',
+              payload: {
+                scope,
+                reason: photoHygieneReason,
+                title: 'Your Discover verification was not approved.',
+                message: photoHygieneReason,
+              },
+            });
+            await pushService.sendPushNotification(
+              pool,
+              userId,
+              'member',
+              'Discover Verification Not Approved',
+              photoHygieneReason,
+              {
+                type: 'verification_rejected',
+                scope,
+                reason: photoHygieneReason,
+              }
+            );
+          } catch (notifErr) {
+            console.error('[verificationsController.submitVerification] Photo hygiene rejection notification error (non-fatal):', notifErr);
+          }
+        } else if (matchResult.status === 'no_match') {
+          const autoRejectionReason = 'The face in your video did not match your profile photos.';
+          if (scope === 'discover') {
+            await pool.query(
+              `UPDATE user_verifications
+               SET status = 'rejected',
+                   decision_source = 'automated',
+                   rejection_type = 'identity_mismatch',
+                   match_score = $1,
+                   match_diagnostics = $2,
+                   rejection_reason = $3,
+                   reviewed_at = NOW()
+               WHERE id = $4`,
+              [
+                matchResult.distance,
+                matchResult.matchDiagnostics ? JSON.stringify(matchResult.matchDiagnostics) : null,
+                autoRejectionReason,
+                verId,
+              ]
+            );
+          } else {
+            // plans scope unchanged
+            await pool.query(
+              `UPDATE user_verifications
+               SET status = 'rejected',
+                   decision_source = 'automated',
+                   match_score = $1,
+                   rejection_reason = $2,
+                   reviewed_at = NOW()
+               WHERE id = $3`,
+              [matchResult.distance, autoRejectionReason, verId]
+            );
+          }
 
           const freshMem = await pool.query(
             `SELECT is_verified, verification_tier FROM members WHERE id = $1`,
@@ -272,7 +382,19 @@ async function submitVerification(req, res) {
         } else {
           // 'uncertain', 'no_face_in_video', or 'insufficient_references'
           // Leave row pending (decision_source defaults to 'manual')
-          if (typeof matchResult.distance === 'number') {
+          if (scope === 'discover' && matchResult.matchDiagnostics) {
+            await pool.query(
+              `UPDATE user_verifications
+               SET match_score = $1,
+                   match_diagnostics = $2
+               WHERE id = $3`,
+              [
+                typeof matchResult.distance === 'number' ? matchResult.distance : null,
+                JSON.stringify(matchResult.matchDiagnostics),
+                verId,
+              ]
+            );
+          } else if (typeof matchResult.distance === 'number') {
             await pool.query(
               `UPDATE user_verifications SET match_score = $1 WHERE id = $2`,
               [matchResult.distance, verId]
@@ -298,7 +420,7 @@ async function getMyVerification(req, res) {
     const userId = req.user.id;
     const scope = (req.query.scope || '').trim();
 
-    let query = `SELECT id, status, scope, manual_reference_photo_url, submitted_at, reviewed_at, rejection_reason
+    let query = `SELECT id, status, scope, manual_reference_photo_url, submitted_at, reviewed_at, rejection_reason, rejection_type
        FROM user_verifications
        WHERE user_id = $1`;
     const params = [userId];
@@ -375,7 +497,8 @@ async function adminGetAll(req, res) {
     const result = await pool.query(
       `SELECT uv.id, uv.user_id, uv.status, uv.scope, uv.manual_reference_photo_url, uv.submitted_at,
               uv.reviewed_at, uv.rejection_reason, uv.media_purged_at, uv.video_storage_path,
-              uv.match_score, uv.matched_photo_url, uv.liveness_action, uv.liveness_code,
+              uv.match_score, uv.matched_photo_url, uv.matched_photo_urls, uv.match_diagnostics, uv.rejection_type,
+              uv.liveness_action, uv.liveness_code,
               m.name as member_name, m.email as member_email, m.profile_photo_url as member_photo,
               m.discover_photos
        FROM user_verifications uv
@@ -514,6 +637,50 @@ async function adminReview(req, res) {
         console.error('[verificationsController.adminReview] Rejection cascade error (non-fatal):', cascadeErr);
       }
     } else if (status === 'approved') {
+      // Manual admin approval (discover scope)
+      if (scope === 'discover') {
+        let diagnostics = updatedVer.match_diagnostics;
+        if (typeof diagnostics === 'string') {
+          try {
+            diagnostics = JSON.parse(diagnostics);
+          } catch (e) {
+            diagnostics = [];
+          }
+        }
+
+        if (Array.isArray(diagnostics) && diagnostics.length > 0) {
+          const matchedPhotos = diagnostics
+            .filter((d) => d.status === 'match')
+            .map((d) => d.photo_url)
+            .filter(Boolean);
+
+          let photosToSet = [];
+          if (matchedPhotos.length > 0) {
+            photosToSet = matchedPhotos;
+          } else {
+            // zero 'match' entries (everything uncertain) -> fall back to all reference photos from match_diagnostics
+            photosToSet = diagnostics.map((d) => d.photo_url).filter(Boolean);
+          }
+
+          if (photosToSet.length > 0) {
+            await pool.query(
+              `UPDATE members
+               SET verified_reference_photos = $1
+               WHERE id = $2`,
+              [photosToSet, userId]
+            );
+
+            await pool.query(
+              `UPDATE user_verifications
+               SET matched_photo_urls = $1,
+                   matched_photo_url = COALESCE(matched_photo_url, $2)
+               WHERE id = $3`,
+              [photosToSet, photosToSet[0], verId]
+            );
+          }
+        }
+      }
+
       // In-app notification for approval
       try {
         await createSimpleNotification(pool, {

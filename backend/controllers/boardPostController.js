@@ -235,7 +235,7 @@ async function createPost(req, res) {
  */
 async function listPosts(req, res) {
   try {
-    const { status, collab_type } = req.query;
+    const { status, collab_type, poster_type } = req.query;
     const page   = Math.max(1, parseInt(req.query.page, 10) || 1);
     const limit  = Math.min(parseInt(req.query.limit, 10) || PAGE_SIZE_DEFAULT, PAGE_SIZE_MAX);
     const offset = (page - 1) * limit;
@@ -249,23 +249,45 @@ async function listPosts(req, res) {
       });
     }
 
+    let resolvedPosterType = null;
+    if (poster_type) {
+      const norm = String(poster_type).toLowerCase().trim();
+      if (norm === 'creator' || norm === 'member') {
+        resolvedPosterType = 'member';
+      } else if (norm === 'community') {
+        resolvedPosterType = 'community';
+      } else if (norm !== 'all') {
+        return res.status(400).json({
+          error: 'poster_type must be one of: creator, member, community, all',
+        });
+      }
+    }
+
     // Caller identity for has_joined subquery (null when unauthenticated)
     const callerId   = req.user?.id   ?? null;
     const callerType = req.user?.type ?? null;
 
-    // Fixed param layout:
+    // Dynamic param layout:
     //   $1 = resolvedStatus
     //   $2 = callerId  (BIGINT | NULL)
     //   $3 = callerType (collab_entity_type | NULL — cast in SQL)
-    //   $4 = limit
-    //   $5 = offset
-    // Optional collab_type filter appended as $6 when present.
-    const baseParams = [resolvedStatus, callerId, callerType, limit, offset];
-    let collabTypeClause = '';
+    const baseParams = [resolvedStatus, callerId, callerType];
+    let extraWhere = '';
+
     if (collab_type) {
       baseParams.push(collab_type);
-      collabTypeClause = `AND p.collab_type = $6`;
+      extraWhere += ` AND p.collab_type = $${baseParams.length}`;
     }
+
+    if (resolvedPosterType) {
+      baseParams.push(resolvedPosterType);
+      extraWhere += ` AND p.poster_type = $${baseParams.length}::collab_entity_type`;
+    }
+
+    baseParams.push(limit);
+    const limitIdx = baseParams.length;
+    baseParams.push(offset);
+    const offsetIdx = baseParams.length;
 
     const rows = await pool.query(
       `SELECT
@@ -318,22 +340,26 @@ async function listPosts(req, res) {
        LEFT JOIN communities c ON p.poster_type = 'community' AND p.poster_id = c.id
        LEFT JOIN members     m ON p.poster_type = 'member'    AND p.poster_id = m.id
        WHERE p.status = $1
-         ${collabTypeClause}
+         ${extraWhere}
        ORDER BY p.created_at DESC
-       LIMIT $4 OFFSET $5`,
+       LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
       baseParams,
     );
 
-    // Count query — only needs status + optional collab_type
+    // Count query — only needs status + optional collab_type and poster_type
     const countParams = [resolvedStatus];
-    let countCollabTypeClause = '';
+    let countWhere = '';
     if (collab_type) {
       countParams.push(collab_type);
-      countCollabTypeClause = `AND collab_type = $2`;
+      countWhere += ` AND collab_type = $${countParams.length}`;
+    }
+    if (resolvedPosterType) {
+      countParams.push(resolvedPosterType);
+      countWhere += ` AND poster_type = $${countParams.length}::collab_entity_type`;
     }
     const countResult = await pool.query(
       `SELECT COUNT(*) AS total FROM board_posts
-        WHERE status = $1 ${countCollabTypeClause}`,
+        WHERE status = $1 ${countWhere}`,
       countParams,
     );
     const total = parseInt(countResult.rows[0].total, 10);

@@ -18,6 +18,7 @@ import {
 import HapticsService from "../../services/HapticsService";
 import ImageUploader from "../../components/media/ImageUploader";
 import VerifiedBadge from "../../components/badges/VerifiedBadge";
+import EventBus from "../../utils/EventBus";
 import {
   Lock,
   Plus,
@@ -143,7 +144,7 @@ const CATEGORY_LABELS = {
   travel:       "Travel",
 };
 
-export default function EditDiscoverProfileScreen({ navigation }) {
+export default function EditDiscoverProfileScreen({ navigation, route }) {
   const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -589,10 +590,19 @@ export default function EditDiscoverProfileScreen({ navigation }) {
         interests,
       });
 
+      // Emit global events so verification and other screens update dynamically
+      EventBus.emit("discover_photos:updated", { photos: finalPhotos });
+      EventBus.emit("profile:updated", { photos: finalPhotos });
+      EventBus.emit("verification:status_updated");
+
       if (autoExit) {
         Keyboard.dismiss();
         showToast("Success", "Saved successfully!");
-        navigation.goBack();
+        if (route?.params?.from === 'VerificationSubmit' || route?.params?.returnTo === 'VerificationSubmit') {
+          navigation.navigate('VerificationSubmit', { from: 'EditDiscoverProfile', refresh: Date.now() });
+        } else {
+          navigation.goBack();
+        }
       }
       return true;
     } catch (error) {
@@ -617,6 +627,8 @@ export default function EditDiscoverProfileScreen({ navigation }) {
     spotifyTopArtists,
     interests,
     navigation,
+    route?.params?.from,
+    route?.params?.returnTo,
   ]);
 
   const handleSave = useCallback(async () => {
@@ -660,6 +672,26 @@ export default function EditDiscoverProfileScreen({ navigation }) {
     photosShakeAnim,
     saveProfileData,
   ]);
+
+  const handleVerifyBannerPress = useCallback(async () => {
+    Keyboard.dismiss();
+    if (hasChanges()) {
+      if (photos.length < 3) {
+        triggerSectionError("photos", photosShakeAnim);
+        Alert.alert("Photos Required", "Please add at least 3 photos to your Discover profile before verifying.");
+        return;
+      }
+      setSaving(true);
+      const success = await saveProfileData(false);
+      setSaving(false);
+      if (!success) return;
+    } else {
+      EventBus.emit("discover_photos:updated", { photos });
+      EventBus.emit("profile:updated", { photos });
+      EventBus.emit("verification:status_updated");
+    }
+    navigation.navigate("VerificationSubmit", { from: "EditDiscoverProfile", refresh: Date.now() });
+  }, [hasChanges, photos, triggerSectionError, photosShakeAnim, saveProfileData, navigation]);
 
   // ImageUploader callback - receives array of image URIs
   const handlePhotosChange = useCallback((newPhotos) => {
@@ -1022,7 +1054,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
             </View>
             <TouchableOpacity
               style={styles.verifyBannerCta}
-              onPress={() => navigation.navigate('VerificationSubmit', { from: 'EditDiscoverProfile' })}
+              onPress={handleVerifyBannerPress}
               activeOpacity={0.75}
             >
               <Text style={styles.verifyBannerCtaText}>Verify</Text>

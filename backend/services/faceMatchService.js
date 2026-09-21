@@ -177,40 +177,119 @@ async function matchVideoToReferences(videoPublicId, memberId, pool, options = {
     };
   }
 
-  // 6. Compute Euclidean distance across every valid frame x every reference photo
-  let minDistance = Infinity;
-  let bestMatchedPhotoUrl = null;
+  // 6. Plans scope: single reference photo, compute min distance across valid frames
+  if (scope === 'plans') {
+    let minDistance = Infinity;
+    let bestMatchedPhotoUrl = null;
 
-  for (const frame of validFrames) {
-    for (const ref of referenceSet) {
-      const dist = computeEuclideanDistance(frame.embedding, ref.embedding);
-      if (dist < minDistance) {
-        minDistance = dist;
-        bestMatchedPhotoUrl = ref.photo_url;
+    for (const frame of validFrames) {
+      for (const ref of referenceSet) {
+        const dist = computeEuclideanDistance(frame.embedding, ref.embedding);
+        if (dist < minDistance) {
+          minDistance = dist;
+          bestMatchedPhotoUrl = ref.photo_url;
+        }
       }
     }
+
+    const roundedDistance = Number(minDistance.toFixed(4));
+
+    // Classify outcome based on distance thresholds
+    let classification = 'uncertain';
+    if (roundedDistance <= MATCH_THRESHOLD) {
+      classification = 'match';
+    } else if (roundedDistance >= NO_MATCH_THRESHOLD) {
+      classification = 'no_match';
+    }
+
+    return {
+      status: classification,
+      distance: roundedDistance,
+      matchedPhotoUrl: bestMatchedPhotoUrl,
+      referencePhotoUrls: referenceSet.map((r) => r.photo_url),
+      framesAnalyzed: validFrames.length,
+    };
   }
 
-  const roundedDistance = Number(minDistance.toFixed(4));
+  // 6. Discover scope: compute Euclidean distance per reference photo across all valid frames
+  const matchDiagnostics = [];
 
-  // 7. Classify outcome based on distance thresholds
-  // distance <= MATCH_THRESHOLD (0.55) -> match
-  // distance >= NO_MATCH_THRESHOLD (0.66) -> no_match
-  // otherwise -> uncertain (manual review queue)
-  let classification = 'uncertain';
-  if (roundedDistance <= MATCH_THRESHOLD) {
-    classification = 'match';
-  } else if (roundedDistance >= NO_MATCH_THRESHOLD) {
-    classification = 'no_match';
+  for (const ref of referenceSet) {
+    let photoMinDist = Infinity;
+    for (const frame of validFrames) {
+      const dist = computeEuclideanDistance(frame.embedding, ref.embedding);
+      if (dist < photoMinDist) {
+        photoMinDist = dist;
+      }
+    }
+    const roundedDistance = Number(photoMinDist.toFixed(4));
+
+    let photoStatus = 'uncertain';
+    if (roundedDistance <= MATCH_THRESHOLD) {
+      photoStatus = 'match';
+    } else if (roundedDistance >= NO_MATCH_THRESHOLD) {
+      photoStatus = 'no_match';
+    }
+
+    matchDiagnostics.push({
+      photo_url: ref.photo_url,
+      distance: roundedDistance,
+      status: photoStatus,
+    });
   }
 
-  return {
-    status: classification,
-    distance: roundedDistance,
-    matchedPhotoUrl: bestMatchedPhotoUrl,
+  // Partition into matched, mismatched, and uncertain
+  const matchedPhotos = matchDiagnostics.filter((d) => d.status === 'match');
+  const mismatchedPhotos = matchDiagnostics.filter((d) => d.status === 'no_match');
+  const uncertainPhotos = matchDiagnostics.filter((d) => d.status === 'uncertain');
+
+  // Determine overall outcome:
+  // a. matchedPhotos.length >= 1 AND mismatchedPhotos.length === 0 -> 'match'
+  // b. matchedPhotos.length >= 1 AND mismatchedPhotos.length >= 1 -> 'mismatch_detected'
+  // c. matchedPhotos.length === 0 AND mismatchedPhotos.length >= 1 -> 'no_match'
+  // d. matchedPhotos.length === 0 AND mismatchedPhotos.length === 0 -> 'uncertain'
+  let overallStatus = 'uncertain';
+  let matchedPhotoUrls = [];
+  let reportedDistance = null;
+  let representativePhotoUrl = null;
+
+  if (matchedPhotos.length >= 1 && mismatchedPhotos.length === 0) {
+    overallStatus = 'match';
+    matchedPhotoUrls = matchedPhotos.map((p) => p.photo_url);
+    const bestMatch = matchedPhotos.reduce((min, p) => (p.distance < min.distance ? p : min), matchedPhotos[0]);
+    reportedDistance = bestMatch.distance;
+    representativePhotoUrl = bestMatch.photo_url;
+  } else if (matchedPhotos.length >= 1 && mismatchedPhotos.length >= 1) {
+    overallStatus = 'mismatch_detected';
+    const bestOverall = matchDiagnostics.reduce((min, p) => (p.distance < min.distance ? p : min), matchDiagnostics[0]);
+    reportedDistance = bestOverall ? bestOverall.distance : null;
+    representativePhotoUrl = bestOverall ? bestOverall.photo_url : null;
+  } else if (matchedPhotos.length === 0 && mismatchedPhotos.length >= 1) {
+    overallStatus = 'no_match';
+    const bestOverall = matchDiagnostics.reduce((min, p) => (p.distance < min.distance ? p : min), matchDiagnostics[0]);
+    reportedDistance = bestOverall ? bestOverall.distance : null;
+    representativePhotoUrl = bestOverall ? bestOverall.photo_url : null;
+  } else {
+    overallStatus = 'uncertain';
+    const bestOverall = matchDiagnostics.reduce((min, p) => (p.distance < min.distance ? p : min), matchDiagnostics[0]);
+    reportedDistance = bestOverall ? bestOverall.distance : null;
+    representativePhotoUrl = bestOverall ? bestOverall.photo_url : null;
+  }
+
+  const result = {
+    status: overallStatus,
+    distance: reportedDistance,
+    matchedPhotoUrl: representativePhotoUrl,
     referencePhotoUrls: referenceSet.map((r) => r.photo_url),
+    matchDiagnostics,
     framesAnalyzed: validFrames.length,
   };
+
+  if (overallStatus === 'match') {
+    result.matchedPhotoUrls = matchedPhotoUrls;
+  }
+
+  return result;
 }
 
 const MATCH_THRESHOLD = 0.55;

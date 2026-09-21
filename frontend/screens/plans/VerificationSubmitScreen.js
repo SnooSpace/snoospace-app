@@ -38,6 +38,7 @@ export default function VerificationSubmitScreen({ navigation, route }) {
   });
   const pendingVerificationRef = useRef(null);
   const debounceRef = useRef(null);
+  const initialLoadedRef = useRef(false);
 
   const handleBack = useCallback(() => {
     if (navigation.canGoBack()) {
@@ -53,42 +54,17 @@ export default function VerificationSubmitScreen({ navigation, route }) {
       return;
     }
 
-    const state = navigation.getState?.();
-    if (state && state.routes && state.index > 0) {
-      const prevRoute = state.routes[state.index - 1];
-      if (prevRoute?.name === 'EditDiscoverProfile') {
-        navigation.goBack();
-        return;
-      }
-      if (prevRoute?.name === 'MemberHome') {
-        const tabRoute = prevRoute.state?.routes?.[prevRoute.state?.index ?? -1];
-        if (tabRoute?.name === 'Discover') {
-          const stackRoute = tabRoute.state?.routes?.[tabRoute.state?.index ?? -1];
-          if (stackRoute?.name === 'EditDiscoverProfile') {
-            navigation.goBack();
-            return;
-          }
-        }
-      }
-    }
-
-    try {
-      navigation.navigate('MemberHome', {
-        screen: 'Discover',
-        params: {
-          screen: 'EditDiscoverProfile',
-        },
-      });
-    } catch {
-      navigation.navigate('EditDiscoverProfile');
-    }
+    navigation.navigate('EditDiscoverProfile', {
+      from: 'VerificationSubmit',
+      returnTo: 'VerificationSubmit',
+    });
   }, [navigation, route?.params?.from]);
 
   const navigateToEditPhotos = navigateToEditProfile;
 
   const loadVerification = useCallback(async (isSilent = false) => {
     try {
-      if (!isSilent) setLoading(true);
+      if (!isSilent && !initialLoadedRef.current) setLoading(true);
       const token = await getAuthToken();
       const [vData, fData, pData] = await Promise.all([
         getMyVerification(token, 'discover').catch(() => ({ verification: null })),
@@ -98,6 +74,29 @@ export default function VerificationSubmitScreen({ navigation, route }) {
       setVerification(vData?.verification || null);
       if (fData) {
         setFaceEligibility(fData);
+      } else if (pData) {
+        // Fallback if getFaceEligibility timed out or was delayed:
+        // Reflect newly uploaded photos immediately from profile data
+        const profile = pData.profile || pData;
+        const currentPhotos = Array.isArray(profile?.discover_photos)
+          ? profile.discover_photos
+          : (typeof profile?.discover_photos === 'string' ? JSON.parse(profile.discover_photos || '[]') : []);
+        if (currentPhotos.length > 0) {
+          setFaceEligibility(prev => ({
+            eligiblePhotoCount: prev?.eligiblePhotoCount || 0,
+            eligiblePhotoUrls: prev?.eligiblePhotoUrls || [],
+            minimumRequired: 1,
+            photos: currentPhotos.map(url => {
+              const prevMatch = prev?.photos?.find(p => p.url === url);
+              return prevMatch || {
+                url,
+                isEligible: false,
+                reason: 'pending',
+                label: 'Analyzing...',
+              };
+            }),
+          }));
+        }
       }
       if (pData) {
         const profile = pData.profile || pData;
@@ -106,15 +105,22 @@ export default function VerificationSubmitScreen({ navigation, route }) {
     } catch (err) {
       console.error('[VerificationSubmitScreen]', err.message);
     } finally {
-      if (!isSilent) setLoading(false);
+      initialLoadedRef.current = true;
+      setLoading(false);
     }
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      loadVerification();
+      loadVerification(initialLoadedRef.current);
     }, [loadVerification])
   );
+
+  useEffect(() => {
+    if (route?.params?.refresh) {
+      loadVerification(true);
+    }
+  }, [route?.params?.refresh, loadVerification]);
 
   useEffect(() => {
     const socket = getSocket();
@@ -128,9 +134,12 @@ export default function VerificationSubmitScreen({ navigation, route }) {
 
     if (socket) {
       socket.on('verification_status_updated', handleStatusUpdated);
+      socket.on('discover_photos_processed', handleStatusUpdated);
     }
 
     const unsubStatus = EventBus.on('verification:status_updated', handleStatusUpdated);
+    const unsubPhotos = EventBus.on('discover_photos:updated', handleStatusUpdated);
+    const unsubProfile = EventBus.on('profile:updated', handleStatusUpdated);
     const unsubNotif = EventBus.on('new_notification', handleStatusUpdated);
     const unsubReconnect = EventBus.on('socket:reconnected', () => loadVerification(true));
     const unsubConnect = EventBus.on('socket:connected', () => loadVerification(true));
@@ -138,8 +147,11 @@ export default function VerificationSubmitScreen({ navigation, route }) {
     return () => {
       if (socket) {
         socket.off('verification_status_updated', handleStatusUpdated);
+        socket.off('discover_photos_processed', handleStatusUpdated);
       }
       unsubStatus?.();
+      unsubPhotos?.();
+      unsubProfile?.();
       unsubNotif?.();
       unsubReconnect?.();
       unsubConnect?.();
