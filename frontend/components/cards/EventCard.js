@@ -577,7 +577,7 @@ function EventCard({
   // Use custom location_name if provided, but hide for invite-only events
   const locationName = shouldHideLocation
     ? null
-    : event.location_name || rawLocationName;
+    : event.location_name || event.venue_name || rawLocationName;
 
   const { displayText: modeLocationText, iconName } = getEventModeDetails(
     event,

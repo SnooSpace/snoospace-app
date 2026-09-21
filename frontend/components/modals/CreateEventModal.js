@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   Modal,
   View,
@@ -54,6 +54,7 @@ import {
   Glasses,
   Pencil,
   MapPin,
+  RotateCcw,
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SHADOWS } from "../../constants/theme";
@@ -81,6 +82,7 @@ import FeaturedAccountsEditor from "../profile/FeaturedAccountsEditor";
 import ThingsToKnowEditor from "../profile/ThingsToKnowEditor";
 import TicketTypesEditor from "../editors/TicketTypesEditor";
 import PromoEditor from "../editors/PromoEditor";
+import TierSwitchRulesEditor from "../editors/TierSwitchRulesEditor";
 import CategorySelector from "../editors/CategorySelector";
 import SuccessCard from "../feedback/SuccessCard";
 import CelebrationCheckmarkHUD from "../feedback/CelebrationCheckmarkHUD";
@@ -295,21 +297,38 @@ const CreateEventModal = ({
   const [thingsToKnow, setThingsToKnow] = useState([]);
   const [allowTierSwitching, setAllowTierSwitching] = useState(false);
   const [allowDowngradeRefunds, setAllowDowngradeRefunds] = useState(false);
+  const [tierSwitchRules, setTierSwitchRules] = useState([]);
 
-  const canSwitchTiers = (ticketTypes?.length || 0) >= 2;
+  // Check if at least 2 compatible tiers exist that could switch (cannot be only 1 Male and 1 Female)
+  const canSwitchTiers = useMemo(() => {
+    if (!ticketTypes || ticketTypes.length < 2) return false;
+    for (let i = 0; i < ticketTypes.length; i++) {
+      const g1 = (ticketTypes[i].gender_restriction || "all").toLowerCase().trim();
+      for (let j = i + 1; j < ticketTypes.length; j++) {
+        const g2 = (ticketTypes[j].gender_restriction || "all").toLowerCase().trim();
+        const isCrossGender =
+          (g1 === "male" && g2 === "female") ||
+          (g1 === "female" && g2 === "male");
+        if (!isCrossGender) {
+          return true; // At least one compatible switch pair exists
+        }
+      }
+    }
+    return false;
+  }, [ticketTypes]);
 
   const handleDisabledTierSwitchPress = () => {
     const count = ticketTypes?.length || 0;
-    if (count === 0) {
+    if (count < 2) {
       Alert.alert(
         "Ticket Switching Unavailable",
-        "Ticket switching allows attendees to switch or upgrade their ticket tier. You must add at least 2 ticket tiers before enabling this feature.",
+        "Ticket switching requires at least 2 ticket tiers so attendees have another tier to switch between. Add another tier above to enable this.",
         [{ text: "Got it" }]
       );
     } else {
       Alert.alert(
         "Ticket Switching Unavailable",
-        "Ticket switching requires at least 2 ticket tiers so attendees have another tier to switch between. You currently have only 1 ticket tier. Add another tier above to enable this.",
+        "Your ticket tiers have incompatible gender restrictions (for example, only 1 Men ticket and 1 Women ticket). Men tickets cannot be switched with Women tickets. Please add another tier of the same gender or open category to enable switching.",
         [{ text: "Got it" }]
       );
     }
@@ -370,7 +389,7 @@ const CreateEventModal = ({
     fallback: locationName.trim() || "View Location",
   });
   const displayLocationName =
-    selectedVenue?.venueName || locationName.trim() || decodedLocationName;
+    locationName.trim() || selectedVenue?.venueName || decodedLocationName;
 
   // Category name lookup map (id → name) for review display
   const categoryMapRef = useRef({});
@@ -418,6 +437,7 @@ const CreateEventModal = ({
     setMeetingPlatform("");
     setAllowTierSwitching(false);
     setAllowDowngradeRefunds(false);
+    setTierSwitchRules([]);
   };
 
   const getCurrentFormData = () => ({
@@ -434,10 +454,12 @@ const CreateEventModal = ({
     has_reached_review: hasReachedReview,
     event_type: eventType,
     location_url: locationUrl,
-    location_name: selectedVenue?.venueName ?? locationName.trim(),
-    selected_venue: selectedVenue,
+    location_name: locationName.trim() || selectedVenue?.venueName || "",
+    selected_venue: selectedVenue
+      ? { ...selectedVenue, venueName: locationName.trim() || selectedVenue.venueName }
+      : null,
     // Unified venue fields (from new search+map flow)
-    venue_name: selectedVenue?.venueName ?? locationName.trim(),
+    venue_name: locationName.trim() || selectedVenue?.venueName || "",
     venue_address: selectedVenue?.venueAddress ?? "",
     venue_short_address: selectedVenue?.venueShortAddress ?? "",
     venue_lat: selectedVenue?.venueLat ?? null,
@@ -507,6 +529,7 @@ const CreateEventModal = ({
     invite_public_visibility: invitePublicVisibility,
     allow_tier_switching: canSwitchTiers && allowTierSwitching,
     allow_downgrade_refunds: canSwitchTiers && allowTierSwitching && allowDowngradeRefunds,
+    tier_switch_rules: canSwitchTiers && allowTierSwitching ? tierSwitchRules : [],
   });
 
   const saveDraft = async (silent = false) => {
@@ -633,6 +656,9 @@ const CreateEventModal = ({
         if (draft.data.allow_downgrade_refunds !== undefined) {
           setAllowDowngradeRefunds(Boolean(draft.data.allow_downgrade_refunds));
         }
+        if (draft.data.tier_switch_rules && Array.isArray(draft.data.tier_switch_rules)) {
+          setTierSwitchRules(draft.data.tier_switch_rules);
+        }
 
         // Restore hasReachedReview so the Review shortcut button persists
         if (draft.data.has_reached_review) {
@@ -751,6 +777,9 @@ const CreateEventModal = ({
           return false;
         if (ticketTypes.length === 0) return false;
         if (categories.length === 0) return false;
+        if (canSwitchTiers && allowTierSwitching && (!tierSwitchRules || tierSwitchRules.length === 0)) {
+          return false;
+        }
         return true;
       case 2:
         return bannerCarousel.length > 0;
@@ -783,6 +812,9 @@ const CreateEventModal = ({
         return "virtualLink";
       if (ticketTypes.length === 0) return "ticketing";
       if (categories.length === 0) return "categories";
+      if (canSwitchTiers && allowTierSwitching && (!tierSwitchRules || tierSwitchRules.length === 0)) {
+        return "tierSwitchRules";
+      }
     }
     if (step === 2) return "bannerImages";
     if (step === 3) return "description";
@@ -1501,34 +1533,85 @@ const CreateEventModal = ({
                 <Text style={styles.label}>Location</Text>
 
                 {selectedVenue ? (
-                  /* ── Confirmed venue card with mini map ── */
-                  <TouchableOpacity
-                    onPress={() => setVenueSheetVisible(true)}
-                    activeOpacity={0.85}
-                    style={styles.confirmedVenueCard}
-                  >
-                    <MiniMapPreview
-                      lat={selectedVenue.venueLat}
-                      lng={selectedVenue.venueLng}
-                      name={selectedVenue.venueName}
-                      height={140}
-                      borderRadius={12}
-                    />
-                    <View style={styles.confirmedVenueInfo}>
-                      <View style={styles.confirmedVenueRow}>
-                        <MapPin size={14} color={MODAL_TOKENS.primary} strokeWidth={2} />
-                        <Text style={styles.confirmedVenueName} numberOfLines={1}>
+                  /* ── Confirmed venue card with mini map & customizable name ── */
+                  <View style={styles.venueContainer}>
+                    <TouchableOpacity
+                      onPress={() => setVenueSheetVisible(true)}
+                      activeOpacity={0.85}
+                      style={styles.confirmedVenueCard}
+                    >
+                      <MiniMapPreview
+                        lat={selectedVenue.venueLat}
+                        lng={selectedVenue.venueLng}
+                        name={selectedVenue.venueName}
+                        height={140}
+                        borderRadius={12}
+                      />
+                      <View style={styles.confirmedVenueInfo}>
+                        <View style={styles.detectedHeaderRow}>
+                          <View style={styles.detectedBadge}>
+                            <MapPin size={11} color={MODAL_TOKENS.primary} strokeWidth={2.2} />
+                            <Text style={styles.detectedBadgeText}>Detected via Map</Text>
+                          </View>
+                          <Text style={styles.confirmedVenueChange}>Change map pin</Text>
+                        </View>
+                        <Text style={styles.detectedPlaceName} numberOfLines={2}>
                           {selectedVenue.venueName}
                         </Text>
+                        {!!selectedVenue.venueShortAddress && (
+                          <Text style={styles.confirmedVenueAddr} numberOfLines={1}>
+                            {selectedVenue.venueShortAddress}
+                          </Text>
+                        )}
                       </View>
-                      {!!selectedVenue.venueShortAddress && (
-                        <Text style={styles.confirmedVenueAddr} numberOfLines={1}>
-                          {selectedVenue.venueShortAddress}
-                        </Text>
-                      )}
-                      <Text style={styles.confirmedVenueChange}>Tap to change</Text>
+                    </TouchableOpacity>
+
+                    {/* ── Host Override: Custom Short Venue / Display Name ── */}
+                    <View style={styles.customVenueSection}>
+                      <View style={styles.customVenueHeader}>
+                        <Text style={styles.customVenueLabel}>Venue / Display Name</Text>
+                        {locationName.trim() !== (selectedVenue.venueName || "").trim() && (
+                          <TouchableOpacity
+                            onPress={() => {
+                              setLocationName(selectedVenue.venueName ?? "");
+                              hasUnsavedChanges.current = true;
+                            }}
+                            style={styles.resetVenueBtn}
+                            activeOpacity={0.7}
+                          >
+                            <RotateCcw size={11} color={MODAL_TOKENS.primary} strokeWidth={2.2} />
+                            <Text style={styles.resetVenueText}>Reset to map name</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                      <View style={styles.customVenueInputContainer}>
+                        <TextInput
+                          style={styles.customVenueInput}
+                          value={locationName}
+                          onChangeText={(val) => {
+                            setLocationName(val);
+                            hasUnsavedChanges.current = true;
+                          }}
+                          placeholder="e.g. Auditorium Alpha, ITPB"
+                          placeholderTextColor={MODAL_TOKENS.textMuted}
+                        />
+                        {locationName.length > 0 && (
+                          <TouchableOpacity
+                            onPress={() => {
+                              setLocationName("");
+                              hasUnsavedChanges.current = true;
+                            }}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                          >
+                            <CircleX size={16} color={MODAL_TOKENS.textMuted} />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                      <Text style={styles.customVenueHelper}>
+                        Shown to attendees on event cards and tickets. Keep it short and recognizable.
+                      </Text>
                     </View>
-                  </TouchableOpacity>
+                  </View>
                 ) : (
                   /* ── Empty location field — tap to open search ── */
                   <TouchableOpacity
@@ -1831,6 +1914,18 @@ const CreateEventModal = ({
                     />
                   </View>
                 </TouchableOpacity>
+
+                {/* Allowed Tier Switching Rules Editor — Compulsory when allowTierSwitching is ON */}
+                {canSwitchTiers && allowTierSwitching && (
+                  <TierSwitchRulesEditor
+                    ticketTypes={ticketTypes}
+                    rules={tierSwitchRules}
+                    onChange={(newRules) => {
+                      setTierSwitchRules(newRules);
+                      hasUnsavedChanges.current = true;
+                    }}
+                  />
+                )}
               </View>
             </Animated.View>
 
@@ -3775,8 +3870,87 @@ const styles = StyleSheet.create({
     fontFamily: MODAL_TOKENS.fonts.medium,
     fontSize: 11,
     color: MODAL_TOKENS.primary,
-    marginLeft: 20,
+  },
+  venueContainer: {
+    gap: 12,
+  },
+  detectedHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
+  detectedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(41, 98, 255, 0.08)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  detectedBadgeText: {
+    fontFamily: MODAL_TOKENS.fonts.medium,
+    fontSize: 11,
+    color: MODAL_TOKENS.primary,
+  },
+  detectedPlaceName: {
+    fontFamily: MODAL_TOKENS.fonts.semibold,
+    fontSize: 14,
+    color: MODAL_TOKENS.textPrimary,
+    lineHeight: 19,
     marginTop: 2,
+  },
+  customVenueSection: {
+    marginTop: 2,
+    gap: 6,
+  },
+  customVenueHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  customVenueLabel: {
+    fontFamily: MODAL_TOKENS.fonts.medium,
+    fontSize: 13,
+    color: MODAL_TOKENS.textSecondary,
+  },
+  resetVenueBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    backgroundColor: "rgba(41, 98, 255, 0.08)",
+  },
+  resetVenueText: {
+    fontFamily: MODAL_TOKENS.fonts.medium,
+    fontSize: 11,
+    color: MODAL_TOKENS.primary,
+  },
+  customVenueInputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: MODAL_TOKENS.surface,
+    borderWidth: 1.5,
+    borderColor: MODAL_TOKENS.border,
+    borderRadius: MODAL_TOKENS.radius.md,
+    paddingHorizontal: 14,
+    paddingVertical: Platform.OS === "ios" ? 12 : 8,
+  },
+  customVenueInput: {
+    flex: 1,
+    fontFamily: MODAL_TOKENS.fonts.medium,
+    fontSize: 14,
+    color: MODAL_TOKENS.textPrimary,
+    padding: 0,
+  },
+  customVenueHelper: {
+    fontFamily: MODAL_TOKENS.fonts.regular,
+    fontSize: 12,
+    color: MODAL_TOKENS.textMuted,
+    lineHeight: 16,
   },
 
   sectionHeaderHelper: {

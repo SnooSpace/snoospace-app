@@ -211,6 +211,8 @@ const getCategoryById = async (req, res) => {
         e.start_datetime as event_date,
         e.end_datetime,
         e.location_url,
+        e.location_name,
+        e.venue_name,
         e.banner_url,
         e.ticket_price,
         e.event_type,
@@ -2416,6 +2418,7 @@ const getAllEventsAdmin = async (req, res) => {
       SELECT 
         e.id, e.title, e.description, e.banner_url,
         e.start_datetime, e.end_datetime, e.location_url,
+        e.location_name, e.venue_name,
         e.is_cancelled, e.created_at,
         e.creator_id as community_id,
         c.name as community_name, c.username as community_username, c.logo_url as community_logo_url,

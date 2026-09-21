@@ -33,13 +33,22 @@ import {
   ChevronDown,
   ChevronUp,
   X,
+  ArrowRightLeft,
+  ArrowRight,
+  Check,
+  Lock,
+  Sparkles,
+  Info,
 } from "lucide-react-native";
 import QRCode from "react-native-qrcode-svg";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   getMyTicket, submitRefundRequest, getRefundRequests,
   getPostponementDecision, submitPostponementOptOut, submitPostponementKeep,
+  switchTicketTier,
 } from "../../api/events";
+import { createPaymentOrder, verifyPayment } from "../../api/payments";
+import { useRazorpay } from "../../hooks/useRazorpay";
 import { useLocationName } from "../../utils/locationNameCache";
 import { detectMeetingPlatform } from "../../utils/meetingPlatformUtils";
 import SnooLoader from "../../components/ui/SnooLoader";
@@ -74,6 +83,15 @@ export default function TicketViewScreen({ route, navigation }) {
   const [postponementDecision, setPostponementDecision] = useState(null); // null = not loaded yet
   const [postponeSubmitting, setPostponeSubmitting] = useState(false);
   const [countdown, setCountdown] = useState(0); // seconds remaining in opt-out window
+
+  // Razorpay Hook for tier upgrade payments
+  const { openCheckout, RazorpayUI } = useRazorpay();
+
+  // Tier Switching state
+  const [showSwitchSheet, setShowSwitchSheet] = useState(false);
+  const [switchSourceTier, setSwitchSourceTier] = useState(null); // ticket item being switched
+  const [selectedDestTier, setSelectedDestTier] = useState(null); // chosen target tier object
+  const [switchingLoading, setSwitchingLoading] = useState(false);
 
   // Resolve location name with fallback
   const rawLocationName = useLocationName(ticket?.locationUrl, {
@@ -293,6 +311,243 @@ export default function TicketViewScreen({ route, navigation }) {
       Alert.alert("Error", e.message || "Failed to submit refund request");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const getGenderColor = (gender) => {
+    const g = (gender || "all").trim().toLowerCase();
+    if (g === "male") return "#007AFF";
+    if (g === "female") return "#FF2D92";
+    return "#6A0DAD";
+  };
+
+  const getGenderLabel = (gender) => {
+    const g = (gender || "all").trim().toLowerCase();
+    if (g === "male") return "Men only";
+    if (g === "female") return "Women only";
+    return "All attendees";
+  };
+
+  const getAccessModeBadge = (mode) => {
+    const m = (mode || "in_person").toLowerCase().trim();
+    if (m === "virtual") {
+      return { label: "Virtual", Icon: Video, color: "#7C3AED", bg: "#F5F3FF" };
+    }
+    if (m === "both" || m === "hybrid") {
+      return { label: "In-Person + Virtual", Icon: Sparkles, color: "#0D9488", bg: "#F0FDFA" };
+    }
+    return { label: "In-Person", Icon: MapPin, color: "#4B5563", bg: "#F3F4F6" };
+  };
+
+  const getSwitchDestinationsForTicket = useCallback(
+    (ticketItem) => {
+      if (!ticket?.allowTierSwitching || !ticket?.tierSwitchRules || !ticket?.availableTiers) {
+        return [];
+      }
+      if (ticket.eventDate && new Date(ticket.eventDate) <= new Date()) {
+        return [];
+      }
+      if (ticket.status !== "registered") {
+        return [];
+      }
+
+      // Find host configured rule
+      const rule = (ticket.tierSwitchRules || []).find(
+        (r) =>
+          parseInt(r.from_tier_id) === parseInt(ticketItem.ticketTypeId) ||
+          (r.from_tier_name &&
+            r.from_tier_name.trim().toLowerCase() === ticketItem.name.trim().toLowerCase())
+      );
+      if (!rule) return [];
+
+      const allowedTargetIds = (rule.to_tier_ids || []).map((id) => parseInt(id));
+      const allowedTargetNames = (rule.to_tier_names || []).map((n) => n.trim().toLowerCase());
+
+      const currentGender = (ticketItem.genderRestriction || "all").trim().toLowerCase();
+
+      return ticket.availableTiers.filter((destTier) => {
+        if (parseInt(destTier.id) === parseInt(ticketItem.ticketTypeId)) return false;
+
+        const isAllowedByHost =
+          allowedTargetIds.includes(parseInt(destTier.id)) ||
+          allowedTargetNames.includes(destTier.name.trim().toLowerCase());
+        if (!isAllowedByHost) return false;
+
+        // Invariant: Male <-> Female is strictly blocked
+        const destGender = (destTier.genderRestriction || "all").trim().toLowerCase();
+        if (
+          (currentGender === "male" && destGender === "female") ||
+          (currentGender === "female" && destGender === "male")
+        ) {
+          return false;
+        }
+
+        return true;
+      });
+    },
+    [ticket]
+  );
+
+  const getDestinationTierEligibility = useCallback(
+    (destTier) => {
+      const destGender = (destTier.genderRestriction || "all").trim().toLowerCase();
+      const memberGender = (ticket?.memberGender || "").trim().toLowerCase();
+
+      if (destGender !== "all") {
+        if (!memberGender || memberGender !== destGender) {
+          return {
+            eligible: false,
+            reason: destGender === "male" ? "Men only" : "Women only",
+          };
+        }
+      }
+
+      const now = new Date();
+      if (destTier.saleStartAt && new Date(destTier.saleStartAt) > now) {
+        return { eligible: false, reason: "Sales not started" };
+      }
+      if (destTier.saleEndAt && new Date(destTier.saleEndAt) < now) {
+        return { eligible: false, reason: "Sales ended" };
+      }
+
+      if (destTier.totalQuantity !== null && destTier.totalQuantity !== undefined) {
+        const available =
+          parseInt(destTier.totalQuantity, 10) -
+          (parseInt(destTier.soldCount, 10) || 0) -
+          (parseInt(destTier.reservedCount, 10) || 0);
+        if (available <= 0) {
+          return { eligible: false, reason: "Sold out" };
+        }
+      }
+
+      return { eligible: true };
+    },
+    [ticket]
+  );
+
+  const handleOpenSwitchSheet = (ticketItem) => {
+    setSwitchSourceTier(ticketItem);
+    const options = getSwitchDestinationsForTicket(ticketItem);
+    const firstEligible = options.find((opt) => getDestinationTierEligibility(opt).eligible);
+    setSelectedDestTier(firstEligible || null);
+    setShowSwitchSheet(true);
+  };
+
+  const handleConfirmSwitch = async () => {
+    if (!selectedDestTier || !switchSourceTier || !ticket?.registrationId) return;
+
+    const unitDiff = selectedDestTier.basePrice - switchSourceTier.unitPrice;
+    const totalDiff = Math.round(unitDiff * switchSourceTier.quantity * 100) / 100;
+
+    if (totalDiff > 0) {
+      // Upgrade requires Razorpay checkout
+      try {
+        setSwitchingLoading(true);
+        const order = await createPaymentOrder(
+          eventId,
+          totalDiff,
+          null,
+          null,
+          null,
+          null,
+          {
+            registrationId: ticket.registrationId,
+            oldTicketTypeId: switchSourceTier.ticketTypeId,
+            newTicketTypeId: selectedDestTier.id,
+            quantity: switchSourceTier.quantity,
+          }
+        );
+
+        if (!order || !order.success) {
+          Alert.alert(
+            "Upgrade Error",
+            order?.error || order?.message || "Failed to create upgrade payment order"
+          );
+          setSwitchingLoading(false);
+          return;
+        }
+
+        const options = {
+          description: `Upgrade to ${selectedDestTier.name}`,
+          currency: order.currency || "INR",
+          key: order.keyId || order.key,
+          amount: order.amount,
+          name: "SnooSpace",
+          order_id: order.orderId,
+          prefill: {
+            name: order.user?.name || ticket.memberName || "",
+            email: order.user?.email || "",
+            contact: "",
+          },
+          theme: { color: PRIMARY_COLOR },
+          modal: { confirm_close: true },
+        };
+
+        openCheckout(options, {
+          onSuccess: async (paymentData) => {
+            try {
+              await verifyPayment(paymentData);
+              setShowSwitchSheet(false);
+              Alert.alert(
+                "Upgrade Complete! 🎉",
+                `Your ticket has been upgraded to ${selectedDestTier.name}.`
+              );
+              await loadTicket();
+            } catch (vErr) {
+              console.error("[TicketViewScreen] Upgrade verify error:", vErr);
+              setShowSwitchSheet(false);
+              Alert.alert(
+                "Payment Received",
+                "Payment was successful! Your upgraded ticket will reflect shortly."
+              );
+              await loadTicket();
+            } finally {
+              setSwitchingLoading(false);
+            }
+          },
+          onFailure: (err) => {
+            console.warn("[TicketViewScreen] Upgrade payment failed:", err);
+            setSwitchingLoading(false);
+            Alert.alert(
+              "Payment Cancelled",
+              err?.description || "Could not complete upgrade payment."
+            );
+          },
+          onClose: () => {
+            setSwitchingLoading(false);
+          },
+        });
+      } catch (err) {
+        console.error("[TicketViewScreen] Upgrade checkout error:", err);
+        Alert.alert("Error", err.message || "Failed to initiate upgrade payment");
+        setSwitchingLoading(false);
+      }
+    } else {
+      // Free switch or downgrade
+      try {
+        setSwitchingLoading(true);
+        const res = await switchTicketTier(eventId, ticket.registrationId, {
+          oldTicketTypeId: switchSourceTier.ticketTypeId,
+          newTicketTypeId: selectedDestTier.id,
+          quantity: switchSourceTier.quantity,
+        });
+
+        if (res?.success) {
+          setShowSwitchSheet(false);
+          Alert.alert(
+            "Ticket Switched! ✓",
+            res.message || `Successfully switched to ${selectedDestTier.name}.`
+          );
+          await loadTicket();
+        } else {
+          Alert.alert("Switch Failed", res?.error || "Could not switch ticket tier");
+        }
+      } catch (err) {
+        console.error("[TicketViewScreen] switchTicketTier error:", err);
+        Alert.alert("Error", err.message || "Failed to switch ticket tier");
+      } finally {
+        setSwitchingLoading(false);
+      }
     }
   };
 
@@ -567,21 +822,58 @@ export default function TicketViewScreen({ route, navigation }) {
         <View style={styles.detailsCard}>
           <Text style={styles.sectionTitle}>Ticket Details</Text>
 
-          {ticket?.tickets?.map((t, index) => (
-            <View key={index} style={styles.ticketRow}>
-              <View style={styles.ticketInfo}>
-                <Text style={styles.ticketName}>
-                  {t.quantity}× {t.name}
-                </Text>
-                <Text style={styles.ticketPrice}>
-                  ₹{t.unitPrice.toLocaleString("en-IN")} each
-                </Text>
+          {ticket?.tickets?.map((t, index) => {
+            const switchOptions = getSwitchDestinationsForTicket(t);
+            const canSwitch = switchOptions.length > 0;
+            const genderColor = getGenderColor(t.genderRestriction);
+            const genderLabel = getGenderLabel(t.genderRestriction);
+            const isGenderRestricted = t.genderRestriction && t.genderRestriction.toLowerCase() !== "all";
+
+            return (
+              <View key={index} style={styles.ticketItemContainer}>
+                <View style={styles.ticketRow}>
+                  <View style={styles.ticketInfo}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                      <Text style={styles.ticketName}>
+                        {t.quantity}× {t.name}
+                      </Text>
+                      {isGenderRestricted && (
+                        <View style={[styles.genderTagBadge, { backgroundColor: `${genderColor}18` }]}>
+                          <View style={[styles.genderDotSmall, { backgroundColor: genderColor }]} />
+                          <Text style={[styles.genderTagText, { color: genderColor }]}>
+                            {genderLabel}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={styles.ticketPrice}>
+                      ₹{t.unitPrice.toLocaleString("en-IN")} each
+                    </Text>
+                  </View>
+                  <Text style={styles.ticketTotal}>
+                    ₹{t.totalPrice.toLocaleString("en-IN")}
+                  </Text>
+                </View>
+
+                {/* Switch Tier Action Pill */}
+                {canSwitch && (
+                  <View style={styles.switchTierTriggerRow}>
+                    <TouchableOpacity
+                      style={styles.switchTierTriggerBtn}
+                      onPress={() => handleOpenSwitchSheet(t)}
+                      activeOpacity={0.8}
+                    >
+                      <View style={styles.switchTierTriggerIconCircle}>
+                        <ArrowRightLeft size={13} color={PRIMARY_COLOR} strokeWidth={2.2} />
+                      </View>
+                      <Text style={styles.switchTierTriggerText}>Switch Ticket Tier</Text>
+                      <ChevronRight size={14} color={PRIMARY_COLOR} strokeWidth={2.2} />
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
-              <Text style={styles.ticketTotal}>
-                ₹{t.totalPrice.toLocaleString("en-IN")}
-              </Text>
-            </View>
-          ))}
+            );
+          })}
 
           {ticket?.discountAmount > 0 && (
             <View style={styles.ticketRow}>
@@ -942,6 +1234,469 @@ export default function TicketViewScreen({ route, navigation }) {
           </View>
         </View>
       </Modal>
+      {/* ── TICKET TIER SWITCHING BOTTOM SHEET ── */}
+      <Modal
+        visible={showSwitchSheet}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          if (!switchingLoading) setShowSwitchSheet(false);
+        }}
+      >
+        <View style={styles.sheetOverlay}>
+          <TouchableOpacity
+            style={styles.sheetDismiss}
+            onPress={() => {
+              if (!switchingLoading) setShowSwitchSheet(false);
+            }}
+            activeOpacity={1}
+          />
+          <View
+            style={[
+              styles.sheetContainer,
+              { paddingBottom: Math.max(insets.bottom, 24), maxHeight: "88%" },
+            ]}
+          >
+            {/* Sheet Header */}
+            <View style={styles.sheetHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.sheetTitle}>Switch Ticket Tier</Text>
+                <Text style={styles.sheetSubtitle}>
+                  Choose a host-permitted destination tier
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => {
+                  if (!switchingLoading) setShowSwitchSheet(false);
+                }}
+                activeOpacity={0.7}
+                style={styles.sheetCloseBtn}
+              >
+                <X size={20} color={MUTED_TEXT} strokeWidth={2.2} />
+              </TouchableOpacity>
+            </View>
+
+            {switchSourceTier && (
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: 16 }}
+              >
+                {/* 1. Origin Tier Card */}
+                <View style={styles.switchOriginCard}>
+                  <View style={styles.switchOriginHeader}>
+                    <View
+                      style={[
+                        styles.genderDotOrigin,
+                        {
+                          backgroundColor: getGenderColor(
+                            switchSourceTier.genderRestriction
+                          ),
+                        },
+                      ]}
+                    />
+                    <Text style={styles.switchOriginSubtitle}>CURRENT TIER</Text>
+                  </View>
+                  <View style={styles.switchOriginBody}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.switchOriginName}>
+                        {switchSourceTier.name}
+                      </Text>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 6,
+                          marginTop: 4,
+                        }}
+                      >
+                        <View
+                          style={[
+                            styles.genderBadgePill,
+                            {
+                              backgroundColor: `${getGenderColor(
+                                switchSourceTier.genderRestriction
+                              )}18`,
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.genderBadgeText,
+                              {
+                                color: getGenderColor(
+                                  switchSourceTier.genderRestriction
+                                ),
+                              },
+                            ]}
+                          >
+                            {getGenderLabel(switchSourceTier.genderRestriction)}
+                          </Text>
+                        </View>
+                        {switchSourceTier.accessMode && (() => {
+                          const mb = getAccessModeBadge(switchSourceTier.accessMode);
+                          const ModeIcon = mb.Icon;
+                          return (
+                            <View style={[styles.accessBadgePill, { backgroundColor: mb.bg }]}>
+                              <ModeIcon size={10} color={mb.color} strokeWidth={2.2} />
+                              <Text style={[styles.accessBadgeText, { color: mb.color }]}>
+                                {mb.label}
+                              </Text>
+                            </View>
+                          );
+                        })()}
+                        <Text style={styles.switchQuantityText}>
+                          {switchSourceTier.quantity} ticket
+                          {switchSourceTier.quantity > 1 ? "s" : ""}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.switchOriginPrice}>
+                      ₹{switchSourceTier.unitPrice.toLocaleString("en-IN")}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* 2. Visual Connecting Flow */}
+                <View style={styles.connectorFlowContainer}>
+                  <View style={styles.connectorLineVertical} />
+                  <View style={styles.connectorBadge}>
+                    <ArrowRightLeft
+                      size={13}
+                      color={PRIMARY_COLOR}
+                      strokeWidth={2.2}
+                    />
+                    <Text style={styles.connectorBadgeText}>SWITCH TO</Text>
+                  </View>
+                  <View style={styles.connectorLineVertical} />
+                </View>
+
+                {/* 3. Destination Tiers List */}
+                <View style={styles.destinationListContainer}>
+                  {(() => {
+                    const destinations = getSwitchDestinationsForTicket(
+                      switchSourceTier
+                    );
+                    if (destinations.length === 0) {
+                      return (
+                        <View style={styles.emptyDestinationsBox}>
+                          <AlertCircle
+                            size={20}
+                            color={MUTED_TEXT}
+                            strokeWidth={2}
+                          />
+                          <Text style={styles.emptyDestinationsText}>
+                            No other compatible ticket tiers available for switching.
+                          </Text>
+                        </View>
+                      );
+                    }
+
+                    return destinations.map((dest) => {
+                      const isSelected = selectedDestTier?.id === dest.id;
+                      const eligibility = getDestinationTierEligibility(dest);
+                      const isEligible = eligibility.eligible;
+                      const destGenderColor = getGenderColor(
+                        dest.genderRestriction
+                      );
+                      const destGenderLabel = getGenderLabel(
+                        dest.genderRestriction
+                      );
+
+                      const unitDiff =
+                        dest.basePrice - switchSourceTier.unitPrice;
+                      const isUpgrade = unitDiff > 0;
+                      const isFree = unitDiff === 0;
+                      const isDowngrade = unitDiff < 0;
+
+                      return (
+                        <TouchableOpacity
+                          key={dest.id}
+                          style={[
+                            styles.destinationCard,
+                            isSelected && styles.destinationCardSelected,
+                            !isEligible && styles.destinationCardDisabled,
+                          ]}
+                          disabled={!isEligible || switchingLoading}
+                          onPress={() => setSelectedDestTier(dest)}
+                          activeOpacity={0.75}
+                        >
+                          <View style={styles.destinationCardLeft}>
+                            {/* Radio / Selection Indicator */}
+                            <View
+                              style={[
+                                styles.destRadioCircle,
+                                isSelected && styles.destRadioCircleSelected,
+                                !isEligible && styles.destRadioCircleDisabled,
+                              ]}
+                            >
+                              {isSelected && (
+                                <Check
+                                  size={12}
+                                  color="#FFFFFF"
+                                  strokeWidth={3}
+                                />
+                              )}
+                              {!isEligible && (
+                                <Lock
+                                  size={11}
+                                  color="#9CA3AF"
+                                  strokeWidth={2.2}
+                                />
+                              )}
+                            </View>
+
+                            {/* Destination Info */}
+                            <View style={{ flex: 1 }}>
+                              <View
+                                style={{
+                                  flexDirection: "row",
+                                  alignItems: "center",
+                                  gap: 6,
+                                  flexWrap: "wrap",
+                                }}
+                              >
+                                <View
+                                  style={[
+                                    styles.genderDotSmall,
+                                    { backgroundColor: destGenderColor },
+                                  ]}
+                                />
+                                <Text
+                                  style={[
+                                    styles.destTierName,
+                                    !isEligible && { color: MUTED_TEXT },
+                                  ]}
+                                >
+                                  {dest.name}
+                                </Text>
+                                <View
+                                  style={[
+                                    styles.genderBadgePill,
+                                    { backgroundColor: `${destGenderColor}18` },
+                                  ]}
+                                >
+                                  <Text
+                                    style={[
+                                      styles.genderBadgeText,
+                                      { color: destGenderColor },
+                                    ]}
+                                  >
+                                    {destGenderLabel}
+                                  </Text>
+                                </View>
+                                {dest.accessMode && (() => {
+                                  const mb = getAccessModeBadge(dest.accessMode);
+                                  const ModeIcon = mb.Icon;
+                                  return (
+                                    <View
+                                      style={[
+                                        styles.accessBadgePill,
+                                        { backgroundColor: mb.bg },
+                                      ]}
+                                    >
+                                      <ModeIcon
+                                        size={10}
+                                        color={mb.color}
+                                        strokeWidth={2.2}
+                                      />
+                                      <Text
+                                        style={[
+                                          styles.accessBadgeText,
+                                          { color: mb.color },
+                                        ]}
+                                      >
+                                        {mb.label}
+                                      </Text>
+                                    </View>
+                                  );
+                                })()}
+                              </View>
+
+                              {/* Price & Delta details */}
+                              <View
+                                style={{
+                                  flexDirection: "row",
+                                  alignItems: "center",
+                                  gap: 8,
+                                  marginTop: 5,
+                                }}
+                              >
+                                <Text style={styles.destTierPrice}>
+                                  ₹{dest.basePrice.toLocaleString("en-IN")} each
+                                </Text>
+
+                                {isUpgrade && (
+                                  <View style={styles.upgradeDeltaBadge}>
+                                    <Text style={styles.upgradeDeltaText}>
+                                      +₹{unitDiff.toLocaleString("en-IN")} Upgrade
+                                    </Text>
+                                  </View>
+                                )}
+
+                                {isFree && (
+                                  <View style={styles.freeDeltaBadge}>
+                                    <Text style={styles.freeDeltaText}>
+                                      Free Switch
+                                    </Text>
+                                  </View>
+                                )}
+
+                                {isDowngrade && (
+                                  <View
+                                    style={[
+                                      styles.downgradeDeltaBadge,
+                                      !ticket?.allowDowngradeRefunds && {
+                                        backgroundColor: "#F3F4F6",
+                                      },
+                                    ]}
+                                  >
+                                    <Text
+                                      style={[
+                                        styles.downgradeDeltaText,
+                                        !ticket?.allowDowngradeRefunds && {
+                                          color: MUTED_TEXT,
+                                        },
+                                      ]}
+                                    >
+                                      {ticket?.allowDowngradeRefunds
+                                        ? `-₹${Math.abs(unitDiff).toLocaleString("en-IN")} Refund`
+                                        : `-₹${Math.abs(unitDiff).toLocaleString("en-IN")} (No refund)`}
+                                    </Text>
+                                  </View>
+                                )}
+                              </View>
+
+                              {/* Ineligibility reason or remaining capacity */}
+                              {!isEligible && eligibility.reason ? (
+                                <Text style={styles.ineligibleReasonText}>
+                                  {eligibility.reason}
+                                </Text>
+                              ) : dest.totalQuantity !== null ? (
+                                <Text style={styles.destSlotsText}>
+                                  {Math.max(
+                                    0,
+                                    dest.totalQuantity -
+                                      (dest.soldCount + dest.reservedCount)
+                                  )}{" "}
+                                  remaining
+                                </Text>
+                              ) : null}
+                            </View>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    });
+                  })()}
+                </View>
+
+                {/* Info Note Banner */}
+                {selectedDestTier && (() => {
+                  const unitDiff =
+                    selectedDestTier.basePrice - switchSourceTier.unitPrice;
+                  const totalDiff =
+                    Math.round(
+                      unitDiff * switchSourceTier.quantity * 100
+                    ) / 100;
+
+                  if (totalDiff > 0) {
+                    return (
+                      <View style={styles.switchNoticeBox}>
+                        <Sparkles
+                          size={16}
+                          color={PRIMARY_COLOR}
+                          strokeWidth={2}
+                        />
+                        <Text style={styles.switchNoticeText}>
+                          An upgrade payment of ₹{totalDiff.toLocaleString("en-IN")} will be collected securely via Razorpay to confirm your switch.
+                        </Text>
+                      </View>
+                    );
+                  }
+
+                  if (totalDiff < 0) {
+                    return (
+                      <View style={styles.switchNoticeBox}>
+                        <Info size={16} color={WARNING_COLOR} strokeWidth={2} />
+                        <Text style={styles.switchNoticeText}>
+                          {ticket?.allowDowngradeRefunds
+                            ? `Switching to a lower priced tier will submit a ₹${Math.abs(totalDiff).toLocaleString("en-IN")} refund request for organiser review.`
+                            : "Downgrade refunds are not enabled by the organiser. Any difference will not be refunded."}
+                        </Text>
+                      </View>
+                    );
+                  }
+
+                  return (
+                    <View style={styles.switchNoticeBox}>
+                      <Check
+                        size={16}
+                        color={SUCCESS_COLOR}
+                        strokeWidth={2.5}
+                      />
+                      <Text style={styles.switchNoticeText}>
+                        This is an equal-value ticket tier. You can switch immediately at no additional cost.
+                      </Text>
+                    </View>
+                  );
+                })()}
+
+                {/* 4. Action CTA Button */}
+                {selectedDestTier && (
+                  <TouchableOpacity
+                    style={[
+                      styles.confirmSwitchBtn,
+                      switchingLoading && { opacity: 0.6 },
+                    ]}
+                    onPress={handleConfirmSwitch}
+                    disabled={switchingLoading}
+                    activeOpacity={0.85}
+                  >
+                    {switchingLoading ? (
+                      <ActivityIndicator color="#FFFFFF" size="small" />
+                    ) : (() => {
+                      const unitDiff =
+                        selectedDestTier.basePrice - switchSourceTier.unitPrice;
+                      const totalDiff =
+                        Math.round(
+                          unitDiff * switchSourceTier.quantity * 100
+                        ) / 100;
+                      if (totalDiff > 0) {
+                        return (
+                          <View style={styles.btnRow}>
+                            <Text style={styles.confirmSwitchBtnText}>
+                              Pay ₹{totalDiff.toLocaleString("en-IN")} & Upgrade
+                            </Text>
+                            <ArrowRight
+                              size={18}
+                              color="#FFFFFF"
+                              strokeWidth={2.2}
+                            />
+                          </View>
+                        );
+                      }
+                      if (totalDiff < 0) {
+                        return (
+                          <Text style={styles.confirmSwitchBtnText}>
+                            Confirm Switch to {selectedDestTier.name}
+                          </Text>
+                        );
+                      }
+                      return (
+                        <Text style={styles.confirmSwitchBtnText}>
+                          Confirm Free Switch
+                        </Text>
+                      );
+                    })()}
+                  </TouchableOpacity>
+                )}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Razorpay Checkout WebView (for tier upgrade payments) */}
+      {RazorpayUI}
     </SafeAreaView>
   );
 }
@@ -1387,5 +2142,308 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: FONTS.semiBold,
     color: "#FFFFFF",
+  },
+  // Tier Switching Styles
+  ticketItemContainer: {
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  genderBadgePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
+    borderRadius: 12,
+    gap: 4,
+  },
+  genderBadgeText: {
+    fontSize: 11,
+    fontFamily: FONTS.semiBold,
+  },
+  accessBadgePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 10,
+  },
+  accessBadgeText: {
+    fontSize: 10,
+    fontFamily: FONTS.semiBold,
+  },
+  genderDotSmall: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  genderDotOrigin: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  switchTierTriggerRow: {
+    marginTop: 8,
+    flexDirection: "row",
+    justifyContent: "flex-start",
+  },
+  switchTierTriggerBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(41, 98, 255, 0.08)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  switchTierTriggerIconCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  switchTierTriggerText: {
+    fontSize: 12,
+    fontFamily: FONTS.semiBold,
+    color: PRIMARY_COLOR,
+  },
+  sheetSubtitle: {
+    fontSize: 13,
+    fontFamily: FONTS.regular,
+    color: MUTED_TEXT,
+    marginTop: 2,
+  },
+  sheetCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  switchOriginCard: {
+    backgroundColor: "#F9FAFB",
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    marginTop: 12,
+  },
+  switchOriginHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 6,
+  },
+  switchOriginSubtitle: {
+    fontSize: 11,
+    fontFamily: FONTS.semiBold,
+    color: MUTED_TEXT,
+    letterSpacing: 0.5,
+  },
+  switchOriginBody: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  switchOriginName: {
+    fontSize: 15,
+    fontFamily: FONTS.bold,
+    color: TEXT_COLOR,
+  },
+  switchOriginPrice: {
+    fontSize: 15,
+    fontFamily: FONTS.bold,
+    color: TEXT_COLOR,
+  },
+  switchQuantityText: {
+    fontSize: 12,
+    fontFamily: FONTS.medium,
+    color: MUTED_TEXT,
+  },
+  connectorFlowContainer: {
+    alignItems: "center",
+    paddingVertical: 8,
+  },
+  connectorLineVertical: {
+    width: 2,
+    height: 12,
+    backgroundColor: "#E5E7EB",
+  },
+  connectorBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    marginVertical: 2,
+  },
+  connectorBadgeText: {
+    fontSize: 10,
+    fontFamily: FONTS.semiBold,
+    color: PRIMARY_COLOR,
+    letterSpacing: 0.5,
+  },
+  destinationListContainer: {
+    gap: 10,
+    marginTop: 4,
+  },
+  emptyDestinationsBox: {
+    alignItems: "center",
+    padding: 24,
+    backgroundColor: "#F9FAFB",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    gap: 8,
+  },
+  emptyDestinationsText: {
+    fontSize: 13,
+    fontFamily: FONTS.regular,
+    color: MUTED_TEXT,
+    textAlign: "center",
+  },
+  destinationCard: {
+    borderWidth: 1.5,
+    borderColor: "#E5E7EB",
+    borderRadius: 14,
+    padding: 14,
+    backgroundColor: "#FFFFFF",
+  },
+  destinationCardSelected: {
+    borderColor: PRIMARY_COLOR,
+    backgroundColor: "#F0F6FF",
+  },
+  destinationCardDisabled: {
+    opacity: 0.55,
+    backgroundColor: "#F9FAFB",
+    borderColor: "#E5E7EB",
+  },
+  destinationCardLeft: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  destRadioCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: "#D1D5DB",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 2,
+  },
+  destRadioCircleSelected: {
+    borderColor: PRIMARY_COLOR,
+    backgroundColor: PRIMARY_COLOR,
+  },
+  destRadioCircleDisabled: {
+    borderColor: "#E5E7EB",
+    backgroundColor: "#F3F4F6",
+  },
+  destTierName: {
+    fontSize: 15,
+    fontFamily: FONTS.bold,
+    color: TEXT_COLOR,
+  },
+  destTierPrice: {
+    fontSize: 13,
+    fontFamily: FONTS.semiBold,
+    color: TEXT_COLOR,
+  },
+  upgradeDeltaBadge: {
+    backgroundColor: "#FFFBEB",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+  },
+  upgradeDeltaText: {
+    fontSize: 11,
+    fontFamily: FONTS.semiBold,
+    color: "#D97706",
+  },
+  freeDeltaBadge: {
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+  freeDeltaText: {
+    fontSize: 11,
+    fontFamily: FONTS.semiBold,
+    color: SUCCESS_COLOR,
+  },
+  downgradeDeltaBadge: {
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+  downgradeDeltaText: {
+    fontSize: 11,
+    fontFamily: FONTS.semiBold,
+    color: SUCCESS_COLOR,
+  },
+  ineligibleReasonText: {
+    fontSize: 11,
+    fontFamily: FONTS.medium,
+    color: ERROR_COLOR,
+    marginTop: 4,
+  },
+  destSlotsText: {
+    fontSize: 11,
+    fontFamily: FONTS.medium,
+    color: MUTED_TEXT,
+    marginTop: 4,
+  },
+  switchNoticeBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: "#F8FAFF",
+    borderWidth: 1,
+    borderColor: "#E0E8FF",
+    marginTop: 14,
+  },
+  switchNoticeText: {
+    flex: 1,
+    fontSize: 12,
+    fontFamily: FONTS.regular,
+    color: TEXT_COLOR,
+    lineHeight: 17,
+  },
+  confirmSwitchBtn: {
+    backgroundColor: PRIMARY_COLOR,
+    height: 50,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 16,
+  },
+  confirmSwitchBtnText: {
+    fontSize: 15,
+    fontFamily: FONTS.semiBold,
+    color: "#FFFFFF",
+  },
+  btnRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
 });

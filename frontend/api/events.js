@@ -212,6 +212,23 @@ export async function getMyTicket(eventId) {
 }
 
 /**
+ * Switch ticket tier for an attendee registration
+ * @param {string|number} eventId - Event ID
+ * @param {string|number} registrationId - Registration ID
+ * @param {Object} data - { newTicketTypeId, oldTicketTypeId, quantity }
+ * @returns {Promise<Object>}
+ */
+export async function switchTicketTier(eventId, registrationId, data) {
+  const token = await (await import("./auth")).getAuthToken();
+  return apiPost(
+    `/events/${eventId}/registrations/${registrationId}/switch-ticket`,
+    data,
+    15000,
+    token
+  );
+}
+
+/**
  * Verify ticket QR code (for community scanning)
  * @param {string|number} eventId - Event ID
  * @param {string} qrData - The QR code data string

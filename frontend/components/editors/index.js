@@ -10,3 +10,4 @@ export { default as PricingRulesEditor } from './PricingRulesEditor';
 export { default as PromoEditor } from './PromoEditor';
 export { default as RichTextEditor } from './RichTextEditor';
 export { default as TicketTypesEditor } from './TicketTypesEditor';
+export { default as TierSwitchRulesEditor } from './TierSwitchRulesEditor';

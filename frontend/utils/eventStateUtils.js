@@ -281,7 +281,11 @@ export function isGenericOrSelectedLocation(loc) {
  * }}
  */
 export function getEventModeDetails(event, customLocation = null) {
-  const eventType = (event?.event_type || event?.eventType || "in-person").toLowerCase();
+  const eventType = (
+    typeof event === "string"
+      ? event
+      : event?.event_type || event?.eventType || "in-person"
+  ).toLowerCase();
   const isHybrid = eventType === "hybrid";
   const isVirtual = eventType === "virtual";
   const isInPerson = !isHybrid && !isVirtual;

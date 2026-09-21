@@ -76,7 +76,7 @@ const createOrder = async (req, res) => {
   try {
     // Fetch event to validate it exists and get title
     const eventResult = await pool.query(
-      `SELECT id, title, community_id, allow_tier_switching, COALESCE(start_datetime, event_date) as effective_start FROM events WHERE id = $1`,
+      `SELECT id, title, community_id, allow_tier_switching, tier_switch_rules, COALESCE(start_datetime, event_date) as effective_start FROM events WHERE id = $1`,
       [eventId]
     );
 
@@ -118,7 +118,8 @@ const createOrder = async (req, res) => {
       }
 
       const oldTicketRow = await pool.query(
-        `SELECT rt.*, COALESCE(tt.access_mode, 'in_person') as access_mode
+        `SELECT rt.*, COALESCE(tt.access_mode, 'in_person') as access_mode,
+                COALESCE(tt.gender_restriction, 'all') as gender_restriction
          FROM registration_tickets rt
          LEFT JOIN ticket_types tt ON rt.ticket_type_id = tt.id
          WHERE rt.registration_id = $1 AND rt.ticket_type_id = $2`,
@@ -137,6 +138,71 @@ const createOrder = async (req, res) => {
         return res.status(400).json({ error: 'Invalid target ticket tier' });
       }
       const newTier = newTierRow.rows[0];
+
+      // Host-configured tier_switch_rules Check (Compulsory allowlist)
+      const rawRules = event.tier_switch_rules || [];
+      const switchRules = Array.isArray(rawRules) ? rawRules : [];
+      const matchingRule = switchRules.find((r) =>
+        parseInt(r.from_tier_id) === parseInt(oldTicket.ticket_type_id) ||
+        (r.from_tier_name && r.from_tier_name.trim().toLowerCase() === oldTicket.ticket_name.trim().toLowerCase())
+      );
+      if (!matchingRule) {
+        return res.status(400).json({
+          error: `Switching from "${oldTicket.ticket_name}" is not permitted for this event`,
+        });
+      }
+      const allowedTargetIds = (matchingRule.to_tier_ids || []).map((id) => parseInt(id));
+      const allowedTargetNames = (matchingRule.to_tier_names || []).map((n) => n.trim().toLowerCase());
+      const isTargetAllowed =
+        allowedTargetIds.includes(parseInt(newTier.id)) ||
+        allowedTargetNames.includes(newTier.name.trim().toLowerCase());
+      if (!isTargetAllowed) {
+        return res.status(400).json({
+          error: `Switching from "${oldTicket.ticket_name}" to "${newTier.name}" is not allowed by the organiser`,
+        });
+      }
+
+      // Gender Compatibility & Attendee Profile Check
+      const oldGender = (oldTicket.gender_restriction || "all").trim().toLowerCase();
+      const newGender = (newTier.gender_restriction || "all").trim().toLowerCase();
+      if (
+        (oldGender === "male" && newGender === "female") ||
+        (oldGender === "female" && newGender === "male")
+      ) {
+        return res.status(400).json({
+          error: "Cannot switch between Male and Female tickets",
+        });
+      }
+      if (newGender !== "all") {
+        const memberRes = await pool.query(
+          `SELECT gender FROM members WHERE id = $1`,
+          [userId]
+        );
+        const memberGender = (memberRes.rows[0]?.gender || "").trim().toLowerCase();
+        if (!memberGender) {
+          return res.status(400).json({
+            error: `Your profile gender is required to switch to a ${newTier.gender_restriction}-only ticket`,
+          });
+        }
+        if (memberGender !== newGender) {
+          return res.status(400).json({
+            error: `This ticket tier is restricted to ${newTier.gender_restriction} attendees only`,
+          });
+        }
+      }
+
+      // Sales Window Timing Check
+      const now = new Date();
+      if (newTier.sale_start_at && new Date(newTier.sale_start_at) > now) {
+        return res.status(400).json({
+          error: `Sales for ${newTier.name} have not started yet`,
+        });
+      }
+      if (newTier.sale_end_at && new Date(newTier.sale_end_at) < now) {
+        return res.status(400).json({
+          error: `Sales for ${newTier.name} have already closed`,
+        });
+      }
 
       if (newTier.total_quantity !== null && newTier.total_quantity !== undefined) {
         const available =
@@ -223,6 +289,8 @@ const createOrder = async (req, res) => {
         amount: razorpayOrder.amount,
         currency: razorpayOrder.currency,
         key: process.env.RAZORPAY_KEY_ID,
+        keyId: process.env.RAZORPAY_KEY_ID,
+        eventTitle: event.title,
         isUpgrade: true,
         user: { name: user.name, email: user.email },
       });

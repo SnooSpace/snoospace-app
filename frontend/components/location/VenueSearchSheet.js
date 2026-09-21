@@ -209,14 +209,49 @@ export default function VenueSearchSheet({
         accuracy: ExpoLocation.Accuracy.Balanced,
       });
       const { latitude, longitude } = loc.coords;
-      const provider = getActiveProvider();
-      const geo = await provider.reverseGeocode(latitude, longitude);
+      let shortAddress = '';
+      let fullAddress = '';
+
+      try {
+        const provider = getActiveProvider();
+        const geo = await provider.reverseGeocode(latitude, longitude);
+        if (geo) {
+          shortAddress = geo.shortAddress || '';
+          fullAddress = geo.address || '';
+        }
+      } catch (cloudErr) {
+        console.warn('[VenueSearchSheet] Cloud reverse geocode failed:', cloudErr?.message);
+      }
+
+      // Free native OS fallback (Apple Maps on iOS / Google Play on Android)
+      if (!shortAddress && !fullAddress) {
+        try {
+          const nativeResults = await ExpoLocation.reverseGeocodeAsync({ latitude, longitude });
+          if (nativeResults && nativeResults.length > 0) {
+            const nr = nativeResults[0];
+            const neighborhood = nr.name || nr.street || nr.district || nr.subregion || '';
+            const city = nr.city || nr.subregion || nr.region || '';
+            shortAddress = [neighborhood, city].filter(Boolean).join(', ') || city;
+            const fullParts = [
+              nr.name,
+              nr.street,
+              nr.district,
+              nr.city,
+              nr.region,
+              nr.postalCode,
+            ].filter(Boolean);
+            fullAddress = fullParts.filter((item, idx) => fullParts.indexOf(item) === idx).join(', ');
+          }
+        } catch (nativeErr) {
+          console.warn('[VenueSearchSheet] Native reverse geocode fallback failed:', nativeErr?.message);
+        }
+      }
 
       const result = {
         placeId: `current_${latitude}_${longitude}`,
-        name: geo?.shortAddress || 'Current Location',
-        address: geo?.address || '',
-        shortAddress: geo?.shortAddress || '',
+        name: shortAddress || 'Current Location',
+        address: fullAddress || shortAddress || '',
+        shortAddress: shortAddress,
         lat: latitude,
         lng: longitude,
         category: null,

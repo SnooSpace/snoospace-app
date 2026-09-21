@@ -273,16 +273,57 @@ export default function MapLocationPicker({
     reverseDebounceRef.current = setTimeout(async () => {
       setIsLoadingAddress(true);
       try {
-        const provider = getActiveProvider();
-        const result = await provider.reverseGeocode(lat, lng);
-        if (result) {
-          setVenueAddress(result.address || '');
-          setVenueShortAddress(result.shortAddress || '');
-          setVenueCity(result.city || '');
-          // Only replace venueName if it was empty (drop-pin flow)
-          if (!initialPlace) {
-            setVenueName(result.shortAddress || result.city || 'Selected Location');
+        let address = '';
+        let shortAddress = '';
+        let city = '';
+
+        // 1. Try active cloud provider (Google / Mappls)
+        try {
+          const provider = getActiveProvider();
+          const result = await provider.reverseGeocode(lat, lng);
+          if (result && (result.shortAddress || result.address || result.city)) {
+            address = result.address || '';
+            shortAddress = result.shortAddress || '';
+            city = result.city || '';
           }
+        } catch (cloudErr) {
+          console.warn('[MapPicker] Cloud reverse geocode failed:', cloudErr?.message);
+        }
+
+        // 2. Free native device OS fallback (Apple Maps on iOS, Google Play Services on Android)
+        // Works with zero API keys and zero paid cloud subscriptions
+        if (!shortAddress && !address) {
+          try {
+            const nativeResults = await ExpoLocation.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+            if (nativeResults && nativeResults.length > 0) {
+              const nr = nativeResults[0];
+              const neighborhood = nr.name || nr.street || nr.district || nr.subregion || '';
+              city = nr.city || nr.subregion || nr.region || '';
+              shortAddress = [neighborhood, city].filter(Boolean).join(', ') || city;
+              const fullParts = [
+                nr.name,
+                nr.street,
+                nr.district,
+                nr.city,
+                nr.region,
+                nr.postalCode,
+              ].filter(Boolean);
+              address = fullParts.filter((item, idx) => fullParts.indexOf(item) === idx).join(', ');
+            }
+          } catch (nativeErr) {
+            console.warn('[MapPicker] Native OS reverse geocode fallback failed:', nativeErr?.message);
+          }
+        }
+
+        if (address || shortAddress || city) {
+          setVenueAddress(address);
+          setVenueShortAddress(shortAddress);
+          setVenueCity(city);
+          if (!initialPlace) {
+            setVenueName(shortAddress || city || 'Selected Location');
+          }
+        } else if (!initialPlace) {
+          setVenueName('Selected Location');
         }
       } catch {
         // best-effort

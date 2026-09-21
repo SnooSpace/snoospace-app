@@ -1552,7 +1552,11 @@ async function ensureTables(pool) {
       DO $$ BEGIN
         ALTER TABLE events ADD COLUMN IF NOT EXISTS allow_downgrade_refunds BOOLEAN DEFAULT false;
       EXCEPTION WHEN duplicate_column THEN NULL; END $$;
-      -- ── End Migration 092 ──────────────────────────────────────────────────
+
+      DO $$ BEGIN
+        ALTER TABLE events ADD COLUMN IF NOT EXISTS tier_switch_rules JSONB DEFAULT '[]'::jsonb;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      -- ── End Migration 092 & 096 ───────────────────────────────────────────
 
       -- ── Migration 094: Community Disruptions & Cancellation Reliability ─────
       CREATE TABLE IF NOT EXISTS community_disruptions (

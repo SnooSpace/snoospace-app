@@ -80,6 +80,7 @@ const createEvent = async (req, res) => {
       invite_public_visibility, // For invite_only: show in feeds with hidden location
       allow_tier_switching,
       allow_downgrade_refunds,
+      tier_switch_rules,
     } = req.body;
 
     // Validation
@@ -295,7 +296,8 @@ const createEvent = async (req, res) => {
             sale_start_at, sale_end_at, visibility, access_code,
             min_per_order, max_per_order, max_per_user, refund_policy,
             display_order, is_active, gender_restriction, access_mode
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+          RETURNING id, name, gender_restriction, base_price`,
           [
             eventId,
             ticket.name,
@@ -326,7 +328,116 @@ const createEvent = async (req, res) => {
           ],
         );
       });
-      await Promise.all(ticketInserts);
+      const insertedTicketResults = await Promise.all(ticketInserts);
+      const insertedTickets = insertedTicketResults.map((r) => r.rows[0]);
+
+      // ── Process and validate tier_switch_rules (Compulsory when allow_tier_switching is true) ──
+      if (allow_tier_switching === true) {
+        if (
+          !tier_switch_rules ||
+          !Array.isArray(tier_switch_rules) ||
+          tier_switch_rules.length === 0
+        ) {
+          return res.status(400).json({
+            error: "Ticket switching requires at least one allowed switch rule to be configured",
+          });
+        }
+
+        const ticketByIndex = {};
+        const ticketByName = {};
+        const ticketById = {};
+        insertedTickets.forEach((t, idx) => {
+          ticketByIndex[idx] = t;
+          ticketByName[t.name.trim().toLowerCase()] = t;
+          ticketById[t.id] = t;
+        });
+
+        const resolvedSwitchRules = [];
+        for (const rule of tier_switch_rules) {
+          let fromTicket = null;
+          if (rule.from_tier_id && ticketById[rule.from_tier_id]) {
+            fromTicket = ticketById[rule.from_tier_id];
+          } else if (
+            rule.from_tier_index !== undefined &&
+            ticketByIndex[rule.from_tier_index]
+          ) {
+            fromTicket = ticketByIndex[rule.from_tier_index];
+          } else if (
+            rule.from_tier_name &&
+            ticketByName[rule.from_tier_name.trim().toLowerCase()]
+          ) {
+            fromTicket = ticketByName[rule.from_tier_name.trim().toLowerCase()];
+          }
+
+          if (!fromTicket) continue;
+
+          const targetIds = [];
+          const targetNames = [];
+          const rawTargets =
+            rule.to_tier_ids ||
+            rule.to_tier_indices ||
+            rule.to_tier_names ||
+            [];
+
+          for (const rawTarget of rawTargets) {
+            let toTicket = null;
+            if (ticketById[rawTarget]) {
+              toTicket = ticketById[rawTarget];
+            } else if (ticketByIndex[rawTarget]) {
+              toTicket = ticketByIndex[rawTarget];
+            } else if (
+              typeof rawTarget === "string" &&
+              ticketByName[rawTarget.trim().toLowerCase()]
+            ) {
+              toTicket = ticketByName[rawTarget.trim().toLowerCase()];
+            }
+
+            if (!toTicket || parseInt(toTicket.id) === parseInt(fromTicket.id)) {
+              continue;
+            }
+
+            // Strict Gender Invariant: Cannot map Male <-> Female under any circumstances!
+            const fromGender = (fromTicket.gender_restriction || "all")
+              .trim()
+              .toLowerCase();
+            const toGender = (toTicket.gender_restriction || "all")
+              .trim()
+              .toLowerCase();
+
+            if (
+              (fromGender === "male" && toGender === "female") ||
+              (fromGender === "female" && toGender === "male")
+            ) {
+              return res.status(400).json({
+                error: `Cannot configure ticket switching between Male and Female tickets ("${fromTicket.name}" to "${toTicket.name}")`,
+              });
+            }
+
+            targetIds.push(parseInt(toTicket.id));
+            targetNames.push(toTicket.name);
+          }
+
+          if (targetIds.length > 0) {
+            resolvedSwitchRules.push({
+              from_tier_id: parseInt(fromTicket.id),
+              from_tier_name: fromTicket.name,
+              to_tier_ids: targetIds,
+              to_tier_names: targetNames,
+            });
+          }
+        }
+
+        if (resolvedSwitchRules.length === 0) {
+          return res.status(400).json({
+            error: "Ticket switching requires at least one valid switch rule to be configured",
+          });
+        }
+
+        await pool.query(
+          `UPDATE events SET tier_switch_rules = $1 WHERE id = $2`,
+          [JSON.stringify(resolvedSwitchRules), eventId],
+        );
+      }
     } else {
       // Default tier auto-creation for events created without explicit multi-tier pricing.
       // Guarantees every event in SnooSpace has at least one valid ticket_type.
@@ -1929,6 +2040,7 @@ const updateEvent = async (req, res) => {
       invite_public_visibility, // Show in feeds with hidden location
       allow_tier_switching,
       allow_downgrade_refunds,
+      tier_switch_rules,
     } = req.body;
 
     console.log(
@@ -2423,6 +2535,97 @@ const updateEvent = async (req, res) => {
 
       console.log(
         `[updateEvent] Successfully saved ${ticket_types.length} ticket types`,
+      );
+    }
+
+    // Process and update tier_switch_rules if tier switching is being updated
+    const isSwitchingEnabled =
+      allow_tier_switching !== undefined
+        ? allow_tier_switching === true
+        : existingEvent.allow_tier_switching === true;
+
+    if (allow_tier_switching === false) {
+      await pool.query("UPDATE events SET tier_switch_rules = '[]'::jsonb WHERE id = $1", [eventId]);
+    } else if (isSwitchingEnabled && tier_switch_rules !== undefined) {
+      if (!Array.isArray(tier_switch_rules) || tier_switch_rules.length === 0) {
+        return res.status(400).json({
+          error: "Ticket switching requires at least one allowed switch rule to be configured",
+        });
+      }
+
+      const activeTicketsRes = await pool.query(
+        "SELECT id, name, gender_restriction FROM ticket_types WHERE event_id = $1 AND is_active = true",
+        [eventId],
+      );
+      const activeTickets = activeTicketsRes.rows;
+      const ticketById = {};
+      const ticketByName = {};
+      activeTickets.forEach((t) => {
+        ticketById[parseInt(t.id)] = t;
+        ticketByName[t.name.trim().toLowerCase()] = t;
+      });
+
+      const resolvedSwitchRules = [];
+      for (const rule of tier_switch_rules) {
+        let fromTicket = null;
+        if (rule.from_tier_id && ticketById[parseInt(rule.from_tier_id)]) {
+          fromTicket = ticketById[parseInt(rule.from_tier_id)];
+        } else if (rule.from_tier_name && ticketByName[rule.from_tier_name.trim().toLowerCase()]) {
+          fromTicket = ticketByName[rule.from_tier_name.trim().toLowerCase()];
+        }
+
+        if (!fromTicket) continue;
+
+        const targetIds = [];
+        const targetNames = [];
+        const rawTargets = rule.to_tier_ids || rule.to_tier_names || [];
+
+        for (const rawTarget of rawTargets) {
+          let toTicket = null;
+          if (ticketById[parseInt(rawTarget)]) {
+            toTicket = ticketById[parseInt(rawTarget)];
+          } else if (typeof rawTarget === "string" && ticketByName[rawTarget.trim().toLowerCase()]) {
+            toTicket = ticketByName[rawTarget.trim().toLowerCase()];
+          }
+
+          if (!toTicket || parseInt(toTicket.id) === parseInt(fromTicket.id)) continue;
+
+          // Strict Gender Invariant: Cannot map Male <-> Female under any circumstances!
+          const fromGender = (fromTicket.gender_restriction || "all").trim().toLowerCase();
+          const toGender = (toTicket.gender_restriction || "all").trim().toLowerCase();
+
+          if (
+            (fromGender === "male" && toGender === "female") ||
+            (fromGender === "female" && toGender === "male")
+          ) {
+            return res.status(400).json({
+              error: `Cannot configure ticket switching between Male and Female tickets ("${fromTicket.name}" to "${toTicket.name}")`,
+            });
+          }
+
+          targetIds.push(parseInt(toTicket.id));
+          targetNames.push(toTicket.name);
+        }
+
+        if (targetIds.length > 0) {
+          resolvedSwitchRules.push({
+            from_tier_id: parseInt(fromTicket.id),
+            from_tier_name: fromTicket.name,
+            to_tier_ids: targetIds,
+            to_tier_names: targetNames,
+          });
+        }
+      }
+
+      if (resolvedSwitchRules.length === 0) {
+        return res.status(400).json({
+          error: "Ticket switching requires at least one valid switch rule to be configured",
+        });
+      }
+
+      await pool.query(
+        "UPDATE events SET tier_switch_rules = $1 WHERE id = $2",
+        [JSON.stringify(resolvedSwitchRules), eventId],
       );
     }
 
@@ -4586,10 +4789,14 @@ const getMyTicket = async (req, res) => {
         e.event_type,
         e.virtual_link,
         e.meeting_platform,
+        e.allow_tier_switching,
+        e.allow_downgrade_refunds,
+        e.tier_switch_rules,
         c.id as community_id,
         c.name as community_name,
         c.logo_url as community_logo,
-        m.name as member_name
+        m.name as member_name,
+        m.gender as member_gender
       FROM event_registrations er
       JOIN events e ON er.event_id = e.id
       JOIN communities c ON e.community_id = c.id
@@ -4611,13 +4818,42 @@ const getMyTicket = async (req, res) => {
       `SELECT rt.ticket_name, rt.quantity, rt.unit_price, rt.total_price,
               rt.ticket_type_id,
               tt.refund_policy,
-              COALESCE(tt.access_mode, 'in_person') as access_mode
+              COALESCE(tt.access_mode, 'in_person') as access_mode,
+              COALESCE(tt.gender_restriction, 'all') as gender_restriction
        FROM registration_tickets rt
        LEFT JOIN ticket_types tt ON rt.ticket_type_id = tt.id
        WHERE rt.registration_id = $1
        ORDER BY rt.ticket_name`,
       [registration.registration_id],
     );
+
+    // Fetch available ticket types for tier switching
+    let availableTiers = [];
+    if (registration.allow_tier_switching) {
+      const availTiersRes = await pool.query(
+        `SELECT id, name, base_price, total_quantity, sold_count, reserved_count,
+                COALESCE(access_mode, 'in_person') as access_mode,
+                COALESCE(gender_restriction, 'all') as gender_restriction,
+                sale_start_at, sale_end_at, description
+         FROM ticket_types
+         WHERE event_id = $1 AND is_active = true
+         ORDER BY base_price ASC`,
+        [eventId]
+      );
+      availableTiers = availTiersRes.rows.map((t) => ({
+        id: t.id,
+        name: t.name,
+        basePrice: parseFloat(t.base_price) || 0,
+        totalQuantity: t.total_quantity,
+        soldCount: parseInt(t.sold_count || 0, 10),
+        reservedCount: parseInt(t.reserved_count || 0, 10),
+        accessMode: t.access_mode,
+        genderRestriction: t.gender_restriction,
+        saleStartAt: t.sale_start_at,
+        saleEndAt: t.sale_end_at,
+        description: t.description,
+      }));
+    }
 
     const hasVirtual = ticketsResult.rows.some(
       (t) => t.access_mode === 'virtual' || t.access_mode === 'both'
@@ -4684,6 +4920,11 @@ const getMyTicket = async (req, res) => {
         communityName: registration.community_name,
         communityLogo: registration.community_logo,
         memberName: registration.member_name,
+        memberGender: registration.member_gender || null,
+        allowTierSwitching: !!registration.allow_tier_switching,
+        allowDowngradeRefunds: !!registration.allow_downgrade_refunds,
+        tierSwitchRules: registration.tier_switch_rules || [],
+        availableTiers,
         registeredAt: registration.registered_at,
         totalAmount: parseFloat(registration.total_amount) || 0,
         discountAmount: parseFloat(registration.discount_amount) || 0,
@@ -4698,6 +4939,7 @@ const getMyTicket = async (req, res) => {
           totalPrice: parseFloat(t.total_price),
           ticketTypeId: t.ticket_type_id,
           accessMode: t.access_mode,
+          genderRestriction: t.gender_restriction,
           refundPolicy: t.refund_policy || {
             allowed: true,
             deadline_hours_before: 24,
@@ -7252,7 +7494,7 @@ const switchTicketTier = async (req, res) => {
     // 1. Confirm events.allow_tier_switching = true
     // 2. Confirm COALESCE(e.start_datetime, e.event_date) > NOW()
     const eventRes = await client.query(
-      `SELECT id, title, allow_tier_switching, allow_downgrade_refunds,
+      `SELECT id, title, allow_tier_switching, allow_downgrade_refunds, tier_switch_rules,
               COALESCE(start_datetime, event_date) as effective_start
        FROM events
        WHERE id = $1
@@ -7308,7 +7550,8 @@ const switchTicketTier = async (req, res) => {
     // Fetch existing tickets in this registration
     const currentTicketsRes = await client.query(
       `SELECT rt.id, rt.ticket_type_id, rt.ticket_name, rt.quantity, rt.unit_price, rt.total_price,
-              COALESCE(tt.access_mode, 'in_person') as access_mode
+              COALESCE(tt.access_mode, 'in_person') as access_mode,
+              COALESCE(tt.gender_restriction, 'all') as gender_restriction
        FROM registration_tickets rt
        LEFT JOIN ticket_types tt ON rt.ticket_type_id = tt.id
        WHERE rt.registration_id = $1
@@ -7350,7 +7593,7 @@ const switchTicketTier = async (req, res) => {
     // 4. Lock and check new tier's capacity (FOR UPDATE)
     const newTierRes = await client.query(
       `SELECT id, name, base_price, total_quantity, sold_count, reserved_count,
-              access_mode, is_active
+              access_mode, is_active, gender_restriction, sale_start_at, sale_end_at
        FROM ticket_types
        WHERE id = $1 AND event_id = $2 AND is_active = true
        FOR UPDATE`,
@@ -7363,6 +7606,86 @@ const switchTicketTier = async (req, res) => {
     }
 
     const newTier = newTierRes.rows[0];
+
+    // 4a. Host-Configured tier_switch_rules Check (Compulsory allowlist)
+    const rawRules = event.tier_switch_rules || [];
+    const switchRules = Array.isArray(rawRules) ? rawRules : [];
+
+    const matchingRule = switchRules.find((r) =>
+      parseInt(r.from_tier_id) === parseInt(oldTicket.ticket_type_id) ||
+      (r.from_tier_name && r.from_tier_name.trim().toLowerCase() === oldTicket.ticket_name.trim().toLowerCase())
+    );
+
+    if (!matchingRule) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        error: `Switching from "${oldTicket.ticket_name}" is not permitted for this event`,
+      });
+    }
+
+    const allowedTargetIds = (matchingRule.to_tier_ids || []).map((id) => parseInt(id));
+    const allowedTargetNames = (matchingRule.to_tier_names || []).map((n) => n.trim().toLowerCase());
+
+    const isTargetAllowed =
+      allowedTargetIds.includes(parseInt(newTier.id)) ||
+      allowedTargetNames.includes(newTier.name.trim().toLowerCase());
+
+    if (!isTargetAllowed) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        error: `Switching from "${oldTicket.ticket_name}" to "${newTier.name}" is not allowed by the organiser`,
+      });
+    }
+
+    // 4b. Gender Compatibility & Attendee Profile Check
+    const oldGender = (oldTicket.gender_restriction || "all").trim().toLowerCase();
+    const newGender = (newTier.gender_restriction || "all").trim().toLowerCase();
+
+    if (
+      (oldGender === "male" && newGender === "female") ||
+      (oldGender === "female" && newGender === "male")
+    ) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        error: "Cannot switch between Male and Female tickets",
+      });
+    }
+
+    if (newGender !== "all") {
+      const memberRes = await client.query(
+        `SELECT gender FROM members WHERE id = $1`,
+        [userId]
+      );
+      const memberGender = (memberRes.rows[0]?.gender || "").trim().toLowerCase();
+
+      if (!memberGender) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({
+          error: `Your profile gender is required to switch to a ${newTier.gender_restriction}-only ticket`,
+        });
+      }
+      if (memberGender !== newGender) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({
+          error: `This ticket tier is restricted to ${newTier.gender_restriction} attendees only`,
+        });
+      }
+    }
+
+    // 4c. Sales Window Timing Check
+    const now = new Date();
+    if (newTier.sale_start_at && new Date(newTier.sale_start_at) > now) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        error: `Sales for ${newTier.name} have not started yet`,
+      });
+    }
+    if (newTier.sale_end_at && new Date(newTier.sale_end_at) < now) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        error: `Sales for ${newTier.name} have already closed`,
+      });
+    }
 
     if (newTier.total_quantity !== null && newTier.total_quantity !== undefined) {
       const available =

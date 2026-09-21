@@ -73,7 +73,7 @@ export default function DiscoverEventCard({
   // Prioritize custom location_name if provided, but hide if invite-only
   const displayLocation = shouldHideLocation
     ? null
-    : event.location_name || decodedLocationName;
+    : event.location_name || event.venue_name || decodedLocationName;
 
   return (
     <TouchableOpacity

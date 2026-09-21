@@ -41,7 +41,8 @@ export async function createPaymentOrder(
   tickets,
   promoCode,
   discountAmount,
-  sessionId
+  sessionId,
+  switchUpgradeData
 ) {
   const token = await (await import('./auth')).getAuthToken();
   return apiPost(
@@ -53,6 +54,7 @@ export async function createPaymentOrder(
       promoCode,
       discountAmount,
       sessionId,
+      switchUpgradeData,
     },
     15000,
     token

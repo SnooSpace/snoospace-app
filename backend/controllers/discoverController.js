@@ -108,6 +108,8 @@ const getDiscoverFeed = async (req, res) => {
           e.banner_url,
           e.start_datetime as event_date,
           e.location_url,
+          e.location_name,
+          e.venue_name,
           e.event_type,
           COALESCE(
             (SELECT MIN(base_price) FROM ticket_types WHERE event_id = e.id AND is_active = true AND base_price > 0),
