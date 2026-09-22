@@ -339,10 +339,25 @@ const PromoEditor = React.forwardRef(
       if (!current.discount_value || parseFloat(current.discount_value) <= 0)
         return false;
 
+      // Percentage discount cannot exceed 100%
+      if (
+        current.discount_type === "percentage" &&
+        parseFloat(current.discount_value) > 100
+      )
+        return false;
+
       if (current.offer_type === "promo_code") {
         // Promo code string required
         if (!current.code.trim()) return false;
       }
+
+      // Validity window ordering constraint (valid_until cannot be earlier than valid_from)
+      if (
+        current.valid_from &&
+        current.valid_until &&
+        current.valid_until < current.valid_from
+      )
+        return false;
 
       if (current.offer_type === "early_bird") {
         if (current.trigger === "by_date") {
@@ -368,6 +383,16 @@ const PromoEditor = React.forwardRef(
       if (
         current.applies_to === "specific" &&
         current.selected_tickets.length === 0
+      )
+        return false;
+
+      // Max uses must be at least 1 if specified (when not governed by sales)
+      if (
+        !isBySales &&
+        current.max_uses !== "" &&
+        current.max_uses !== null &&
+        current.max_uses !== undefined &&
+        parseInt(current.max_uses, 10) < 1
       )
         return false;
 
@@ -548,6 +573,36 @@ const PromoEditor = React.forwardRef(
         return;
       }
 
+      // Validity window check
+      if (
+        current.valid_from &&
+        current.valid_until &&
+        current.valid_until < current.valid_from
+      ) {
+        Alert.alert(
+          "Invalid Validity Window",
+          "Valid until date cannot be earlier than valid from date.",
+        );
+        return;
+      }
+
+      // Max uses validation
+      if (
+        !isBySales &&
+        current.max_uses !== "" &&
+        current.max_uses !== null &&
+        current.max_uses !== undefined
+      ) {
+        const mu = parseInt(current.max_uses, 10);
+        if (isNaN(mu) || mu < 1) {
+          Alert.alert(
+            "Invalid Max Uses",
+            "Max uses must be at least 1 (or leave blank for unlimited).",
+          );
+          return;
+        }
+      }
+
       // Auto-derive name from context
       const autoName =
         current.offer_type === "promo_code"
@@ -556,6 +611,7 @@ const PromoEditor = React.forwardRef(
           ? `Group (${current.min_quantity || 2}+ Tickets)`
           : "Early Bird";
 
+      const minPurchVal = parseFloat(current.min_purchase);
       const promoData = {
         offer_type: current.offer_type,
         name: autoName,
@@ -575,9 +631,8 @@ const PromoEditor = React.forwardRef(
             : current.max_uses
             ? parseInt(current.max_uses, 10)
             : null,
-        min_purchase: current.min_purchase
-          ? parseFloat(current.min_purchase)
-          : null,
+        min_purchase:
+          !isNaN(minPurchVal) && minPurchVal > 0 ? minPurchVal : null,
         min_quantity:
           current.offer_type === "group_discount" && current.min_quantity
             ? parseInt(current.min_quantity, 10)
@@ -1380,6 +1435,12 @@ const PromoEditor = React.forwardRef(
                     placeholderTextColor="#94A3B8"
                     keyboardType="numeric"
                   />
+                  {current.discount_type === "percentage" &&
+                    parseFloat(current.discount_value) > 100 && (
+                      <Text style={styles.validationError}>
+                        Percentage discount cannot exceed 100%
+                      </Text>
+                    )}
 
                   {/* Preview — multi-ticket */}
                   {(() => {
@@ -1655,6 +1716,12 @@ const PromoEditor = React.forwardRef(
                           placeholderTextColor="#94A3B8"
                           keyboardType="numeric"
                         />
+                        {current.max_uses !== "" &&
+                          parseInt(current.max_uses, 10) < 1 && (
+                            <Text style={styles.validationError}>
+                              Max uses must be at least 1 (or leave blank for unlimited)
+                            </Text>
+                          )}
                       </>
                     )}
 
@@ -1665,7 +1732,10 @@ const PromoEditor = React.forwardRef(
                       style={styles.input}
                       value={current.min_purchase}
                       onChangeText={(text) =>
-                        setCurrent({ ...current, min_purchase: text })
+                        setCurrent({
+                          ...current,
+                          min_purchase: text.replace(/[^0-9.]/g, ""),
+                        })
                       }
                       placeholder="₹0 (no minimum)"
                       placeholderTextColor="#94A3B8"
@@ -1830,6 +1900,14 @@ const PromoEditor = React.forwardRef(
                             </TouchableOpacity>
                           </View>
                         )}
+
+                        {current.valid_from &&
+                          current.valid_until &&
+                          current.valid_until < current.valid_from && (
+                            <Text style={styles.validationError}>
+                              Valid until date cannot be earlier than valid from date
+                            </Text>
+                          )}
 
                         {eventStartDate && (
                           <Text style={styles.eventDateHint}>
@@ -2718,10 +2796,10 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   validationError: {
+    fontFamily: "Manrope-Medium",
     fontSize: 13,
     color: "#EF4444",
     marginTop: 6,
-    fontWeight: "500",
   },
   validationWarning: {
     fontFamily: "Manrope-Medium",

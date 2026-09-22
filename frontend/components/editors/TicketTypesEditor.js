@@ -363,9 +363,32 @@ const TicketTypesEditor = React.forwardRef(
       return false;
     }, [currentTicket, capacityMode, genderMode, salesMode, editingIndex, initialTicketSnapshot]);
 
-    const isSaveDisabled = editingIndex !== null
-      ? !isTicketDirty || !currentTicket.name.trim()
-      : !currentTicket.name.trim();
+    const isFreeTicket =
+      !currentTicket.base_price || parseFloat(currentTicket.base_price) === 0;
+
+    const existingTicket = editingIndex !== null ? ticketTypes[editingIndex] : null;
+    const soldCount = existingTicket?.sold_count || 0;
+
+    const isCapacityInvalid =
+      capacityMode === "limited" &&
+      (!currentTicket.total_quantity ||
+        parseInt(currentTicket.total_quantity, 10) < 1 ||
+        (soldCount > 0 && parseInt(currentTicket.total_quantity, 10) < soldCount));
+
+    const isSalesWindowInvalid =
+      salesMode === "custom" &&
+      (!currentTicket.sales_start_date ||
+        !currentTicket.sales_end_date ||
+        currentTicket.sales_end_date < currentTicket.sales_start_date ||
+        (eventStartDate &&
+          (currentTicket.sales_start_date > new Date(eventStartDate) ||
+            currentTicket.sales_end_date > new Date(eventStartDate))));
+
+    const isSaveDisabled =
+      !currentTicket.name.trim() ||
+      isCapacityInvalid ||
+      isSalesWindowInvalid ||
+      (editingIndex !== null && !isTicketDirty);
 
     const handleSave = () => {
       if (!currentTicket.name.trim()) {
@@ -381,45 +404,99 @@ const TicketTypesEditor = React.forwardRef(
         return;
       }
 
-      // Sales window hard validation
-      if (
-        currentTicket.sales_start_date &&
-        currentTicket.sales_end_date &&
-        currentTicket.sales_end_date < currentTicket.sales_start_date
-      ) {
-        setAlertConfig({
-          visible: true,
-          title: "Invalid Sales Window",
-          message: "Sales end date cannot be before sales start date.",
-          primaryAction: {
-            text: "OK",
-            onPress: () => setAlertConfig(null),
-          },
-        });
-        return;
+      // Capacity validation
+      if (capacityMode === "limited") {
+        const qty = parseInt(currentTicket.total_quantity, 10);
+        if (!qty || qty < 1) {
+          setAlertConfig({
+            visible: true,
+            title: "Invalid Capacity",
+            message:
+              "Please enter a valid ticket quantity of at least 1 for limited capacity.",
+            primaryAction: {
+              text: "OK",
+              onPress: () => setAlertConfig(null),
+            },
+          });
+          return;
+        }
+        if (soldCount > 0 && qty < soldCount) {
+          setAlertConfig({
+            visible: true,
+            title: "Invalid Capacity",
+            message: `Capacity cannot be lower than the ${soldCount} ticket(s) already sold.`,
+            primaryAction: {
+              text: "OK",
+              onPress: () => setAlertConfig(null),
+            },
+          });
+          return;
+        }
       }
-      if (
-        salesMode === "custom" &&
-        currentTicket.sales_end_date &&
-        eventStartDate &&
-        currentTicket.sales_end_date > new Date(eventStartDate)
-      ) {
-        setAlertConfig({
-          visible: true,
-          title: "Invalid Sales Window",
-          message: "Sales must close before the event starts.",
-          primaryAction: {
-            text: "OK",
-            onPress: () => setAlertConfig(null),
-          },
-        });
-        return;
+
+      // Sales window hard validation
+      if (salesMode === "custom") {
+        if (!currentTicket.sales_start_date || !currentTicket.sales_end_date) {
+          setAlertConfig({
+            visible: true,
+            title: "Incomplete Sales Window",
+            message:
+              "Please select both a sales start date and end date for custom sales dates.",
+            primaryAction: {
+              text: "OK",
+              onPress: () => setAlertConfig(null),
+            },
+          });
+          return;
+        }
+        if (currentTicket.sales_end_date < currentTicket.sales_start_date) {
+          setAlertConfig({
+            visible: true,
+            title: "Invalid Sales Window",
+            message: "Sales end date cannot be before sales start date.",
+            primaryAction: {
+              text: "OK",
+              onPress: () => setAlertConfig(null),
+            },
+          });
+          return;
+        }
+        if (
+          eventStartDate &&
+          currentTicket.sales_start_date > new Date(eventStartDate)
+        ) {
+          setAlertConfig({
+            visible: true,
+            title: "Invalid Sales Window",
+            message: "Sales cannot open after the event starts.",
+            primaryAction: {
+              text: "OK",
+              onPress: () => setAlertConfig(null),
+            },
+          });
+          return;
+        }
+        if (
+          eventStartDate &&
+          currentTicket.sales_end_date > new Date(eventStartDate)
+        ) {
+          setAlertConfig({
+            visible: true,
+            title: "Invalid Sales Window",
+            message: "Sales must close before the event starts.",
+            primaryAction: {
+              text: "OK",
+              onPress: () => setAlertConfig(null),
+            },
+          });
+          return;
+        }
       }
 
       // Refund policy validation
-      if (currentTicket.refund_policy_allowed) {
-        const dl = parseInt(currentTicket.refund_policy_deadline);
-        const pct = parseInt(currentTicket.refund_policy_percentage);
+      if (currentTicket.refund_policy_allowed && !isFreeTicket) {
+        const dl = parseInt(currentTicket.refund_policy_deadline, 10);
+        const pct = parseInt(currentTicket.refund_policy_percentage, 10);
         if (isNaN(dl) || dl < 0) {
           setAlertConfig({
             visible: true,
@@ -455,7 +532,7 @@ const TicketTypesEditor = React.forwardRef(
         base_price: parseFloat(currentTicket.base_price) || 0,
         total_quantity:
           capacityMode === "limited" && currentTicket.total_quantity
-            ? parseInt(currentTicket.total_quantity)
+            ? parseInt(currentTicket.total_quantity, 10)
             : null,
         visibility: currentTicket.visibility,
         gender_restriction:
@@ -476,16 +553,18 @@ const TicketTypesEditor = React.forwardRef(
         sale_end_at: salesEndDate,
         sales_start_date: salesStartDate,
         sales_end_date: salesEndDate,
-        // Per-tier refund policy \u2014 organiser-set, sent explicitly to backend.
+        // Per-tier refund policy — organiser-set, sent explicitly to backend.
         // Backend falls back to default only if this is absent (backward compat).
         refund_policy: {
-          allowed: currentTicket.refund_policy_allowed,
-          deadline_hours_before: currentTicket.refund_policy_allowed
-            ? parseInt(currentTicket.refund_policy_deadline) || 24
-            : 0,
-          percentage: currentTicket.refund_policy_allowed
-            ? parseInt(currentTicket.refund_policy_percentage) || 100
-            : 0,
+          allowed: isFreeTicket ? false : currentTicket.refund_policy_allowed,
+          deadline_hours_before:
+            !isFreeTicket && currentTicket.refund_policy_allowed
+              ? parseInt(currentTicket.refund_policy_deadline, 10) || 24
+              : 0,
+          percentage:
+            !isFreeTicket && currentTicket.refund_policy_allowed
+              ? parseInt(currentTicket.refund_policy_percentage, 10) || 100
+              : 0,
         },
       };
 
@@ -1085,21 +1164,41 @@ const TicketTypesEditor = React.forwardRef(
                   </View>
 
                   {capacityMode === "limited" && (
-                    <View style={styles.capacityInputWrapper}>
-                      <Text style={styles.capacityInputLabel}>Max tickets</Text>
-                      <TextInput
-                        style={styles.capacityNumberInput}
-                        value={currentTicket.total_quantity}
-                        onChangeText={(text) =>
-                          setCurrentTicket({
-                            ...currentTicket,
-                            total_quantity: text,
-                          })
-                        }
-                        placeholder="100"
-                        placeholderTextColor="#94A3B8"
-                        keyboardType="numeric"
-                      />
+                    <View>
+                      <View style={styles.capacityInputWrapper}>
+                        <Text style={styles.capacityInputLabel}>Max tickets</Text>
+                        <TextInput
+                          style={styles.capacityNumberInput}
+                          value={currentTicket.total_quantity}
+                          onChangeText={(text) =>
+                            setCurrentTicket({
+                              ...currentTicket,
+                              total_quantity: text.replace(/[^0-9]/g, ""),
+                            })
+                          }
+                          placeholder="100"
+                          placeholderTextColor="#94A3B8"
+                          keyboardType="numeric"
+                        />
+                      </View>
+                      {(!currentTicket.total_quantity ||
+                        parseInt(currentTicket.total_quantity, 10) < 1) && (
+                        <Text style={styles.validationError}>
+                          Please enter a ticket quantity (minimum 1)
+                        </Text>
+                      )}
+                      {soldCount > 0 &&
+                        currentTicket.total_quantity &&
+                        parseInt(currentTicket.total_quantity, 10) < soldCount && (
+                          <Text style={styles.validationError}>
+                            Capacity cannot be less than {soldCount} already sold
+                          </Text>
+                        )}
+                      {soldCount > 0 && (
+                        <Text style={styles.helperText}>
+                          Minimum {soldCount} tickets ({soldCount} already sold)
+                        </Text>
+                      )}
                     </View>
                   )}
                 </View>
@@ -1380,12 +1479,27 @@ const TicketTypesEditor = React.forwardRef(
                   )}
 
                   {salesMode === "custom" &&
+                    (!currentTicket.sales_start_date ||
+                      !currentTicket.sales_end_date) && (
+                      <Text style={styles.validationWarning}>
+                        Please select both sales start and close dates
+                      </Text>
+                    )}
+                  {salesMode === "custom" &&
                     currentTicket.sales_start_date &&
                     currentTicket.sales_end_date &&
                     currentTicket.sales_end_date <
                       currentTicket.sales_start_date && (
                       <Text style={styles.validationError}>
-                        End date cannot be before start date
+                        Sales close date cannot be before start date
+                      </Text>
+                    )}
+                  {salesMode === "custom" &&
+                    currentTicket.sales_start_date &&
+                    eventStartDate &&
+                    currentTicket.sales_start_date > new Date(eventStartDate) && (
+                      <Text style={styles.validationWarning}>
+                        Sales cannot open after the event starts
                       </Text>
                     )}
                   {salesMode === "custom" &&
@@ -1642,10 +1756,14 @@ const TicketTypesEditor = React.forwardRef(
                         <Text
                           style={[
                             styles.refundCardSubtitle,
-                            currentTicket.refund_policy_allowed && styles.refundCardSubtitleActive,
+                            !isFreeTicket &&
+                              currentTicket.refund_policy_allowed &&
+                              styles.refundCardSubtitleActive,
                           ]}
                         >
-                          {currentTicket.refund_policy_allowed
+                          {isFreeTicket
+                            ? "Free tickets are non-refundable"
+                            : currentTicket.refund_policy_allowed
                             ? `${currentTicket.refund_policy_percentage}% refund · ${currentTicket.refund_policy_deadline}h deadline`
                             : "Non-refundable for this tier"}
                         </Text>
@@ -1662,204 +1780,211 @@ const TicketTypesEditor = React.forwardRef(
                     <View style={styles.refundBody}>
                       <View style={styles.refundDivider} />
 
-                      {/* Allow refunds toggle */}
-                      <View style={styles.refundToggleRow}>
-                        <View style={{ flex: 1, marginRight: 12 }}>
-                          <Text style={styles.refundToggleTitle}>Allow refunds</Text>
-                          <Text style={styles.refundToggleHelper}>
-                            Attendees can request a refund before the deadline
+                      {isFreeTicket ? (
+                        <View style={styles.refundFreeNotice}>
+                          <Info size={16} color="#64748B" strokeWidth={1.75} />
+                          <Text style={styles.refundFreeNoticeText}>
+                            Refunds are not applicable for free tickets.
                           </Text>
                         </View>
-                        <Switch
-                          value={currentTicket.refund_policy_allowed}
-                          onValueChange={(val) => {
-                            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                            setCurrentTicket({ ...currentTicket, refund_policy_allowed: val });
-                          }}
-                          trackColor={{ false: "#E2E8F0", true: "#BFDBFE" }}
-                          thumbColor={currentTicket.refund_policy_allowed ? "#2962FF" : "#FFFFFF"}
-                        />
-                      </View>
-
-                      {currentTicket.refund_policy_allowed && (
-                        <View style={styles.refundFieldsContainer}>
-                          {/* Field 1: Cancellation Deadline */}
-                          <View style={styles.refundFieldBlock}>
-                            <View style={styles.refundFieldLabelRow}>
-                              <Text style={styles.refundFieldLabel}>Cancellation Deadline</Text>
-                              <Text style={styles.refundFieldHint}>Hours before event starts</Text>
+                      ) : (
+                        <>
+                          {/* Allow refunds toggle */}
+                          <View style={styles.refundToggleRow}>
+                            <View style={{ flex: 1, marginRight: 12 }}>
+                              <Text style={styles.refundToggleTitle}>Allow refunds</Text>
+                              <Text style={styles.refundToggleHelper}>
+                                Attendees can request a refund before the deadline
+                              </Text>
                             </View>
+                            <Switch
+                              value={currentTicket.refund_policy_allowed}
+                              onValueChange={(val) => {
+                                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                                setCurrentTicket({ ...currentTicket, refund_policy_allowed: val });
+                              }}
+                              trackColor={{ false: "#E2E8F0", true: "#BFDBFE" }}
+                              thumbColor={currentTicket.refund_policy_allowed ? "#2962FF" : "#FFFFFF"}
+                            />
+                          </View>
 
-                            <View style={styles.unifiedInputContainer}>
-                              <Clock size={16} color="#94A3B8" style={{ marginRight: 10 }} />
-                              <TextInput
-                                style={styles.unifiedTextInput}
-                                value={currentTicket.refund_policy_deadline}
-                                onChangeText={(t) =>
-                                  setCurrentTicket({
-                                    ...currentTicket,
-                                    refund_policy_deadline: t.replace(/[^0-9]/g, ""),
-                                  })
-                                }
-                                placeholder="24"
-                                placeholderTextColor="#94A3B8"
-                                keyboardType="numeric"
-                              />
-                              <View style={styles.unifiedSuffixBadge}>
-                                <Text style={styles.unifiedSuffixText}>hrs</Text>
-                              </View>
-                            </View>
+                          {currentTicket.refund_policy_allowed && (
+                            <View style={styles.refundFieldsContainer}>
+                              {/* Field 1: Cancellation Deadline */}
+                              <View style={styles.refundFieldBlock}>
+                                <View style={styles.refundFieldLabelRow}>
+                                  <Text style={styles.refundFieldLabel}>Cancellation Deadline</Text>
+                                  <Text style={styles.refundFieldHint}>Hours before event starts</Text>
+                                </View>
 
-                            {/* Preset chips for deadline */}
-                            <View style={styles.refundPresetRow}>
-                              {[
-                                { label: "12 hrs", value: "12" },
-                                { label: "24 hrs", value: "24" },
-                                { label: "48 hrs", value: "48" },
-                                { label: "7 days", value: "168" },
-                              ].map((chip) => {
-                                const isSelected = currentTicket.refund_policy_deadline === chip.value;
-                                return (
-                                  <TouchableOpacity
-                                    key={chip.value}
-                                    style={[
-                                      styles.refundPresetChip,
-                                      isSelected && styles.refundPresetChipActive,
-                                    ]}
-                                    onPress={() => {
+                                <View style={styles.unifiedInputContainer}>
+                                  <Clock size={16} color="#94A3B8" style={{ marginRight: 10 }} />
+                                  <TextInput
+                                    style={styles.unifiedTextInput}
+                                    value={currentTicket.refund_policy_deadline}
+                                    onChangeText={(t) =>
                                       setCurrentTicket({
                                         ...currentTicket,
-                                        refund_policy_deadline: chip.value,
-                                      });
-                                    }}
-                                    activeOpacity={0.7}
-                                  >
-                                    <Text
-                                      style={[
-                                        styles.refundPresetChipText,
-                                        isSelected && styles.refundPresetChipTextActive,
-                                      ]}
-                                    >
-                                      {chip.label}
-                                    </Text>
-                                  </TouchableOpacity>
-                                );
-                              })}
-                            </View>
-                          </View>
+                                        refund_policy_deadline: t.replace(/[^0-9]/g, ""),
+                                      })
+                                    }
+                                    placeholder="24"
+                                    placeholderTextColor="#94A3B8"
+                                    keyboardType="numeric"
+                                  />
+                                  <View style={styles.unifiedSuffixBadge}>
+                                    <Text style={styles.unifiedSuffixText}>hours</Text>
+                                  </View>
+                                </View>
 
-                          {/* Field 2: Refund Percentage */}
-                          <View style={styles.refundFieldBlock}>
-                            <View style={styles.refundFieldLabelRow}>
-                              <Text style={styles.refundFieldLabel}>Refund Amount</Text>
-                              <Text style={styles.refundFieldHint}>Percentage of ticket price returned</Text>
-                            </View>
-
-                            <View style={styles.unifiedInputContainer}>
-                              <Percent size={16} color="#94A3B8" style={{ marginRight: 10 }} />
-                              <TextInput
-                                style={styles.unifiedTextInput}
-                                value={currentTicket.refund_policy_percentage}
-                                onChangeText={(t) => {
-                                  const num = t.replace(/[^0-9]/g, "");
-                                  if (num === "" || parseInt(num, 10) <= 100) {
-                                    setCurrentTicket({
-                                      ...currentTicket,
-                                      refund_policy_percentage: num,
-                                    });
-                                  }
-                                }}
-                                placeholder="100"
-                                placeholderTextColor="#94A3B8"
-                                keyboardType="numeric"
-                              />
-                              <View style={styles.unifiedSuffixBadge}>
-                                <Text style={styles.unifiedSuffixText}>%</Text>
+                                {/* Preset chips for deadline */}
+                                <View style={styles.refundPresetRow}>
+                                  {[
+                                    { label: "12 hours", value: "12" },
+                                    { label: "24 hours", value: "24" },
+                                    { label: "48 hours", value: "48" },
+                                    { label: "7 days", value: "168" },
+                                  ].map((chip) => {
+                                    const isSelected = currentTicket.refund_policy_deadline === chip.value;
+                                    return (
+                                      <TouchableOpacity
+                                        key={chip.value}
+                                        style={[
+                                          styles.refundPresetChip,
+                                          isSelected && styles.refundPresetChipActive,
+                                        ]}
+                                        onPress={() => {
+                                          setCurrentTicket({
+                                            ...currentTicket,
+                                            refund_policy_deadline: chip.value,
+                                          });
+                                        }}
+                                        activeOpacity={0.7}
+                                      >
+                                        <Text
+                                          style={[
+                                            styles.refundPresetChipText,
+                                            isSelected && styles.refundPresetChipTextActive,
+                                          ]}
+                                        >
+                                          {chip.label}
+                                        </Text>
+                                      </TouchableOpacity>
+                                    );
+                                  })}
+                                </View>
                               </View>
-                            </View>
 
-                            {/* Preset chips for percentage */}
-                            <View style={styles.refundPresetRow}>
-                              {[
-                                { label: "50%", value: "50" },
-                                { label: "75%", value: "75" },
-                                { label: "90%", value: "90" },
-                                { label: "100%", value: "100" },
-                              ].map((chip) => {
-                                const isSelected = currentTicket.refund_policy_percentage === chip.value;
-                                return (
-                                  <TouchableOpacity
-                                    key={chip.value}
-                                    style={[
-                                      styles.refundPresetChip,
-                                      isSelected && styles.refundPresetChipActive,
-                                    ]}
-                                    onPress={() => {
+                              {/* Field 2: Refund Percentage */}
+                              <View style={styles.refundFieldBlock}>
+                                <View style={styles.refundFieldLabelRow}>
+                                  <Text style={styles.refundFieldLabel}>Refund Amount</Text>
+                                  <Text style={styles.refundFieldHint}>Percentage of ticket price returned</Text>
+                                </View>
+
+                                <View style={styles.unifiedInputContainer}>
+                                  <Percent size={16} color="#94A3B8" style={{ marginRight: 10 }} />
+                                  <TextInput
+                                    style={styles.unifiedTextInput}
+                                    value={currentTicket.refund_policy_percentage}
+                                    onChangeText={(t) =>
                                       setCurrentTicket({
                                         ...currentTicket,
-                                        refund_policy_percentage: chip.value,
-                                      });
-                                    }}
-                                    activeOpacity={0.7}
-                                  >
-                                    <Text
-                                      style={[
-                                        styles.refundPresetChipText,
-                                        isSelected && styles.refundPresetChipTextActive,
-                                      ]}
-                                    >
-                                      {chip.label}
-                                    </Text>
-                                  </TouchableOpacity>
-                                );
-                              })}
+                                        refund_policy_percentage: t.replace(/[^0-9]/g, ""),
+                                      })
+                                    }
+                                    placeholder="100"
+                                    placeholderTextColor="#94A3B8"
+                                    keyboardType="numeric"
+                                  />
+                                  <View style={styles.unifiedSuffixBadge}>
+                                    <Text style={styles.unifiedSuffixText}>%</Text>
+                                  </View>
+                                </View>
+
+                                {/* Preset chips for percentage */}
+                                <View style={styles.refundPresetRow}>
+                                  {[
+                                    { label: "100%", value: "100" },
+                                    { label: "75%", value: "75" },
+                                    { label: "50%", value: "50" },
+                                  ].map((chip) => {
+                                    const isSelected = currentTicket.refund_policy_percentage === chip.value;
+                                    return (
+                                      <TouchableOpacity
+                                        key={chip.value}
+                                        style={[
+                                          styles.refundPresetChip,
+                                          isSelected && styles.refundPresetChipActive,
+                                        ]}
+                                        onPress={() => {
+                                          setCurrentTicket({
+                                            ...currentTicket,
+                                            refund_policy_percentage: chip.value,
+                                          });
+                                        }}
+                                        activeOpacity={0.7}
+                                      >
+                                        <Text
+                                          style={[
+                                            styles.refundPresetChipText,
+                                            isSelected && styles.refundPresetChipTextActive,
+                                          ]}
+                                        >
+                                          {chip.label}
+                                        </Text>
+                                      </TouchableOpacity>
+                                    );
+                                  })}
+                                </View>
+                              </View>
+
+                              {/* Fee Disclaimer Note */}
+                              <View style={styles.refundInfoCard}>
+                                <Info size={14} color="#64748B" style={{ marginTop: 1, marginRight: 8 }} />
+                                <Text style={styles.refundInfoText}>
+                                  Platform and payment processing fees are non-refundable. 100% returns full ticket face value.
+                                </Text>
+                              </View>
                             </View>
-                          </View>
+                          )}
 
-                          {/* Fee Disclaimer Note */}
-                          <View style={styles.refundInfoCard}>
-                            <Info size={14} color="#64748B" style={{ marginTop: 1, marginRight: 8 }} />
-                            <Text style={styles.refundInfoText}>
-                              Platform and payment processing fees are non-refundable. 100% returns full ticket face value.
-                            </Text>
-                          </View>
-                        </View>
-                      )}
-
-                      {ticketTypes.length >= 2 && (
-                        <TouchableOpacity
-                          style={styles.applyToAllButton}
-                          onPress={() => {
-                            const currentRp = {
-                              allowed: currentTicket.refund_policy_allowed,
-                              deadline_hours_before: currentTicket.refund_policy_allowed
-                                ? parseInt(currentTicket.refund_policy_deadline) || 24
-                                : 0,
-                              percentage: currentTicket.refund_policy_allowed
-                                ? parseInt(currentTicket.refund_policy_percentage) || 100
-                                : 0,
-                            };
-                            const updated = ticketTypes.map((t, i) =>
-                              i === editingIndex ? { ...t, refund_policy: currentRp } : { ...t, refund_policy: { ...currentRp } }
-                            );
-                            onChange(updated);
-                            setAlertConfig({
-                              visible: true,
-                              title: "Policy Applied",
-                              message: "This refund policy has been applied to all ticket types.",
-                              primaryAction: {
-                                text: "OK",
-                                onPress: () => setAlertConfig(null),
-                              },
-                            });
-                          }}
-                          activeOpacity={0.7}
-                        >
-                          <Copy size={15} color="#2962FF" />
-                          <Text style={styles.applyToAllText}>
-                            Apply this policy to all ticket types
-                          </Text>
-                        </TouchableOpacity>
+                          {ticketTypes.length >= 2 && (
+                            <TouchableOpacity
+                              style={styles.applyToAllButton}
+                              onPress={() => {
+                                const currentRp = {
+                                  allowed: currentTicket.refund_policy_allowed,
+                                  deadline_hours_before: currentTicket.refund_policy_allowed
+                                    ? parseInt(currentTicket.refund_policy_deadline) || 24
+                                    : 0,
+                                  percentage: currentTicket.refund_policy_allowed
+                                    ? parseInt(currentTicket.refund_policy_percentage) || 100
+                                    : 0,
+                                };
+                                const updated = ticketTypes.map((t, i) =>
+                                  i === editingIndex ? { ...t, refund_policy: currentRp } : { ...t, refund_policy: { ...currentRp } }
+                                );
+                                onChange(updated);
+                                setAlertConfig({
+                                  visible: true,
+                                  title: "Policy Applied",
+                                  message: "This refund policy has been applied to all ticket types.",
+                                  primaryAction: {
+                                    text: "OK",
+                                    onPress: () => setAlertConfig(null),
+                                  },
+                                });
+                              }}
+                              activeOpacity={0.7}
+                            >
+                              <Copy size={15} color="#2962FF" />
+                              <Text style={styles.applyToAllText}>
+                                Apply this policy to all ticket types
+                              </Text>
+                            </TouchableOpacity>
+                          )}
+                        </>
                       )}
                     </View>
                   )}
@@ -3208,6 +3333,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#64748B",
     lineHeight: 17,
+  },
+  refundFreeNotice: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F8FAFC",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 14,
+    gap: 10,
+    marginTop: 4,
+  },
+  refundFreeNoticeText: {
+    flex: 1,
+    fontFamily: FONTS.regular,
+    fontSize: 13,
+    color: "#64748B",
+    lineHeight: 18,
   },
   applyToAllButton: {
     flexDirection: "row",
