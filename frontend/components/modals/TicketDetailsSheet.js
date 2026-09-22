@@ -125,6 +125,74 @@ export default function TicketDetailsSheet({
     modeBg = "#CCFBF1";
   }
 
+  // Smart location / access line: avoids placing physical venue on a purely virtual ticket
+  const accessDetailText = useMemo(() => {
+    if (isVirtual) {
+      if (event?.meeting_platform) {
+        return `Via ${event.meeting_platform}`;
+      }
+      return "Online access link provided upon booking";
+    }
+
+    const venue = event?.location_name || event?.venue_name || "";
+    if (isBoth) {
+      return venue ? `${venue} + Online Stream` : "Online & In-Person";
+    }
+    return venue || "Venue TBA";
+  }, [isVirtual, isBoth, event?.meeting_platform, event?.location_name, event?.venue_name]);
+
+  // Real database refund policy parsing (JSONB or string)
+  const parsedRefundPolicy = useMemo(() => {
+    let rp = ticket?.refund_policy;
+    if (typeof rp === "string") {
+      try {
+        rp = JSON.parse(rp);
+      } catch {
+        // Fallback for legacy string values
+        if (rp === "flexible") {
+          return {
+            allowed: true,
+            percentage: 100,
+            deadline_hours_before: 24,
+            description: "Full refund available if requested up to 24 hours before the event.",
+          };
+        }
+        if (rp === "moderate") {
+          return {
+            allowed: true,
+            percentage: 50,
+            deadline_hours_before: 48,
+            description: "50% refund available if requested up to 48 hours before the event.",
+          };
+        }
+        return {
+          allowed: false,
+          percentage: 0,
+          deadline_hours_before: 0,
+          description: "Tickets are non-refundable once booked, unless cancelled by the organizer.",
+        };
+      }
+    }
+
+    if (rp && typeof rp === "object" && rp.allowed) {
+      const pct = Number(rp.percentage) || 100;
+      const hours = Number(rp.deadline_hours_before) || 24;
+      return {
+        allowed: true,
+        percentage: pct,
+        deadline_hours_before: hours,
+        description: `${pct}% refund available if requested up to ${hours} hours before the event.`,
+      };
+    }
+
+    return {
+      allowed: false,
+      percentage: 0,
+      deadline_hours_before: 0,
+      description: "Tickets are non-refundable once booked, unless cancelled by the organizer.",
+    };
+  }, [ticket?.refund_policy]);
+
   // Formatting date
   const displayDateStr = event?.start_datetime || event?.event_date;
   const formattedDate = displayDateStr
@@ -239,8 +307,7 @@ export default function TicketDetailsSheet({
               <View style={styles.metaTextCol}>
                 <Text style={styles.metaLabel}>Format & Access</Text>
                 <Text style={styles.metaValueText}>
-                  {modeLabel}
-                  {event.location_name ? ` • ${event.location_name}` : ""}
+                  {modeLabel} • {accessDetailText}
                 </Text>
               </View>
             </View>
@@ -249,15 +316,9 @@ export default function TicketDetailsSheet({
           {/* Pass Description & Inclusions */}
           <View style={styles.sectionBlock}>
             <Text style={styles.sectionHeading}>What's Included</Text>
-            {ticket.description ? (
-              <Text style={styles.descriptionText}>
-                {ticket.description}
-              </Text>
-            ) : (
-              <Text style={styles.descriptionText}>
-                Standard admission to {event.title} with full event rights.
-              </Text>
-            )}
+            <Text style={styles.descriptionText}>
+              {ticket.description || `General admission entry to ${event.title || "this event"}.`}
+            </Text>
           </View>
 
           {/* Gender Restriction Alert if any */}
@@ -274,16 +335,34 @@ export default function TicketDetailsSheet({
           )}
 
           {/* Refund Policy Box */}
-          <View style={styles.policyCard}>
-            <ShieldCheck size={16} color="#059669" strokeWidth={2} style={{ marginRight: 10 }} />
+          <View
+            style={[
+              styles.policyCard,
+              !parsedRefundPolicy.allowed && styles.policyCardNeutral,
+            ]}
+          >
+            <ShieldCheck
+              size={16}
+              color={parsedRefundPolicy.allowed ? "#059669" : "#64748B"}
+              strokeWidth={2}
+              style={{ marginRight: 10 }}
+            />
             <View style={{ flex: 1 }}>
-              <Text style={styles.policyTitle}>Cancellation & Refund Policy</Text>
-              <Text style={styles.policyDesc}>
-                {ticket.refund_policy === "flexible"
-                  ? "Full refund available if cancelled up to 24 hours before the event."
-                  : ticket.refund_policy === "moderate"
-                  ? "50% refund available up to 48 hours before the event."
-                  : "Tickets are non-refundable once booked, unless cancelled by the organizer."}
+              <Text
+                style={[
+                  styles.policyTitle,
+                  !parsedRefundPolicy.allowed && styles.policyTitleNeutral,
+                ]}
+              >
+                Cancellation & Refund Policy
+              </Text>
+              <Text
+                style={[
+                  styles.policyDesc,
+                  !parsedRefundPolicy.allowed && styles.policyDescNeutral,
+                ]}
+              >
+                {parsedRefundPolicy.description}
               </Text>
             </View>
           </View>
@@ -558,17 +637,27 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 20,
   },
+  policyCardNeutral: {
+    backgroundColor: "#F8FAFC",
+    borderColor: "#E2E8F0",
+  },
   policyTitle: {
     fontFamily: "Manrope-Bold",
     fontSize: 13,
     color: "#166534",
     marginBottom: 2,
   },
+  policyTitleNeutral: {
+    color: "#475569",
+  },
   policyDesc: {
     fontFamily: "Manrope-Regular",
     fontSize: 12.5,
     color: "#15803D",
     lineHeight: 18,
+  },
+  policyDescNeutral: {
+    color: "#64748B",
   },
   quantitySection: {
     flexDirection: "row",
