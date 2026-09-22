@@ -179,7 +179,7 @@ import {
   EVENT_STATES,
 } from "../../utils/eventStateUtils";
 import { detectMeetingPlatform } from "../../utils/meetingPlatformUtils";
-import { getSalesStatus } from "../../utils/salesTiming";
+import { getSalesStatus, getRegistrationTiming } from "../../utils/salesTiming";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const BANNER_HEIGHT = SCREEN_HEIGHT * 0.45;
@@ -423,6 +423,53 @@ const EventDetailsScreen = ({ route, navigation }) => {
     // Same day, different time
     const endTime = end.toLocaleTimeString("en-IN", timeOptions);
     return `${startDay}, ${startTime} - ${endTime}`;
+  };
+
+  const formatEventDate = (startDate, endDate) => {
+    if (!startDate) return "";
+    const start = new Date(startDate);
+    const end = endDate ? new Date(endDate) : null;
+    if (isNaN(start.getTime())) return "";
+
+    const year = start.getFullYear();
+
+    if (!end || isNaN(end.getTime()) || start.toDateString() === end.toDateString()) {
+      const weekday = start.toLocaleDateString("en-IN", { weekday: "long" });
+      const day = start.getDate();
+      const month = start.toLocaleDateString("en-IN", { month: "long" });
+      return `${weekday}, ${day} ${month} ${year}`;
+    }
+
+    // Spans multiple days
+    const startStr = start.toLocaleDateString("en-IN", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+    });
+    const endStr = end.toLocaleDateString("en-IN", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+    return `${startStr} - ${endStr}`;
+  };
+
+  const formatEventTime = (startDate, endDate) => {
+    if (!startDate) return "";
+    const start = new Date(startDate);
+    const end = endDate ? new Date(endDate) : null;
+    if (isNaN(start.getTime())) return "";
+
+    const timeOptions = { hour: "numeric", minute: "2-digit", hour12: true };
+    const startTime = start.toLocaleTimeString("en-IN", timeOptions).toLowerCase();
+
+    if (!end || isNaN(end.getTime()) || start.getTime() === end.getTime()) {
+      return startTime;
+    }
+
+    const endTime = end.toLocaleTimeString("en-IN", timeOptions).toLowerCase();
+    return `${startTime} - ${endTime}`;
   };
 
   const formatGatesTime = (gatesTime) => {
@@ -743,6 +790,11 @@ const EventDetailsScreen = ({ route, navigation }) => {
     };
   }, [event]);
 
+  // Meetup-style registration close timing
+  const registrationTiming = useMemo(() => {
+    return getRegistrationTiming(event, serverTime || new Date());
+  }, [event, serverTime]);
+
   // Get View Attendees state (always visible for members, but may be locked)
   const viewAttendeesState = getViewAttendeesState(
     event,
@@ -1001,27 +1053,62 @@ const EventDetailsScreen = ({ route, navigation }) => {
                 {event.title}
               </Text>
 
+              {/* Date & Time Row (Meetup-style 3-line layout) */}
               <View
                 style={{
                   flexDirection: "row",
-                  alignItems: "center",
-                  marginBottom: 8,
+                  alignItems: "flex-start",
+                  marginBottom: 10,
                 }}
               >
-                <Calendar size={16} color={MUTED_TEXT} strokeWidth={2} />
-                <Text
-                  style={{
-                    fontFamily: "Manrope-Medium",
-                    fontSize: 15,
-                    color: MUTED_TEXT,
-                    marginLeft: 8,
-                  }}
-                >
-                  {formatDateTime(
-                    event.start_datetime || event.event_date,
-                    event.end_datetime,
+                <Calendar
+                  size={16}
+                  color={MUTED_TEXT}
+                  strokeWidth={2}
+                  style={{ marginTop: 2 }}
+                />
+                <View style={{ marginLeft: 8, flex: 1 }}>
+                  <Text
+                    style={{
+                      fontFamily: "Manrope-Medium",
+                      fontSize: 15,
+                      color: TEXT_COLOR,
+                      lineHeight: 20,
+                    }}
+                  >
+                    {formatEventDate(
+                      event.start_datetime || event.event_date,
+                      event.end_datetime,
+                    )}
+                  </Text>
+                  <Text
+                    style={{
+                      fontFamily: "Manrope-Regular",
+                      fontSize: 14,
+                      color: MUTED_TEXT,
+                      marginTop: 2,
+                      lineHeight: 18,
+                    }}
+                  >
+                    {formatEventTime(
+                      event.start_datetime || event.event_date,
+                      event.end_datetime,
+                    )}
+                  </Text>
+                  {!!registrationTiming?.label && (
+                    <Text
+                      style={{
+                        fontFamily: "Manrope-Medium",
+                        fontSize: 13,
+                        color: registrationTiming.color || "#D97706",
+                        marginTop: 3,
+                        lineHeight: 18,
+                      }}
+                    >
+                      {registrationTiming.label}
+                    </Text>
                   )}
-                </Text>
+                </View>
               </View>
 
               {/* Gates Open Row */}
@@ -1491,18 +1578,6 @@ const EventDetailsScreen = ({ route, navigation }) => {
                     </View>
                   )}
 
-                  {/* Urgency Badge above CTA if any ticket is ending soon */}
-                  {salesSummary.endingSoonTicket &&
-                    !isRegistered &&
-                    !salesSummary.allClosed &&
-                    !isInviteOnlyNotInvited && (
-                      <View style={styles.ctaUrgencyRow}>
-                        <Clock size={12} color="#D97706" strokeWidth={2.2} />
-                        <Text style={styles.ctaUrgencyText}>
-                          {salesSummary.endingSoonTicket.label}
-                        </Text>
-                      </View>
-                    )}
 
                   <View
                     style={styles.stickyActionContent}

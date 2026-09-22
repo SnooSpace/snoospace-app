@@ -44,3 +44,4 @@ export { default as SwipeableModal, SwipeableModalContext, useSwipeableModalScro
 export { default as TypeSelectWarningModal } from './TypeSelectWarningModal';
 export { default as UnsavedChangesModal } from './UnsavedChangesModal';
 export { default as VideoSendPreviewModal } from './VideoSendPreviewModal';
+export { default as TicketDetailsSheet } from './TicketDetailsSheet';

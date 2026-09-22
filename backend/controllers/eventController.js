@@ -373,11 +373,25 @@ const createEvent = async (req, res) => {
 
           const targetIds = [];
           const targetNames = [];
-          const rawTargets =
-            rule.to_tier_ids ||
-            rule.to_tier_indices ||
-            rule.to_tier_names ||
-            [];
+          let rawTargets = [];
+          if (Array.isArray(rule.to_tier_ids) && rule.to_tier_ids.length > 0) {
+            rawTargets = rule.to_tier_ids;
+          } else if (
+            Array.isArray(rule.allowed_destination_tier_ids) &&
+            rule.allowed_destination_tier_ids.length > 0
+          ) {
+            rawTargets = rule.allowed_destination_tier_ids;
+          } else if (
+            Array.isArray(rule.to_tier_indices) &&
+            rule.to_tier_indices.length > 0
+          ) {
+            rawTargets = rule.to_tier_indices;
+          } else if (
+            Array.isArray(rule.to_tier_names) &&
+            rule.to_tier_names.length > 0
+          ) {
+            rawTargets = rule.to_tier_names;
+          }
 
           for (const rawTarget of rawTargets) {
             let toTicket = null;
@@ -2578,7 +2592,20 @@ const updateEvent = async (req, res) => {
 
         const targetIds = [];
         const targetNames = [];
-        const rawTargets = rule.to_tier_ids || rule.to_tier_names || [];
+        let rawTargets = [];
+        if (Array.isArray(rule.to_tier_ids) && rule.to_tier_ids.length > 0) {
+          rawTargets = rule.to_tier_ids;
+        } else if (
+          Array.isArray(rule.allowed_destination_tier_ids) &&
+          rule.allowed_destination_tier_ids.length > 0
+        ) {
+          rawTargets = rule.allowed_destination_tier_ids;
+        } else if (
+          Array.isArray(rule.to_tier_names) &&
+          rule.to_tier_names.length > 0
+        ) {
+          rawTargets = rule.to_tier_names;
+        }
 
         for (const rawTarget of rawTargets) {
           let toTicket = null;

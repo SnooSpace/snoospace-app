@@ -42,7 +42,9 @@ import Svg, {
   LinearGradient as SvgLinearGradient,
   Stop,
   Line,
+  Rect,
 } from "react-native-svg";
+import TicketDetailsSheet from "../../components/modals/TicketDetailsSheet";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS } from "../../constants/theme";
@@ -55,7 +57,10 @@ import {
   resolveEventTicketThemes,
   SEMANTIC_THEMES,
 } from "../../utils/ticketVisuals";
-import { getSalesStatus } from "../../utils/salesTiming";
+import {
+  getSalesStatus,
+  formatRegistrationCloseDate,
+} from "../../utils/salesTiming";
 import { useLocationName } from "../../utils/locationNameCache";
 
 // Premium Theme Colors
@@ -100,15 +105,52 @@ const formatTime = (dateStr) => {
   });
 };
 
-// Memoized TicketCard Subcomponent
+// Authentic Vintage Retail / Festival Stub Vertical Barcode Graphic
+const BARCODE_LINES = [
+  { y: 2, h: 2.2 },
+  { y: 6.5, h: 1.2 },
+  { y: 10, h: 3.2 },
+  { y: 15.5, h: 1.2 },
+  { y: 19, h: 2.5 },
+  { y: 24, h: 4 },
+  { y: 30.5, h: 1.2 },
+  { y: 34, h: 2.2 },
+  { y: 38.5, h: 1.5 },
+  { y: 42, h: 3.2 },
+  { y: 47.5, h: 1.2 },
+  { y: 51, h: 2.2 },
+  { y: 55.5, h: 3.5 },
+  { y: 61, h: 1.2 },
+  { y: 64.5, h: 2.2 },
+  { y: 69, h: 1.5 },
+  { y: 72.5, h: 3.2 },
+  { y: 78, h: 1.2 },
+  { y: 81.5, h: 2.5 },
+];
+
+const TicketBarcode = React.memo(({ color = "#1E3A8A", width = 46, height = 54 }) => (
+  <Svg pointerEvents="none" width={width} height={height} viewBox="0 0 54 86">
+    {BARCODE_LINES.map((bar, idx) => (
+      <Rect
+        key={idx}
+        x={0}
+        y={bar.y}
+        width={54}
+        height={bar.h}
+        fill={color}
+        opacity={0.88}
+      />
+    ))}
+  </Svg>
+));
+
+// Streamlined Retro Festival Stub Ticket Card
 const TicketCard = React.memo(({
   ticket,
   index,
-  qty,
   available,
   isSoldOut,
   price,
-  addDisabled,
   theme,
   displayDate,
   pricingRules,
@@ -116,30 +158,17 @@ const TicketCard = React.memo(({
   eventLocation,
   eventMode,
   virtualPlatform,
-  onAdd,
-  onRemove,
+  onPress,
   onLockedPress,
 }) => {
   const gradId = `grad-${ticket.id || index}`;
   const borderId = `border-${ticket.id || index}`;
 
-  const handleAddPress = useCallback(() => {
-    if (salesStatus?.status === "closed" || salesStatus?.status === "upcoming") {
-      return;
-    }
-    onAdd(ticket);
-  }, [onAdd, ticket, salesStatus?.status]);
-
-  const handleRemovePress = useCallback(() => {
-    onRemove(ticket);
-  }, [onRemove, ticket]);
-
-  const handleLockedPress = useCallback(() => {
-    onLockedPress?.(ticket);
-  }, [onLockedPress, ticket]);
-
   const shape = TICKET_SHAPES[theme?.shapeVariant] || TICKET_SHAPES.classic;
-  const IconComponent = theme?.iconName ? ICON_MAP[theme.iconName] : null;
+  const IconComponent = theme?.iconName ? ICON_MAP[theme.iconName] || Ticket : Ticket;
+
+  // Determine if this card has dark background (e.g. electric cobalt VIP)
+  const isDark = theme?.textColor === "#FFFFFF" || theme?.bgColor === "#2563EB";
 
   // Disallow Men/Women pass tags and redundant tags that duplicate ticket name
   const isMenOrWomenTag = (tag) => {
@@ -171,415 +200,217 @@ const TicketCard = React.memo(({
     !isRedundantTag(theme.tag, ticket.name)
   );
 
-  // Inventory metrics for 3-color continuous progress bar
+  // Access mode label and icon
+  const mode = ticket.access_mode || eventMode || "in_person";
+  const isVirtual = mode === "virtual";
+  const isBoth = mode === "both" || mode === "hybrid";
+  let modeLabel = "In-Person";
+  if (isVirtual) {
+    modeLabel = "Virtual";
+  } else if (isBoth) {
+    modeLabel = "Hybrid";
+  }
+
+  // Stock urgency tiers
   const totalQty = ticket.total_quantity || 0;
   const soldCount = (ticket.sold_count || 0) + (ticket.reserved_count || 0);
-  const hasStockLimit = Boolean(totalQty > 0 || (available > 0 && available <= 25));
-
-  const percentSold = totalQty > 0
-    ? Math.min(100, Math.max(0, Math.round((soldCount / totalQty) * 100)))
-    : 0;
-
-  // Stock urgency tiers:
-  // Critical: only when genuinely low stock (<= 3 passes left, or >= 80% sold)
   const isCriticalStock = totalQty > 0
-    ? (soldCount > 0 && (percentSold >= 80 || available <= 3))
+    ? (soldCount > 0 && available <= 3)
     : (available > 0 && available <= 3);
 
-  // Moderate: 40% - 79% sold, or partially sold with <= 10 left
-  const isModerateStock = !isCriticalStock && (
-    totalQty > 0
-      ? (soldCount > 0 && (percentSold >= 40 || available <= 10))
-      : (available > 0 && available <= 10)
-  );
+  // Pricing calculation
+  const pricing = useMemo(() => {
+    return calculateEffectivePrice(ticket, pricingRules, 1);
+  }, [ticket, pricingRules]);
 
-  // Status colors & labels (SnooSpace premium palette)
-  const statusDotColor = isCriticalStock
-    ? "#EF4444"
-    : isModerateStock
-    ? "#F59E0B"
-    : "#10B981";
-
-  const statusTextColor = isCriticalStock
-    ? "#EA580C"
-    : isModerateStock
-    ? "#D97706"
-    : "#059669";
-
-  const statusLabel = isCriticalStock
-    ? `Only ${available} ${available === 1 ? "pass" : "passes"} left`
-    : isModerateStock
-    ? `Filling fast • ${available} left`
-    : `${available} passes available`;
+  const handleCardPress = useCallback(() => {
+    if (ticket.isLocked) {
+      onLockedPress?.(ticket);
+      return;
+    }
+    onPress?.(ticket);
+  }, [ticket, onLockedPress, onPress]);
 
   return (
-    <View
+    <TouchableOpacity
+      activeOpacity={0.88}
+      onPress={handleCardPress}
       style={[
         styles.ticketCard,
         (isSoldOut || ticket.isLocked) && styles.ticketCardDisabled,
       ]}
     >
-      {/* SVG Background - Dynamic Clean Ticket Vector with Distinct Cutout Shape */}
+      {/* SVG Background - Authentic Solid Retro Duotone Ticket Vector */}
       <Svg
+        pointerEvents="none"
         viewBox="0 0 600 240"
         style={StyleSheet.absoluteFillObject}
         preserveAspectRatio="none"
       >
         <Defs>
           <SvgLinearGradient id={gradId} x1="0" y1="0" x2="600" y2="240" gradientUnits="userSpaceOnUse">
-            <Stop offset="0%" stopColor={theme.bgColorStart} />
-            <Stop offset="100%" stopColor={theme.bgColorEnd} />
+            <Stop offset="0%" stopColor={theme?.bgColorStart || theme?.bgColor || "#D5F0EE"} />
+            <Stop offset="100%" stopColor={theme?.bgColorEnd || theme?.bgColor || "#C5EBE9"} />
           </SvgLinearGradient>
           <SvgLinearGradient id={borderId} x1="0" y1="0" x2="600" y2="240" gradientUnits="userSpaceOnUse">
-            <Stop offset="0%" stopColor={theme.borderColorStart} stopOpacity={1} />
-            <Stop offset="50%" stopColor={theme.borderColorEnd} stopOpacity={0.85} />
-            <Stop offset="100%" stopColor={theme.borderColorStart} stopOpacity={1} />
+            <Stop offset="0%" stopColor={theme?.borderColorStart || theme?.borderColor || theme?.color || "#AEE2E0"} stopOpacity={0.9} />
+            <Stop offset="100%" stopColor={theme?.borderColorEnd || theme?.borderColor || theme?.color || "#0891B2"} stopOpacity={0.9} />
           </SvgLinearGradient>
         </Defs>
 
-        {/* Dynamic ticket shape based on category and allocation */}
+        {/* Dynamic ticket shape with top/bottom perforation notches & serrated deckled right edge */}
         <Path
           d={shape.path}
           fill={`url(#${gradId})`}
           stroke={`url(#${borderId})`}
-          strokeWidth={2.5}
+          strokeWidth={2}
         />
 
-        {/* Perforation vertical line with shape-matched dash style */}
+        {/* Perforation vertical dashed line */}
         <Line
           x1="460"
-          y1={16}
+          y1={18}
           x2="460"
-          y2={224}
-          stroke={theme.borderColorEnd}
-          strokeWidth={2}
-          strokeDasharray={shape.dashArray}
-          strokeLinecap={shape.dashCap}
-          opacity={0.6}
+          y2={222}
+          stroke={theme?.barcodeColor || theme?.textColor || "#1E3A8A"}
+          strokeWidth={1.8}
+          strokeDasharray="5 5"
+          strokeLinecap="round"
+          opacity={0.35}
         />
       </Svg>
 
-      {/* Content Layout */}
-      <View style={styles.cardContent}>
-        {/* Left Section (Main Info) */}
+      {/* Card Content Layout */}
+      <View style={styles.cardContent} pointerEvents="none">
+        {/* Left Section (Main Body) */}
         <View style={styles.leftStub}>
-          {shouldShowTag ? (
-            <View
-              style={[
-                styles.headerTagPill,
-                { backgroundColor: theme.tagBg || "rgba(0,0,0,0.05)" },
-              ]}
-            >
-              {IconComponent && (
-                <IconComponent
-                  size={11}
-                  color={theme.tagColor || theme.color}
-                  strokeWidth={2.4}
-                  style={{ marginRight: 4 }}
-                />
+          {/* Header Row: Title & Circular Icon Badge */}
+          <View style={styles.leftHeaderRow}>
+            <View style={styles.titleCol}>
+              {shouldShowTag && (
+                <View
+                  style={[
+                    styles.headerTagPill,
+                    { backgroundColor: isDark ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.06)" },
+                  ]}
+                >
+                  <Text style={[styles.headerTagText, { color: theme?.textColor || "#0F172A" }]}>
+                    {theme.tag.toUpperCase()}
+                  </Text>
+                </View>
               )}
               <Text
-                style={[
-                  styles.headerTagText,
-                  { color: theme.tagColor || theme.color },
-                ]}
+                style={[styles.ticketTitle, { color: theme?.textColor || "#0F172A" }]}
+                numberOfLines={1}
               >
-                {theme.tag.toUpperCase()}
+                {ticket.name}
               </Text>
             </View>
-          ) : null}
-          
-          <Text style={styles.ticketTitle} numberOfLines={1}>
-            {ticket.name}
-          </Text>
 
-          {/* Dynamic Date Row */}
+            {/* Circular Tinted Icon Container (PART 3 Rule 4) */}
+            <View
+              style={[
+                styles.cardIconContainer,
+                { backgroundColor: isDark ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.05)" },
+              ]}
+            >
+              <IconComponent size={18} color={theme?.textColor || "#0F172A"} strokeWidth={2.2} />
+            </View>
+          </View>
+
+          {/* Date & Access Mode line - Manrope-Medium (Metadata Rule) */}
           <View style={styles.metaRow}>
-            <Text style={styles.metaLabel}>Date: </Text>
-            <Text style={styles.metaValue}>
-              {formatDate(displayDate)}  •  {formatTime(displayDate)}
+            <Calendar size={13} color={theme?.mutedTextColor || "#475569"} strokeWidth={2.2} style={{ marginRight: 6 }} />
+            <Text
+              style={[styles.metaText, { color: theme?.mutedTextColor || "#475569" }]}
+              numberOfLines={1}
+            >
+              {formatDate(displayDate)}  •  {formatTime(displayDate)}  •  {modeLabel}
             </Text>
           </View>
 
-          {/* Mode of Event & Location Row */}
-          {(() => {
-            const mode = ticket.access_mode || eventMode || "in_person";
-            const isVirtual = mode === "virtual";
-            const isBoth = mode === "both" || mode === "hybrid";
-
-            let ModeIcon = MapPin;
-            let modeLabel = "In-Person";
-            let badgeStyle = styles.accessBadgeInPerson;
-            let badgeTextStyle = styles.accessBadgeInPersonText;
-            let iconColor = "#4B5563";
-
-            if (isVirtual) {
-              ModeIcon = Video;
-              modeLabel = "Virtual";
-              badgeStyle = styles.accessBadgeVirtual;
-              badgeTextStyle = styles.accessBadgeVirtualText;
-              iconColor = "#7C3AED";
-            } else if (isBoth) {
-              ModeIcon = Sparkles;
-              modeLabel = "In-Person + Virtual";
-              badgeStyle = styles.accessBadgeBoth;
-              badgeTextStyle = styles.accessBadgeBothText;
-              iconColor = "#0D9488";
-            }
-
-            const resolvedLocation = isVirtual
-              ? virtualPlatform
-                ? `On ${virtualPlatform}`
-                : "Online Event"
-              : eventLocation || "";
-
-            return (
-              <View style={styles.modeAndLocationRow}>
-                <View style={badgeStyle}>
-                  <ModeIcon size={11} color={iconColor} strokeWidth={2.2} />
-                  <Text style={badgeTextStyle}>{modeLabel}</Text>
-                </View>
-                {resolvedLocation ? (
-                  <View style={styles.locationDetailWrap}>
-                    <MapPin size={11} color="#64748B" strokeWidth={2.2} />
-                    <Text style={styles.locationDetailText} numberOfLines={1}>
-                      {resolvedLocation}
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-            );
-          })()}
-
-          {/* Sales Window Urgency / Status Badge */}
-          {salesStatus?.status === "closed" ? (
-            <View style={styles.salesBadgeClosed}>
-              <Lock size={12} color="#DC2626" strokeWidth={2.2} />
-              <Text style={styles.salesBadgeClosedText}>Sales Closed</Text>
-            </View>
-          ) : salesStatus?.status === "upcoming" ? (
-            <View style={styles.salesBadgeUpcoming}>
-              <Clock size={12} color="#2563EB" strokeWidth={2.2} />
-              <Text style={styles.salesBadgeUpcomingText}>{salesStatus.label}</Text>
-            </View>
-          ) : salesStatus?.status === "ending_soon" ? (
-            <View style={styles.salesBadgeEndingSoon}>
-              <Clock size={12} color="#D97706" strokeWidth={2.2} />
-              <Text style={styles.salesBadgeEndingSoonText}>{salesStatus.label}</Text>
-            </View>
-          ) : null}
-
-          {/* Gender restriction lock reason if locked */}
-          {ticket.isLocked && ticket.lockReason ? (
-            <View style={styles.genderLockRow}>
-              <ShieldAlert size={12} color="#EA580C" strokeWidth={2.2} />
-              <Text style={styles.genderLockText}>{ticket.lockReason}</Text>
-            </View>
-          ) : null}
-
-          {/* 3-Color Continuous Inventory Progress Bar */}
-          {hasStockLimit && available > 0 && (
-            <View style={styles.stockProgressContainer}>
-              <View style={styles.stockProgressHeader}>
-                <View style={styles.stockProgressLabelWrap}>
-                  <View
-                    style={[
-                      styles.stockStatusDot,
-                      { backgroundColor: statusDotColor },
-                    ]}
-                  />
-                  <Text
-                    style={[
-                      styles.stockProgressText,
-                      { color: statusTextColor },
-                    ]}
-                  >
-                    {statusLabel}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Continuous unbroken 3-color progress line */}
-              <View style={styles.continuousProgressBar}>
-                {/* Base continuous 3-color track */}
-                <LinearGradient
-                  colors={[
-                    "#A7F3D0", // Soft Emerald
-                    "#FDE68A", // Soft Amber
-                    "#FECDD3", // Soft Rose
-                  ]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={StyleSheet.absoluteFillObject}
-                />
-
-                {/* Active progress fill in vivid saturated gradient */}
-                {percentSold > 0 && (
-                  <View
-                    style={[
-                      styles.continuousProgressFill,
-                      { width: `${percentSold}%` },
-                    ]}
-                  >
-                    <LinearGradient
-                      colors={["#10B981", "#F59E0B", "#EF4444"]}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
-                      style={styles.fillGradient}
-                    />
-                  </View>
-                )}
-              </View>
-            </View>
-          )}
-
-          {/* Group / Bulk discount hint row */}
-          {(() => {
-            const pricing = calculateEffectivePrice(ticket, pricingRules, qty);
-            if (pricing.groupDiscountHint && !pricing.hasDiscount) {
-              return (
-                <View style={styles.bulkOfferRow}>
-                  <Users size={12} color="#7C3AED" strokeWidth={2.2} />
-                  <Text style={styles.bulkOfferText}>
-                    {pricing.groupDiscountHint.text}
-                  </Text>
-                </View>
-              );
-            }
-            return null;
-          })()}
-
-          {/* Custom Description text */}
-          {ticket.description && (
-            <View style={styles.descBlock}>
-              <Text style={styles.descLine} numberOfLines={2}>
-                {ticket.description.replace(/^[-•]\s*/, "")}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* Right Section (Stub) */}
-        <View style={styles.rightStub}>
-          {/* Pricing and Action controls */}
-          <View style={styles.foregroundStub}>
-            {/* Dedicated Price Container */}
-            <View style={styles.priceContainer}>
-              {(() => {
-                const pricing = calculateEffectivePrice(
-                  ticket,
-                  pricingRules,
-                  qty
-                );
-                if (pricing.hasDiscount) {
-                  return (
-                    <View style={styles.priceCol}>
-                      <Text
-                        style={[
-                          styles.ticketPriceDiscounted,
-                          pricing.ruleType === "group_discount" && styles.ticketPriceGroup,
-                        ]}
-                      >
-                        ₹{pricing.effectivePrice}
-                      </Text>
-                      <Text style={styles.ticketPriceOriginal}>
-                        ₹{pricing.originalPrice}
-                      </Text>
-                      <View
-                        style={[
-                          styles.discountBadge,
-                          pricing.ruleType === "group_discount" && styles.groupDiscountBadge,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.discountBadgeText,
-                            pricing.ruleType === "group_discount" && styles.groupDiscountBadgeText,
-                          ]}
-                        >
-                          {pricing.discountLabel}
-                        </Text>
-                      </View>
-                    </View>
-                  );
-                }
-                return (
-                  <View style={styles.priceCol}>
-                    <Text style={styles.ticketPrice}>
-                      {price === 0
-                        ? "Free"
-                        : `₹${price.toLocaleString("en-IN")}`}
-                    </Text>
-                  </View>
-                );
-              })()}
-            </View>
-
-            {/* Dedicated Action Container */}
-            <View style={styles.actionContainer}>
+          {/* Bottom Row: Urgency / Scarcity / Lock Status & "Select ->" Action */}
+          <View style={styles.statusFooterRow}>
+            <View style={styles.statusLeft}>
               {ticket.isLocked ? (
-                <TouchableOpacity
-                  style={[styles.lockedBadge, { borderColor: theme.borderColorStart }]}
-                  onPress={handleLockedPress}
-                  activeOpacity={0.7}
-                >
-                  <Lock size={12} color={theme.color} strokeWidth={2.4} style={{ marginRight: 3 }} />
-                  <Text style={[styles.lockedBadgeText, { color: theme.color }]}>Locked</Text>
-                </TouchableOpacity>
+                <View style={styles.lockRow}>
+                  <Lock size={12} color={theme?.textColor || "#EA580C"} strokeWidth={2.2} />
+                  <Text style={[styles.lockText, { color: theme?.textColor || "#EA580C" }]} numberOfLines={1}>
+                    {ticket.lockReason}
+                  </Text>
+                </View>
               ) : salesStatus?.status === "closed" ? (
-                <View style={styles.closedActionBadge}>
-                  <Text style={styles.closedActionBadgeText}>Closed</Text>
+                <View style={styles.closedPill}>
+                  <Text style={styles.closedPillText}>Sales Closed</Text>
                 </View>
               ) : salesStatus?.status === "upcoming" ? (
-                <View style={styles.upcomingActionBadge}>
-                  <Text style={styles.upcomingActionBadgeText}>Soon</Text>
+                <View style={styles.upcomingPill}>
+                  <Text style={styles.upcomingPillText}>{salesStatus.label}</Text>
                 </View>
-              ) : !isSoldOut ? (
-                qty === 0 ? (
-                  <TouchableOpacity
-                    style={[styles.addButton, { backgroundColor: theme.color }]}
-                    onPress={handleAddPress}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={styles.addButtonText}>Add</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <View style={[styles.quantityControl, { backgroundColor: theme.color, borderColor: theme.color }]}>
-                    <TouchableOpacity
-                      onPress={handleRemovePress}
-                      style={styles.qtyButton}
-                      activeOpacity={0.7}
-                    >
-                      <Minus size={13} color="#FFFFFF" strokeWidth={3} />
-                    </TouchableOpacity>
-                    <Text style={styles.qtyValue}>{qty}</Text>
-                    <TouchableOpacity
-                      onPress={handleAddPress}
-                      style={[
-                        styles.qtyButton,
-                        addDisabled && styles.qtyButtonDisabled,
-                      ]}
-                      disabled={addDisabled}
-                      activeOpacity={0.7}
-                    >
-                      <Plus
-                        size={13}
-                        color="#FFFFFF"
-                        strokeWidth={3}
-                      />
-                    </TouchableOpacity>
-                  </View>
-                )
+              ) : isSoldOut ? (
+                <View style={styles.soldOutPill}>
+                  <Text style={styles.soldOutPillText}>Sold Out</Text>
+                </View>
+              ) : isCriticalStock ? (
+                <View style={styles.criticalPill}>
+                  <Text style={styles.criticalPillText}>
+                    Only {available} {available === 1 ? "pass" : "passes"} left
+                  </Text>
+                </View>
               ) : (
-                <View style={styles.soldOutBadge}>
-                  <Text style={styles.soldOutText}>Sold Out</Text>
-                </View>
+                <Text style={[styles.availText, { color: theme?.mutedTextColor || "#475569" }]}>
+                  {available > 0 && available < 50 ? `${available} passes left` : "Available"}
+                </Text>
               )}
             </View>
+
+            {/* Select Action Indicator - Functional UI Rule (Manrope SemiBold) */}
+            {!isSoldOut && !ticket.isLocked && salesStatus?.status !== "closed" && (
+              <View
+                style={[
+                  styles.selectActionPill,
+                  { backgroundColor: isDark ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.06)" },
+                ]}
+              >
+                <Text style={[styles.selectActionText, { color: theme?.textColor || "#0F172A" }]}>
+                  Select →
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* Right Section (Vintage Barcode Stub) */}
+        <View style={styles.rightStub}>
+          {/* Price Container - BasicCommercial-Bold (Structural Rule) */}
+          <View style={styles.stubPriceContainer}>
+            {pricing.hasDiscount ? (
+              <>
+                <Text style={[styles.ticketPriceOriginal, { color: theme?.mutedTextColor || "#94A3B8" }]}>
+                  ₹{pricing.originalPrice}
+                </Text>
+                <Text style={[styles.ticketPrice, { color: theme?.textColor || "#0F172A" }]}>
+                  ₹{pricing.effectivePrice}
+                </Text>
+              </>
+            ) : (
+              <Text style={[styles.ticketPrice, { color: theme?.textColor || "#0F172A" }]}>
+                {price === 0 ? "Free" : `₹${price.toLocaleString("en-IN")}`}
+              </Text>
+            )}
+          </View>
+
+          {/* Authentic Vertical Barcode Graphic */}
+          <View style={styles.barcodeWrap}>
+            <TicketBarcode
+              color={theme?.barcodeColor || theme?.textColor || "#1E3A8A"}
+              width={44}
+              height={58}
+            />
           </View>
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 });
 
@@ -593,6 +424,10 @@ export default function TicketSelectionScreen({ route, navigation }) {
   // accountType is used to skip gender filter for non-member accounts (e.g. community)
   const [accountType, setAccountType] = useState(null);
   const [genderLoading, setGenderLoading] = useState(true);
+
+  // Detailed non-reserving preview sheet state
+  const [selectedTicketForSheet, setSelectedTicketForSheet] = useState(null);
+  const [sheetVisible, setSheetVisible] = useState(false);
 
   // Load user's gender by calling the member profile API
   useEffect(() => {
@@ -825,6 +660,27 @@ export default function TicketSelectionScreen({ route, navigation }) {
     });
   }, [cart, displayedTickets, event, totalAmount, navigation]);
 
+  const handleTicketPress = useCallback((ticket) => {
+    setSelectedTicketForSheet(ticket);
+    setSheetVisible(true);
+  }, []);
+
+  const handleCloseSheet = useCallback(() => {
+    setSheetVisible(false);
+  }, []);
+
+  const handleProceedToCheckoutFromSheet = useCallback(
+    ({ ticket, quantity, totalAmount: sheetTotal }) => {
+      setSheetVisible(false);
+      navigation.navigate("Checkout", {
+        event,
+        cartItems: [{ ticket, quantity }],
+        totalAmount: sheetTotal,
+      });
+    },
+    [event, navigation]
+  );
+
   const handleBack = useCallback(() => {
     navigation.goBack();
   }, [navigation]);
@@ -876,11 +732,11 @@ export default function TicketSelectionScreen({ route, navigation }) {
       {/* Floating Urgency Banner if any ticket is ending soon */}
       {urgencyInfo && (
         <View style={styles.urgencyBanner}>
-          <View style={styles.urgencyIconWrap}>
-            <Clock size={14} color="#D97706" strokeWidth={2.2} />
-          </View>
-          <Text style={styles.urgencyBannerText} numberOfLines={1}>
-            Ticket sales closing soon • {urgencyInfo.label}
+          <Clock size={15} color="#D97706" strokeWidth={2} style={{ marginRight: 8 }} />
+          <Text style={styles.urgencyBannerText} numberOfLines={2}>
+            {urgencyInfo.effectiveEnd
+              ? `Registrations close ${formatRegistrationCloseDate(urgencyInfo.effectiveEnd)}`
+              : `Ticket sales closing soon • ${urgencyInfo.label}`}
           </Text>
         </View>
       )}
@@ -932,14 +788,11 @@ export default function TicketSelectionScreen({ route, navigation }) {
 
         {displayedTickets.map((ticket, index) => {
           const key = ticket.id?.toString() || ticket.name;
-          const qty = cart[key] || 0;
           const available = ticket.total_quantity
             ? Math.max(0, ticket.total_quantity - (ticket.sold_count || 0) - (ticket.reserved_count || 0))
             : Infinity;
           const isSoldOut = ticket.total_quantity && available <= 0;
           const price = parseFloat(ticket.base_price) || 0;
-          const maxAllowed = Math.min(ticket.max_per_order || 10, available);
-          const addDisabled = qty >= maxAllowed;
           const theme = ticket.theme;
           const salesStatus = getSalesStatus(ticket, event, new Date(tick));
 
@@ -948,11 +801,9 @@ export default function TicketSelectionScreen({ route, navigation }) {
               key={key}
               ticket={ticket}
               index={index}
-              qty={qty}
               available={available}
               isSoldOut={isSoldOut}
               price={price}
-              addDisabled={addDisabled}
               theme={theme}
               displayDate={displayDate}
               pricingRules={event.pricing_rules}
@@ -960,8 +811,7 @@ export default function TicketSelectionScreen({ route, navigation }) {
               eventLocation={displayLocationName}
               eventMode={event?.mode}
               virtualPlatform={event?.virtual_platform}
-              onAdd={handleAdd}
-              onRemove={handleRemove}
+              onPress={handleTicketPress}
               onLockedPress={handleLockedPress}
             />
           );
@@ -998,6 +848,22 @@ export default function TicketSelectionScreen({ route, navigation }) {
           </TouchableOpacity>
         </View>
       )}
+
+      {/* Non-Reserving Ticket Details Slide-up Sheet */}
+      <TicketDetailsSheet
+        visible={sheetVisible}
+        ticket={selectedTicketForSheet}
+        event={event}
+        theme={selectedTicketForSheet?.theme}
+        pricingRules={event.pricing_rules}
+        initialQty={
+          selectedTicketForSheet
+            ? cart[selectedTicketForSheet.id?.toString() || selectedTicketForSheet.name] || 1
+            : 1
+        }
+        onClose={handleCloseSheet}
+        onProceedToCheckout={handleProceedToCheckoutFromSheet}
+      />
     </View>
   );
 }
@@ -1101,7 +967,7 @@ const styles = StyleSheet.create({
   ticketCard: {
     position: "relative",
     marginBottom: 16,
-    minHeight: 164,
+    minHeight: 140,
     backgroundColor: "transparent",
     borderWidth: 0,
     overflow: "visible",
@@ -1120,302 +986,166 @@ const styles = StyleSheet.create({
   },
   cardContent: {
     flexDirection: "row",
-    minHeight: 164,
+    minHeight: 140,
     width: "100%",
   },
   leftStub: {
     flex: 4.6, // matches SVG split ratio (460/600)
-    paddingLeft: 22,
-    paddingRight: 14,
+    paddingLeft: 24, // safely clears the scooped corner notch
+    paddingRight: 16,
     paddingTop: 16,
     paddingBottom: 16,
-    justifyContent: "center",
+    justifyContent: "space-between",
   },
-  headerTagPill: {
+  leftHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
+    justifyContent: "space-between",
+  },
+  titleCol: {
+    flex: 1,
+    marginRight: 10,
+  },
+  headerTagPill: {
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 5,
     alignSelf: "flex-start",
-    marginBottom: 6,
+    marginBottom: 4,
   },
   headerTagText: {
-    fontSize: 10,
+    fontSize: 9.5,
     fontFamily: "Manrope-Bold",
-    letterSpacing: 1,
+    letterSpacing: 0.8,
+  },
+  cardIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
   },
   ticketTitle: {
-    fontSize: 18,
+    fontSize: 18.5,
     fontFamily: "BasicCommercial-Bold",
-    color: "#0F172A",
-    marginBottom: 6,
+    letterSpacing: -0.2,
   },
   metaRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 2,
+    marginVertical: 4,
   },
-  metaLabel: {
-    fontSize: 12,
-    fontFamily: "Manrope-SemiBold",
-    color: MUTED_TEXT,
-  },
-  metaValue: {
+  metaText: {
     fontSize: 12,
     fontFamily: "Manrope-Medium",
-    color: TEXT_COLOR,
+    flex: 1,
   },
-  genderLockRow: {
+  statusFooterRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 4,
+    justifyContent: "space-between",
+  },
+  statusLeft: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    marginRight: 8,
+  },
+  selectActionPill: {
+    paddingHorizontal: 9,
+    paddingVertical: 3.5,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  selectActionText: {
+    fontSize: 11,
+    fontFamily: "Manrope-SemiBold",
+    letterSpacing: 0.2,
+  },
+  lockRow: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
   },
-  genderLockText: {
+  lockText: {
     fontSize: 11,
+    fontFamily: "Manrope-Medium",
+  },
+  closedPill: {
+    backgroundColor: "rgba(220, 38, 38, 0.1)",
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  closedPillText: {
+    color: "#DC2626",
+    fontSize: 11,
+    fontFamily: "Manrope-Medium",
+  },
+  upcomingPill: {
+    backgroundColor: "rgba(37, 99, 235, 0.1)",
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  upcomingPillText: {
+    color: "#2563EB",
+    fontSize: 11,
+    fontFamily: "Manrope-Medium",
+  },
+  soldOutPill: {
+    backgroundColor: "rgba(225, 29, 72, 0.1)",
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  soldOutPillText: {
+    color: "#E11D48",
+    fontSize: 11,
+    fontFamily: "Manrope-Medium",
+  },
+  criticalPill: {
+    backgroundColor: "rgba(234, 88, 12, 0.12)",
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  criticalPillText: {
     color: "#EA580C",
+    fontSize: 11,
+    fontFamily: "Manrope-Medium",
+  },
+  availText: {
+    fontSize: 11,
     fontFamily: "Manrope-Medium",
   },
   rightStub: {
     flex: 1.4, // matches SVG split ratio (140/600)
-    justifyContent: "center",
-    alignItems: "center",
-    position: "relative",
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 6,
-  },
-  foregroundStub: {
-    zIndex: 2,
+    paddingRight: 14,
     alignItems: "center",
-    justifyContent: "center",
-    width: "100%",
+    justifyContent: "space-around",
   },
-  priceContainer: {
-    height: 56,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  priceCol: {
+  stubPriceContainer: {
     alignItems: "center",
     justifyContent: "center",
   },
   ticketPrice: {
-    fontSize: 20,
+    fontSize: 19,
     fontFamily: "BasicCommercial-Bold",
-    color: "#0F172A",
-    lineHeight: 24,
-  },
-  ticketPriceDiscounted: {
-    fontSize: 20,
-    fontFamily: "BasicCommercial-Bold",
-    color: "#EA580C",
-    lineHeight: 22,
-  },
-  ticketPriceGroup: {
-    color: "#7C3AED",
+    textAlign: "center",
   },
   ticketPriceOriginal: {
-    fontSize: 11.5,
+    fontSize: 11,
     fontFamily: "Manrope-Medium",
-    color: "#94A3B8",
     textDecorationLine: "line-through",
-    lineHeight: 14,
-    marginTop: 1,
+    marginBottom: -2,
   },
-  discountBadge: {
-    backgroundColor: "#FEF08A",
-    borderWidth: 1,
-    borderColor: "#FACC15",
-    paddingHorizontal: 6,
-    paddingVertical: 1.5,
-    borderRadius: 5,
-    marginTop: 3,
-  },
-  discountBadgeText: {
-    fontSize: 9.5,
-    fontFamily: "Manrope-Bold",
-    color: "#854D0E",
-    letterSpacing: 0.2,
-  },
-  groupDiscountBadge: {
-    backgroundColor: "#EDE9FE",
-    borderColor: "#C4B5FD",
-    borderWidth: 1,
-  },
-  groupDiscountBadgeText: {
-    color: "#6D28D9",
-  },
-  bulkOfferRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 4,
-    gap: 4,
-    backgroundColor: "rgba(124, 58, 237, 0.1)",
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 5,
-    alignSelf: "flex-start",
-  },
-  bulkOfferText: {
-    fontSize: 10.5,
-    color: "#7C3AED",
-    fontFamily: "Manrope-Bold",
-  },
-  actionContainer: {
-    height: 34,
-    width: 78,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  addButton: {
-    height: 34,
-    width: 78,
-    borderRadius: 17,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  addButtonText: {
-    fontFamily: "Manrope-SemiBold",
-    fontSize: 13.5,
-    color: "#FFFFFF",
-    includeFontPadding: false,
-  },
-  lockedBadge: {
-    height: 34,
-    width: 78,
-    borderRadius: 17,
-    borderWidth: 1.5,
-    backgroundColor: "rgba(0,0,0,0.03)",
-    flexDirection: "row",
+  barcodeWrap: {
     alignItems: "center",
     justifyContent: "center",
-  },
-  lockedBadgeText: {
-    fontFamily: "Manrope-SemiBold",
-    fontSize: 12,
-  },
-  quantityControl: {
-    height: 34,
-    width: 78,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    borderWidth: 1,
-    borderRadius: 17,
-    paddingHorizontal: 2,
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  qtyButton: {
-    width: 26,
-    height: 32,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  qtyButtonDisabled: {
-    opacity: 0.35,
-  },
-  qtyValue: {
-    color: "#FFFFFF",
-    fontSize: 13.5,
-    fontFamily: "Manrope-Bold",
-    textAlign: "center",
-    minWidth: 18,
-    includeFontPadding: false,
-  },
-  soldOutBadge: {
-    height: 34,
-    width: 78,
-    backgroundColor: "rgba(225,29,72,0.08)",
-    borderRadius: 17,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  soldOutText: {
-    color: "#E11D48",
-    fontFamily: "Manrope-SemiBold",
-    fontSize: 11,
-  },
-  modeAndLocationRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 6,
-    gap: 6,
-  },
-  locationDetailWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-    flex: 1,
-  },
-  locationDetailText: {
-    fontSize: 11.5,
-    fontFamily: "Manrope-Medium",
-    color: "#64748B",
-    flex: 1,
-  },
-  stockProgressContainer: {
-    marginTop: 8,
-    marginBottom: 2,
-  },
-  stockProgressHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 5,
-  },
-  stockProgressLabelWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-  },
-  stockStatusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  stockProgressText: {
-    fontSize: 11,
-    fontFamily: "Manrope-SemiBold",
-  },
-  continuousProgressBar: {
-    height: 5,
-    borderRadius: 2.5,
-    overflow: "hidden",
-    position: "relative",
-    width: "100%",
-  },
-  continuousProgressFill: {
-    height: "100%",
-    borderRadius: 2.5,
-    overflow: "hidden",
-  },
-  fillGradient: {
-    width: "100%",
-    height: "100%",
-  },
-  descBlock: {
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(0,0,0,0.04)",
-    borderStyle: "dashed",
-  },
-  descLine: {
-    fontSize: 12.5,
-    fontFamily: "Manrope-Regular",
-    color: MUTED_TEXT,
-    lineHeight: 16,
   },
   bottomBar: {
     position: "absolute",
@@ -1522,26 +1252,16 @@ const styles = StyleSheet.create({
   urgencyBanner: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFBEB",
-    borderBottomWidth: 1,
-    borderBottomColor: "#FDE68A",
     paddingHorizontal: 20,
-    paddingVertical: 10,
-  },
-  urgencyIconWrap: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: "#FEF3C7",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 10,
+    paddingTop: 14,
+    paddingBottom: 2,
   },
   urgencyBannerText: {
     fontFamily: "Manrope-Medium",
     fontSize: 13,
-    color: "#B45309",
+    color: "#D97706",
     flex: 1,
+    lineHeight: 18,
   },
   // Per-card sales timing badges
   salesBadgeClosed: {

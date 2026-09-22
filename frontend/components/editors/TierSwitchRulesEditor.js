@@ -4,7 +4,7 @@
  * Enforces strict gender invariant: Male tickets can NEVER be mapped to Female tickets.
  * Features connecting dots, flow arrows, gender-coded themes, and compulsory rule enforcement.
  */
-import React, { useMemo, useCallback } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -62,8 +62,8 @@ const getAccessModeInfo = (mode) => {
 };
 
 const getTierKey = (tier, index) => {
-  if (tier.id !== undefined && tier.id !== null) return String(tier.id);
-  if (tier.temp_id) return String(tier.temp_id);
+  if (tier.id !== undefined && tier.id !== null) return `id_${tier.id}`;
+  if (tier.temp_id) return `temp_${tier.temp_id}`;
   return `idx_${index}`;
 };
 
@@ -79,46 +79,82 @@ export default function TierSwitchRulesEditor({
   rules = [],
   onChange,
 }) {
-  // Normalize rules into a lookup map: { [fromKey]: Set of targetKeys }
-  const ruleMap = useMemo(() => {
-    const map = {};
-    (rules || []).forEach((r) => {
-      // Find matching source tier
-      const fromTier = ticketTypes.find(
-        (t, idx) =>
-          (r.from_tier_id && String(t.id) === String(r.from_tier_id)) ||
-          (r.from_tier_name &&
-            t.name?.trim().toLowerCase() === r.from_tier_name?.trim().toLowerCase()) ||
-          (r.from_tier_index !== undefined && idx === r.from_tier_index)
-      );
-      if (!fromTier) return;
-      const fromIdx = ticketTypes.indexOf(fromTier);
-      const fromKey = getTierKey(fromTier, fromIdx);
+  // Helper to parse rules into a lookup map: { [fromKey]: Set of targetKeys }
+  const parseRules = useCallback(
+    (rulesList) => {
+      const map = {};
+      (rulesList || []).forEach((r) => {
+        // Find matching source tier
+        const fromTier = ticketTypes.find((t, idx) => {
+          if (r.from_tier_id != null && t.id != null) {
+            return String(t.id) === String(r.from_tier_id);
+          }
+          if (r.from_tier_index !== undefined && r.from_tier_index !== null) {
+            return idx === r.from_tier_index;
+          }
+          if (r.from_tier_name && t.name) {
+            return t.name.trim().toLowerCase() === r.from_tier_name.trim().toLowerCase();
+          }
+          return false;
+        });
+        if (!fromTier) return;
+        const fromIdx = ticketTypes.indexOf(fromTier);
+        const fromKey = getTierKey(fromTier, fromIdx);
 
-      const targetKeys = new Set();
-      const rawTargets = r.to_tier_ids || r.to_tier_names || r.to_tier_indices || [];
+        const targetKeys = new Set();
+        let rawTargets = [];
+        if (Array.isArray(r.to_tier_ids) && r.to_tier_ids.length > 0) {
+          rawTargets = r.to_tier_ids;
+        } else if (
+          Array.isArray(r.allowed_destination_tier_ids) &&
+          r.allowed_destination_tier_ids.length > 0
+        ) {
+          rawTargets = r.allowed_destination_tier_ids;
+        } else if (Array.isArray(r.to_tier_indices) && r.to_tier_indices.length > 0) {
+          rawTargets = r.to_tier_indices;
+        } else if (Array.isArray(r.to_tier_names) && r.to_tier_names.length > 0) {
+          rawTargets = r.to_tier_names;
+        }
 
-      rawTargets.forEach((raw) => {
-        const toTier = ticketTypes.find(
-          (t, idx) =>
-            String(t.id) === String(raw) ||
-            t.name?.trim().toLowerCase() === String(raw).trim().toLowerCase() ||
-            idx === raw
-        );
-        if (toTier) {
-          const toIdx = ticketTypes.indexOf(toTier);
-          targetKeys.add(getTierKey(toTier, toIdx));
+        rawTargets.forEach((raw) => {
+          const toTier = ticketTypes.find((t, idx) => {
+            if (t.id != null && String(t.id) === String(raw)) return true;
+            if (idx === raw || String(idx) === String(raw)) return true;
+            if (t.name && typeof raw === "string" && t.name.trim().toLowerCase() === raw.trim().toLowerCase()) return true;
+            return false;
+          });
+          if (toTier) {
+            const toIdx = ticketTypes.indexOf(toTier);
+            targetKeys.add(getTierKey(toTier, toIdx));
+          }
+        });
+
+        if (targetKeys.size > 0) {
+          map[fromKey] = targetKeys;
         }
       });
+      return map;
+    },
+    [ticketTypes]
+  );
 
-      map[fromKey] = targetKeys;
-    });
-    return map;
-  }, [ticketTypes, rules]);
+  // Local state for immediate, responsive checkbox feedback
+  const [ruleMap, setRuleMap] = useState(() => parseRules(rules));
+
+  // Sync external rules prop changes (e.g. reset or initial load)
+  const isInternalUpdateRef = useRef(false);
+  useEffect(() => {
+    if (isInternalUpdateRef.current) {
+      isInternalUpdateRef.current = false;
+      return;
+    }
+    setRuleMap(parseRules(rules));
+  }, [rules, parseRules]);
 
   // Convert map back to serializable rules array for backend/draft
   const emitChange = useCallback(
     (newMap) => {
+      isInternalUpdateRef.current = true;
       const serialized = [];
       ticketTypes.forEach((fromTier, fromIdx) => {
         const fromKey = getTierKey(fromTier, fromIdx);
@@ -127,21 +163,27 @@ export default function TierSwitchRulesEditor({
 
         const targetIds = [];
         const targetNames = [];
+        const targetIndices = [];
+
         targetKeys.forEach((tKey) => {
           const toTier = ticketTypes.find((t, idx) => getTierKey(t, idx) === tKey);
           if (toTier) {
-            if (toTier.id) targetIds.push(toTier.id);
-            targetNames.push(toTier.name);
+            const toIdx = ticketTypes.indexOf(toTier);
+            if (toTier.id != null) targetIds.push(toTier.id);
+            if (toTier.name) targetNames.push(toTier.name);
+            targetIndices.push(toIdx);
           }
         });
 
-        if (targetNames.length > 0) {
+        if (targetNames.length > 0 || targetIds.length > 0 || targetIndices.length > 0) {
           serialized.push({
             from_tier_id: fromTier.id || null,
-            from_tier_name: fromTier.name,
+            from_tier_name: fromTier.name || `Tier ${fromIdx + 1}`,
             from_tier_index: fromIdx,
             to_tier_ids: targetIds,
             to_tier_names: targetNames,
+            to_tier_indices: targetIndices,
+            allowed_destination_tier_ids: targetIds,
           });
         }
       });
@@ -156,24 +198,30 @@ export default function TierSwitchRulesEditor({
   // Toggle a switch pair
   const togglePair = useCallback(
     (fromKey, toKey) => {
-      const newMap = { ...ruleMap };
-      const currentSet = new Set(newMap[fromKey] || []);
+      setRuleMap((prev) => {
+        const newMap = { ...prev };
+        const currentSet = new Set(newMap[fromKey] || []);
 
-      if (currentSet.has(toKey)) {
-        currentSet.delete(toKey);
-      } else {
-        currentSet.add(toKey);
-      }
+        if (currentSet.has(toKey)) {
+          currentSet.delete(toKey);
+        } else {
+          currentSet.add(toKey);
+        }
 
-      if (currentSet.size > 0) {
-        newMap[fromKey] = currentSet;
-      } else {
-        delete newMap[fromKey];
-      }
+        if (currentSet.size > 0) {
+          newMap[fromKey] = currentSet;
+        } else {
+          delete newMap[fromKey];
+        }
 
-      emitChange(newMap);
+        setTimeout(() => {
+          emitChange(newMap);
+        }, 0);
+
+        return newMap;
+      });
     },
-    [ruleMap, emitChange]
+    [emitChange]
   );
 
   // Convenience helper: Auto-link all compatible upgrades
@@ -206,12 +254,18 @@ export default function TierSwitchRulesEditor({
       });
     });
 
-    emitChange(newMap);
+    setRuleMap(newMap);
+    setTimeout(() => {
+      emitChange(newMap);
+    }, 0);
   }, [ticketTypes, emitChange]);
 
   // Clear all configured rules
   const clearAllRules = useCallback(() => {
-    emitChange({});
+    setRuleMap({});
+    setTimeout(() => {
+      emitChange({});
+    }, 0);
   }, [emitChange]);
 
   // Total paths configured
@@ -351,7 +405,8 @@ export default function TierSwitchRulesEditor({
                     </Text>
                   </View>
                 ) : (
-                  candidateTiers.map((toTier, toIdx) => {
+                  candidateTiers.map((toTier) => {
+                    const toIdx = ticketTypes.indexOf(toTier);
                     const toKey = getTierKey(toTier, toIdx);
                     const toGender = getGender(toTier);
                     const toTheme = GENDER_THEMES[toGender];
