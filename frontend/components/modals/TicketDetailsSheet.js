@@ -54,6 +54,19 @@ export default function TicketDetailsSheet({
     : 99;
   const maxAllowed = Math.min(ticket?.max_per_order || 10, available);
 
+  const quantitySubtext = useMemo(() => {
+    if (ticket?.total_quantity && available <= 5 && available < (ticket?.max_per_order || 10)) {
+      return available === 1 ? "Only 1 pass remaining" : `Only ${available} passes remaining`;
+    }
+    if (ticket?.max_per_user && ticket?.max_per_order) {
+      return `Max ${ticket.max_per_order} per booking (limit ${ticket.max_per_user} per person)`;
+    }
+    if (ticket?.max_per_user) {
+      return `Limit ${ticket.max_per_user} passes per person`;
+    }
+    return `Max ${ticket?.max_per_order || 10} passes per booking`;
+  }, [ticket?.max_per_order, ticket?.max_per_user, ticket?.total_quantity, available]);
+
   const [quantity, setQuantity] = useState(initialQty);
 
   // Sync initial quantity when ticket changes
@@ -372,7 +385,7 @@ export default function TicketDetailsSheet({
             <View style={styles.quantityInfoCol}>
               <Text style={styles.quantityHeading}>Quantity</Text>
               <Text style={styles.quantitySub}>
-                Max {ticket.max_per_order || 10} passes per booking
+                {quantitySubtext}
               </Text>
             </View>
 
