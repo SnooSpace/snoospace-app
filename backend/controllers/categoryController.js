@@ -581,7 +581,7 @@ const getEventsByCategory = async (req, res) => {
         (cardinality($1::bigint[]) > 0 AND edc.category_id = ANY($1::bigint[]))
         OR (cardinality($2::text[]) > 0 AND LOWER(COALESCE(e.category_group, '')) = ANY(SELECT LOWER(unnest($2::text[]))))
       )
-        AND e.start_datetime >= NOW()
+        AND (e.end_datetime > NOW() OR (e.end_datetime IS NULL AND e.start_datetime > NOW() - INTERVAL '4 hours'))
         AND (e.is_published = true OR e.is_published IS NULL)
         AND e.is_cancelled IS NOT TRUE
       GROUP BY e.id, c.id

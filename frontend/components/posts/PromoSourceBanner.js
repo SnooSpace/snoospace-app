@@ -16,7 +16,7 @@ import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Image, Dimensions,
 } from 'react-native';
-import { Megaphone, MapPin, Calendar, Users, ChevronRight } from 'lucide-react-native';
+import { Megaphone, MapPin, Calendar, Users, ArrowRight } from 'lucide-react-native';
 import { COLORS, FONTS } from '../../constants/theme';
 import { getPlanById }     from '../../api/plans';
 import { getEventDetails } from '../../api/events';
@@ -240,7 +240,7 @@ function PlanCard({ plan, onPress, ended = false }) {
   return (
     <TouchableOpacity
       style={[cardStyles.card, ended && cardStyles.cardEnded]}
-      onPress={onPress}
+      onPress={() => onPress?.(plan)}
       activeOpacity={0.82}
     >
       {/* Illustration strip */}
@@ -293,10 +293,10 @@ function PlanCard({ plan, onPress, ended = false }) {
               <Text style={cardStyles.costText}>{costLabel}</Text>
             </View>
           )}
-          <TouchableOpacity style={cardStyles.viewBtn} onPress={onPress}>
+          <View style={cardStyles.viewBtn}>
             <Text style={cardStyles.viewBtnText}>{ended ? 'View Plan' : 'View Plan'}</Text>
-            <ChevronRight size={11} color={ended ? COLORS.textSecondary : '#7C3AED'} strokeWidth={2.5} />
-          </TouchableOpacity>
+            <ArrowRight size={13} color={ended ? COLORS.textSecondary : '#7C3AED'} strokeWidth={2.2} />
+          </View>
         </View>
       </View>
     </TouchableOpacity>
@@ -311,7 +311,7 @@ function EventCard({ event, onPress }) {
   const banner   = event.banner_url    || null;
 
   return (
-    <TouchableOpacity style={cardStyles.card} onPress={onPress} activeOpacity={0.82}>
+    <TouchableOpacity style={cardStyles.card} onPress={() => onPress?.(event)} activeOpacity={0.82}>
       {banner
         ? <Image source={{ uri: getOptimizedImageUrl(banner, { width: SCREEN_WIDTH }) }} style={cardStyles.img} resizeMode="cover" />
         : <View style={[cardStyles.imgWrap, { height: 90, backgroundColor: '#EDE7F6' }]} />
@@ -331,10 +331,10 @@ function EventCard({ event, onPress }) {
           </View>
         )}
         <View style={cardStyles.bottomRow}>
-          <TouchableOpacity style={cardStyles.viewBtn} onPress={onPress}>
+          <View style={cardStyles.viewBtn}>
             <Text style={cardStyles.viewBtnText}>View Event</Text>
-            <ChevronRight size={11} color="#7C3AED" strokeWidth={2.5} />
-          </TouchableOpacity>
+            <ArrowRight size={13} color="#7C3AED" strokeWidth={2.2} />
+          </View>
         </View>
       </View>
     </TouchableOpacity>
@@ -465,7 +465,7 @@ const cardStyles = StyleSheet.create({
   viewBtn: {
     flexDirection: 'row',
     alignItems:    'center',
-    gap:           2,
+    gap:           4,
     marginLeft:    'auto',
   },
   viewBtnText: {

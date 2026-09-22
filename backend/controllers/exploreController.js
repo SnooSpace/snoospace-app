@@ -262,6 +262,7 @@ const getExploreFeed = async (req, res) => {
           e.title, 
           e.banner_url as "coverUrl",
           e.start_datetime as "startDatetime",
+          e.end_datetime as "endDatetime",
           e.event_type as "eventType",
           cp.main_slug as "mainSlug",
           COALESCE((
@@ -277,8 +278,8 @@ const getExploreFeed = async (req, res) => {
         INNER JOIN (
           VALUES ${valuesClause}
         ) AS cp(subcat_id, main_slug) ON edc.category_id = cp.subcat_id
-        WHERE e.start_datetime > NOW()
-          AND e.is_published = true
+        WHERE (e.end_datetime > NOW() OR (e.end_datetime IS NULL AND e.start_datetime > NOW() - INTERVAL '4 hours'))
+          AND (e.is_published = true OR e.is_published IS NULL)
           AND e.is_cancelled IS NOT TRUE
         ORDER BY cp.main_slug, e.id, score DESC, e.start_datetime ASC
       `;
@@ -317,6 +318,7 @@ const getExploreFeed = async (req, res) => {
           eventType: row.eventType || "in-person",
           score: Number(row.score) || 0,
           startDatetime: row.startDatetime,
+          endDatetime: row.endDatetime,
           category: meta.name,
           category_slug: meta.slug
         }));
@@ -484,26 +486,35 @@ const getExploreFeed = async (req, res) => {
       return count > 0 ? { count, hasUnviewed: true } : null;
     };
 
-    // 0. Categories Quick-Nav (returns main categories with their associated subcategory IDs)
+    // 0. Categories Quick-Nav (returns categories with active events dynamically from DB)
     const queryCategories = async () => {
       const q = `
         SELECT 
-          id, 
-          name, 
-          slug, 
-          icon_name as "iconName", 
-          display_order as "displayOrder"
-        FROM discover_categories
-        WHERE is_active = true
-          AND (visible_from IS NULL OR visible_from <= NOW())
-          AND (visible_until IS NULL OR visible_until >= NOW())
-        ORDER BY display_order ASC, id ASC
+          dc.id, 
+          dc.name, 
+          dc.slug, 
+          dc.icon_name as "iconName", 
+          dc.display_order as "displayOrder",
+          COUNT(DISTINCT e.id)::int as "eventCount"
+        FROM discover_categories dc
+        LEFT JOIN event_discover_categories edc ON dc.id = edc.category_id
+        LEFT JOIN events e ON edc.event_id = e.id 
+          AND (e.end_datetime > NOW() OR (e.end_datetime IS NULL AND e.start_datetime > NOW() - INTERVAL '4 hours'))
+          AND (e.is_published = true OR e.is_published IS NULL)
+          AND e.is_cancelled IS NOT TRUE
+        WHERE dc.is_active = true
+          AND (dc.visible_from IS NULL OR dc.visible_from <= NOW())
+          AND (dc.visible_until IS NULL OR dc.visible_until >= NOW())
+        GROUP BY dc.id, dc.name, dc.slug, dc.icon_name, dc.display_order
+        ORDER BY dc.display_order ASC, dc.id ASC
       `;
       const res = await pool.query(q);
       const allSubcats = res.rows;
 
-      // Group into curated top-level main categories
-      return MAIN_EVENT_CATEGORIES.map((mainCat, index) => {
+      const categories = [];
+      const handledCatIds = new Set();
+
+      MAIN_EVENT_CATEGORIES.forEach((mainCat, index) => {
         const subcatNamesLower = mainCat.subcategories.map(s => s.toLowerCase());
         const matchingRows = allSubcats.filter(row => 
           subcatNamesLower.includes(row.name.toLowerCase()) || 
@@ -511,18 +522,47 @@ const getExploreFeed = async (req, res) => {
           row.name.toLowerCase() === mainCat.name.toLowerCase()
         );
         const subCategoryIds = matchingRows.map(r => r.id);
-        const primaryId = matchingRows.find(r => r.slug === mainCat.slug)?.id || matchingRows[0]?.id || (index + 1);
+        matchingRows.forEach(r => handledCatIds.add(String(r.id)));
+        const primaryRow = matchingRows.find(r => r.slug === mainCat.slug) || matchingRows[0];
+        const primaryId = primaryRow?.id || (index + 1);
 
-        return {
-          id: primaryId,
-          name: mainCat.name,
-          slug: mainCat.slug,
-          iconName: mainCat.iconName,
-          displayOrder: index + 1,
-          subCategoryIds,
-          subcategories: mainCat.subcategories
-        };
+        let eventCount = 0;
+        matchingRows.forEach(r => {
+          eventCount += (r.eventCount || 0);
+        });
+
+        // Strictly omit categories that have 0 active events
+        if (eventCount > 0) {
+          categories.push({
+            id: primaryId,
+            name: primaryRow?.name || mainCat.name,
+            slug: primaryRow?.slug || mainCat.slug,
+            iconName: primaryRow?.iconName || mainCat.iconName,
+            displayOrder: primaryRow?.displayOrder || (index + 1),
+            eventCount,
+            subCategoryIds,
+            subcategories: mainCat.subcategories
+          });
+        }
       });
+
+      // Also dynamically include any standalone top-level DB category with active events that wasn't in MAIN_EVENT_CATEGORIES
+      allSubcats.forEach((cat) => {
+        if (!handledCatIds.has(String(cat.id)) && cat.eventCount > 0 && cat.displayOrder <= 14) {
+          categories.push({
+            id: cat.id,
+            name: cat.name,
+            slug: cat.slug,
+            iconName: cat.iconName || "compass",
+            displayOrder: cat.displayOrder || 99,
+            eventCount: cat.eventCount,
+            subCategoryIds: [cat.id],
+            subcategories: [cat.name]
+          });
+        }
+      });
+
+      return categories.sort((a, b) => a.displayOrder - b.displayOrder);
     };
 
     // 6. What's Hot on SnooSpace (Featured/Boosted + 48h Velocity Score)

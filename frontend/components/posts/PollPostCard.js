@@ -101,13 +101,13 @@ const PollPostCard = React.memo(({
   const { showToast } = useToast();
   const typeData    = post.type_data || {};
   const isPromoPost = !!typeData.promo_source_type;
-  const promoNavHandler = () => {
+  const promoNavHandler = useCallback((eventOrPlan) => {
     const src = typeData.promo_source_type;
     const id  = typeData.promo_source_id;
     if (!src || !id) return;
-    if (src === 'plan')  navigation.navigate('PlanDetail',   { planId:  id });
-    if (src === 'event') navigation.navigate('EventDetails', { eventId: id });
-  };
+    if (src === 'plan')  navigation.navigate('PlanDetail',   { planId:  id, planData: eventOrPlan || null });
+    if (src === 'event') navigation.navigate('EventDetails', { eventId: id, eventData: eventOrPlan || null });
+  }, [typeData.promo_source_type, typeData.promo_source_id, navigation]);
   const [hasVoted, setHasVoted] = useRecyclingState(post.has_voted || false, [post.id]);
   const [votedIndexes, setVotedIndexes] = useRecyclingState(post.voted_indexes || [], [post.id]);
   const [options, setOptions] = useRecyclingState(typeData.options || [], [post.id]);
@@ -1142,13 +1142,13 @@ const PollPostCard = React.memo(({
           )}
         </View>
 
-        {/* Engagement Row */}
-        {/* Plan / Event preview — promo only, BEFORE engagement */}
+          </View>
+        </GestureDetector>
+
+        {/* Plan / Event preview — promo only, BEFORE engagement (outside GestureDetector) */}
         {isPromoPost && (
           <PlanPreviewCard typeData={typeData} onPress={promoNavHandler} />
         )}
-          </View>
-        </GestureDetector>
 
         {/* Engagement Row — sits OUTSIDE GestureDetector so buttons are always fast */}
         {!hideEngagement && (

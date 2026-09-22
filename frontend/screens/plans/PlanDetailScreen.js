@@ -33,6 +33,7 @@ import {
   MoveRight,
   Trash2,
   AlertCircle,
+  Cake,
 } from 'lucide-react-native';
 
 import VerifiedBadge from '../../components/badges/VerifiedBadge';
@@ -189,6 +190,7 @@ export default function PlanDetailScreen({ navigation, route }) {
   const [commentsModalVisible, setCommentsModalVisible] = useState(openComments || false);
   const [editSheetOpen, setEditSheetOpen] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
   const [reportSheetVisible, setReportSheetVisible] = useState(false);
   const [hostMenuVisible, setHostMenuVisible] = useState(false);
   const [sharedCommSheetOpen, setSharedCommSheetOpen] = useState(false);
@@ -223,6 +225,7 @@ export default function PlanDetailScreen({ navigation, route }) {
       ]);
       if (account?.id) {
         setCurrentUserId(account.id);
+        setCurrentUser(account);
       }
       const data = await getPlanById(planId, token);
       const actualPlan = data?.plan || data;
@@ -459,6 +462,31 @@ export default function PlanDetailScreen({ navigation, route }) {
     genderPref === 'Female'
       ? { bg: '#FCE4EC', text: '#C2185B', label: 'Women only' }
       : { bg: '#E3F2FD', text: '#1565C0', label: 'Men only' };
+
+  // Viewer age and plan age restrictions
+  const viewerAge = useMemo(() => {
+    if (!currentUser?.dob) return null;
+    const dob = new Date(currentUser.dob);
+    if (isNaN(dob.getTime())) return null;
+    const diffMs = Date.now() - dob.getTime();
+    return Math.floor(diffMs / (365.25 * 24 * 60 * 60 * 1000));
+  }, [currentUser?.dob]);
+
+  const hasAgeRestriction = Boolean(plan.min_age != null || plan.max_age != null);
+  const ageLabel = useMemo(() => {
+    if (!hasAgeRestriction) return null;
+    if (plan.min_age && plan.max_age) return `${plan.min_age}–${plan.max_age} yrs`;
+    if (plan.min_age) return `${plan.min_age}+ yrs`;
+    return `Up to ${plan.max_age} yrs`;
+  }, [hasAgeRestriction, plan.min_age, plan.max_age]);
+
+  const isAgeIneligible = useMemo(() => {
+    if (isOwner) return false;
+    if (!hasAgeRestriction || viewerAge == null) return false;
+    if (plan.min_age != null && viewerAge < plan.min_age) return true;
+    if (plan.max_age != null && viewerAge > plan.max_age) return true;
+    return false;
+  }, [isOwner, hasAgeRestriction, viewerAge, plan.min_age, plan.max_age]);
 
   let publicLoc = plan.location_public;
   if (publicLoc && publicLoc.toLowerCase() === 'current location') {
@@ -701,6 +729,16 @@ export default function PlanDetailScreen({ navigation, route }) {
                 </View>
               ) : null}
 
+              {/* Age badge */}
+              {hasAgeRestriction ? (
+                <View style={[styles.badgeChip, { backgroundColor: '#EEF2FF' }]}>
+                  <Cake size={13} color={PRIMARY_COLOR} strokeWidth={2.2} style={{ marginRight: 4 }} />
+                  <Text style={[styles.badgeChipText, { color: PRIMARY_COLOR }]}>
+                    {ageLabel}
+                  </Text>
+                </View>
+              ) : null}
+
               {/* Cost badge */}
               <View style={[styles.badgeChip, { backgroundColor: costCfg.bg }]}>
                 <Text style={[styles.badgeChipText, { color: costCfg.text }]}>
@@ -736,6 +774,12 @@ export default function PlanDetailScreen({ navigation, route }) {
                     </View>
                   ) : null}
                 </TouchableOpacity>
+              ) : isAgeIneligible ? (
+                <View style={[styles.stickyActionButton, styles.stickyActionButtonDisabled]}>
+                  <Text style={[styles.stickyActionButtonText, { color: '#9CA3AF' }]}>
+                    Age Restricted ({ageLabel})
+                  </Text>
+                </View>
               ) : (
                 <TouchableOpacity
                   style={[
@@ -757,6 +801,21 @@ export default function PlanDetailScreen({ navigation, route }) {
 
           {/* 3️⃣ Content Container */}
           <View style={styles.contentContainer}>
+            {/* Age Ineligibility Notice Card */}
+            {isAgeIneligible && (
+              <View style={styles.ageRestrictionWarningCard}>
+                <View style={styles.ageRestrictionWarningIcon}>
+                  <Cake size={16} color={PRIMARY_COLOR} strokeWidth={2.2} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.ageRestrictionWarningTitle}>Age Restricted</Text>
+                  <Text style={styles.ageRestrictionWarningDesc}>
+                    This plan is open for ages {ageLabel}. Your profile age is {viewerAge || 'unspecified'}.
+                  </Text>
+                </View>
+              </View>
+            )}
+
             {/* About Plan Section */}
             {plan.description ? (
               <View style={styles.section}>
@@ -1778,6 +1837,37 @@ const styles = StyleSheet.create({
   },
   commInfo: {
     flex: 1,
+  },
+  ageRestrictionWarningCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EFF6FF',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    gap: 12,
+  },
+  ageRestrictionWarningIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#DBEAFE',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ageRestrictionWarningTitle: {
+    fontFamily: 'BasicCommercial-Bold',
+    fontSize: 14,
+    color: '#1E40AF',
+    marginBottom: 2,
+  },
+  ageRestrictionWarningDesc: {
+    fontFamily: 'Manrope-Regular',
+    fontSize: 12,
+    color: '#1D4ED8',
+    lineHeight: 16,
   },
   commName: {
     fontFamily: 'Manrope-SemiBold',

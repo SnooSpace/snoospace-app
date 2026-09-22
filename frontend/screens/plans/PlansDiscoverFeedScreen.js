@@ -7,13 +7,14 @@ import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator, Share, Dimensions, ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Plus, LayoutGrid, LayoutList, Clock, MapPin, Users, Pencil } from 'lucide-react-native';
+import { ArrowLeft, Plus, LayoutGrid, LayoutList, Clock, MapPin, Users, Pencil, SlidersHorizontal, Cake, X } from 'lucide-react-native';
 import { COLORS, FONTS, SHADOWS } from '../../constants/theme';
 import { getAuthToken, getActiveAccount } from '../../api/auth';
 import { getPlans, likePlan, unlikePlan } from '../../api/plans';
 import OpenPlanCard from '../../components/plans/OpenPlanCard';
 import HostPlanBottomSheet from './HostPlanBottomSheet';
 import RequestBottomSheet from './RequestBottomSheet';
+import PlansFilterSheet from '../../components/modals/PlansFilterSheet';
 import SnooLoader from '../../components/ui/SnooLoader';
 import CommentsModal from '../../components/modals/CommentsModal';
 import ShareModal from '../../components/modals/ShareModal';
@@ -170,12 +171,25 @@ function CompactPlanCard({ plan, currentUserId, onPress, navigation }) {
           </Text>
         </View>
 
-        {/* Top-Right Count Badge */}
-        <View style={styles.compactCountPill}>
-          <Users size={10} color="#FFFFFF" style={{ marginRight: 3 }} />
-          <Text style={styles.compactCountPillText}>
-            {`${acceptedN}/${maxAccepted}`}
-          </Text>
+        {/* Top-Right Count & Age Badge */}
+        <View style={styles.compactTopRightBadges}>
+          <View style={styles.compactCountPill}>
+            <Users size={10} color="#FFFFFF" style={{ marginRight: 3 }} />
+            <Text style={styles.compactCountPillText}>
+              {`${acceptedN}/${maxAccepted}`}
+            </Text>
+          </View>
+          {(plan.min_age != null || plan.max_age != null) && (
+            <View style={styles.compactAgePill}>
+              <Text style={styles.compactAgePillText}>
+                {plan.min_age && plan.max_age
+                  ? `${plan.min_age}–${plan.max_age}y`
+                  : plan.min_age
+                  ? `${plan.min_age}+y`
+                  : `≤${plan.max_age}y`}
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Bottom-Left Status Badge (Hosting / Joined / Requested) */}
@@ -268,6 +282,14 @@ export default function PlansDiscoverFeedScreen({ navigation, route }) {
   const [activeActivityType, setActiveActivityType] = useState(
     route.params?.activityType || 'all'
   );
+  const [filterSheetVisible, setFilterSheetVisible] = useState(false);
+  const [activeFilters, setActiveFilters] = useState({
+    ageMin: null,
+    ageMax: null,
+    genderPreference: null,
+    costType: null,
+  });
+  const [viewerAge, setViewerAge] = useState(null);
 
   useEffect(() => {
     if (route.params?.activityType) {
@@ -291,15 +313,16 @@ export default function PlansDiscoverFeedScreen({ navigation, route }) {
     setCommentsModalState({ visible: false, postId: null });
   }, []);
 
-  const loadPlans = useCallback(async (cursorVal = null, isRefresh = false, overrideType = null) => {
+  const loadPlans = useCallback(async (cursorVal = null, isRefresh = false, overrideType = null, overrideFilters = null) => {
     try {
       if (isRefresh) setRefreshing(true);
       else if (!cursorVal) setLoading(true);
       else setLoadingMore(true);
 
       const targetType = overrideType !== null ? overrideType : activeActivityType;
+      const targetFilters = overrideFilters !== null ? overrideFilters : activeFilters;
       const token = await getAuthToken();
-      const data = await getPlans(cursorVal, token, targetType);
+      const data = await getPlans(cursorVal, token, targetType, targetFilters);
       const newPlans = data.plans || [];
       const nextCursor = data.next_cursor || null;
 
@@ -317,15 +340,43 @@ export default function PlansDiscoverFeedScreen({ navigation, route }) {
       setRefreshing(false);
       setLoadingMore(false);
     }
-  }, [activeActivityType]);
+  }, [activeActivityType, activeFilters]);
 
   useEffect(() => {
     // Load userId and initial plans on mount
     getActiveAccount().then(account => {
       if (account?.id) setCurrentUserId(account.id);
+      if (account?.dob) {
+        const dob = new Date(account.dob);
+        if (!isNaN(dob.getTime())) {
+          const diffMs = Date.now() - dob.getTime();
+          setViewerAge(Math.floor(diffMs / (365.25 * 24 * 60 * 60 * 1000)));
+        }
+      }
     }).catch(() => {});
-    loadPlans(null, false, activeActivityType);
+    loadPlans(null, false, activeActivityType, activeFilters);
   }, [activeActivityType]);
+
+  const handleApplyFilters = useCallback((newFilters) => {
+    setActiveFilters(newFilters);
+    loadPlans(null, true, activeActivityType, newFilters);
+  }, [activeActivityType, loadPlans]);
+
+  const handleClearFilter = useCallback((filterKey) => {
+    HapticsService.triggerImpactLight();
+    let updated;
+    if (filterKey === 'age') {
+      updated = { ...activeFilters, ageMin: null, ageMax: null };
+    } else if (filterKey === 'gender') {
+      updated = { ...activeFilters, genderPreference: null };
+    } else if (filterKey === 'cost') {
+      updated = { ...activeFilters, costType: null };
+    } else {
+      updated = activeFilters;
+    }
+    setActiveFilters(updated);
+    loadPlans(null, true, activeActivityType, updated);
+  }, [activeFilters, activeActivityType, loadPlans]);
 
   const handleLike = useCallback(async (planId, liked) => {
     const token = await getAuthToken();
@@ -378,6 +429,24 @@ export default function PlansDiscoverFeedScreen({ navigation, route }) {
           </View>
           <Text style={styles.headerTitle}>Open Plans</Text>
           <View style={styles.headerRight}>
+            <TouchableOpacity
+              style={[
+                styles.filterToggleBtn,
+                (activeFilters.ageMin != null || activeFilters.ageMax != null || (activeFilters.genderPreference && activeFilters.genderPreference !== 'all') || (activeFilters.costType && activeFilters.costType !== 'all')) && styles.filterToggleBtnActive,
+              ]}
+              onPress={() => setFilterSheetVisible(true)}
+              activeOpacity={0.7}
+              hitSlop={12}
+            >
+              <SlidersHorizontal
+                size={18}
+                color={(activeFilters.ageMin != null || activeFilters.ageMax != null || (activeFilters.genderPreference && activeFilters.genderPreference !== 'all') || (activeFilters.costType && activeFilters.costType !== 'all')) ? COLORS.primary : COLORS.textPrimary}
+                strokeWidth={2}
+              />
+              {(activeFilters.ageMin != null || activeFilters.ageMax != null || (activeFilters.genderPreference && activeFilters.genderPreference !== 'all') || (activeFilters.costType && activeFilters.costType !== 'all')) && (
+                <View style={styles.filterActiveDot} />
+              )}
+            </TouchableOpacity>
             <TouchableOpacity
               style={styles.layoutToggleBtn}
               onPress={() => setIsGrid(prev => !prev)}
@@ -443,6 +512,66 @@ export default function PlansDiscoverFeedScreen({ navigation, route }) {
             })}
           </ScrollView>
         </View>
+
+        {/* Active Filter Chips Bar */}
+        {(activeFilters.ageMin != null ||
+          activeFilters.ageMax != null ||
+          (activeFilters.genderPreference && activeFilters.genderPreference !== 'all') ||
+          (activeFilters.costType && activeFilters.costType !== 'all')) && (
+          <View style={styles.activeFilterChipsContainer}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.activeFilterChipsScroll}>
+              {(activeFilters.ageMin != null || activeFilters.ageMax != null) && (
+                <View style={styles.activeFilterChip}>
+                  <Cake size={12} color={COLORS.primary} strokeWidth={2.2} />
+                  <Text style={styles.activeFilterChipText}>
+                    {activeFilters.ageMin === activeFilters.ageMax
+                      ? `Age: ${activeFilters.ageMin}y`
+                      : activeFilters.ageMin && activeFilters.ageMax
+                      ? `Age: ${activeFilters.ageMin}–${activeFilters.ageMax}y`
+                      : activeFilters.ageMin
+                      ? `Age: ${activeFilters.ageMin}+y`
+                      : `Age: ≤${activeFilters.ageMax}y`}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => handleClearFilter('age')}
+                    hitSlop={8}
+                    style={styles.activeFilterChipClear}
+                  >
+                    <X size={11} color={COLORS.primary} strokeWidth={2.5} />
+                  </TouchableOpacity>
+                </View>
+              )}
+              {activeFilters.genderPreference && activeFilters.genderPreference !== 'all' && (
+                <View style={[styles.activeFilterChip, styles.activeFilterChipGender]}>
+                  <Text style={styles.activeFilterChipTextGender}>
+                    {activeFilters.genderPreference === 'Female' ? 'Women only' : 'Men only'}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => handleClearFilter('gender')}
+                    hitSlop={8}
+                    style={styles.activeFilterChipClear}
+                  >
+                    <X size={11} color="#0369A1" strokeWidth={2.5} />
+                  </TouchableOpacity>
+                </View>
+              )}
+              {activeFilters.costType && activeFilters.costType !== 'all' && (
+                <View style={[styles.activeFilterChip, styles.activeFilterChipCost]}>
+                  <Text style={styles.activeFilterChipTextCost}>
+                    {activeFilters.costType === 'free' ? 'Free' : activeFilters.costType === 'self_pay' ? 'Self-pay' : activeFilters.costType}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => handleClearFilter('cost')}
+                    hitSlop={8}
+                    style={styles.activeFilterChipClear}
+                  >
+                    <X size={11} color="#047857" strokeWidth={2.5} />
+                  </TouchableOpacity>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        )}
       </SafeAreaView>
 
       {loading ? (
@@ -521,6 +650,13 @@ export default function PlansDiscoverFeedScreen({ navigation, route }) {
         onClose={() => setShareModalVisible(false)}
         post={sharingPlan}
       />
+      <PlansFilterSheet
+        visible={filterSheetVisible}
+        onClose={() => setFilterSheetVisible(false)}
+        onApply={handleApplyFilters}
+        initialFilters={activeFilters}
+        viewerAge={viewerAge}
+      />
     </View>
     </Profiler>
   );
@@ -535,16 +671,38 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.border,
   },
   headerLeft: {
-    width: 80,
+    width: 60,
     alignItems: 'flex-start',
     justifyContent: 'center',
   },
   headerRight: {
-    width: 80,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
     gap: 8,
+  },
+  filterToggleBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  filterToggleBtnActive: {
+    backgroundColor: '#EEF2FF',
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+  },
+  filterActiveDot: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: COLORS.primary,
   },
   layoutToggleBtn: {
     width: 36,
@@ -553,6 +711,75 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  compactTopRightBadges: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  compactAgePill: {
+    backgroundColor: 'rgba(238, 242, 255, 0.95)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+  },
+  compactAgePillText: {
+    fontFamily: FONTS.medium,
+    fontSize: 9,
+    color: COLORS.primary,
+  },
+  activeFilterChipsContainer: {
+    paddingVertical: 6,
+    backgroundColor: COLORS.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.border,
+  },
+  activeFilterChipsScroll: {
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
+  activeFilterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+  },
+  activeFilterChipText: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: COLORS.primary,
+  },
+  activeFilterChipClear: {
+    marginLeft: 2,
+  },
+  activeFilterChipGender: {
+    backgroundColor: '#E0F2FE',
+    borderColor: '#BAE6FD',
+  },
+  activeFilterChipTextGender: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: '#0369A1',
+  },
+  activeFilterChipCost: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+  },
+  activeFilterChipTextCost: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: '#047857',
   },
   headerTitle: { fontFamily: FONTS.primary, fontSize: 20, color: COLORS.textPrimary, flex: 1, textAlign: 'center' },
   hostBtn: {

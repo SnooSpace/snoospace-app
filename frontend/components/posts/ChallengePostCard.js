@@ -1081,11 +1081,18 @@ const ChallengePostCard = React.memo(({
     );
   };
 
+  const handleSingleTap = useCallback(() => {
+    if (!isSharedPreview) {
+      navigation.navigate("ChallengeSubmissions", { post });
+    } else if (onPress) {
+      onPress();
+    }
+  }, [isSharedPreview, navigation, post, onPress]);
+
   const singleTapGesture = Gesture.Tap()
     .numberOfTaps(1)
     .onStart(() => {
-      if (!isSharedPreview) runOnJS(() => navigation.navigate("ChallengeSubmissions", { post }))();
-      else if (onPress) runOnJS(onPress)();
+      runOnJS(handleSingleTap)();
     });
 
   const cardBodyGesture = singleTapGesture;

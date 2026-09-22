@@ -112,13 +112,13 @@ const QnAPostCard = React.memo(({
   const { showToast } = useToast();
   const typeData    = post.type_data || {};
   const isPromoPost = !!typeData.promo_source_type;
-  const promoNavHandler = () => {
+  const promoNavHandler = useCallback((eventOrPlan) => {
     const src = typeData.promo_source_type;
     const id  = typeData.promo_source_id;
     if (!src || !id) return;
-    if (src === 'plan')  navigation.navigate('PlanDetail',   { planId:  id });
-    if (src === 'event') navigation.navigate('EventDetails', { eventId: id });
-  };
+    if (src === 'plan')  navigation.navigate('PlanDetail',   { planId:  id, planData: eventOrPlan || null });
+    if (src === 'event') navigation.navigate('EventDetails', { eventId: id, eventData: eventOrPlan || null });
+  }, [typeData.promo_source_type, typeData.promo_source_id, navigation]);
   const [userQuestionCount, setUserQuestionCount] = useRecyclingState(
     post.user_question_count || 0,
   [post.id]);
@@ -719,11 +719,18 @@ const QnAPostCard = React.memo(({
     });
 
   // Single-tap on card body navigates to QnA questions screen
+  const handleSingleTap = useCallback(() => {
+    if (!isSharedPreview) {
+      navigation.navigate("QnAQuestions", { post });
+    } else if (onPress) {
+      onPress();
+    }
+  }, [isSharedPreview, navigation, post, onPress]);
+
   const singleTapGesture = Gesture.Tap()
     .numberOfTaps(1)
     .onStart(() => {
-      if (!isSharedPreview) runOnJS(() => navigation.navigate("QnAQuestions", { post }))();
-      else if (onPress) runOnJS(onPress)();
+      runOnJS(handleSingleTap)();
     });
 
   const cardBodyGesture = Gesture.Exclusive(doubleTapGesture, singleTapGesture);
@@ -1226,13 +1233,13 @@ const QnAPostCard = React.memo(({
             )}
           </TouchableOpacity>
         </View>
+          </View>
+        </GestureDetector>
 
-        {/* Plan / Event preview card — only in promo layout, shown BEFORE engagement */}
+        {/* Plan / Event preview card — only in promo layout, shown BEFORE engagement (outside GestureDetector) */}
         {isPromoPost && (
           <PlanPreviewCard typeData={typeData} onPress={promoNavHandler} />
         )}
-          </View>
-        </GestureDetector>
 
         {/* Engagement Row — sits OUTSIDE GestureDetector so buttons are always fast */}
         {!hideEngagement && (

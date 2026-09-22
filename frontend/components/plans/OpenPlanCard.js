@@ -30,6 +30,7 @@ import { GradientHeart } from '../ui/GradientHeart';
 import {
   Users, User, Check, MapPin, Calendar, Heart, MessageCircle,
   ChartNoAxesCombined, Send, Bookmark, Megaphone, MoreHorizontal, Pencil, Trash2,
+  Cake,
 } from 'lucide-react-native';
 import { COLORS, FONTS, SHADOWS } from '../../constants/theme';
 import { useNavigation } from '@react-navigation/native';
@@ -199,6 +200,13 @@ function getCostLabel(plan) {
       : 'Entry fee';
   }
   return null;
+}
+
+function getAgeRangeLabel(plan) {
+  if (!plan?.min_age && !plan?.max_age) return null;
+  if (plan.min_age && plan.max_age) return `${plan.min_age}–${plan.max_age} yrs`;
+  if (plan.min_age) return `${plan.min_age}+ yrs`;
+  return `Up to ${plan.max_age} yrs`;
 }
 
 // ─── Date formatter ───────────────────────────────────────────────────────────
@@ -710,6 +718,34 @@ const OpenPlanCard = ({
           ) : null}
         </View>
 
+        {/* Badges row: Age Range & Gender Preference (if restricted) */}
+        {(getAgeRangeLabel(plan) || (plan?.gender_preference && plan.gender_preference !== 'all')) ? (
+          <View style={[styles.cardBadgesRow, compact && { marginBottom: 4 }]}>
+            {getAgeRangeLabel(plan) ? (
+              <View style={styles.cardAgeBadge}>
+                <Cake size={compact ? 11 : 12} color={COLORS.primary} strokeWidth={2} />
+                <Text style={[styles.cardAgeBadgeText, compact && { fontSize: 11 }]}>
+                  {getAgeRangeLabel(plan)}
+                </Text>
+              </View>
+            ) : null}
+            {plan?.gender_preference && plan.gender_preference !== 'all' ? (
+              <View style={[
+                styles.cardGenderBadge,
+                plan.gender_preference === 'Female' ? styles.cardGenderBadgeFemale : styles.cardGenderBadgeMale
+              ]}>
+                <Text style={[
+                  styles.cardGenderBadgeText,
+                  plan.gender_preference === 'Female' ? styles.cardGenderBadgeTextFemale : styles.cardGenderBadgeTextMale,
+                  compact && { fontSize: 11 }
+                ]}>
+                  {plan.gender_preference === 'Female' ? 'Women only' : 'Men only'}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+
         {/* Host row */}
         <TouchableOpacity
           style={[styles.hostRow, compact && { marginBottom: 6 }]}
@@ -1143,8 +1179,55 @@ const styles = StyleSheet.create({
   dateLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 6,
     flex: 1,
+  },
+  cardBadgesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+    flexWrap: 'wrap',
+  },
+  cardAgeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+  },
+  cardAgeBadgeText: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: COLORS.primary,
+  },
+  cardGenderBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  cardGenderBadgeFemale: {
+    backgroundColor: '#FCE4EC',
+    borderColor: '#F8BBD0',
+  },
+  cardGenderBadgeMale: {
+    backgroundColor: '#E3F2FD',
+    borderColor: '#BBDEFB',
+  },
+  cardGenderBadgeText: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+  },
+  cardGenderBadgeTextFemale: {
+    color: '#C2185B',
+  },
+  cardGenderBadgeTextMale: {
+    color: '#1565C0',
   },
   costText: {
     fontFamily: FONTS.semiBold,

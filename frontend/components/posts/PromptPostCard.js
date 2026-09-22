@@ -117,13 +117,13 @@ const PromptPostCard = React.memo(({
   const { showToast } = useToast();
   const typeData    = post.type_data || {};
   const isPromoPost = !!typeData.promo_source_type;
-  const promoNavHandler = () => {
+  const promoNavHandler = useCallback((eventOrPlan) => {
     const src = typeData.promo_source_type;
     const id  = typeData.promo_source_id;
     if (!src || !id) return;
-    if (src === 'plan')  navigation.navigate('PlanDetail',   { planId:  id });
-    if (src === 'event') navigation.navigate('EventDetails', { eventId: id });
-  };
+    if (src === 'plan')  navigation.navigate('PlanDetail',   { planId:  id, planData: eventOrPlan || null });
+    if (src === 'event') navigation.navigate('EventDetails', { eventId: id, eventData: eventOrPlan || null });
+  }, [typeData.promo_source_type, typeData.promo_source_id, navigation]);
   const [hasSubmitted, setHasSubmitted] = useRecyclingState(post.has_submitted || false, [post.id]);
   const [menuPosition, setMenuPosition] = useRecyclingState({ x: 0, y: 0 }, [post.id]);
   const [submissionStatus, setSubmissionStatus] = useRecyclingState(
@@ -644,11 +644,18 @@ const PromptPostCard = React.memo(({
     });
 
   // Single-tap on card body navigates to PromptSubmissions screen
+  const handleSingleTap = useCallback(() => {
+    if (!isSharedPreview) {
+      navigation.navigate("PromptSubmissions", { post });
+    } else if (onPress) {
+      onPress();
+    }
+  }, [isSharedPreview, navigation, post, onPress]);
+
   const singleTapGesture = Gesture.Tap()
     .numberOfTaps(1)
     .onStart(() => {
-      if (!isSharedPreview) runOnJS(() => navigation.navigate("PromptSubmissions", { post }))();
-      else if (onPress) runOnJS(onPress)();
+      runOnJS(handleSingleTap)();
     });
 
   const cardBodyGesture = Gesture.Exclusive(doubleTapGesture, singleTapGesture);
@@ -1144,12 +1151,13 @@ const PromptPostCard = React.memo(({
         </TouchableOpacity>
       </View>
 
-      {/* Plan / Event preview — promo only, BEFORE engagement */}
+          </View>
+        </GestureDetector>
+
+      {/* Plan / Event preview — promo only, BEFORE engagement (outside GestureDetector) */}
       {isPromoPost && (
         <PlanPreviewCard typeData={typeData} onPress={promoNavHandler} />
       )}
-          </View>
-        </GestureDetector>
 
       {/* Engagement Row — sits OUTSIDE GestureDetector so buttons are always fast */}
       {!hideEngagement && (

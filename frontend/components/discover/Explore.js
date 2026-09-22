@@ -35,23 +35,6 @@ import SnooLoader from "../ui/SnooLoader";
 
 const LIVE_GRADIENT_COLORS = ["#FF1E56", "#FF5E3A"];
 
-const FALLBACK_MAIN_CATEGORIES = [
-  { id: "music", name: "Music", slug: "music", iconName: "music", subcategories: ["Live Concerts", "DJ Nights", "Open Mic Nights", "EDM & Electronic"] },
-  { id: "food-dining", name: "Food & Dining", slug: "food-dining", iconName: "utensils-crossed", subcategories: ["Food Festivals", "Coffee Meetups", "Cooking Classes"] },
-  { id: "sports-fitness", name: "Sports & Fitness", slug: "sports-fitness", iconName: "heart-pulse", subcategories: ["Run Clubs", "Cycling Groups", "Yoga & Meditation"] },
-  { id: "tech-startup", name: "Tech & Startup", slug: "tech-startup", iconName: "code", subcategories: ["Hackathons", "Startup Meetups", "Developer Conferences"] },
-  { id: "gaming-esports", name: "Gaming & Esports", slug: "gaming-esports", iconName: "gamepad-2", subcategories: ["LAN Parties", "Esports Tournaments", "Board Game Nights"] },
-  { id: "outdoors-adventure", name: "Outdoors & Adventure", slug: "outdoors-adventure", iconName: "tent", subcategories: ["Hiking", "Camping", "Road Trips"] },
-  { id: "arts-culture", name: "Arts & Culture", slug: "arts-culture", iconName: "palette", subcategories: ["Exhibitions", "Poetry", "Theatre"] },
-  { id: "education-workshops", name: "Education & Workshops", slug: "education-workshops", iconName: "graduation-cap", subcategories: ["Skill-building", "Book Clubs"] },
-  { id: "nightlife-parties", name: "Nightlife & Parties", slug: "nightlife-parties", iconName: "martini", subcategories: ["Club Nights", "House Parties", "Rooftop Parties"] },
-  { id: "wellness-mindfulness", name: "Wellness & Mindfulness", slug: "wellness-mindfulness", iconName: "heart-handshake", subcategories: ["Meditation", "Sound Healing", "Mental Health Support", "Spa & Self-care"] },
-  { id: "networking-professional", name: "Networking & Career", slug: "networking-professional", iconName: "briefcase", subcategories: ["Networking Mixers", "Career Fairs", "Conferences"] },
-  { id: "comedy-entertainment", name: "Comedy & Entertainment", slug: "comedy-entertainment", iconName: "laugh", subcategories: ["Stand-up Open Mics", "Improv Nights"] },
-  { id: "family-kids", name: "Family & Kids", slug: "family-kids", iconName: "baby", subcategories: ["Kids' Workshops", "Family Picnics"] },
-  { id: "seasonal-holiday", name: "Seasonal & Holiday", slug: "seasonal-holiday", iconName: "sparkles", subcategories: ["Festivals", "Holiday Parties"] },
-];
-
 // Convert kebab-case backend icon name to PascalCase Lucide icon component
 const getLucideIcon = (iconName) => {
   if (!iconName) return LucideIcons.Compass || LucideIcons.Tags;
@@ -97,6 +80,7 @@ const BENTO_LARGE_WIDTH = (SCREEN_WIDTH - 40) * 0.52;
 const FILTER_OPTIONS = [
   { id: "all", label: "All" },
   { id: "today", label: "Today" },
+  { id: "tomorrow", label: "Tomorrow" },
   { id: "weekend", label: "This Weekend" },
   { id: "free", label: "Free" },
   { id: "virtual", label: "Virtual" }
@@ -408,40 +392,101 @@ function Explore({
   };
 
   // Client-side filtering logic for rail events
-  const filterEvents = (events, filter) => {
+  const filterEvents = useCallback((events, filter) => {
     if (!events || !Array.isArray(events)) return [];
-    if (filter === "all") return events;
 
     const now = new Date();
     const todayStr = now.toDateString();
 
+    const tomorrow = new Date(now);
+    tomorrow.setDate(now.getDate() + 1);
+    const tomorrowStr = tomorrow.toDateString();
+
     return events.filter((ev) => {
-      const evDate = ev.startDatetime ? new Date(ev.startDatetime) : null;
+      if (!ev) return false;
+
+      const dateStr = ev.startDatetime || ev.start_datetime || ev.event_date || ev.date || ev.startTime;
+      const evDate = dateStr ? new Date(dateStr) : null;
+      if (!evDate || isNaN(evDate.getTime())) return false;
+
+      // Check if event has already ended
+      let isEnded = false;
+      const endDateStr = ev.endDatetime || ev.end_datetime || ev.endTime;
+      if (endDateStr) {
+        const evEndDate = new Date(endDateStr);
+        if (!isNaN(evEndDate.getTime())) {
+          isEnded = evEndDate.getTime() < now.getTime();
+        }
+      } else {
+        // Fallback: If no end time, consider ended if start time + 4 hours has passed
+        isEnded = (evDate.getTime() + 4 * 60 * 60 * 1000) < now.getTime();
+      }
+
+      const isLive = Boolean(ev.isLiveNow || ev.is_live);
+
+      // Exclude ended events unless currently live
+      if (isEnded && !isLive) {
+        return false;
+      }
+
+      if (filter === "all") {
+        return true;
+      }
 
       if (filter === "today") {
-        return evDate && evDate.toDateString() === todayStr;
+        return evDate.toDateString() === todayStr;
       }
+
+      if (filter === "tomorrow") {
+        return evDate.toDateString() === tomorrowStr;
+      }
+
       if (filter === "weekend") {
-        if (!evDate) return false;
-        const day = evDate.getDay();
-        const diff = (evDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
-        return (day === 5 || day === 6 || day === 0) && diff >= 0 && diff <= 7;
+        const day = evDate.getDay(); // 0 is Sunday, 5 is Friday, 6 is Saturday
+        const diffDays = (evDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+        return (day === 5 || day === 6 || day === 0) && diffDays >= -0.5 && diffDays <= 7;
       }
+
       if (filter === "free") {
-        return ev.isFree === true;
+        return ev.isFree === true || ev.is_free === true || ev.ticket_price === 0 || ev.cost_type === "free";
       }
+
       if (filter === "virtual") {
-        const type = String(ev.eventType || "").toLowerCase();
+        const type = String(ev.eventType || ev.event_type || "").toLowerCase();
         return type === "virtual" || type === "hybrid";
       }
+
       return true;
     });
-  };
+  }, []);
+
+  // Dynamically filter categories to only those that have events matching active filter
+  const displayCategories = useMemo(() => {
+    if (!activeCategories || activeCategories.length === 0) return [];
+
+    return activeCategories.filter((cat) => {
+      // Find matching rail in activeCategoryRails
+      const rail = activeCategoryRails.find(
+        (r) => r.categorySlug === cat.slug || r.category?.toLowerCase() === cat.name?.toLowerCase()
+      );
+
+      if (rail && Array.isArray(rail.events) && rail.events.length > 0) {
+        const matchingEvents = filterEvents(rail.events, activeFilter);
+        return matchingEvents.length > 0;
+      }
+
+      // If no matching rail was found, check if category has eventCount > 0 from backend (only when filter is 'all')
+      if (activeFilter === "all" && (cat.eventCount > 0 || cat.event_count > 0)) {
+        return true;
+      }
+
+      return false;
+    });
+  }, [activeCategories, activeCategoryRails, activeFilter, filterEvents]);
 
   // 0. Category Quick-Nav (District reference style: horizontal scrolling icon tiles)
   const renderCategoryQuickNav = () => {
-    const displayCategories =
-      activeCategories.length > 0 ? activeCategories : FALLBACK_MAIN_CATEGORIES;
+    if (displayCategories.length === 0) return null;
 
     return (
       <View style={styles.quickNavSection}>
@@ -1401,6 +1446,13 @@ function Explore({
 
   // 5. Category Rails Section (with Client-side Filter Pills)
   const renderCategoryRails = () => {
+    const visibleRails = activeCategoryRails
+      .map((rail) => ({
+        ...rail,
+        filteredEvents: filterEvents(rail.events, activeFilter)
+      }))
+      .filter((rail) => rail.filteredEvents && rail.filteredEvents.length > 0);
+
     return (
       <View>
         {/* Filter Pills Row above Category Rails */}
@@ -1435,51 +1487,72 @@ function Explore({
           </EdgeSwipeScrollView>
         </View>
 
-        {activeCategoryRails.map((rail) => {
-          const filteredEvents = filterEvents(rail.events, activeFilter);
-          if (filteredEvents.length === 0) return null;
-
-          return (
-            <View key={rail.categorySlug} style={styles.sectionContainer}>
-              <View style={styles.railHeader}>
-                <Text style={styles.sectionTitle}>{rail.category}</Text>
-                <TouchableOpacity
-                  style={styles.seeAllButton}
-                  activeOpacity={0.7}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  onPress={() => handleSeeAll(rail.categorySlug, rail.category)}
-                >
-                  <Text style={styles.seeAllText}>See all</Text>
-                  <ChevronRight size={14} color="#71717A" strokeWidth={2.2} style={styles.seeAllChevron} />
-                </TouchableOpacity>
-              </View>
-              <EdgeSwipeScrollView
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.horizontalScrollPadding}
+        {visibleRails.length === 0 ? (
+          <View style={styles.emptyFilterContainer}>
+            <Calendar size={32} color="#8E8E93" strokeWidth={1.8} />
+            <Text style={styles.emptyFilterTitle}>
+              No events found for {FILTER_OPTIONS.find((o) => o.id === activeFilter)?.label.toLowerCase() || ""}
+            </Text>
+            <Text style={styles.emptyFilterSubtitle}>
+              There are no events matching this filter right now. Check back soon or explore other filters.
+            </Text>
+            {activeFilter !== "all" && (
+              <TouchableOpacity
+                style={styles.emptyFilterButton}
+                activeOpacity={0.7}
+                onPress={() => {
+                  HapticsService.triggerImpactLight();
+                  setActiveFilter("all");
+                }}
               >
-                {filteredEvents.map((event) => {
-                  const isInterested = Boolean(interestMap[event.eventId] ?? event.isInterested);
-                  return (
-                    <CompactEventCard
-                      key={event.eventId}
-                      event={{
-                        ...event,
-                        id: event.eventId,
-                        category: rail.category,
-                      }}
-                      width={RAIL_CARD_WIDTH}
-                      style={{ marginRight: RAIL_CARD_GAP }}
-                      showBookmark={true}
-                      isInterested={isInterested}
-                      onToggleInterest={handleToggleInterest}
-                      onPress={() => handleEventPress(event.eventId, event)}
-                    />
-                  );
-                })}
-              </EdgeSwipeScrollView>
-            </View>
-          );
-        })}
+                <Text style={styles.emptyFilterButtonText}>View all events</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        ) : (
+          visibleRails.map((rail) => {
+            return (
+              <View key={rail.categorySlug} style={styles.sectionContainer}>
+                <View style={styles.railHeader}>
+                  <Text style={styles.sectionTitle}>{rail.category}</Text>
+                  <TouchableOpacity
+                    style={styles.seeAllButton}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    onPress={() => handleSeeAll(rail.categorySlug, rail.category)}
+                  >
+                    <Text style={styles.seeAllText}>See all</Text>
+                    <ChevronRight size={14} color="#71717A" strokeWidth={2.2} style={styles.seeAllChevron} />
+                  </TouchableOpacity>
+                </View>
+                <EdgeSwipeScrollView
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.horizontalScrollPadding}
+                >
+                  {rail.filteredEvents.map((event) => {
+                    const isInterested = Boolean(interestMap[event.eventId] ?? event.isInterested);
+                    return (
+                      <CompactEventCard
+                        key={event.eventId}
+                        event={{
+                          ...event,
+                          id: event.eventId,
+                          category: rail.category,
+                        }}
+                        width={RAIL_CARD_WIDTH}
+                        style={{ marginRight: RAIL_CARD_GAP }}
+                        showBookmark={true}
+                        isInterested={isInterested}
+                        onToggleInterest={handleToggleInterest}
+                        onPress={() => handleEventPress(event.eventId, event)}
+                      />
+                    );
+                  })}
+                </EdgeSwipeScrollView>
+              </View>
+            );
+          })
+        )}
       </View>
     );
   };
@@ -1870,6 +1943,47 @@ const styles = StyleSheet.create({
   },
   filterPillTextActive: {
     color: "#FFFFFF"
+  },
+  emptyFilterContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 36,
+    paddingHorizontal: 24,
+    marginHorizontal: 16,
+    marginBottom: 24,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  emptyFilterTitle: {
+    fontFamily: FONTS.primary, // BasicCommercial-Bold
+    fontSize: 17,
+    color: "#1E293B",
+    marginTop: 12,
+    marginBottom: 4,
+    textAlign: "center",
+  },
+  emptyFilterSubtitle: {
+    fontFamily: FONTS.regular, // Manrope-Regular
+    fontSize: 13,
+    color: "#64748B",
+    textAlign: "center",
+    marginBottom: 16,
+    lineHeight: 18,
+  },
+  emptyFilterButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+  },
+  emptyFilterButtonText: {
+    fontFamily: FONTS.semiBold, // Manrope-SemiBold
+    fontSize: 13,
+    color: "#2563EB",
   },
 
   // Bookmark Button

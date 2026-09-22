@@ -1414,33 +1414,33 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   ageChipActive: {
-    backgroundColor: '#FEF3C7',
-    borderColor: '#D97706',
+    backgroundColor: '#EEF2FF',
+    borderColor: COLORS.primary,
   },
   ageChipInactive: {
     backgroundColor: COLORS.surface,
     borderColor: COLORS.border,
   },
   ageChipTextActive: {
-    color: '#B45309',
+    color: COLORS.primary,
   },
   ageBadgePill: {
-    backgroundColor: '#FEF3C7',
+    backgroundColor: '#EEF2FF',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#FDE68A',
+    borderColor: '#C7D2FE',
   },
   ageBadgePillText: {
     fontFamily: FONTS.medium,
     fontSize: 12,
-    color: '#B45309',
+    color: COLORS.primary,
   },
   customRangeContainer: {
     marginTop: 10,
     marginBottom: 4,
-    paddingHorizontal: 4,
+    paddingHorizontal: 6,
   },
   input: {
     borderWidth: 1,

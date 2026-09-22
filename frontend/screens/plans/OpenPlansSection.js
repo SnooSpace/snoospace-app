@@ -188,12 +188,25 @@ export default function OpenPlansSection({ navigation, currentUserId, refreshKey
             </Text>
           </View>
 
-          {/* Top-Right Count Badge */}
-          <View style={styles.cardCountPill}>
-            <Users size={10} color="#FFFFFF" style={{ marginRight: 3 }} />
-            <Text style={styles.cardCountPillText}>
-              {`${acceptedN}/${maxAccepted}`}
-            </Text>
+          {/* Top-Right Count & Age Badge */}
+          <View style={styles.topRightBadgesContainer}>
+            <View style={styles.cardCountPill}>
+              <Users size={10} color="#FFFFFF" style={{ marginRight: 3 }} />
+              <Text style={styles.cardCountPillText}>
+                {`${acceptedN}/${maxAccepted}`}
+              </Text>
+            </View>
+            {(plan.min_age != null || plan.max_age != null) && (
+              <View style={styles.cardAgePill}>
+                <Text style={styles.cardAgePillText}>
+                  {plan.min_age && plan.max_age
+                    ? `${plan.min_age}–${plan.max_age}y`
+                    : plan.min_age
+                    ? `${plan.min_age}+y`
+                    : `≤${plan.max_age}y`}
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* Bottom-Left Status Badge (Hosting / Joined / Requested) */}
@@ -519,16 +532,33 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium,
     fontSize: 10,
   },
-  cardCountPill: {
+  topRightBadgesContainer: {
     position: 'absolute',
     top: 8,
     right: 8,
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  cardCountPill: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.55)',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 999,
+  },
+  cardAgePill: {
+    backgroundColor: 'rgba(238, 242, 255, 0.95)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+  },
+  cardAgePillText: {
+    fontFamily: FONTS.medium,
+    fontSize: 9,
+    color: COLORS.primary,
   },
   cardCountPillText: {
     fontFamily: FONTS.medium,

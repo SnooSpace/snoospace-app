@@ -1,18 +1,21 @@
-import React, { useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { StyleSheet, View, Text } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   runOnJS,
   withSpring,
+  withTiming,
 } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { COLORS, FONTS } from "../../constants/theme";
 import HapticsService from "../../services/HapticsService";
 
-const THUMB_SIZE = 28; // Standard comfortable touch target size
+const THUMB_SIZE = 26;
 const HIT_SLOP = 44;
-const TRACK_HEIGHT = 6; // Thicker, modern track pill
+const TRACK_HEIGHT = 5;
+const PADDING_X = 20; // Inset so thumbs & tooltips never bleed out at min/max limits
+const TOOLTIP_WIDTH = 44;
 
 const RangeSlider = ({
   min = 18,
@@ -21,34 +24,38 @@ const RangeSlider = ({
   initialMax = 30,
   onValueChange,
 }) => {
+  const [displayMin, setDisplayMin] = useState(initialMin);
+  const [displayMax, setDisplayMax] = useState(initialMax);
+
   const containerWidth = useSharedValue(0);
-  const leftX = useSharedValue(0);
-  const rightX = useSharedValue(0);
+  const leftX = useSharedValue(PADDING_X);
+  const rightX = useSharedValue(PADDING_X + 100);
   const lastLeftVal = useSharedValue(initialMin);
   const lastRightVal = useSharedValue(initialMax);
-  const leftScale = useSharedValue(1);
-  const rightScale = useSharedValue(1);
   const startLeftX = useSharedValue(0);
   const startRightX = useSharedValue(0);
 
   // Tooltip micro-animations
   const leftTooltipOpacity = useSharedValue(0);
-  const leftTooltipScale = useSharedValue(0);
+  const leftTooltipScale = useSharedValue(0.8);
   const leftTooltipTranslateY = useSharedValue(5);
 
   const rightTooltipOpacity = useSharedValue(0);
-  const rightTooltipScale = useSharedValue(0);
+  const rightTooltipScale = useSharedValue(0.8);
   const rightTooltipTranslateY = useSharedValue(5);
 
   const range = max - min;
 
   const initializePositions = useCallback(
     (width) => {
-      if (width <= 0) return;
-      leftX.value = ((initialMin - min) / range) * width;
-      rightX.value = ((initialMax - min) / range) * width;
+      if (width <= 2 * PADDING_X) return;
+      const usable = width - 2 * PADDING_X;
+      leftX.value = PADDING_X + ((initialMin - min) / range) * usable;
+      rightX.value = PADDING_X + ((initialMax - min) / range) * usable;
       lastLeftVal.value = initialMin;
       lastRightVal.value = initialMax;
+      setDisplayMin(initialMin);
+      setDisplayMax(initialMax);
     },
     [min, max, initialMin, initialMax, range],
   );
@@ -65,12 +72,9 @@ const RangeSlider = ({
     initializePositions(w);
   };
 
-  const notifyChange = (lX, rX, w) => {
-    if (w <= 0) return;
-    const lValue = Math.round(min + (lX / w) * range);
-    const rValue = Math.round(min + (rX / w) * range);
+  const notifyChange = (lVal, rVal) => {
     if (onValueChange) {
-      onValueChange({ min: lValue, max: rValue });
+      onValueChange({ min: lVal, max: rVal });
     }
   };
 
@@ -82,94 +86,108 @@ const RangeSlider = ({
     .activeOffsetX([-10, 10])
     .onStart(() => {
       startLeftX.value = leftX.value;
-      leftTooltipOpacity.value = 1;
-      leftTooltipScale.value = 1;
-      leftTooltipTranslateY.value = 0;
+      leftTooltipOpacity.value = withTiming(1, { duration: 120 });
+      leftTooltipScale.value = withSpring(1, { damping: 15 });
+      leftTooltipTranslateY.value = withTiming(0, { duration: 120 });
     })
     .onUpdate((e) => {
       const w = containerWidth.value;
-      if (w <= 0) return;
+      if (w <= 2 * PADDING_X) return;
+      const usable = w - 2 * PADDING_X;
 
       let nextX = startLeftX.value + e.translationX;
-      const minPointsGap = (2 / range) * w;
-      nextX = Math.max(0, Math.min(nextX, rightX.value - minPointsGap));
+      const minGap = (1 / range) * usable;
+      nextX = Math.max(PADDING_X, Math.min(nextX, rightX.value - minGap));
       leftX.value = nextX;
 
-      const currentMin = Math.round(min + (nextX / w) * range);
+      const currentMin = Math.round(min + ((nextX - PADDING_X) / usable) * range);
       if (currentMin !== lastLeftVal.value) {
         lastLeftVal.value = currentMin;
-        runOnJS(notifyChange)(nextX, rightX.value, w);
+        runOnJS(setDisplayMin)(currentMin);
+        runOnJS(notifyChange)(currentMin, lastRightVal.value);
         runOnJS(triggerHaptic)();
       }
     })
-    .onEnd(() => {
-      leftTooltipOpacity.value = 0;
-      leftTooltipScale.value = 0;
-      leftTooltipTranslateY.value = 5;
+    .onFinalize(() => {
+      leftTooltipOpacity.value = withTiming(0, { duration: 150 });
+      leftTooltipScale.value = withTiming(0.8, { duration: 150 });
+      leftTooltipTranslateY.value = withTiming(5, { duration: 150 });
     });
 
   const rightGesture = Gesture.Pan()
     .activeOffsetX([-10, 10])
     .onStart(() => {
       startRightX.value = rightX.value;
-      rightTooltipOpacity.value = 1;
-      rightTooltipScale.value = 1;
-      rightTooltipTranslateY.value = 0;
+      rightTooltipOpacity.value = withTiming(1, { duration: 120 });
+      rightTooltipScale.value = withSpring(1, { damping: 15 });
+      rightTooltipTranslateY.value = withTiming(0, { duration: 120 });
     })
     .onUpdate((e) => {
       const w = containerWidth.value;
-      if (w <= 0) return;
+      if (w <= 2 * PADDING_X) return;
+      const usable = w - 2 * PADDING_X;
 
       let nextX = startRightX.value + e.translationX;
-      const minPointsGap = (2 / range) * w;
-      nextX = Math.max(leftX.value + minPointsGap, Math.min(nextX, w));
+      const minGap = (1 / range) * usable;
+      nextX = Math.max(leftX.value + minGap, Math.min(nextX, w - PADDING_X));
       rightX.value = nextX;
 
-      const currentMax = Math.round(min + (nextX / w) * range);
+      const currentMax = Math.round(min + ((nextX - PADDING_X) / usable) * range);
       if (currentMax !== lastRightVal.value) {
         lastRightVal.value = currentMax;
-        runOnJS(notifyChange)(leftX.value, nextX, w);
+        runOnJS(setDisplayMax)(currentMax);
+        runOnJS(notifyChange)(lastLeftVal.value, currentMax);
         runOnJS(triggerHaptic)();
       }
     })
-    .onEnd(() => {
-      rightTooltipOpacity.value = 0;
-      rightTooltipScale.value = 0;
-      rightTooltipTranslateY.value = 5;
+    .onFinalize(() => {
+      rightTooltipOpacity.value = withTiming(0, { duration: 150 });
+      rightTooltipScale.value = withTiming(0.8, { duration: 150 });
+      rightTooltipTranslateY.value = withTiming(5, { duration: 150 });
     });
 
   const leftStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: leftX.value - HIT_SLOP / 2 },
-    ],
+    transform: [{ translateX: leftX.value - HIT_SLOP / 2 }],
   }));
 
   const rightStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: rightX.value - HIT_SLOP / 2 },
-    ],
+    transform: [{ translateX: rightX.value - HIT_SLOP / 2 }],
   }));
 
   const trackStyle = useAnimatedStyle(() => ({
     left: leftX.value,
-    width: rightX.value - leftX.value,
+    width: Math.max(0, rightX.value - leftX.value),
   }));
 
-  const leftTooltipStyle = useAnimatedStyle(() => ({
-    opacity: leftTooltipOpacity.value,
-    transform: [
-      { scale: leftTooltipScale.value },
-      { translateY: leftTooltipTranslateY.value },
-    ],
-  }));
+  // Tooltips clamp translation so they never cut off on screen edges
+  const leftTooltipStyle = useAnimatedStyle(() => {
+    // If leftX is near left border, shift tooltip right
+    const minCenter = TOOLTIP_WIDTH / 2 + 4;
+    const shiftX = leftX.value < minCenter ? minCenter - leftX.value : 0;
+    return {
+      opacity: leftTooltipOpacity.value,
+      transform: [
+        { translateX: shiftX },
+        { scale: leftTooltipScale.value },
+        { translateY: leftTooltipTranslateY.value },
+      ],
+    };
+  });
 
-  const rightTooltipStyle = useAnimatedStyle(() => ({
-    opacity: rightTooltipOpacity.value,
-    transform: [
-      { scale: rightTooltipScale.value },
-      { translateY: rightTooltipTranslateY.value },
-    ],
-  }));
+  const rightTooltipStyle = useAnimatedStyle(() => {
+    // If rightX is near right border, shift tooltip left
+    const w = containerWidth.value;
+    const maxCenter = w - (TOOLTIP_WIDTH / 2 + 4);
+    const shiftX = w > 0 && rightX.value > maxCenter ? maxCenter - rightX.value : 0;
+    return {
+      opacity: rightTooltipOpacity.value,
+      transform: [
+        { translateX: shiftX },
+        { scale: rightTooltipScale.value },
+        { translateY: rightTooltipTranslateY.value },
+      ],
+    };
+  });
 
   return (
     <View style={styles.container} onLayout={onLayout}>
@@ -178,31 +196,27 @@ const RangeSlider = ({
 
       <GestureDetector gesture={leftGesture}>
         <Animated.View style={[styles.hitArea, leftStyle]}>
-          <Animated.View style={[styles.tooltipContainer, leftTooltipStyle]}>
+          <Animated.View style={[styles.tooltipContainer, leftTooltipStyle]} pointerEvents="none">
             <View style={styles.tooltipBubble}>
-              <Text style={styles.tooltipText}>{initialMin}</Text>
+              <Text style={styles.tooltipText}>{displayMin}</Text>
             </View>
             <View style={styles.tooltipArrow} />
           </Animated.View>
 
-          <View style={styles.thumb}>
-            <Text style={styles.thumbEmoji}>🧒</Text>
-          </View>
+          <View style={styles.thumb} />
         </Animated.View>
       </GestureDetector>
 
       <GestureDetector gesture={rightGesture}>
         <Animated.View style={[styles.hitArea, rightStyle]}>
-          <Animated.View style={[styles.tooltipContainer, rightTooltipStyle]}>
+          <Animated.View style={[styles.tooltipContainer, rightTooltipStyle]} pointerEvents="none">
             <View style={styles.tooltipBubble}>
-              <Text style={styles.tooltipText}>{initialMax}</Text>
+              <Text style={styles.tooltipText}>{displayMax}</Text>
             </View>
             <View style={styles.tooltipArrow} />
           </Animated.View>
 
-          <View style={styles.thumb}>
-            <Text style={styles.thumbEmoji}>🧔</Text>
-          </View>
+          <View style={styles.thumb} />
         </Animated.View>
       </GestureDetector>
     </View>
@@ -217,10 +231,11 @@ const styles = StyleSheet.create({
   },
   trackBackground: {
     height: TRACK_HEIGHT,
-    backgroundColor: "#E5E7EB",
+    backgroundColor: "#E2E8F0",
     borderRadius: TRACK_HEIGHT / 2,
     position: "absolute",
-    width: "100%",
+    left: PADDING_X,
+    right: PADDING_X,
   },
   trackActive: {
     height: TRACK_HEIGHT,
@@ -236,35 +251,29 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   thumb: {
-    height: 34,
-    width: 34,
-    borderRadius: 17,
+    height: THUMB_SIZE,
+    width: THUMB_SIZE,
+    borderRadius: THUMB_SIZE / 2,
     backgroundColor: "#FFFFFF",
-    justifyContent: "center",
-    alignItems: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3,
-    borderWidth: 1.5,
-    borderColor: "#E2E8F0",
-  },
-  thumbEmoji: {
-    fontSize: 16,
-    textAlign: "center",
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 4,
+    borderWidth: 2.5,
+    borderColor: COLORS.primary,
   },
   tooltipContainer: {
     position: "absolute",
-    top: -38,
-    width: 60,
+    top: -36,
+    width: TOOLTIP_WIDTH,
     alignItems: "center",
-    left: -8,
+    left: (HIT_SLOP - TOOLTIP_WIDTH) / 2,
   },
   tooltipBubble: {
     backgroundColor: COLORS.primary,
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: 3,
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
