@@ -382,7 +382,12 @@ export default function EditEventModal({
             applies_to: pr.applies_to || "all",
             selected_tickets: Array.isArray(selTickets) ? selTickets : [],
             min_purchase: pr.min_purchase !== undefined && pr.min_purchase !== null ? String(pr.min_purchase) : pr.min_cart_value !== undefined && pr.min_cart_value !== null ? String(pr.min_cart_value) : "",
-            max_uses: pr.max_uses !== undefined && pr.max_uses !== null ? String(pr.max_uses) : "",
+            max_uses:
+              pr.rule_type === "early_bird_quantity"
+                ? ""
+                : pr.max_uses !== undefined && pr.max_uses !== null
+                ? String(pr.max_uses)
+                : "",
             stackable: Boolean(pr.stackable),
           });
         });
@@ -668,7 +673,7 @@ export default function EditEventModal({
                 is_active: p.is_active,
                 applies_to: p.applies_to,
                 selected_tickets: p.selected_tickets,
-                max_uses: p.max_uses ? parseInt(p.max_uses, 10) : null,
+                max_uses: p.trigger === "by_sales" ? null : p.max_uses ? parseInt(p.max_uses, 10) : null,
                 min_purchase: p.min_purchase ? parseFloat(p.min_purchase) : null,
                 min_cart_value: p.min_purchase ? parseFloat(p.min_purchase) : null,
                 stackable: Boolean(p.stackable),

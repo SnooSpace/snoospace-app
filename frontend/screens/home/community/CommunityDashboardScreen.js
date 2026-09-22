@@ -55,6 +55,7 @@ import EditEventModal from "../../../components/modals/EditEventModal";
 import ActionModal from "../../../components/modals/ActionModal";
 import CancelEventModal, { PostponeEventModal } from "../../../components/modals/CancelEventModal";
 import PromoteSheet from "../../../components/posts/PromoteSheet";
+import PromotionSuccessModal from "../../../components/modals/PromotionSuccessModal";
 import CustomAlertModal from "../../../components/ui/CustomAlertModal";
 import GradientSafeArea from "../../../components/ui/GradientSafeArea";
 import HapticsService from "../../../services/HapticsService";
@@ -267,6 +268,8 @@ export default function CommunityDashboardScreen({ navigation }) {
   // Promote state
   const [showPromoteSheet, setShowPromoteSheet] = useState(false);
   const [promotingEvent, setPromotingEvent] = useState(null);
+  const [showPromotionSuccessModal, setShowPromotionSuccessModal] = useState(false);
+  const [promotedEventData, setPromotedEventData] = useState(null);
 
   // Scroll Animation
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -1231,13 +1234,35 @@ export default function CommunityDashboardScreen({ navigation }) {
           setShowPromoteSheet(false);
           setPromotingEvent(null);
         }}
-        onSuccess={() => {
+        onSuccess={(createdPost, extra) => {
+          const eventBeingPromoted = promotingEvent;
           setShowPromoteSheet(false);
           setPromotingEvent(null);
+          setPromotedEventData({
+            event: eventBeingPromoted,
+            post: createdPost,
+            engagementType: extra?.engagementType || createdPost?.engagement_type,
+            quota: extra?.quota,
+          });
+          setTimeout(() => {
+            setShowPromotionSuccessModal(true);
+          }, Platform.OS === 'ios' ? 350 : 100);
         }}
         sourceType="event"
         sourceData={promotingEvent}
         allowedEngagementTypes={['poll', 'qna', 'prompt', 'opportunity']}
+      />
+
+      {/* Promotion Confirmation Modal */}
+      <PromotionSuccessModal
+        visible={showPromotionSuccessModal}
+        eventData={promotedEventData?.event}
+        engagementType={promotedEventData?.engagementType}
+        quota={promotedEventData?.quota}
+        onClose={() => {
+          setShowPromotionSuccessModal(false);
+          setPromotedEventData(null);
+        }}
       />
 
       {/* Custom Alert Modal (e.g. Cannot Promote, Error alerts) */}

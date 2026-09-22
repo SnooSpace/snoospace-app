@@ -95,6 +95,8 @@ async function createPlan(req, res) {
       visibility,
       target_community_ids, // array of community IDs for community_members scoping; [] / absent = broad
       gender_preference = 'all',
+      min_age,
+      max_age,
       location_public,
       location_private,
       scheduled_at,
@@ -143,6 +145,26 @@ async function createPlan(req, res) {
     if (!validGenders.includes(gender_preference)) {
       return res.status(400).json({ error: `gender_preference must be one of: ${validGenders.join(', ')}` });
     }
+
+    // --- Age Range Validation ---
+    let minAgeInt = null;
+    let maxAgeInt = null;
+    if (min_age !== undefined && min_age !== null && min_age !== '') {
+      minAgeInt = parseInt(min_age, 10);
+      if (isNaN(minAgeInt) || minAgeInt < 18 || minAgeInt > 99) {
+        return res.status(400).json({ error: 'min_age must be between 18 and 99' });
+      }
+    }
+    if (max_age !== undefined && max_age !== null && max_age !== '') {
+      maxAgeInt = parseInt(max_age, 10);
+      if (isNaN(maxAgeInt) || maxAgeInt < 18 || maxAgeInt > 99) {
+        return res.status(400).json({ error: 'max_age must be between 18 and 99' });
+      }
+    }
+    if (minAgeInt !== null && maxAgeInt !== null && minAgeInt > maxAgeInt) {
+      return res.status(400).json({ error: 'min_age cannot be greater than max_age' });
+    }
+
     if (!scheduled_at) {
       return res.status(400).json({ error: 'scheduled_at is required' });
     }
@@ -172,14 +194,14 @@ async function createPlan(req, res) {
         `INSERT INTO open_plans (
            created_by, title, description, activity_type, custom_activity_label,
            cost_type, cost_amount_paise, visibility,
-           gender_preference, location_public, location_private,
+           gender_preference, min_age, max_age, location_public, location_private,
            scheduled_at, expires_at, max_accepted, is_recurring, recurrence_interval,
            banner_image_url
          ) VALUES (
            $1, $2, $3, $4, $5,
            $6, $7, $8,
-           $9, $10, $11,
-           $12, $12::timestamptz + INTERVAL '24 hours', $13, $14, $15, $16
+           $9, $10, $11, $12, $13,
+           $14, $14::timestamptz + INTERVAL '24 hours', $15, $16, $17, $18
          ) RETURNING *`,
         [
           userId,
@@ -191,6 +213,8 @@ async function createPlan(req, res) {
           cost_amount_paise || null,
           visibility,
           gender_preference,
+          minAgeInt,
+          maxAgeInt,
           location_public || null,
           location_private || null,
           scheduled_at,
@@ -238,9 +262,16 @@ async function getPlans(req, res) {
     const limit = Math.min(parseInt(req.query.limit || '20', 10), 50);
     const cursor = req.query.cursor ? parseInt(req.query.cursor, 10) : null;
     const activityType = req.query.activityType || req.query.activity_type || null;
+    const ageMin = req.query.ageMin ? parseInt(req.query.ageMin, 10) : null;
+    const ageMax = req.query.ageMax ? parseInt(req.query.ageMax, 10) : null;
+    const genderPreference = req.query.genderPreference || req.query.gender_preference || null;
+    const costType = req.query.costType || req.query.cost_type || null;
 
-    // Fetch viewer's gender for filter
-    const memberR = await pool.query(`SELECT gender FROM members WHERE id = $1`, [userId]);
+    // Fetch viewer's gender and age for filter
+    const memberR = await pool.query(
+      `SELECT gender, EXTRACT(YEAR FROM AGE(CURRENT_DATE, dob))::int AS age FROM members WHERE id = $1`,
+      [userId]
+    );
     const viewerGender = memberR.rows[0]?.gender || null;
 
     const params = [userId, userId, viewerGender, limit + 1];
@@ -248,6 +279,29 @@ async function getPlans(req, res) {
     const activityClause = (activityType && activityType !== 'all')
       ? `AND op.activity_type = $${params.push(activityType)}`
       : '';
+
+    let ageClause = '';
+    if (!isNaN(ageMin) && ageMin !== null && !isNaN(ageMax) && ageMax !== null) {
+      const pMax = params.push(ageMax);
+      const pMin = params.push(ageMin);
+      ageClause = `AND (op.min_age IS NULL OR op.min_age <= $${pMax}) AND (op.max_age IS NULL OR op.max_age >= $${pMin})`;
+    } else if (!isNaN(ageMin) && ageMin !== null) {
+      const pMin = params.push(ageMin);
+      ageClause = `AND (op.max_age IS NULL OR op.max_age >= $${pMin})`;
+    } else if (!isNaN(ageMax) && ageMax !== null) {
+      const pMax = params.push(ageMax);
+      ageClause = `AND (op.min_age IS NULL OR op.min_age <= $${pMax})`;
+    }
+
+    let genderClause = '';
+    if (genderPreference && genderPreference !== 'all') {
+      genderClause = `AND op.gender_preference = $${params.push(genderPreference)}`;
+    }
+
+    let costClause = '';
+    if (costType && costType !== 'all') {
+      costClause = `AND op.cost_type = $${params.push(costType)}`;
+    }
 
     const query = `
       SELECT op.*
@@ -257,6 +311,9 @@ async function getPlans(req, res) {
         AND op.scheduled_at > NOW()
         ${cursorClause}
         ${activityClause}
+        ${ageClause}
+        ${genderClause}
+        ${costClause}
         -- Block filter (both directions)
         AND op.created_by NOT IN (
           SELECT blocked_id FROM user_blocks WHERE blocker_id = $1
@@ -536,6 +593,43 @@ async function updatePlan(req, res) {
     if (req.body.cost_amount_paise !== undefined) {
       updates.push(`cost_amount_paise = $${idx++}`);
       values.push(req.body.cost_amount_paise || null);
+    }
+
+    // --- Age Range (min_age & max_age) ---
+    let minAgeVal = undefined;
+    let maxAgeVal = undefined;
+    if (req.body.min_age !== undefined) {
+      if (req.body.min_age === null || req.body.min_age === '') {
+        minAgeVal = null;
+      } else {
+        const v = parseInt(req.body.min_age, 10);
+        if (isNaN(v) || v < 18 || v > 99) {
+          return res.status(400).json({ error: 'min_age must be between 18 and 99' });
+        }
+        minAgeVal = v;
+      }
+    }
+    if (req.body.max_age !== undefined) {
+      if (req.body.max_age === null || req.body.max_age === '') {
+        maxAgeVal = null;
+      } else {
+        const v = parseInt(req.body.max_age, 10);
+        if (isNaN(v) || v < 18 || v > 99) {
+          return res.status(400).json({ error: 'max_age must be between 18 and 99' });
+        }
+        maxAgeVal = v;
+      }
+    }
+    if (minAgeVal !== undefined && maxAgeVal !== undefined && minAgeVal !== null && maxAgeVal !== null && minAgeVal > maxAgeVal) {
+      return res.status(400).json({ error: 'min_age cannot be greater than max_age' });
+    }
+    if (minAgeVal !== undefined) {
+      updates.push(`min_age = $${idx++}`);
+      values.push(minAgeVal);
+    }
+    if (maxAgeVal !== undefined) {
+      updates.push(`max_age = $${idx++}`);
+      values.push(maxAgeVal);
     }
 
     // --- max_accepted ---

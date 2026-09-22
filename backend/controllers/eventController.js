@@ -559,7 +559,11 @@ const createEvent = async (req, res) => {
             rule.is_active !== false,
             rule.applies_to || "all",
             JSON.stringify(rule.selected_tickets || []),
-            rule.max_uses ? parseInt(rule.max_uses, 10) : null,
+            rule.rule_type === "early_bird_quantity"
+              ? null
+              : rule.max_uses
+              ? parseInt(rule.max_uses, 10)
+              : null,
             rule.min_cart_value !== undefined && rule.min_cart_value !== null && rule.min_cart_value !== ""
               ? rule.min_cart_value
               : rule.min_purchase !== undefined && rule.min_purchase !== null && rule.min_purchase !== ""
@@ -2738,7 +2742,11 @@ const updateEvent = async (req, res) => {
               rule.is_active !== false,
               rule.applies_to || "all",
               JSON.stringify(rule.selected_tickets || []),
-              rule.max_uses ? parseInt(rule.max_uses, 10) : null,
+              rule.rule_type === "early_bird_quantity"
+                ? null
+                : rule.max_uses
+                ? parseInt(rule.max_uses, 10)
+                : null,
               rule.min_cart_value !== undefined && rule.min_cart_value !== null && rule.min_cart_value !== ""
                 ? rule.min_cart_value
                 : rule.min_purchase !== undefined && rule.min_purchase !== null && rule.min_purchase !== ""

@@ -513,7 +513,7 @@ const CreateEventModal = ({
         is_active: p.is_active,
         applies_to: p.applies_to,
         selected_tickets: p.selected_tickets,
-        max_uses: p.max_uses ? parseInt(p.max_uses, 10) : null,
+        max_uses: p.trigger === "by_sales" ? null : p.max_uses ? parseInt(p.max_uses, 10) : null,
         min_purchase: p.min_purchase,
         min_cart_value: p.min_purchase ? parseFloat(p.min_purchase) : null,
         stackable: Boolean(p.stackable),
@@ -2400,7 +2400,8 @@ const CreateEventModal = ({
                       : "GROUP";
 
                     const conditions = [];
-                    if (p.max_uses) conditions.push(`Max ${p.max_uses} uses`);
+                    if (p.max_uses && !(isEarlyBird && p.trigger === "by_sales"))
+                      conditions.push(`Max ${p.max_uses} uses`);
                     if (p.min_purchase && parseFloat(p.min_purchase) > 0)
                       conditions.push(`Min spend ₹${p.min_purchase}`);
                     if (p.valid_until)

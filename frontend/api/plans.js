@@ -5,12 +5,24 @@ import { BACKEND_BASE_URL } from './client';
 
 // ─── Plans ──────────────────────────────────────────────────────────────────
 
-export async function getPlans(cursor, token, activityType = null) {
+export async function getPlans(cursor, token, activityType = null, filters = {}) {
   const params = [];
   if (cursor) params.push(`cursor=${encodeURIComponent(cursor)}`);
   params.push('limit=20');
   if (activityType && activityType !== 'all') {
     params.push(`activityType=${encodeURIComponent(activityType)}`);
+  }
+  if (filters?.ageMin !== undefined && filters?.ageMin !== null) {
+    params.push(`ageMin=${encodeURIComponent(filters.ageMin)}`);
+  }
+  if (filters?.ageMax !== undefined && filters?.ageMax !== null) {
+    params.push(`ageMax=${encodeURIComponent(filters.ageMax)}`);
+  }
+  if (filters?.genderPreference && filters?.genderPreference !== 'all') {
+    params.push(`genderPreference=${encodeURIComponent(filters.genderPreference)}`);
+  }
+  if (filters?.costType && filters?.costType !== 'all') {
+    params.push(`costType=${encodeURIComponent(filters.costType)}`);
   }
   const q = `?${params.join('&')}`;
   return apiGet(`/plans${q}`, 15000, token);

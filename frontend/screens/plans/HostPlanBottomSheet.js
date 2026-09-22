@@ -42,7 +42,9 @@ import {
   VenusAndMars,
   FileEdit,
   Sparkles,
+  Cake,
 } from "lucide-react-native";
+import RangeSlider from "../../components/ui/RangeSlider";
 import { COLORS, FONTS, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
 import { getAuthToken } from "../../api/auth";
 import { createPlan, uploadPlanBanner } from "../../api/plans";
@@ -110,6 +112,15 @@ const GENDER_OPTS = [
   { key: "Male", label: "Men only" },
 ];
 
+const AGE_PRESETS = [
+  { key: "all", label: "All ages", min: null, max: null },
+  { key: "18-24", label: "18–24", min: 18, max: 24 },
+  { key: "21-29", label: "21–29", min: 21, max: 29 },
+  { key: "25-35", label: "25–35", min: 25, max: 35 },
+  { key: "30+", label: "30+", min: 30, max: 99 },
+  { key: "custom", label: "Custom…", min: 21, max: 35 },
+];
+
 function formatDateTime(date, time) {
   if (!date) return null;
   const d = new Date(date);
@@ -147,6 +158,9 @@ export default function HostPlanBottomSheet({
   const [costAmount, setCostAmount] = useState("");
   const [visibility, setVisibility] = useState("everyone");
   const [genderPref, setGenderPref] = useState("all");
+  const [minAge, setMinAge] = useState(null);
+  const [maxAge, setMaxAge] = useState(null);
+  const [agePreset, setAgePreset] = useState("all");
   const [locationPublic, setLocationPublic] = useState("");
   const [locationPrivate, setLocationPrivate] = useState("");
   const [selectedDate, setSelectedDate] = useState(null);
@@ -231,6 +245,9 @@ export default function HostPlanBottomSheet({
     setCostAmount("");
     setVisibility("everyone");
     setGenderPref("all");
+    setMinAge(null);
+    setMaxAge(null);
+    setAgePreset("all");
     setLocationPublic("");
     setLocationPrivate("");
     setSelectedDate(null);
@@ -257,6 +274,9 @@ export default function HostPlanBottomSheet({
       costAmount.trim().length > 0 ||
       visibility !== "everyone" ||
       genderPref !== "all" ||
+      agePreset !== "all" ||
+      minAge !== null ||
+      maxAge !== null ||
       locationPublic.trim().length > 0 ||
       locationPrivate.trim().length > 0 ||
       selectedDate !== null ||
@@ -304,6 +324,9 @@ export default function HostPlanBottomSheet({
       costAmount,
       visibility,
       genderPref,
+      minAge,
+      maxAge,
+      agePreset,
       locationPublic,
       locationPrivate,
       selectedDate: selectedDate ? selectedDate.toISOString() : null,
@@ -339,6 +362,9 @@ export default function HostPlanBottomSheet({
       if (d.costAmount) setCostAmount(d.costAmount);
       if (d.visibility) setVisibility(d.visibility);
       if (d.genderPref) setGenderPref(d.genderPref);
+      if (d.minAge !== undefined) setMinAge(d.minAge);
+      if (d.maxAge !== undefined) setMaxAge(d.maxAge);
+      if (d.agePreset) setAgePreset(d.agePreset);
       if (d.locationPublic) setLocationPublic(d.locationPublic);
       if (d.locationPrivate) setLocationPrivate(d.locationPrivate);
       if (d.selectedDate) setSelectedDate(new Date(d.selectedDate));
@@ -419,6 +445,8 @@ export default function HostPlanBottomSheet({
           : null,
         visibility,
         gender_preference: genderPref,
+        min_age: minAge,
+        max_age: maxAge,
         target_community_ids: targetCommunityIds,
         location_public: locationPublic.trim() || null,
         location_private: selectedVenue
@@ -927,6 +955,69 @@ export default function HostPlanBottomSheet({
             })}
           </View>
 
+          {/* Age range */}
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.fieldLabel}>Age range</Text>
+            {(minAge !== null || maxAge !== null) && (
+              <View style={styles.ageBadgePill}>
+                <Text style={styles.ageBadgePillText}>
+                  {minAge && maxAge ? `${minAge} – ${maxAge} yrs` : minAge ? `${minAge}+ yrs` : `Up to ${maxAge} yrs`}
+                </Text>
+              </View>
+            )}
+          </View>
+          <View style={[styles.chipRow, { flexWrap: 'wrap' }]}>
+            {AGE_PRESETS.map((preset) => {
+              const isActive = agePreset === preset.key;
+              return (
+                <TouchableOpacity
+                  key={preset.key}
+                  style={[
+                    styles.genderChip,
+                    isActive ? styles.ageChipActive : styles.ageChipInactive,
+                  ]}
+                  onPress={() => {
+                    setAgePreset(preset.key);
+                    if (preset.key === 'all') {
+                      setMinAge(null);
+                      setMaxAge(null);
+                    } else if (preset.key === 'custom') {
+                      if (!minAge) setMinAge(21);
+                      if (!maxAge) setMaxAge(35);
+                    } else {
+                      setMinAge(preset.min);
+                      setMaxAge(preset.max);
+                    }
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.genderChipText,
+                      isActive ? styles.ageChipTextActive : { color: COLORS.textSecondary },
+                    ]}
+                  >
+                    {preset.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          {agePreset === 'custom' && (
+            <View style={styles.customRangeContainer}>
+              <RangeSlider
+                min={18}
+                max={99}
+                initialMin={minAge || 21}
+                initialMax={maxAge || 35}
+                onValueChange={({ min, max }) => {
+                  setMinAge(min);
+                  setMaxAge(max);
+                }}
+              />
+            </View>
+          )}
+
           {/* Date & time + Max spots row */}
           <View style={styles.twoColRow}>
             <View style={{ flex: 1 }}>
@@ -1315,6 +1406,41 @@ const styles = StyleSheet.create({
   genderChipText: {
     fontFamily: FONTS.semiBold,
     fontSize: 13,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  ageChipActive: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#D97706',
+  },
+  ageChipInactive: {
+    backgroundColor: COLORS.surface,
+    borderColor: COLORS.border,
+  },
+  ageChipTextActive: {
+    color: '#B45309',
+  },
+  ageBadgePill: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  ageBadgePillText: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: '#B45309',
+  },
+  customRangeContainer: {
+    marginTop: 10,
+    marginBottom: 4,
+    paddingHorizontal: 4,
   },
   input: {
     borderWidth: 1,

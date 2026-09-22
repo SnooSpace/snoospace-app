@@ -36,6 +36,7 @@ import {
   XCircle,
   TrendingUp,
   Sparkles,
+  Lock,
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import CustomDatePicker from "../../components/ui/CustomDatePicker";
@@ -147,12 +148,19 @@ const PromoEditor = React.forwardRef(
       setShowModal(true);
     };
 
+    const isBySales =
+      current.offer_type === "early_bird" && current.trigger === "by_sales";
+
     const openEditModal = (index) => {
       const p = promos[index];
       const effectiveMinPurchase =
         p.min_purchase !== undefined && p.min_purchase !== null && p.min_purchase !== ""
           ? p.min_purchase
           : p.min_cart_value;
+
+      const isEditBySales =
+        (p.offer_type || "promo_code") === "early_bird" &&
+        p.trigger === "by_sales";
 
       setCurrent({
         offer_type: p.offer_type || "promo_code",
@@ -166,14 +174,14 @@ const PromoEditor = React.forwardRef(
         selected_tickets: (p.selected_tickets || []).filter((name) =>
           ticketTypes.some((t) => t.name === name),
         ),
-        max_uses: p.max_uses?.toString() || "",
+        max_uses: isEditBySales ? "" : p.max_uses?.toString() || "",
         min_purchase:
           effectiveMinPurchase !== undefined && effectiveMinPurchase !== null
             ? effectiveMinPurchase.toString()
             : "",
         stackable: Boolean(p.stackable),
         valid_from: p.valid_from ? new Date(p.valid_from) : null,
-        valid_until: p.valid_until ? new Date(p.valid_until) : null,
+        valid_until: isEditBySales ? null : p.valid_until ? new Date(p.valid_until) : null,
         quantity_threshold: p.quantity_threshold?.toString() || "",
         min_quantity: p.min_quantity?.toString() || "2",
         is_active: p.is_active !== false,
@@ -194,7 +202,9 @@ const PromoEditor = React.forwardRef(
           .filter((name) => ticketTypes.some((t) => t.name === name))
           .sort(),
         max_uses:
-          p.max_uses !== undefined && p.max_uses !== null && p.max_uses !== ""
+          isEditBySales
+            ? null
+            : p.max_uses !== undefined && p.max_uses !== null && p.max_uses !== ""
             ? parseInt(p.max_uses, 10)
             : null,
         min_purchase:
@@ -207,20 +217,22 @@ const PromoEditor = React.forwardRef(
             : null,
         stackable: Boolean(p.stackable),
         valid_from: p.valid_from ? new Date(p.valid_from).getTime() : null,
-        valid_until: p.valid_until ? new Date(p.valid_until).getTime() : null,
+        valid_until: isEditBySales ? null : p.valid_until ? new Date(p.valid_until).getTime() : null,
         quantity_threshold:
           p.quantity_threshold !== undefined && p.quantity_threshold !== null && p.quantity_threshold !== ""
             ? parseInt(p.quantity_threshold, 10)
             : null,
       });
 
-      // Show advanced section if any advanced field has data
+      // Show advanced section if any advanced field has data (excluding governed max_uses for by_sales)
+      const hasEffectiveMaxUses = !isEditBySales && Boolean(p.max_uses);
+      const hasEffectiveValidUntil = !isEditBySales && Boolean(p.valid_until);
       if (
-        p.max_uses ||
+        hasEffectiveMaxUses ||
         effectiveMinPurchase ||
         p.stackable ||
         p.valid_from ||
-        p.valid_until
+        hasEffectiveValidUntil
       ) {
         setShowAdvanced(true);
       }
@@ -341,8 +353,9 @@ const PromoEditor = React.forwardRef(
             return false;
         }
         if (current.trigger === "by_sales") {
-          // Quantity threshold required
-          if (!current.quantity_threshold) return false;
+          // Quantity threshold required and must be at least 1
+          const qVal = parseInt(current.quantity_threshold, 10);
+          if (!qVal || qVal < 1) return false;
         }
       }
 
@@ -416,10 +429,12 @@ const PromoEditor = React.forwardRef(
         }
       }
 
-      const curMaxUses = current.max_uses
-        ? parseInt(current.max_uses, 10)
-        : null;
-      if (curMaxUses !== initialPromoSnapshot.max_uses) return true;
+      if (!isBySales) {
+        const curMaxUses = current.max_uses
+          ? parseInt(current.max_uses, 10)
+          : null;
+        if (curMaxUses !== initialPromoSnapshot.max_uses) return true;
+      }
 
       const curMinPurchase = current.min_purchase
         ? parseFloat(current.min_purchase)
@@ -434,10 +449,12 @@ const PromoEditor = React.forwardRef(
         : null;
       if (curValidFrom !== initialPromoSnapshot.valid_from) return true;
 
-      const curValidUntil = current.valid_until
-        ? new Date(current.valid_until).getTime()
-        : null;
-      if (curValidUntil !== initialPromoSnapshot.valid_until) return true;
+      if (!isBySales) {
+        const curValidUntil = current.valid_until
+          ? new Date(current.valid_until).getTime()
+          : null;
+        if (curValidUntil !== initialPromoSnapshot.valid_until) return true;
+      }
 
       return false;
     }, [current, editingIndex, initialPromoSnapshot]);
@@ -472,9 +489,15 @@ const PromoEditor = React.forwardRef(
           );
           return;
         }
-        if (current.trigger === "by_sales" && !current.quantity_threshold) {
-          Alert.alert("Required", "Please set the ticket quantity threshold");
-          return;
+        if (current.trigger === "by_sales") {
+          const threshold = parseInt(current.quantity_threshold, 10);
+          if (!threshold || threshold <= 0) {
+            Alert.alert(
+              "Required",
+              "Please enter a valid ticket quantity of at least 1.",
+            );
+            return;
+          }
         }
       }
 
@@ -546,7 +569,12 @@ const PromoEditor = React.forwardRef(
         applies_to: current.applies_to,
         selected_tickets:
           current.applies_to === "specific" ? current.selected_tickets : [],
-        max_uses: current.max_uses ? parseInt(current.max_uses) : null,
+        max_uses:
+          isBySales
+            ? null
+            : current.max_uses
+            ? parseInt(current.max_uses, 10)
+            : null,
         min_purchase: current.min_purchase
           ? parseFloat(current.min_purchase)
           : null,
@@ -559,14 +587,15 @@ const PromoEditor = React.forwardRef(
           current.offer_type === "promo_code" && current.valid_from
             ? current.valid_from.toISOString()
             : null,
-        valid_until: current.valid_until
-          ? current.valid_until.toISOString()
-          : null,
+        valid_until:
+          isBySales
+            ? null
+            : current.valid_until
+            ? current.valid_until.toISOString()
+            : null,
         quantity_threshold:
-          current.offer_type === "early_bird" &&
-          current.trigger === "by_sales" &&
-          current.quantity_threshold
-            ? parseInt(current.quantity_threshold)
+          isBySales && current.quantity_threshold
+            ? parseInt(current.quantity_threshold, 10)
             : null,
         is_active: true,
       };
@@ -791,7 +820,7 @@ const PromoEditor = React.forwardRef(
                 <Text style={styles.tilePrice}>{formatDiscount(p)}</Text>
                 {/* Additional Options & Conditions */}
                 <View style={styles.tileChipsRow}>
-                  {p.max_uses ? (
+                  {p.max_uses && !(p.offer_type === "early_bird" && p.trigger === "by_sales") ? (
                     <View style={styles.tileChip}>
                       <Users size={12} color="#475569" strokeWidth={1.75} />
                       <Text style={styles.tileChipText}>
@@ -970,6 +999,10 @@ const PromoEditor = React.forwardRef(
                           updates.code = "";
                           updates.valid_from = null;
                           updates.min_quantity = "";
+                          if (updates.trigger === "by_sales") {
+                            updates.max_uses = "";
+                            updates.valid_until = null;
+                          }
                         }
                         return updates;
                       });
@@ -1095,7 +1128,20 @@ const PromoEditor = React.forwardRef(
                             LayoutAnimation.configureNext(
                               LayoutAnimation.Presets.easeInEaseOut,
                             );
-                            setCurrent({ ...current, trigger: type.value });
+                            if (type.value === "by_sales") {
+                              setCurrent({
+                                ...current,
+                                trigger: "by_sales",
+                                valid_until: null,
+                                max_uses: "",
+                              });
+                            } else {
+                              setCurrent({
+                                ...current,
+                                trigger: "by_date",
+                                quantity_threshold: "",
+                              });
+                            }
                           }}
                         >
                           <View style={{ flex: 1 }}>
@@ -1244,13 +1290,17 @@ const PromoEditor = React.forwardRef(
                           onChangeText={(text) =>
                             setCurrent({
                               ...current,
-                              quantity_threshold: text,
+                              quantity_threshold: text.replace(/[^0-9]/g, ""),
+                              max_uses: "",
                             })
                           }
                           placeholder="e.g., 100"
                           placeholderTextColor="#94A3B8"
                           keyboardType="numeric"
                         />
+                        <Text style={styles.helperText}>
+                          Discount applies automatically until this sales volume is reached.
+                        </Text>
                       </>
                     )}
                   </View>
@@ -1381,7 +1431,7 @@ const PromoEditor = React.forwardRef(
                         {/* Offer Rules & Limits Live Preview */}
                         <View style={styles.previewDivider} />
                         <View style={styles.previewChipsRow}>
-                          {current.max_uses ? (
+                          {current.max_uses && !isBySales ? (
                             <View style={styles.previewChip}>
                               <Users size={12} color="#475569" strokeWidth={1.75} />
                               <Text style={styles.previewChipText}>
@@ -1560,17 +1610,53 @@ const PromoEditor = React.forwardRef(
 
                 {showAdvanced && (
                   <View style={styles.card}>
-                    <Text style={styles.fieldLabel}>Max Uses (Optional)</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={current.max_uses}
-                      onChangeText={(text) =>
-                        setCurrent({ ...current, max_uses: text })
-                      }
-                      placeholder="Leave empty for unlimited"
-                      placeholderTextColor="#94A3B8"
-                      keyboardType="numeric"
-                    />
+                    {isBySales ? (
+                      <View style={styles.lockedFieldWrapper}>
+                        <View style={styles.lockedFieldHeaderRow}>
+                          <Text style={styles.fieldLabel}>Max Uses</Text>
+                          <View style={styles.lockedBadge}>
+                            <TrendingUp size={12} color="#2563EB" strokeWidth={2} />
+                            <Text style={styles.lockedBadgeText}>
+                              Governed by Sales Limit
+                            </Text>
+                          </View>
+                        </View>
+                        <View style={styles.lockedInputRow}>
+                          <Text
+                            style={[
+                              styles.lockedInputText,
+                              !current.quantity_threshold &&
+                                styles.lockedInputPlaceholder,
+                            ]}
+                          >
+                            {current.quantity_threshold
+                              ? `First ${current.quantity_threshold} tickets sold`
+                              : "Set above in Trigger (First X tickets)"}
+                          </Text>
+                          <Lock size={15} color="#94A3B8" strokeWidth={2} />
+                        </View>
+                        <Text style={styles.helperText}>
+                          Because this offer triggers by sales volume, maximum usage is strictly limited to the first {current.quantity_threshold ? `${current.quantity_threshold} tickets` : "X tickets"} configured in the Trigger section.
+                        </Text>
+                      </View>
+                    ) : (
+                      <>
+                        <Text style={styles.fieldLabel}>Max Uses (Optional)</Text>
+                        <TextInput
+                          style={styles.input}
+                          value={current.max_uses}
+                          onChangeText={(text) =>
+                            setCurrent({
+                              ...current,
+                              max_uses: text.replace(/[^0-9]/g, ""),
+                            })
+                          }
+                          placeholder="Leave empty for unlimited"
+                          placeholderTextColor="#94A3B8"
+                          keyboardType="numeric"
+                        />
+                      </>
+                    )}
 
                     <Text style={[styles.fieldLabel, { marginTop: 16 }]}>
                       Minimum Purchase Amount (Optional)
@@ -2411,6 +2497,54 @@ const styles = StyleSheet.create({
     color: "#64748B",
   },
   ticketChipTextSelected: { fontFamily: "Manrope-SemiBold", color: "#0F172A" },
+
+  // ── LOCKED FIELD ──
+  lockedFieldWrapper: {
+    marginBottom: 4,
+  },
+  lockedFieldHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  lockedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  lockedBadgeText: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 11,
+    color: "#2563EB",
+  },
+  lockedInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#F1F5F9",
+    borderRadius: 14,
+    paddingVertical: 13,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  lockedInputText: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 14,
+    color: "#334155",
+  },
+  lockedInputPlaceholder: {
+    fontFamily: "Manrope-Regular",
+    fontSize: 14,
+    color: "#94A3B8",
+  },
 
   // ── ADVANCED TOGGLE ──
   advancedToggle: {

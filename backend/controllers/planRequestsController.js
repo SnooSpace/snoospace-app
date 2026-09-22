@@ -47,6 +47,38 @@ async function sendRequest(req, res) {
       return res.status(403).json({ error: 'Cannot send a request to this user' });
     }
 
+    // 5. Gender preference check
+    if (plan.gender_preference && plan.gender_preference !== 'all') {
+      const requesterGenderR = await pool.query(`SELECT gender FROM members WHERE id = $1`, [userId]);
+      const reqGender = requesterGenderR.rows[0]?.gender;
+      if (reqGender && reqGender !== plan.gender_preference) {
+        return res.status(400).json({
+          error: `This plan is restricted to ${plan.gender_preference.toLowerCase()} attendees`,
+        });
+      }
+    }
+
+    // 6. Age range check
+    if (plan.min_age !== null || plan.max_age !== null) {
+      const requesterR = await pool.query(
+        `SELECT EXTRACT(YEAR FROM AGE(CURRENT_DATE, dob))::int AS age FROM members WHERE id = $1`,
+        [userId]
+      );
+      const requesterAge = requesterR.rows[0]?.age;
+      if (requesterAge !== null && requesterAge !== undefined) {
+        if (plan.min_age !== null && requesterAge < plan.min_age) {
+          return res.status(400).json({
+            error: `This plan is restricted to ages ${plan.min_age} and above (your age: ${requesterAge})`,
+          });
+        }
+        if (plan.max_age !== null && requesterAge > plan.max_age) {
+          return res.status(400).json({
+            error: `This plan is restricted to ages up to ${plan.max_age} (your age: ${requesterAge})`,
+          });
+        }
+      }
+    }
+
     // Insert request
     const insertR = await pool.query(
       `INSERT INTO open_plan_requests (plan_id, requester_id, note)

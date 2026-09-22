@@ -15,7 +15,6 @@ import {
   MapPin,
   Video,
   Sparkles,
-  ShieldAlert,
   Clock,
   Ticket,
   Tag,
@@ -334,19 +333,6 @@ export default function TicketDetailsSheet({
             </Text>
           </View>
 
-          {/* Gender Restriction Alert if any */}
-          {ticket.gender_restriction && ticket.gender_restriction !== "all" && (
-            <View style={styles.restrictionCard}>
-              <ShieldAlert size={16} color="#EA580C" strokeWidth={2} style={{ marginRight: 10 }} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.restrictionTitle}>Gender Requirement</Text>
-                <Text style={styles.restrictionDesc}>
-                  This pass is strictly reserved for {ticket.gender_restriction.toUpperCase()} attendees. Valid ID verification required at entry.
-                </Text>
-              </View>
-            </View>
-          )}
-
           {/* Refund Policy Box */}
           <View
             style={[
@@ -617,28 +603,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#475569",
     lineHeight: 22,
-  },
-  restrictionCard: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    backgroundColor: "#FFF7ED",
-    borderWidth: 1,
-    borderColor: "#FFEDD5",
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 16,
-  },
-  restrictionTitle: {
-    fontFamily: "Manrope-Bold",
-    fontSize: 13,
-    color: "#C2410C",
-    marginBottom: 2,
-  },
-  restrictionDesc: {
-    fontFamily: "Manrope-Regular",
-    fontSize: 12.5,
-    color: "#9A3412",
-    lineHeight: 18,
   },
   policyCard: {
     flexDirection: "row",

@@ -348,7 +348,10 @@ const PromoteSheet = ({
         }
         HapticsService.triggerSuccess?.() ||
           HapticsService.triggerImpactLight();
-        onSuccess?.(result.post);
+        onSuccess?.(result.post, {
+          engagementType,
+          quota: quotaCache[sourceType],
+        });
         onClose();
       } else {
         Alert.alert(
