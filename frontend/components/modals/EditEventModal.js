@@ -613,37 +613,51 @@ export default function EditEventModal({
         things_to_know: thingsToKnow,
         ticket_types:
           ticketTypes.length > 0
-            ? ticketTypes.map((t) => ({
-                ...t,
-                base_price:
-                  t.base_price !== undefined
-                    ? t.base_price
-                    : parseFloat(t.price || 0),
-                total_quantity:
-                  t.total_quantity !== undefined
-                    ? t.total_quantity
-                    : parseInt(t.quantity || 0),
-              }))
+            ? ticketTypes.map((t) => {
+                let saleEnd = t.sale_end_at || t.sales_end_date;
+                if (saleEnd && eventDate && new Date(saleEnd) > eventDate) {
+                  saleEnd = eventDate.toISOString();
+                }
+                return {
+                  ...t,
+                  sale_end_at: saleEnd || t.sale_end_at,
+                  sales_end_date: saleEnd || t.sales_end_date,
+                  base_price:
+                    t.base_price !== undefined
+                      ? t.base_price
+                      : parseFloat(t.price || 0),
+                  total_quantity:
+                    t.total_quantity !== undefined
+                      ? t.total_quantity
+                      : parseInt(t.quantity || 0),
+                };
+              })
             : null,
         discount_codes: (() => {
           const codes = promos.filter((p) => p.offer_type === "promo_code");
           return codes.length > 0
-            ? codes.map((p) => ({
-                code: p.code,
-                discount_type: p.discount_type,
-                discount_value:
-                  p.discount_value !== undefined ? p.discount_value : p.value,
-                max_uses: p.max_uses ? parseInt(p.max_uses, 10) : null,
-                valid_from: p.valid_from,
-                valid_until: p.valid_until,
-                applies_to: p.applies_to,
-                selected_tickets: p.selected_tickets,
-                stackable: Boolean(p.stackable),
-                min_purchase: p.min_purchase ? parseFloat(p.min_purchase) : null,
-                min_cart_value: p.min_purchase ? parseFloat(p.min_purchase) : null,
-                is_active: p.is_active,
-                name: p.name,
-              }))
+            ? codes.map((p) => {
+                let validUntil = p.valid_until;
+                if (validUntil && eventDate && new Date(validUntil) > eventDate) {
+                  validUntil = eventDate.toISOString();
+                }
+                return {
+                  code: p.code,
+                  discount_type: p.discount_type,
+                  discount_value:
+                    p.discount_value !== undefined ? p.discount_value : p.value,
+                  max_uses: p.max_uses ? parseInt(p.max_uses, 10) : null,
+                  valid_from: p.valid_from,
+                  valid_until: validUntil,
+                  applies_to: p.applies_to,
+                  selected_tickets: p.selected_tickets,
+                  stackable: Boolean(p.stackable),
+                  min_purchase: p.min_purchase ? parseFloat(p.min_purchase) : null,
+                  min_cart_value: p.min_purchase ? parseFloat(p.min_purchase) : null,
+                  is_active: p.is_active,
+                  name: p.name,
+                };
+              })
             : null;
         })(),
         pricing_rules: (() => {
@@ -651,33 +665,39 @@ export default function EditEventModal({
             (p) => p.offer_type === "early_bird" || p.offer_type === "group_discount",
           );
           return rules.length > 0
-            ? rules.map((p) => ({
-                name:
-                  p.name ||
-                  (p.offer_type === "group_discount"
-                    ? `Group (${p.min_quantity || 2}+ Tickets)`
-                    : "Early Bird"),
-                rule_type:
-                  p.offer_type === "group_discount"
-                    ? "group_discount"
-                    : p.trigger === "by_sales"
-                    ? "early_bird_quantity"
-                    : "early_bird_time",
-                discount_type: p.discount_type,
-                discount_value:
-                  p.discount_value !== undefined ? p.discount_value : p.value,
-                valid_until: p.valid_until,
-                valid_from: p.valid_from,
-                quantity_threshold: p.quantity_threshold ? parseInt(p.quantity_threshold, 10) : null,
-                min_quantity: p.min_quantity ? parseInt(p.min_quantity, 10) : null,
-                is_active: p.is_active,
-                applies_to: p.applies_to,
-                selected_tickets: p.selected_tickets,
-                max_uses: p.trigger === "by_sales" ? null : p.max_uses ? parseInt(p.max_uses, 10) : null,
-                min_purchase: p.min_purchase ? parseFloat(p.min_purchase) : null,
-                min_cart_value: p.min_purchase ? parseFloat(p.min_purchase) : null,
-                stackable: Boolean(p.stackable),
-              }))
+            ? rules.map((p) => {
+                let validUntil = p.valid_until;
+                if (validUntil && eventDate && new Date(validUntil) > eventDate) {
+                  validUntil = eventDate.toISOString();
+                }
+                return {
+                  name:
+                    p.name ||
+                    (p.offer_type === "group_discount"
+                      ? `Group (${p.min_quantity || 2}+ Tickets)`
+                      : "Early Bird"),
+                  rule_type:
+                    p.offer_type === "group_discount"
+                      ? "group_discount"
+                      : p.trigger === "by_sales"
+                      ? "early_bird_quantity"
+                      : "early_bird_time",
+                  discount_type: p.discount_type,
+                  discount_value:
+                    p.discount_value !== undefined ? p.discount_value : p.value,
+                  valid_until: validUntil,
+                  valid_from: p.valid_from,
+                  quantity_threshold: p.quantity_threshold ? parseInt(p.quantity_threshold, 10) : null,
+                  min_quantity: p.min_quantity ? parseInt(p.min_quantity, 10) : null,
+                  is_active: p.is_active,
+                  applies_to: p.applies_to,
+                  selected_tickets: p.selected_tickets,
+                  max_uses: p.trigger === "by_sales" ? null : p.max_uses ? parseInt(p.max_uses, 10) : null,
+                  min_purchase: p.min_purchase ? parseFloat(p.min_purchase) : null,
+                  min_cart_value: p.min_purchase ? parseFloat(p.min_purchase) : null,
+                  stackable: Boolean(p.stackable),
+                };
+              })
             : null;
         })(),
         categories: categories.length > 0 ? categories : [],
@@ -861,6 +881,30 @@ export default function EditEventModal({
                     );
                   }
                   setEventDate(newEventDate);
+                  setTicketTypes((prevTickets) =>
+                    prevTickets.map((t) => {
+                      const endStr = t.sale_end_at || t.sales_end_date;
+                      if (endStr && new Date(endStr) > newEventDate) {
+                        return {
+                          ...t,
+                          sale_end_at: newEventDate.toISOString(),
+                          sales_end_date: newEventDate.toISOString(),
+                        };
+                      }
+                      return t;
+                    }),
+                  );
+                  setPromos((prevPromos) =>
+                    prevPromos.map((p) => {
+                      if (p.valid_until && new Date(p.valid_until) > newEventDate) {
+                        return {
+                          ...p,
+                          valid_until: newEventDate.toISOString(),
+                        };
+                      }
+                      return p;
+                    }),
+                  );
                   if (newEnd) {
                     const newEndDate = new Date(newEnd);
                     if (endDate) {
@@ -902,8 +946,38 @@ export default function EditEventModal({
                 visible={showTimePicker}
                 onClose={() => setShowTimePicker(false)}
                 time={eventDate || new Date()}
+                minTime={
+                  !eventDate ||
+                  eventDate.toDateString() === new Date().toDateString()
+                    ? new Date(Date.now() + 15 * 60 * 1000)
+                    : null
+                }
                 onChange={(newTime) => {
                   setEventDate(newTime);
+                  setTicketTypes((prevTickets) =>
+                    prevTickets.map((t) => {
+                      const endStr = t.sale_end_at || t.sales_end_date;
+                      if (endStr && new Date(endStr) > newTime) {
+                        return {
+                          ...t,
+                          sale_end_at: newTime.toISOString(),
+                          sales_end_date: newTime.toISOString(),
+                        };
+                      }
+                      return t;
+                    }),
+                  );
+                  setPromos((prevPromos) =>
+                    prevPromos.map((p) => {
+                      if (p.valid_until && new Date(p.valid_until) > newTime) {
+                        return {
+                          ...p,
+                          valid_until: newTime.toISOString(),
+                        };
+                      }
+                      return p;
+                    }),
+                  );
                   if (endDate) {
                     const minEnd = new Date(newTime.getTime() + 15 * 60 * 1000);
                     if (endDate < minEnd) {

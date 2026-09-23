@@ -233,9 +233,39 @@ const NativeWheel = React.memo(
   }
 );
 
-const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
+const CustomTimePicker = ({
+  visible,
+  onClose,
+  time,
+  onChange,
+  minTime,
+  maxTime,
+  minTimeMessage,
+  maxTimeMessage,
+}) => {
   const initialValues = useMemo(() => {
-    const d = time || new Date();
+    let d = time
+      ? new Date(time)
+      : maxTime
+      ? new Date(maxTime)
+      : minTime
+      ? new Date(minTime)
+      : new Date();
+    if (isNaN(d.getTime())) d = new Date();
+
+    if (maxTime) {
+      const maxDate = new Date(maxTime);
+      if (!isNaN(maxDate.getTime()) && d > maxDate) {
+        d = new Date(maxDate);
+      }
+    }
+    if (minTime) {
+      const minDate = new Date(minTime);
+      if (!isNaN(minDate.getTime()) && d < minDate) {
+        d = new Date(minDate);
+      }
+    }
+
     let h = d.getHours();
     const m = d.getMinutes();
     const p = h >= 12 ? "PM" : "AM";
@@ -249,12 +279,13 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
       minuteIndex: Math.max(0, Math.min(59, m)),
       periodIndex: p === "PM" ? 1 : 0,
     };
-  }, [time]);
+  }, [time, minTime, maxTime]);
 
   const [selectedHour, setSelectedHour] = useState(initialValues.hour);
   const [selectedMinute, setSelectedMinute] = useState(initialValues.minute);
   const [selectedPeriod, setSelectedPeriod] = useState(initialValues.period);
   const [showError, setShowError] = useState(false);
+  const [errorType, setErrorType] = useState(null); // 'min' | 'max'
 
   useEffect(() => {
     if (visible) {
@@ -262,6 +293,7 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
       setSelectedMinute(initialValues.minute);
       setSelectedPeriod(initialValues.period);
       setShowError(false);
+      setErrorType(null);
     }
   }, [visible, initialValues]);
 
@@ -277,6 +309,19 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
     () => (selectedPeriod === "PM" ? 1 : 0),
     [selectedPeriod]
   );
+
+  const formatTimeStr = (date) => {
+    if (!date) return "";
+    try {
+      return new Date(date).toLocaleTimeString([], {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      });
+    } catch {
+      return "";
+    }
+  };
 
   const handleSelectHour = useCallback((val) => {
     setSelectedHour(val);
@@ -296,7 +341,14 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
     } catch {}
 
     if (onChange) {
-      const newTime = new Date(time || new Date());
+      const baseDate = time
+        ? new Date(time)
+        : maxTime
+        ? new Date(maxTime)
+        : minTime
+        ? new Date(minTime)
+        : new Date();
+      const newTime = new Date(baseDate);
       let h = selectedHour;
       if (selectedPeriod === "PM" && h !== 12) h += 12;
       if (selectedPeriod === "AM" && h === 12) h = 0;
@@ -308,6 +360,13 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
 
       // Validation
       if (minTime && newTime < minTime) {
+        setErrorType("min");
+        setShowError(true);
+        return;
+      }
+
+      if (maxTime && newTime > maxTime) {
+        setErrorType("max");
         setShowError(true);
         return;
       }
@@ -318,9 +377,14 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
   };
 
   const handleAutoCorrect = () => {
-    if (onChange && minTime) {
-      onChange(minTime);
+    if (onChange) {
+      if (errorType === "max" && maxTime) {
+        onChange(new Date(maxTime));
+      } else if (minTime) {
+        onChange(new Date(minTime));
+      }
       setShowError(false);
+      setErrorType(null);
       onClose();
     }
   };
@@ -456,7 +520,13 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
                 </View>
                 <Text style={styles.errorTitle}>Invalid Time</Text>
                 <Text style={styles.errorText}>
-                  The selected time is in the past. We've adjusted it for you.
+                  {errorType === "max"
+                    ? maxTimeMessage ||
+                      (maxTime
+                        ? `The selected time cannot be later than ${formatTimeStr(maxTime)}.`
+                        : "The selected time exceeds the maximum allowed time.")
+                    : minTimeMessage ||
+                      "The selected time is in the past. We've adjusted it for you."}
                 </Text>
 
                 <TouchableOpacity
@@ -470,14 +540,19 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
                     end={{ x: 1, y: 0 }}
                   >
                     <Text style={styles.errorConfirmButtonText}>
-                      Use Earliest Available Time
+                      {errorType === "max"
+                        ? `Use Latest Time (${formatTimeStr(maxTime)})`
+                        : "Use Earliest Available Time"}
                     </Text>
                   </LinearGradient>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   style={styles.errorCancelButton}
-                  onPress={() => setShowError(false)}
+                  onPress={() => {
+                    setShowError(false);
+                    setErrorType(null);
+                  }}
                 >
                   <Text style={styles.errorCancelButtonText}>
                     Select Another Time

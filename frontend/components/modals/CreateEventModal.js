@@ -471,53 +471,75 @@ const CreateEventModal = ({
     virtual_link: virtualLink,
     meeting_platform: detectMeetingPlatform(virtualLink, meetingPlatform).name,
     max_attendees: maxAttendees,
-    ticket_types: ticketTypes,
+    ticket_types: ticketTypes.map((t) => {
+      const endStr = t.sale_end_at || t.sales_end_date;
+      if (endStr && eventDate && new Date(endStr) > eventDate) {
+        return {
+          ...t,
+          sale_end_at: eventDate.toISOString(),
+          sales_end_date: eventDate.toISOString(),
+        };
+      }
+      return t;
+    }),
     promos: promos,
     discount_codes: promos
       .filter((p) => p.offer_type === "promo_code")
-      .map((p) => ({
-        code: p.code,
-        discount_type: p.discount_type,
-        discount_value: p.discount_value,
-        max_uses: p.max_uses ? parseInt(p.max_uses, 10) : null,
-        valid_from: p.valid_from,
-        valid_until: p.valid_until,
-        applies_to: p.applies_to,
-        selected_tickets: p.selected_tickets,
-        stackable: Boolean(p.stackable),
-        min_purchase: p.min_purchase,
-        min_cart_value: p.min_purchase ? parseFloat(p.min_purchase) : null,
-        is_active: p.is_active,
-        name: p.name,
-      })),
+      .map((p) => {
+        let validUntil = p.valid_until;
+        if (validUntil && eventDate && new Date(validUntil) > eventDate) {
+          validUntil = eventDate.toISOString();
+        }
+        return {
+          code: p.code,
+          discount_type: p.discount_type,
+          discount_value: p.discount_value,
+          max_uses: p.max_uses ? parseInt(p.max_uses, 10) : null,
+          valid_from: p.valid_from,
+          valid_until: validUntil,
+          applies_to: p.applies_to,
+          selected_tickets: p.selected_tickets,
+          stackable: Boolean(p.stackable),
+          min_purchase: p.min_purchase,
+          min_cart_value: p.min_purchase ? parseFloat(p.min_purchase) : null,
+          is_active: p.is_active,
+          name: p.name,
+        };
+      }),
     pricing_rules: promos
       .filter((p) => p.offer_type === "early_bird" || p.offer_type === "group_discount")
-      .map((p) => ({
-        name:
-          p.name ||
-          (p.offer_type === "group_discount"
-            ? `Group (${p.min_quantity || 2}+ Tickets)`
-            : "Early Bird"),
-        rule_type:
-          p.offer_type === "group_discount"
-            ? "group_discount"
-            : p.trigger === "by_sales"
-            ? "early_bird_quantity"
-            : "early_bird_time",
-        discount_type: p.discount_type,
-        discount_value: p.discount_value,
-        valid_until: p.valid_until,
-        valid_from: p.valid_from,
-        quantity_threshold: p.quantity_threshold ? parseInt(p.quantity_threshold, 10) : null,
-        min_quantity: p.min_quantity ? parseInt(p.min_quantity, 10) : null,
-        is_active: p.is_active,
-        applies_to: p.applies_to,
-        selected_tickets: p.selected_tickets,
-        max_uses: p.trigger === "by_sales" ? null : p.max_uses ? parseInt(p.max_uses, 10) : null,
-        min_purchase: p.min_purchase,
-        min_cart_value: p.min_purchase ? parseFloat(p.min_purchase) : null,
-        stackable: Boolean(p.stackable),
-      })),
+      .map((p) => {
+        let validUntil = p.valid_until;
+        if (validUntil && eventDate && new Date(validUntil) > eventDate) {
+          validUntil = eventDate.toISOString();
+        }
+        return {
+          name:
+            p.name ||
+            (p.offer_type === "group_discount"
+              ? `Group (${p.min_quantity || 2}+ Tickets)`
+              : "Early Bird"),
+          rule_type:
+            p.offer_type === "group_discount"
+              ? "group_discount"
+              : p.trigger === "by_sales"
+              ? "early_bird_quantity"
+              : "early_bird_time",
+          discount_type: p.discount_type,
+          discount_value: p.discount_value,
+          valid_until: validUntil,
+          valid_from: p.valid_from,
+          quantity_threshold: p.quantity_threshold ? parseInt(p.quantity_threshold, 10) : null,
+          min_quantity: p.min_quantity ? parseInt(p.min_quantity, 10) : null,
+          is_active: p.is_active,
+          applies_to: p.applies_to,
+          selected_tickets: p.selected_tickets,
+          max_uses: p.trigger === "by_sales" ? null : p.max_uses ? parseInt(p.max_uses, 10) : null,
+          min_purchase: p.min_purchase,
+          min_cart_value: p.min_purchase ? parseFloat(p.min_purchase) : null,
+          stackable: Boolean(p.stackable),
+        };
+      }),
     categories: categories,
     banner_carousel: bannerCarousel,
     gallery: gallery,
@@ -1134,6 +1156,30 @@ const CreateEventModal = ({
                     );
                   }
                   setEventDate(newEventDate);
+                  setTicketTypes((prevTickets) =>
+                    prevTickets.map((t) => {
+                      const endStr = t.sale_end_at || t.sales_end_date;
+                      if (endStr && new Date(endStr) > newEventDate) {
+                        return {
+                          ...t,
+                          sale_end_at: newEventDate.toISOString(),
+                          sales_end_date: newEventDate.toISOString(),
+                        };
+                      }
+                      return t;
+                    }),
+                  );
+                  setPromos((prevPromos) =>
+                    prevPromos.map((p) => {
+                      if (p.valid_until && new Date(p.valid_until) > newEventDate) {
+                        return {
+                          ...p,
+                          valid_until: newEventDate.toISOString(),
+                        };
+                      }
+                      return p;
+                    }),
+                  );
 
                   if (newEnd) {
                     // Range confirmed — apply end date, preserve existing end time
@@ -1198,6 +1244,30 @@ const CreateEventModal = ({
                 onChange={(newTime) => {
                   setEventDate(newTime);
                   setHasTime(true);
+                  setTicketTypes((prevTickets) =>
+                    prevTickets.map((t) => {
+                      const endStr = t.sale_end_at || t.sales_end_date;
+                      if (endStr && new Date(endStr) > newTime) {
+                        return {
+                          ...t,
+                          sale_end_at: newTime.toISOString(),
+                          sales_end_date: newTime.toISOString(),
+                        };
+                      }
+                      return t;
+                    }),
+                  );
+                  setPromos((prevPromos) =>
+                    prevPromos.map((p) => {
+                      if (p.valid_until && new Date(p.valid_until) > newTime) {
+                        return {
+                          ...p,
+                          valid_until: newTime.toISOString(),
+                        };
+                      }
+                      return p;
+                    }),
+                  );
 
                   // ── Auto-adjust end time if it would be < start + 15 min ──
                   if (endDate) {

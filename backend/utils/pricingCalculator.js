@@ -261,8 +261,8 @@ async function calculateOrderPricing(db, eventId, tickets, promoCode = null, use
     }
 
     // Max uses check with active pending holds (Follow-Up 1)
+    const parsedUserId = userId && !isNaN(parseInt(userId, 10)) ? parseInt(userId, 10) : null;
     if (dc.max_uses !== null) {
-      const parsedUserId = userId ? parseInt(userId, 10) : null;
       const pendingRes = await db.query(
         `SELECT COUNT(DISTINCT ro.id)::int AS pending_count
          FROM razorpay_orders ro
@@ -289,14 +289,14 @@ async function calculateOrderPricing(db, eventId, tickets, promoCode = null, use
     }
 
     // Per-user usage limit check
-    if (dc.max_uses_per_user !== null && userId) {
+    if (dc.max_uses_per_user !== null && parsedUserId !== null) {
       const userUsageRes = await db.query(
         `SELECT COUNT(*)::int AS user_uses
          FROM event_registrations
          WHERE event_id = $1 AND member_id = $2
            AND UPPER(TRIM(promo_code)) = $3
            AND registration_status != 'cancelled'`,
-        [parsedEventId, parseInt(userId, 10), normalized]
+        [parsedEventId, parsedUserId, normalized]
       );
       const userUses = userUsageRes.rows[0]?.user_uses || 0;
       if (userUses >= dc.max_uses_per_user) {

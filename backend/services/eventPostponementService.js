@@ -123,20 +123,22 @@ const createAndExecuteRefund = async (pool, {
  * If so, release payout_hold so the 48h payout cron can resume.
  */
 const checkAndReleasePayoutHold = async (pool, eventId) => {
-  const pending = await pool.query(
-    `SELECT COUNT(*) FROM event_postponement_decisions
-     WHERE event_id = $1 AND decision = 'pending'`,
+  const result = await pool.query(
+    `UPDATE events
+     SET payout_hold  = false,
+         is_postponed = false,
+         updated_at   = NOW()
+     WHERE id = $1
+       AND is_cancelled = false
+       AND NOT EXISTS (
+         SELECT 1 FROM event_postponement_decisions
+         WHERE event_id = $1 AND decision = 'pending'
+       )
+     RETURNING id`,
     [eventId],
   );
-  if (parseInt(pending.rows[0].count) === 0) {
-    await pool.query(
-      `UPDATE events
-       SET payout_hold = false,
-           is_postponed = false,
-           updated_at = NOW()
-       WHERE id = $1 AND is_cancelled = false`,
-      [eventId],
-    );
+
+  if (result.rowCount > 0) {
     console.log(`[PostponementService] payout_hold released and is_postponed reset for event ${eventId} — all decisions resolved`);
     return true;
   }
@@ -173,17 +175,25 @@ const declarePostponement = async (
     const err = new Error('Event is already postponed'); err.statusCode = 400; err.code = 'ALREADY_POSTPONED'; throw err;
   }
 
-  // Snapshot start_datetime BEFORE any date change, mark postponed
-  await pool.query(
+  // Snapshot start_datetime BEFORE any date change, mark postponed (atomic conditional UPDATE)
+  const postponeUpdate = await pool.query(
     `UPDATE events
      SET is_postponed            = true,
          postponed_at            = NOW(),
          original_start_datetime = start_datetime,
          payout_hold             = true,
          updated_at              = NOW()
-     WHERE id = $1`,
+     WHERE id = $1 AND is_postponed = false AND is_cancelled = false
+     RETURNING id`,
     [eventId],
   );
+
+  if (postponeUpdate.rowCount === 0) {
+    const err = new Error('Event is already postponed or cancelled');
+    err.statusCode = 400;
+    err.code = 'ALREADY_POSTPONED';
+    throw err;
+  }
 
   // Fetch all affected registrations (registered + attended)
   const regs = await pool.query(
@@ -367,10 +377,10 @@ const setPostponementNewDate = async (pool, eventId, newStartDatetime, community
 
 // ─── Part 4a: Buyer opts out ───────────────────────────────────────────────────
 
-const processOptOut = async (pool, decisionId, memberId) => {
+const processOptOut = async (pool, decisionId, memberId, expectedDeadline = null) => {
   // Fetch decision and validate ownership + window
   const decResult = await pool.query(
-    `SELECT d.*, er.total_amount
+    `SELECT d.*, er.total_amount, (NOW() > d.opt_out_deadline) AS is_expired
      FROM event_postponement_decisions d
      JOIN event_registrations er ON er.id = d.registration_id
      WHERE d.id = $1`,
@@ -393,18 +403,44 @@ const processOptOut = async (pool, decisionId, memberId) => {
     const err = new Error('No new date has been announced yet — opt-out window not open');
     err.statusCode = 400; err.code = 'WINDOW_NOT_OPEN'; throw err;
   }
-  if (new Date() > new Date(dec.opt_out_deadline)) {
+  if (dec.is_expired) {
     const err = new Error('The 72-hour opt-out window has closed');
     err.statusCode = 400; err.code = 'WINDOW_CLOSED'; throw err;
   }
 
-  // Mark opted out
-  await pool.query(
+  // Atomic conditional update: must be pending, window must not be closed (DB clock),
+  // and must match expectedDeadline if supplied
+  const updateResult = await pool.query(
     `UPDATE event_postponement_decisions
      SET decision = 'opted_out_refund', decided_at = NOW()
-     WHERE id = $1`,
-    [decisionId],
+     WHERE id = $1
+       AND decision = 'pending'
+       AND opt_out_deadline IS NOT NULL
+       AND NOW() <= opt_out_deadline
+       AND ($2::timestamptz IS NULL OR opt_out_deadline = $2::timestamptz)
+     RETURNING id`,
+    [decisionId, expectedDeadline],
   );
+
+  if (updateResult.rowCount === 0) {
+    // Re-check row to report exact failure reason
+    const recheck = await pool.query(
+      `SELECT decision, opt_out_deadline, (NOW() > opt_out_deadline) AS is_expired
+       FROM event_postponement_decisions WHERE id = $1`,
+      [decisionId],
+    );
+    const row = recheck.rows[0];
+    if (row?.decision !== 'pending') {
+      const err = new Error(`Decision already resolved: ${row?.decision}`);
+      err.statusCode = 400; err.code = 'ALREADY_RESOLVED'; throw err;
+    }
+    if (row?.is_expired) {
+      const err = new Error('The 72-hour opt-out window has closed');
+      err.statusCode = 400; err.code = 'WINDOW_CLOSED'; throw err;
+    }
+    const err = new Error('The postponement window has been updated with a new date. Please review the new date.');
+    err.statusCode = 409; err.code = 'STALE_WINDOW'; throw err;
+  }
 
   // Create + execute refund — same per-registration isolation as cancelEventWithRefunds.
   // If Razorpay fails, the refund_request row (auto_approved) remains as the contract.
@@ -447,7 +483,7 @@ const processOptOut = async (pool, decisionId, memberId) => {
 
 // ─── Part 4b: Buyer explicitly keeps ticket ────────────────────────────────────
 
-const processKeep = async (pool, decisionId, memberId) => {
+const processKeep = async (pool, decisionId, memberId, expectedDeadline = null) => {
   const decResult = await pool.query(
     `SELECT * FROM event_postponement_decisions WHERE id = $1`,
     [decisionId],
@@ -466,12 +502,29 @@ const processKeep = async (pool, decisionId, memberId) => {
     err.statusCode = 400; err.code = 'ALREADY_RESOLVED'; throw err;
   }
 
-  await pool.query(
+  // Atomic conditional update: must be pending, and if expectedDeadline is passed, must match the current window
+  const updateResult = await pool.query(
     `UPDATE event_postponement_decisions
      SET decision = 'kept_ticket', decided_at = NOW()
-     WHERE id = $1`,
-    [decisionId],
+     WHERE id = $1
+       AND decision = 'pending'
+       AND ($2::timestamptz IS NULL OR opt_out_deadline = $2::timestamptz)
+     RETURNING id`,
+    [decisionId, expectedDeadline],
   );
+
+  if (updateResult.rowCount === 0) {
+    const recheck = await pool.query(
+      `SELECT decision, opt_out_deadline FROM event_postponement_decisions WHERE id = $1`,
+      [decisionId],
+    );
+    if (recheck.rows[0]?.decision !== 'pending') {
+      const err = new Error(`Decision already resolved: ${recheck.rows[0]?.decision}`);
+      err.statusCode = 400; err.code = 'ALREADY_RESOLVED'; throw err;
+    }
+    const err = new Error('The postponement window has been updated with a new date. Please review the new date.');
+    err.statusCode = 409; err.code = 'STALE_WINDOW'; throw err;
+  }
 
   await checkAndReleasePayoutHold(pool, dec.event_id);
 
@@ -554,13 +607,21 @@ const runIndefinitePostponementCap = async (pool) => {
       const failures = [];
       for (const dec of pendingDecs.rows) {
         try {
-          // Mark decision first
-          await pool.query(
+          // Atomically claim decision before executing refund
+          const claim = await pool.query(
             `UPDATE event_postponement_decisions
              SET decision = 'auto_refunded_indefinite_cap', decided_at = NOW()
-             WHERE id = $1`,
+             WHERE id = $1
+               AND decision = 'pending'
+               AND new_date_set_at IS NULL
+             RETURNING id`,
             [dec.id],
           );
+
+          if (claim.rowCount === 0) {
+            console.log(`[Scheduler/IndefiniteCap] Decision ${dec.id} was already resolved or new date set — skipping refund`);
+            continue;
+          }
 
           // Execute refund
           await createAndExecuteRefund(pool, {

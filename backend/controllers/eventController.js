@@ -273,6 +273,7 @@ const createEvent = async (req, res) => {
     }
 
     // Save ticket types (multi-tier pricing)
+    const eventStartDatetime = start_datetime || event_date;
     if (
       ticket_types &&
       Array.isArray(ticket_types) &&
@@ -288,6 +289,12 @@ const createEvent = async (req, res) => {
             : 'in_person';
         } else {
           tierAccessMode = 'in_person';
+        }
+
+        const rawSaleEnd = ticket.sale_end_at || ticket.sales_end_date || null;
+        let clampedSaleEnd = rawSaleEnd;
+        if (clampedSaleEnd && eventStartDatetime && new Date(clampedSaleEnd) > new Date(eventStartDatetime)) {
+          clampedSaleEnd = new Date(eventStartDatetime).toISOString();
         }
 
         return pool.query(
@@ -308,7 +315,7 @@ const createEvent = async (req, res) => {
             // sales_end_date while this backend expects sale_start_at/sale_end_at.
             // Accept both until the frontend is migrated to one canonical name.
             ticket.sale_start_at || ticket.sales_start_date || null,
-            ticket.sale_end_at || ticket.sales_end_date || null,
+            clampedSaleEnd,
             ticket.visibility || "public",
             ticket.access_code || null,
             ticket.min_per_order || 1,
@@ -497,8 +504,12 @@ const createEvent = async (req, res) => {
       Array.isArray(discount_codes) &&
       discount_codes.length > 0
     ) {
-      const codeInserts = discount_codes.map((dc) =>
-        pool.query(
+      const codeInserts = discount_codes.map((dc) => {
+        let clampedValidUntil = dc.valid_until || null;
+        if (clampedValidUntil && eventStartDatetime && new Date(clampedValidUntil) > new Date(eventStartDatetime)) {
+          clampedValidUntil = new Date(eventStartDatetime).toISOString();
+        }
+        return pool.query(
           `INSERT INTO discount_codes (
             event_id, code, code_normalized, discount_type, discount_value,
             max_uses, max_uses_per_user, valid_from, valid_until,
@@ -514,7 +525,7 @@ const createEvent = async (req, res) => {
             dc.max_uses ? parseInt(dc.max_uses, 10) : null,
             dc.max_uses_per_user || 1,
             dc.valid_from || null,
-            dc.valid_until || null,
+            clampedValidUntil,
             dc.min_cart_value !== undefined && dc.min_cart_value !== null && dc.min_cart_value !== ""
               ? dc.min_cart_value
               : dc.min_purchase !== undefined && dc.min_purchase !== null && dc.min_purchase !== ""
@@ -526,8 +537,8 @@ const createEvent = async (req, res) => {
             JSON.stringify(dc.selected_tickets || []),
             Boolean(dc.stackable),
           ],
-        ),
-      );
+        );
+      });
       await Promise.all(codeInserts);
     }
 
@@ -537,8 +548,12 @@ const createEvent = async (req, res) => {
       Array.isArray(pricing_rules) &&
       pricing_rules.length > 0
     ) {
-      const ruleInserts = pricing_rules.map((rule) =>
-        pool.query(
+      const ruleInserts = pricing_rules.map((rule) => {
+        let clampedValidUntil = rule.valid_until || null;
+        if (clampedValidUntil && eventStartDatetime && new Date(clampedValidUntil) > new Date(eventStartDatetime)) {
+          clampedValidUntil = new Date(eventStartDatetime).toISOString();
+        }
+        return pool.query(
           `INSERT INTO pricing_rules (
             event_id, ticket_type_id, name, rule_type, discount_type, discount_value,
             quantity_threshold, min_quantity, valid_from, valid_until, priority, is_active,
@@ -554,7 +569,7 @@ const createEvent = async (req, res) => {
             rule.quantity_threshold ? parseInt(rule.quantity_threshold, 10) : null,
             rule.min_quantity ? parseInt(rule.min_quantity, 10) : null,
             rule.valid_from || null,
-            rule.valid_until || null,
+            clampedValidUntil,
             rule.priority || 100,
             rule.is_active !== false,
             rule.applies_to || "all",
@@ -571,8 +586,8 @@ const createEvent = async (req, res) => {
               : null,
             Boolean(rule.stackable),
           ],
-        ),
-      );
+        );
+      });
       await Promise.all(ruleInserts);
     }
 
@@ -2061,6 +2076,9 @@ const updateEvent = async (req, res) => {
       tier_switch_rules,
     } = req.body;
 
+    const resolvedEventStartDatetime =
+      start_datetime || event_date || existingEvent.start_datetime;
+
     console.log(
       "[updateEvent] Received access_type:",
       access_type,
@@ -2428,6 +2446,12 @@ const updateEvent = async (req, res) => {
           tierAccessMode = 'in_person';
         }
 
+        const rawSaleEnd = ticket.sale_end_at || ticket.sales_end_date || null;
+        let clampedSaleEnd = rawSaleEnd;
+        if (clampedSaleEnd && resolvedEventStartDatetime && new Date(clampedSaleEnd) > new Date(resolvedEventStartDatetime)) {
+          clampedSaleEnd = new Date(resolvedEventStartDatetime).toISOString();
+        }
+
         if (ticket.id) {
           // Update existing ticket type
           const ticketId = parseInt(ticket.id);
@@ -2448,7 +2472,7 @@ const updateEvent = async (req, res) => {
               ticket.base_price || 0,
               ticket.total_quantity || null,
               ticket.sale_start_at || ticket.sales_start_date || null,
-              ticket.sale_end_at || ticket.sales_end_date || null,
+              clampedSaleEnd,
               ticket.visibility || "public",
               ticket.access_code || null,
               ticket.min_per_order || 1,
@@ -2488,7 +2512,7 @@ const updateEvent = async (req, res) => {
               ticket.base_price || 0,
               ticket.total_quantity || null,
               ticket.sale_start_at || ticket.sales_start_date || null,
-              ticket.sale_end_at || ticket.sales_end_date || null,
+              clampedSaleEnd,
               ticket.visibility || "public",
               ticket.access_code || null,
               ticket.min_per_order || 1,
@@ -2671,8 +2695,12 @@ const updateEvent = async (req, res) => {
       ]);
 
       if (discount_codes.length > 0) {
-        const codeInserts = discount_codes.map((dc) =>
-          pool.query(
+        const codeInserts = discount_codes.map((dc) => {
+          let clampedValidUntil = dc.valid_until || null;
+          if (clampedValidUntil && resolvedEventStartDatetime && new Date(clampedValidUntil) > new Date(resolvedEventStartDatetime)) {
+            clampedValidUntil = new Date(resolvedEventStartDatetime).toISOString();
+          }
+          return pool.query(
             `INSERT INTO discount_codes (
               event_id, code, code_normalized, discount_type, discount_value,
               max_uses, max_uses_per_user, valid_from, valid_until,
@@ -2688,7 +2716,7 @@ const updateEvent = async (req, res) => {
               dc.max_uses ? parseInt(dc.max_uses, 10) : null,
               dc.max_uses_per_user || 1,
               dc.valid_from || null,
-              dc.valid_until || null,
+              clampedValidUntil,
               dc.min_cart_value !== undefined && dc.min_cart_value !== null && dc.min_cart_value !== ""
                 ? dc.min_cart_value
                 : dc.min_purchase !== undefined && dc.min_purchase !== null && dc.min_purchase !== ""
@@ -2700,8 +2728,8 @@ const updateEvent = async (req, res) => {
               JSON.stringify(dc.selected_tickets || []),
               Boolean(dc.stackable),
             ],
-          ),
-        );
+          );
+        });
         await Promise.all(codeInserts);
         console.log(
           `[updateEvent] Successfully saved ${discount_codes.length} discount codes`,
@@ -2720,8 +2748,12 @@ const updateEvent = async (req, res) => {
       ]);
 
       if (pricing_rules.length > 0) {
-        const ruleInserts = pricing_rules.map((rule) =>
-          pool.query(
+        const ruleInserts = pricing_rules.map((rule) => {
+          let clampedValidUntil = rule.valid_until || null;
+          if (clampedValidUntil && resolvedEventStartDatetime && new Date(clampedValidUntil) > new Date(resolvedEventStartDatetime)) {
+            clampedValidUntil = new Date(resolvedEventStartDatetime).toISOString();
+          }
+          return pool.query(
             `INSERT INTO pricing_rules (
               event_id, ticket_type_id, name, rule_type, discount_type, discount_value,
               quantity_threshold, min_quantity, valid_from, valid_until, priority, is_active,
@@ -2737,7 +2769,7 @@ const updateEvent = async (req, res) => {
               rule.quantity_threshold ? parseInt(rule.quantity_threshold, 10) : null,
               rule.min_quantity ? parseInt(rule.min_quantity, 10) : null,
               rule.valid_from || null,
-              rule.valid_until || null,
+              clampedValidUntil,
               rule.priority || 100,
               rule.is_active !== false,
               rule.applies_to || "all",
@@ -2754,8 +2786,8 @@ const updateEvent = async (req, res) => {
                 : null,
               Boolean(rule.stackable),
             ],
-          ),
-        );
+          );
+        });
         await Promise.all(ruleInserts);
         console.log(
           `[updateEvent] Successfully saved ${pricing_rules.length} pricing rules`,
@@ -3303,7 +3335,23 @@ const getEventById = async (req, res) => {
       ticketTypesResult.rows.length > 0 &&
       ticketTypesResult.rows.every((t) => t.visibility === "invite_only");
 
-    // Build response event with conditional location
+    // Filter discount codes: creators see all codes, attendees only see active non-expired codes
+    const visibleDiscountCodes = isEventCreator
+      ? discountCodesResult.rows
+      : discountCodesResult.rows.filter((dc) => {
+          if (!dc.is_active) return false;
+          const now = new Date();
+          if (dc.valid_from && now < new Date(dc.valid_from)) return false;
+          if (dc.valid_until && now > new Date(dc.valid_until)) return false;
+          if (
+            dc.max_uses !== null &&
+            dc.max_uses !== undefined &&
+            (dc.current_uses || 0) >= dc.max_uses
+          ) {
+            return false;
+          }
+          return true;
+        });
 
     const responseEvent = {
       ...event,
@@ -3315,7 +3363,7 @@ const getEventById = async (req, res) => {
       community_heads: headsResult.rows,
       ticket_types: filteredTicketTypes,
       all_ticket_types: isEventCreator ? ticketTypesResult.rows : undefined, // Include all for creator (for ShareTickets)
-      discount_codes: shouldHideLocation ? [] : discountCodesResult.rows,
+      discount_codes: shouldHideLocation ? [] : visibleDiscountCodes,
       pricing_rules: shouldHideLocation ? [] : pricingRulesResult.rows,
       categories: categories,
       is_interested: isInterested,
@@ -3660,17 +3708,19 @@ const postponementOptOut = async (req, res) => {
   const userId   = req.user?.id;
   const userType = req.user?.type;
   const { decisionId } = req.params;
+  const { expected_deadline } = req.body || {};
 
   if (!userId || userType !== "member") {
     return res.status(403).json({ error: "Only members can opt out" });
   }
 
   try {
-    const result = await processOptOut(pool, decisionId, userId);
+    const result = await processOptOut(pool, decisionId, userId, expected_deadline);
     return res.json(result);
   } catch (err) {
     if (err.statusCode === 403) return res.status(403).json({ error: err.message });
     if (err.statusCode === 404) return res.status(404).json({ error: err.message });
+    if (err.statusCode === 409) return res.status(409).json({ error: err.message, code: err.code });
     if (err.statusCode === 400) return res.status(400).json({ error: err.message, code: err.code });
     console.error("[postponementOptOut] Unexpected error:", err.message);
     return res.status(500).json({ error: "Failed to process opt-out" });
@@ -3685,17 +3735,19 @@ const postponementKeep = async (req, res) => {
   const userId   = req.user?.id;
   const userType = req.user?.type;
   const { decisionId } = req.params;
+  const { expected_deadline } = req.body || {};
 
   if (!userId || userType !== "member") {
     return res.status(403).json({ error: "Only members can confirm a keep" });
   }
 
   try {
-    const result = await processKeep(pool, decisionId, userId);
+    const result = await processKeep(pool, decisionId, userId, expected_deadline);
     return res.json(result);
   } catch (err) {
     if (err.statusCode === 403) return res.status(403).json({ error: err.message });
     if (err.statusCode === 404) return res.status(404).json({ error: err.message });
+    if (err.statusCode === 409) return res.status(409).json({ error: err.message, code: err.code });
     if (err.statusCode === 400) return res.status(400).json({ error: err.message, code: err.code });
     console.error("[postponementKeep] Unexpected error:", err.message);
     return res.status(500).json({ error: "Failed to confirm keep" });
@@ -7268,14 +7320,17 @@ const submitRefundRequest = async (req, res) => {
       return res.status(400).json({ error: 'ticket_type_id is required' });
     }
 
-    // 1. Fetch registration + event + specific ticket tier
+    // 1. Fetch registration + event + specific ticket tier + community ID + member details
     const regResult = await pool.query(
       `SELECT er.id, er.member_id, er.event_id, er.registration_status,
               e.start_datetime, e.title as event_title,
+              COALESCE(e.community_id, e.creator_id) as community_id,
               rt.total_price, rt.quantity,
-              tt.id as tt_id, tt.refund_policy
+              tt.id as tt_id, tt.refund_policy,
+              m.name as member_name, m.username as member_username
        FROM event_registrations er
        JOIN events e ON e.id = er.event_id
+       JOIN members m ON m.id = er.member_id
        JOIN registration_tickets rt ON rt.registration_id = er.id
                                     AND rt.ticket_type_id = $2
        JOIN ticket_types tt ON tt.id = rt.ticket_type_id
@@ -7344,7 +7399,7 @@ const submitRefundRequest = async (req, res) => {
 
     const created = insertResult.rows[0];
 
-    // 8. In-app + push notification to buyer (non-blocking)
+    // 8. In-app + push notification to buyer, and PUSH-ONLY notification to community (non-blocking)
     try {
       await notificationService.createSimpleNotification(pool, {
         recipientId: userId,
@@ -7368,6 +7423,23 @@ const submitRefundRequest = async (req, res) => {
         `Your refund request of ₹${requestedAmount.toLocaleString('en-IN')} for ${row.event_title} is ${status === 'auto_approved' ? 'pending processing' : 'under review'}.`,
         { type: 'refund_requested', registrationId: parseInt(registrationId) }
       );
+
+      // Community gets ONLY push notification (NO in-app notification)
+      if (row.community_id) {
+        const buyerName = row.member_name || (row.member_username ? `@${row.member_username}` : 'An attendee');
+        await pushService.sendPushNotification(
+          pool,
+          row.community_id,
+          'community',
+          'Refund Request Received',
+          `${buyerName} requested a refund for ${row.event_title}`,
+          {
+            type: 'refund_requested',
+            eventId: parseInt(row.event_id),
+            registrationId: parseInt(registrationId),
+          }
+        );
+      }
     } catch (notifErr) {
       console.error('[submitRefundRequest] Notification failed:', notifErr.message);
       // Do not fail the request if notification fails
@@ -7529,7 +7601,8 @@ const switchTicketTier = async (req, res) => {
     // 1. Confirm events.allow_tier_switching = true
     // 2. Confirm COALESCE(e.start_datetime, e.event_date) > NOW()
     const eventRes = await client.query(
-      `SELECT id, title, allow_tier_switching, allow_downgrade_refunds, tier_switch_rules,
+      `SELECT id, title, COALESCE(community_id, creator_id) as community_id,
+              allow_tier_switching, allow_downgrade_refunds, tier_switch_rules,
               COALESCE(start_datetime, event_date) as effective_start
        FROM events
        WHERE id = $1
@@ -7870,6 +7943,28 @@ const switchTicketTier = async (req, res) => {
 
     await client.query("COMMIT");
 
+    // Community gets ONLY push notification (NO in-app notification) if a refund request was queued
+    if (refundRequestId && event.community_id) {
+      try {
+        const memRes = await pool.query("SELECT name, username FROM members WHERE id = $1", [userId]);
+        const buyerName = memRes.rows[0]?.name || (memRes.rows[0]?.username ? `@${memRes.rows[0].username}` : "An attendee");
+        await pushService.sendPushNotification(
+          pool,
+          event.community_id,
+          "community",
+          "Refund Request Received",
+          `${buyerName} requested a refund for ${event.title}`,
+          {
+            type: "refund_requested",
+            eventId: parseInt(eventId),
+            registrationId: parseInt(registration.id),
+          }
+        );
+      } catch (notifErr) {
+        console.error("[switchTicketTier] Community push notification failed:", notifErr.message);
+      }
+    }
+
     return res.json({
       success: true,
       switched: true,
@@ -7898,7 +7993,69 @@ const switchTicketTier = async (req, res) => {
   }
 };
 
+/**
+ * POST /events/:eventId/validate-promo
+ * Pre-validation endpoint for promo codes before payment/registration.
+ * Authoritative server check using calculateOrderPricing to evaluate:
+ * - code existence
+ * - is_active status
+ * - date window (valid_from, valid_until)
+ * - min_cart_value
+ * - max_uses (concurrency & holds)
+ * - max_uses_per_user (current user)
+ * - ticket eligibility (selected_tickets)
+ */
+const validatePromoCode = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { promoCode, tickets, sessionId } = req.body;
+    const userId = req.user?.id || req.user?.userId;
+
+    if (!promoCode || typeof promoCode !== "string" || !promoCode.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: "promo_required",
+        message: "Please enter a promo code.",
+      });
+    }
+
+    if (!tickets || !Array.isArray(tickets) || tickets.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "tickets_required",
+        message: "No tickets selected.",
+      });
+    }
+
+    const pricing = await calculateOrderPricing(pool, eventId, tickets, promoCode, userId, {
+      sessionId,
+      hasValidReservationHold: Boolean(sessionId),
+    });
+
+    if (!pricing.validatedPromoCode || pricing.promoDiscount <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: "promo_not_applicable",
+        message: "This promo code does not apply to any selected tickets.",
+      });
+    }
+
+    return res.json({
+      success: true,
+      pricing,
+    });
+  } catch (err) {
+    const statusCode = err.statusCode || 400;
+    return res.status(statusCode).json({
+      success: false,
+      error: err.code || "promo_invalid",
+      message: err.message || "Failed to validate promo code.",
+    });
+  }
+};
+
 module.exports = {
+  validatePromoCode,
   handleJoinRedirect,
   switchTicketTier,
   createEvent,

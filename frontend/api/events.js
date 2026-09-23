@@ -497,11 +497,12 @@ export async function getPostponementDecision(eventId) {
  * Opt out of a postponed event and request a full refund.
  * Must be called while decision='pending' and within the 72h window.
  */
-export async function submitPostponementOptOut(decisionId) {
+export async function submitPostponementOptOut(decisionId, expectedDeadline = null) {
   const token = await (await import("./auth")).getAuthToken();
   return apiPost(
     `/event-postponement-decisions/${decisionId}/opt-out`,
-    {},
+    expectedDeadline ? { expected_deadline: expectedDeadline } : {},
+    10000,
     token,
   );
 }
@@ -510,11 +511,32 @@ export async function submitPostponementOptOut(decisionId) {
  * Explicitly confirm keeping the ticket on a postponed event.
  * This is optional — the ticket is auto-kept if no action is taken before the deadline.
  */
-export async function submitPostponementKeep(decisionId) {
+export async function submitPostponementKeep(decisionId, expectedDeadline = null) {
   const token = await (await import("./auth")).getAuthToken();
   return apiPost(
     `/event-postponement-decisions/${decisionId}/keep`,
-    {},
+    expectedDeadline ? { expected_deadline: expectedDeadline } : {},
+    10000,
     token,
   );
 }
+
+/**
+ * Validate a promo code against authoritative server rules before payment.
+ *
+ * @param {string|number} eventId - Event ID
+ * @param {string} promoCode - Promo code string
+ * @param {Array<{ ticketTypeId: number, quantity: number }>} tickets - Cart tickets
+ * @param {string|null} sessionId - Active reservation session ID
+ * @returns {Promise<Object>} { success: boolean, pricing: Object }
+ */
+export async function validatePromoCode(eventId, promoCode, tickets, sessionId = null) {
+  const token = await (await import("./auth")).getAuthToken();
+  return apiPost(
+    `/events/${eventId}/validate-promo`,
+    { promoCode, tickets, sessionId },
+    15000,
+    token,
+  );
+}
+

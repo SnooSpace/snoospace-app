@@ -138,6 +138,18 @@ const QUICK_TICKET_PRESETS = [
   },
 ];
 
+const isSameCalendarDay = (d1, d2) => {
+  if (!d1 || !d2) return false;
+  const date1 = new Date(d1);
+  const date2 = new Date(d2);
+  if (isNaN(date1.getTime()) || isNaN(date2.getTime())) return false;
+  return (
+    date1.getFullYear() === date2.getFullYear() &&
+    date1.getMonth() === date2.getMonth() &&
+    date1.getDate() === date2.getDate()
+  );
+};
+
 const TicketTypesEditor = React.forwardRef(
   (
     {
@@ -363,6 +375,99 @@ const TicketTypesEditor = React.forwardRef(
       return false;
     }, [currentTicket, capacityMode, genderMode, salesMode, editingIndex, initialTicketSnapshot]);
 
+    const getSalesEndTime = () => {
+      if (currentTicket.sales_end_date) {
+        const d = new Date(currentTicket.sales_end_date);
+        if (eventStartDate && isSameCalendarDay(d, eventStartDate)) {
+          const evtStart = new Date(eventStartDate);
+          if (d > evtStart) return evtStart;
+        }
+        return d;
+      }
+      if (eventStartDate) {
+        const targetDay = currentTicket.sales_start_date
+          ? new Date(currentTicket.sales_start_date)
+          : new Date(eventStartDate);
+        if (isSameCalendarDay(targetDay, eventStartDate)) {
+          return new Date(eventStartDate);
+        }
+        return new Date(new Date(targetDay).setHours(23, 59, 0, 0));
+      }
+      return new Date(new Date().setHours(23, 59, 0, 0));
+    };
+
+    const getSalesEndMaxTime = () => {
+      const effectiveEndDay =
+        currentTicket.sales_end_date ||
+        currentTicket.sales_start_date ||
+        (eventStartDate ? new Date(eventStartDate) : null);
+      if (
+        eventStartDate &&
+        effectiveEndDay &&
+        isSameCalendarDay(effectiveEndDay, eventStartDate)
+      ) {
+        return new Date(eventStartDate);
+      }
+      return undefined;
+    };
+
+    const getSalesEndMinTime = () => {
+      if (
+        currentTicket.sales_start_date &&
+        currentTicket.sales_end_date &&
+        isSameCalendarDay(
+          currentTicket.sales_start_date,
+          currentTicket.sales_end_date,
+        )
+      ) {
+        return new Date(currentTicket.sales_start_date);
+      }
+      return undefined;
+    };
+
+    const getSalesStartTime = () => {
+      if (currentTicket.sales_start_date) {
+        const d = new Date(currentTicket.sales_start_date);
+        const max = getSalesStartMaxTime();
+        if (max && d > max) return max;
+        return d;
+      }
+      const targetDay =
+        currentTicket.sales_end_date ||
+        (eventStartDate ? new Date(eventStartDate) : new Date());
+      return new Date(new Date(targetDay).setHours(0, 0, 0, 0));
+    };
+
+    const getSalesStartMaxTime = () => {
+      const effectiveStartDay =
+        currentTicket.sales_start_date ||
+        (eventStartDate ? new Date(eventStartDate) : null);
+      const isStartOnEvtDay =
+        eventStartDate &&
+        effectiveStartDay &&
+        isSameCalendarDay(effectiveStartDay, eventStartDate);
+      const isStartOnEndDay =
+        currentTicket.sales_end_date &&
+        effectiveStartDay &&
+        isSameCalendarDay(effectiveStartDay, currentTicket.sales_end_date);
+
+      if (isStartOnEvtDay && isStartOnEndDay) {
+        return new Date(
+          Math.min(
+            new Date(currentTicket.sales_end_date).getTime(),
+            new Date(eventStartDate).getTime(),
+          ),
+        );
+      }
+      if (isStartOnEvtDay) {
+        return new Date(eventStartDate);
+      }
+      if (isStartOnEndDay) {
+        return new Date(currentTicket.sales_end_date);
+      }
+      return undefined;
+    };
+
     const isFreeTicket =
       !currentTicket.base_price || parseFloat(currentTicket.base_price) === 0;
 
@@ -483,7 +588,7 @@ const TicketTypesEditor = React.forwardRef(
           setAlertConfig({
             visible: true,
             title: "Invalid Sales Window",
-            message: "Sales must close before the event starts.",
+            message: "Sales must close before or when the event starts.",
             primaryAction: {
               text: "OK",
               onPress: () => setAlertConfig(null),
@@ -1470,6 +1575,12 @@ const TicketTypesEditor = React.forwardRef(
                                     minute: "2-digit",
                                     hour12: true,
                                   })
+                                : eventStartDate
+                                ? new Date(eventStartDate).toLocaleTimeString([], {
+                                    hour: "numeric",
+                                    minute: "2-digit",
+                                    hour12: true,
+                                  })
                                 : "11:59 PM"}
                             </Text>
                           </View>
@@ -1507,7 +1618,7 @@ const TicketTypesEditor = React.forwardRef(
                     eventStartDate &&
                     currentTicket.sales_end_date > new Date(eventStartDate) && (
                       <Text style={styles.validationWarning}>
-                        Sales must close before the event starts
+                        Sales must close before or when the event starts
                       </Text>
                     )}
 
@@ -2085,11 +2196,21 @@ const TicketTypesEditor = React.forwardRef(
                     } else {
                       newStart.setHours(0, 0, 0, 0);
                     }
+
+                    if (eventStartDate && isSameCalendarDay(newStart, eventStartDate)) {
+                      const evtStart = new Date(eventStartDate);
+                      if (newStart > evtStart) {
+                        newStart.setTime(evtStart.getTime());
+                      }
+                    }
                   }
 
                   let newEnd = null;
                   if (endDate) {
                     newEnd = new Date(endDate);
+                    const isEndOnEvtDay =
+                      eventStartDate && isSameCalendarDay(newEnd, eventStartDate);
+
                     if (
                       currentTicket.sales_end_date &&
                       (currentTicket.sales_end_date.getHours() !== 0 ||
@@ -2101,9 +2222,28 @@ const TicketTypesEditor = React.forwardRef(
                         0,
                         0,
                       );
+                    } else if (isEndOnEvtDay) {
+                      const evtStart = new Date(eventStartDate);
+                      newEnd.setHours(
+                        evtStart.getHours(),
+                        evtStart.getMinutes(),
+                        0,
+                        0,
+                      );
                     } else {
                       newEnd.setHours(23, 59, 0, 0);
                     }
+
+                    if (isEndOnEvtDay) {
+                      const evtStart = new Date(eventStartDate);
+                      if (newEnd > evtStart) {
+                        newEnd.setTime(evtStart.getTime());
+                      }
+                    }
+                  }
+
+                  if (newStart && newEnd && newStart > newEnd) {
+                    newStart.setTime(newEnd.getTime());
                   }
 
                   setCurrentTicket((prev) => ({
@@ -2119,15 +2259,45 @@ const TicketTypesEditor = React.forwardRef(
               <CustomTimePicker
                 visible={showSalesStartTimePicker}
                 onClose={() => setShowSalesStartTimePicker(false)}
-                time={
-                  currentTicket.sales_start_date ||
-                  new Date(new Date().setHours(0, 0, 0, 0))
+                time={getSalesStartTime()}
+                maxTime={getSalesStartMaxTime()}
+                maxTimeMessage={
+                  eventStartDate &&
+                  isSameCalendarDay(
+                    currentTicket.sales_start_date || eventStartDate,
+                    eventStartDate,
+                  )
+                    ? "Ticket sales cannot open after the event starts."
+                    : currentTicket.sales_end_date &&
+                      isSameCalendarDay(
+                        currentTicket.sales_start_date,
+                        currentTicket.sales_end_date,
+                      )
+                    ? "Sales open time cannot be after sales close time."
+                    : undefined
                 }
                 onChange={(newTime) => {
                   const base = currentTicket.sales_start_date
                     ? new Date(currentTicket.sales_start_date)
                     : new Date();
                   base.setHours(newTime.getHours(), newTime.getMinutes(), 0, 0);
+
+                  if (eventStartDate && isSameCalendarDay(base, eventStartDate)) {
+                    const evtStart = new Date(eventStartDate);
+                    if (base > evtStart) {
+                      base.setTime(evtStart.getTime());
+                    }
+                  }
+                  if (
+                    currentTicket.sales_end_date &&
+                    isSameCalendarDay(base, currentTicket.sales_end_date)
+                  ) {
+                    const endD = new Date(currentTicket.sales_end_date);
+                    if (base > endD) {
+                      base.setTime(endD.getTime());
+                    }
+                  }
+
                   setCurrentTicket((prev) => ({
                     ...prev,
                     sales_start_date: base,
@@ -2139,26 +2309,36 @@ const TicketTypesEditor = React.forwardRef(
               <CustomTimePicker
                 visible={showSalesEndTimePicker}
                 onClose={() => setShowSalesEndTimePicker(false)}
-                time={
-                  currentTicket.sales_end_date ||
-                  (currentTicket.sales_start_date
-                    ? new Date(
-                        new Date(currentTicket.sales_start_date).setHours(
-                          23,
-                          59,
-                          0,
-                          0,
-                        ),
-                      )
-                    : new Date(new Date().setHours(23, 59, 0, 0)))
+                time={getSalesEndTime()}
+                minTime={getSalesEndMinTime()}
+                maxTime={getSalesEndMaxTime()}
+                minTimeMessage="Sales close time cannot be before sales open time."
+                maxTimeMessage={
+                  eventStartDate &&
+                  isSameCalendarDay(
+                    currentTicket.sales_end_date || eventStartDate,
+                    eventStartDate,
+                  )
+                    ? "Ticket sales cannot close after the event starts."
+                    : undefined
                 }
                 onChange={(newTime) => {
                   const base = currentTicket.sales_end_date
                     ? new Date(currentTicket.sales_end_date)
                     : currentTicket.sales_start_date
                     ? new Date(currentTicket.sales_start_date)
+                    : eventStartDate
+                    ? new Date(eventStartDate)
                     : new Date();
                   base.setHours(newTime.getHours(), newTime.getMinutes(), 0, 0);
+
+                  if (eventStartDate && isSameCalendarDay(base, eventStartDate)) {
+                    const evtStart = new Date(eventStartDate);
+                    if (base > evtStart) {
+                      base.setTime(evtStart.getTime());
+                    }
+                  }
+
                   setCurrentTicket((prev) => ({
                     ...prev,
                     sales_end_date: base,

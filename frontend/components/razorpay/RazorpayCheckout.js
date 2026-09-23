@@ -28,7 +28,7 @@ export const RazorpayCheckout = ({
   const insets = useSafeAreaInsets();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const webViewRef = useRef(null);
-  const [isBackdropDimmed, setIsBackdropDimmed] = useState(true);
+  const [isBackdropDimmed, setIsBackdropDimmed] = useState(false);
   const [isPaymentSuccess, setIsPaymentSuccess] = useState(false);
   const [hasRendered, setHasRendered] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
@@ -74,12 +74,12 @@ export const RazorpayCheckout = ({
     : (isLight ? 'dark-content' : 'light-content');
 
   // Smooth animated backdrop value for status bar dimming (matching SwipeableModal / CommentsModal)
-  const backdropAnim = useRef(new Animated.Value(1)).current;
+  const backdropAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.timing(backdropAnim, {
       toValue: isPaymentSuccess ? 0 : (isBackdropDimmed ? 1 : 0),
-      duration: 250,
+      duration: 200,
       useNativeDriver: true,
     }).start();
   }, [isBackdropDimmed, isPaymentSuccess]);
@@ -95,8 +95,12 @@ export const RazorpayCheckout = ({
       StatusBar.setBackgroundColor('transparent', true);
       StatusBar.setTranslucent(true);
       try {
-        NavigationBar.setBackgroundColorAsync(isPaymentSuccess ? RAZORPAY_SUCCESS_GREEN : 'transparent');
-        NavigationBar.setButtonStyleAsync(isPaymentSuccess ? 'light' : (isBackdropDimmed ? 'light' : 'dark'));
+        NavigationBar.setBackgroundColorAsync(
+          isPaymentSuccess ? RAZORPAY_SUCCESS_GREEN : (isLight ? '#FFFFFF' : themeColor)
+        );
+        NavigationBar.setButtonStyleAsync(
+          isPaymentSuccess ? 'light' : (isLight ? 'dark' : 'light')
+        );
       } catch (_) {}
     }
     return () => {
@@ -111,9 +115,7 @@ export const RazorpayCheckout = ({
     };
   }, [effectiveStatusBarStyle, isBackdropDimmed, isPaymentSuccess]);
 
-  // Unified back handler: handles back swipe / hardware back press
-  // 1. If exit confirmation modal is already showing -> dismisses exit modal and stays in payment
-  // 2. If at the main screen -> triggers Razorpay's native exit confirmation modal and dims status bar
+  // Unified back handler: delegates to Razorpay's native confirm_close dialog
   const handleRequestClose = () => {
     if (!hasRendered) {
       setIsBackdropDimmed(false);
@@ -122,124 +124,23 @@ export const RazorpayCheckout = ({
       return;
     }
 
-    // If exit modal is already open, back gesture cancels exit modal and stays in payment
-    if (isExitModalOpenRef.current) {
-      setIsBackdropDimmed(false);
-      isExitModalOpenRef.current = false;
-      if (webViewRef.current) {
-        webViewRef.current.injectJavaScript(`
-          (function() {
-            if (window.handleAppBack) {
-              window.handleAppBack();
-            }
-          })();
-          true;
-        `);
-      }
-      return;
-    }
-
-    // Back gesture from checkout root opens the exit confirmation modal!
-    setIsBackdropDimmed(true);
-    isExitModalOpenRef.current = true;
-
     if (webViewRef.current) {
-      webViewRef.current.goBack();
       webViewRef.current.injectJavaScript(`
         (function() {
           if (window.handleAppBack) {
             window.handleAppBack();
+          } else if (window.rzp1) {
+            window.rzp1.close();
           }
         })();
         true;
       `);
+    } else {
+      onClose();
     }
   };
 
-  // Proactive touch handler on the WebView wrapper to seamlessly detect exit modal, bottom sheets, and dismissal gestures
-  const handleTouchStart = (e) => {
-    try {
-      if (!hasRendered) return;
-
-      const { locationX, locationY } = e.nativeEvent;
-      const webviewHeight = screenHeight - topInset;
-
-      if (!isBackdropDimmed) {
-        // 1. In-checkout header back arrow (top-left of header: x < 75, y < 65) -> opens Exit Confirmation Modal!
-        if (locationX < 75 && locationY < 65) {
-          setIsBackdropDimmed(true);
-          isExitModalOpenRef.current = true;
-          return;
-        }
-
-        // 2. Profile icon in header (top-right of Razorpay header: x > width - 75, y < 65) -> opens Account & Terms
-        if (locationX > screenWidth - 75 && locationY < 65) {
-          setIsBackdropDimmed(true);
-          isExitModalOpenRef.current = false;
-          return;
-        }
-
-        // 3. Bottom amount / price summary bar (sticky at the bottom of checkout) -> opens Price summary
-        if (locationY > webviewHeight - 85) {
-          setIsBackdropDimmed(true);
-          isExitModalOpenRef.current = false;
-          return;
-        }
-      } else {
-        // When backdrop is dimmed (Exit Confirmation Modal OR Bottom Sheet is showing):
-
-        // 1. Dimmed backdrop touch:
-        // For Exit Modal, upper backdrop is y < 0.58 * webviewHeight.
-        // For Bottom Sheets, upper backdrop is y < 0.68 * webviewHeight.
-        const backdropThreshold = isExitModalOpenRef.current
-          ? webviewHeight * 0.58
-          : webviewHeight * 0.68;
-
-        if (locationY < backdropThreshold) {
-          setIsBackdropDimmed(false);
-          isExitModalOpenRef.current = false;
-          return;
-        }
-
-        // 2. Tapping the ✕ close button:
-        // On Exit Modal: x > width - 65, y between 0.55 and 0.65 of height
-        // On Bottom Sheets: x > width - 65, y between 0.65 and 0.85 of height
-        if (
-          locationX > screenWidth - 65 &&
-          locationY >= webviewHeight * 0.55 &&
-          locationY <= webviewHeight * 0.85
-        ) {
-          setIsBackdropDimmed(false);
-          isExitModalOpenRef.current = false;
-          return;
-        }
-
-        // 3. Tapping 'Continue to payment' button on Exit Modal (y: 0.81 * h to 0.90 * h)
-        if (
-          isExitModalOpenRef.current &&
-          locationY >= webviewHeight * 0.81 &&
-          locationY <= webviewHeight * 0.90
-        ) {
-          setIsBackdropDimmed(false);
-          isExitModalOpenRef.current = false;
-          return;
-        }
-
-        // 4. Tapping 'Yes, exit' button on Exit Modal (y > 0.90 * h)
-        if (
-          isExitModalOpenRef.current &&
-          locationY > webviewHeight * 0.90
-        ) {
-          setIsBackdropDimmed(false);
-          isExitModalOpenRef.current = false;
-          onClose();
-          return;
-        }
-      }
-    } catch (_) {}
-  };
-
-  // Register Android hardware back button / back swipe listener
+  // Register Android hardware back button listener
   useEffect(() => {
     const onBackPress = () => {
       handleRequestClose();
@@ -254,7 +155,7 @@ export const RazorpayCheckout = ({
     return () => {
       backHandler.remove();
     };
-  }, []);
+  }, [hasRendered]);
 
   const { handler, ...optionsWithoutHandler } = options || {};
   const optionsString = JSON.stringify(optionsWithoutHandler);
@@ -373,12 +274,6 @@ export const RazorpayCheckout = ({
               }
             });
 
-            rzp1.on('payment.submit', function () {
-              try {
-                notifyDimmed(true, true);
-              } catch (_) {}
-            });
-
             rzp1.on('dismiss', function () {
               try {
                 notifyDimmed(false);
@@ -430,32 +325,16 @@ export const RazorpayCheckout = ({
                   doc = iframe.contentDocument || (iframe.contentWindow && iframe.contentWindow.document);
                 } catch (_) {}
 
-                // Proactively detect payment success screen via DOM
+                // Proactively detect payment success screen via DOM only on explicit redirect message
                 if (doc) {
                   try {
                     var bodyText = doc.body ? (doc.body.innerText || doc.body.textContent || '') : '';
                     if (
-                      bodyText.indexOf('Payment Successful') !== -1 ||
-                      bodyText.indexOf('payment successful') !== -1 ||
-                      bodyText.indexOf('Payment Success') !== -1 ||
-                      bodyText.indexOf('redirected in') !== -1 ||
-                      (bodyText.indexOf('Secured by Razorpay') !== -1 && bodyText.indexOf('queries') !== -1)
+                      (bodyText.indexOf('Payment Successful') !== -1 || bodyText.indexOf('Payment successful') !== -1) &&
+                      (bodyText.indexOf('Redirecting') !== -1 || bodyText.indexOf('redirecting') !== -1 || bodyText.indexOf('redirected') !== -1)
                     ) {
                       notifyPaymentSuccess();
                       return;
-                    }
-                    if (doc.querySelector && doc.querySelector('[data-testid*="success"], [class*="success-container"], [class*="payment-success"], .payment-success')) {
-                      notifyPaymentSuccess();
-                      return;
-                    }
-                    if (doc.body) {
-                      var bg = (iframe.contentWindow && iframe.contentWindow.getComputedStyle)
-                        ? iframe.contentWindow.getComputedStyle(doc.body).backgroundColor
-                        : doc.body.style.backgroundColor;
-                      if (bg && (bg.indexOf('0, 158, 92') !== -1 || bg.indexOf('0, 166, 82') !== -1 || bg.indexOf('4, 155, 92') !== -1 || bg.indexOf('0, 179, 89') !== -1)) {
-                        notifyPaymentSuccess();
-                        return;
-                      }
                     }
                   } catch (_) {}
                 }
@@ -674,19 +553,17 @@ export const RazorpayCheckout = ({
                   str.indexOf('tokenization') !== -1
                 );
 
-                // Payment success event detection via postMessage
-                if (
-                  eventName.indexOf('success') !== -1 ||
-                  eventName.indexOf('complete') !== -1 ||
-                  subEvent.indexOf('success') !== -1 ||
-                  subEvent.indexOf('complete') !== -1 ||
-                  str.indexOf('payment.success') !== -1 ||
-                  str.indexOf('payment_successful') !== -1 ||
-                  str.indexOf('payment_success') !== -1 ||
-                  str.indexOf('checkout_success') !== -1 ||
-                  str.indexOf('redirected in') !== -1 ||
-                  (str.indexOf('payment') !== -1 && str.indexOf('success') !== -1 && str.indexOf('error') === -1 && str.indexOf('fail') === -1)
-                ) {
+                // Payment success event detection via postMessage (strict check only to prevent premature green status bar)
+                var isExactPaymentSuccess = (
+                  eventName === 'payment.success' ||
+                  eventName === 'payment_success' ||
+                  eventName === 'checkout.success' ||
+                  eventName === 'payment:success' ||
+                  subEvent === 'payment.success' ||
+                  subEvent === 'payment_success'
+                );
+
+                if (isExactPaymentSuccess) {
                   notifyPaymentSuccess();
                 }
 
@@ -694,8 +571,6 @@ export const RazorpayCheckout = ({
                   notifyDimmed(false);
                 } else if (isExitModalOpening) {
                   notifyDimmed(true, true);
-                } else if (isSheetOpening) {
-                  notifyDimmed(true, false);
                 }
               } catch (_) {}
             });
@@ -749,7 +624,6 @@ export const RazorpayCheckout = ({
               }
             };
 
-            notifyDimmed(true);
             rzp1.open();
           } catch (initErr) {
             window.ReactNativeWebView.postMessage(JSON.stringify({
@@ -834,7 +708,7 @@ export const RazorpayCheckout = ({
           isPaymentSuccess && { backgroundColor: RAZORPAY_SUCCESS_GREEN },
         ]}
       >
-        {/* Top Status Bar Spacer — seamlessly blends with Razorpay header, softly dimming when modals/sheets open, turning Razorpay Green on payment success */}
+        {/* Top Status Bar Spacer — seamlessly blends with Razorpay header, turning Razorpay Green on payment success */}
         <View
           style={[
             styles.statusBarArea,
@@ -844,22 +718,21 @@ export const RazorpayCheckout = ({
             },
           ]}
         >
-          <Animated.View
-            style={[
-              StyleSheet.absoluteFillObject,
-              {
-                backgroundColor: 'rgba(0, 0, 0, 0.6)',
-                opacity: isPaymentSuccess ? 0 : backdropAnim,
-              },
-            ]}
-          />
+          {isBackdropDimmed && (
+            <Animated.View
+              style={[
+                StyleSheet.absoluteFillObject,
+                {
+                  backgroundColor: 'rgba(0, 0, 0, 0.45)',
+                  opacity: isPaymentSuccess ? 0 : backdropAnim,
+                },
+              ]}
+            />
+          )}
         </View>
 
-        {/* Razorpay WebView Viewport with proactive touch handler */}
-        <View
-          style={styles.webviewWrapper}
-          onTouchStart={handleTouchStart}
-        >
+        {/* Razorpay WebView Viewport */}
+        <View style={styles.webviewWrapper}>
           <WebView
             ref={webViewRef}
             originWhitelist={[

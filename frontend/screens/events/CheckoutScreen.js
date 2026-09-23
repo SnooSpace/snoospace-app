@@ -49,6 +49,7 @@ import {
   registerForEvent,
   reserveTickets,
   releaseReservation,
+  validatePromoCode,
 } from "../../api/events";
 import { createPaymentOrder, verifyPayment } from "../../api/payments";
 import { useRazorpay } from "../../hooks/useRazorpay";
@@ -153,6 +154,7 @@ export default function CheckoutScreen({ route, navigation }) {
   const [appliedDiscount, setAppliedDiscount] = useState(null);
   const [isConfirmed, setIsConfirmed] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isValidatingPromo, setIsValidatingPromo] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
   const [confirmedOrderId, setConfirmedOrderId] = useState(null);
 
@@ -373,16 +375,65 @@ export default function CheckoutScreen({ route, navigation }) {
     });
   };
 
-  const handleApplyPromo = () => {
+  const handleApplyPromo = async () => {
     Keyboard.dismiss();
     const code = promoCode.toUpperCase().trim();
-    if (!code) return;
+    if (!code || isValidatingPromo) return;
 
+    // 1. Immediate client-side pre-validation against event.discount_codes (if cached)
     const discount = event.discount_codes?.find(
-      (dc) => dc.code.toUpperCase() === code && dc.is_active
+      (dc) => dc.code.toUpperCase() === code
     );
 
     if (discount) {
+      if (discount.is_active === false) {
+        showAlert({
+          title: "Invalid Code",
+          message: "This promo code is currently inactive.",
+          icon: Tag,
+          iconColor: WARNING_COLOR,
+          primaryAction: { text: "OK", onPress: hideAlert },
+        });
+        return;
+      }
+
+      if (discount.valid_from && new Date() < new Date(discount.valid_from)) {
+        showAlert({
+          title: "Promo Code Inactive",
+          message: "This promo code is not yet active.",
+          icon: Tag,
+          iconColor: WARNING_COLOR,
+          primaryAction: { text: "OK", onPress: hideAlert },
+        });
+        return;
+      }
+
+      if (discount.valid_until && new Date() > new Date(discount.valid_until)) {
+        showAlert({
+          title: "Promo Code Expired",
+          message: "This promo code has expired.",
+          icon: Tag,
+          iconColor: WARNING_COLOR,
+          primaryAction: { text: "OK", onPress: hideAlert },
+        });
+        return;
+      }
+
+      if (
+        discount.max_uses !== null &&
+        discount.max_uses !== undefined &&
+        Number(discount.current_uses) >= Number(discount.max_uses)
+      ) {
+        showAlert({
+          title: "Usage Limit Reached",
+          message: "This promo code has reached its maximum usage limit.",
+          icon: Tag,
+          iconColor: WARNING_COLOR,
+          primaryAction: { text: "OK", onPress: hideAlert },
+        });
+        return;
+      }
+
       // Check if code is restricted to specific tickets and user has none in cart
       if (discount.applies_to === "specific" && discount.selected_tickets) {
         const hasEligibleTicket = cartItems.some((item) =>
@@ -427,17 +478,52 @@ export default function CheckoutScreen({ route, navigation }) {
           return;
         }
       }
+    }
 
-      setAppliedDiscount(discount);
-      showToast("Success", `Promo code "${code}" applied successfully!`);
-    } else {
+    // 2. Authoritative server-side validation using pricingCalculator
+    setIsValidatingPromo(true);
+    try {
+      const ticketsPayload = cartItems.map((item) => ({
+        ticketTypeId: item.ticket.id,
+        quantity: item.quantity,
+      }));
+
+      const res = await validatePromoCode(
+        event.id,
+        code,
+        ticketsPayload,
+        sessionId
+      );
+
+      if (res && res.success && res.pricing) {
+        const appliedObj = {
+          ...(discount || {}),
+          code: res.pricing.validatedPromoCode || code,
+          discount_type: res.pricing.promoDiscountType,
+          discount_value: res.pricing.promoDiscountValue,
+          serverDiscount: res.pricing.promoDiscount,
+        };
+        setAppliedDiscount(appliedObj);
+        showToast("Success", `Promo code "${code}" applied successfully!`);
+      } else {
+        showAlert({
+          title: "Invalid Code",
+          message: res?.message || "This promo code is not valid or has expired.",
+          icon: Tag,
+          iconColor: WARNING_COLOR,
+          primaryAction: { text: "OK", onPress: hideAlert },
+        });
+      }
+    } catch (err) {
       showAlert({
-        title: "Invalid Code",
-        message: "This promo code is not valid or has expired.",
+        title: "Promo Code Error",
+        message: err.message || "Failed to validate promo code.",
         icon: Tag,
         iconColor: WARNING_COLOR,
         primaryAction: { text: "OK", onPress: hideAlert },
       });
+    } finally {
+      setIsValidatingPromo(false);
     }
   };
 
@@ -523,6 +609,10 @@ export default function CheckoutScreen({ route, navigation }) {
     }
 
     if (discountableAmount <= 0) return 0;
+
+    if (appliedDiscount.serverDiscount !== undefined && appliedDiscount.serverDiscount !== null) {
+      return Math.min(appliedDiscount.serverDiscount, discountableAmount);
+    }
 
     const promoVal = parseFloat(appliedDiscount.discount_value) || 0;
     let promoDiscount = 0;
@@ -1076,12 +1166,12 @@ export default function CheckoutScreen({ route, navigation }) {
               <TouchableOpacity
                 style={styles.applyButtonWrapper}
                 onPress={handleApplyPromo}
-                disabled={!promoCode.trim() && !appliedDiscount}
+                disabled={(!promoCode.trim() && !appliedDiscount) || isValidatingPromo}
                 activeOpacity={0.8}
               >
                 <LinearGradient
                   colors={
-                    (promoCode.trim().length > 0 || appliedDiscount)
+                    (promoCode.trim().length > 0 || appliedDiscount) && !isValidatingPromo
                       ? ["#2563EB", "#1D4ED8"]
                       : ["#E2E8F0", "#E2E8F0"]
                   }
@@ -1092,10 +1182,10 @@ export default function CheckoutScreen({ route, navigation }) {
                   <Text
                     style={[
                       styles.applyButtonText,
-                      (!promoCode.trim() && !appliedDiscount) && styles.applyButtonTextDisabled,
+                      ((!promoCode.trim() && !appliedDiscount) || isValidatingPromo) && styles.applyButtonTextDisabled,
                     ]}
                   >
-                    {appliedDiscount ? "Applied" : "Apply"}
+                    {isValidatingPromo ? "Checking..." : appliedDiscount ? "Applied" : "Apply"}
                   </Text>
                 </LinearGradient>
               </TouchableOpacity>

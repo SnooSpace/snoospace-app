@@ -115,6 +115,18 @@ const DEFAULT_PROMO = {
   is_active: true,
 };
 
+const isSameCalendarDay = (d1, d2) => {
+  if (!d1 || !d2) return false;
+  const date1 = new Date(d1);
+  const date2 = new Date(d2);
+  if (isNaN(date1.getTime()) || isNaN(date2.getTime())) return false;
+  return (
+    date1.getFullYear() === date2.getFullYear() &&
+    date1.getMonth() === date2.getMonth() &&
+    date1.getDate() === date2.getDate()
+  );
+};
+
 const PromoEditor = React.forwardRef(
   ({ promos = [], onChange, ticketTypes = [], eventStartDate, onPromoUpdated }, ref) => {
     const insets = useSafeAreaInsets();
@@ -130,6 +142,111 @@ const PromoEditor = React.forwardRef(
     const [alertConfig, setAlertConfig] = useState(null);
 
     const [current, setCurrent] = useState({ ...DEFAULT_PROMO });
+
+    const getEarlyBirdTime = () => {
+      if (current.valid_until) {
+        const d = new Date(current.valid_until);
+        if (eventStartDate && isSameCalendarDay(d, eventStartDate)) {
+          const evtStart = new Date(eventStartDate);
+          if (d > evtStart) return evtStart;
+        }
+        return d;
+      }
+      if (eventStartDate) {
+        return new Date(eventStartDate);
+      }
+      return new Date(new Date().setHours(23, 59, 0, 0));
+    };
+
+    const getPromoValidityEndTime = () => {
+      if (current.valid_until) {
+        const d = new Date(current.valid_until);
+        if (eventStartDate && isSameCalendarDay(d, eventStartDate)) {
+          const evtStart = new Date(eventStartDate);
+          if (d > evtStart) return evtStart;
+        }
+        return d;
+      }
+      if (eventStartDate) {
+        const targetDay = current.valid_from
+          ? new Date(current.valid_from)
+          : new Date(eventStartDate);
+        if (isSameCalendarDay(targetDay, eventStartDate)) {
+          return new Date(eventStartDate);
+        }
+        return new Date(new Date(targetDay).setHours(23, 59, 0, 0));
+      }
+      return new Date(new Date().setHours(23, 59, 0, 0));
+    };
+
+    const getPromoValidityEndMaxTime = () => {
+      const effectiveEndDay =
+        current.valid_until ||
+        current.valid_from ||
+        (eventStartDate ? new Date(eventStartDate) : null);
+      if (
+        eventStartDate &&
+        effectiveEndDay &&
+        isSameCalendarDay(effectiveEndDay, eventStartDate)
+      ) {
+        return new Date(eventStartDate);
+      }
+      return undefined;
+    };
+
+    const getPromoValidityEndMinTime = () => {
+      if (
+        current.valid_from &&
+        current.valid_until &&
+        isSameCalendarDay(current.valid_from, current.valid_until)
+      ) {
+        return new Date(current.valid_from);
+      }
+      return undefined;
+    };
+
+    const getPromoValidityStartTime = () => {
+      if (current.valid_from) {
+        const d = new Date(current.valid_from);
+        const max = getPromoValidityStartMaxTime();
+        if (max && d > max) return max;
+        return d;
+      }
+      const targetDay =
+        current.valid_until ||
+        (eventStartDate ? new Date(eventStartDate) : new Date());
+      return new Date(new Date(targetDay).setHours(0, 0, 0, 0));
+    };
+
+    const getPromoValidityStartMaxTime = () => {
+      const effectiveStartDay =
+        current.valid_from ||
+        (eventStartDate ? new Date(eventStartDate) : null);
+      const isStartOnEvtDay =
+        eventStartDate &&
+        effectiveStartDay &&
+        isSameCalendarDay(effectiveStartDay, eventStartDate);
+      const isStartOnEndDay =
+        current.valid_until &&
+        effectiveStartDay &&
+        isSameCalendarDay(effectiveStartDay, current.valid_until);
+
+      if (isStartOnEvtDay && isStartOnEndDay) {
+        return new Date(
+          Math.min(
+            new Date(current.valid_until).getTime(),
+            new Date(eventStartDate).getTime(),
+          ),
+        );
+      }
+      if (isStartOnEvtDay) {
+        return new Date(eventStartDate);
+      }
+      if (isStartOnEndDay) {
+        return new Date(current.valid_until);
+      }
+      return undefined;
+    };
 
     const resetForm = () => {
       setCurrent({ ...DEFAULT_PROMO });
@@ -359,11 +476,26 @@ const PromoEditor = React.forwardRef(
       )
         return false;
 
+      // Event start constraint: validity cannot extend past event start datetime
+      if (
+        eventStartDate &&
+        current.valid_until &&
+        current.valid_until > new Date(eventStartDate)
+      )
+        return false;
+
+      if (
+        eventStartDate &&
+        current.valid_from &&
+        current.valid_from > new Date(eventStartDate)
+      )
+        return false;
+
       if (current.offer_type === "early_bird") {
         if (current.trigger === "by_date") {
           // End date required
           if (!current.valid_until) return false;
-          // End date must be before event start
+          // End date must be before or when event starts
           if (eventStartDate && current.valid_until > new Date(eventStartDate))
             return false;
         }
@@ -510,7 +642,7 @@ const PromoEditor = React.forwardRef(
         ) {
           Alert.alert(
             "Invalid Date",
-            "Early bird end date must be before the event start date.",
+            "Early bird end date must be before or when the event starts.",
           );
           return;
         }
@@ -536,6 +668,18 @@ const PromoEditor = React.forwardRef(
 
       // Duplicate code check for promo codes
       if (current.offer_type === "promo_code") {
+        if (
+          eventStartDate &&
+          current.valid_until &&
+          current.valid_until > new Date(eventStartDate)
+        ) {
+          Alert.alert(
+            "Invalid Date",
+            "Promo code validity must end before or when the event starts.",
+          );
+          return;
+        }
+
         const codeUpper = current.code.trim().toUpperCase();
         const isDuplicate = promos.some(
           (p, idx) =>
@@ -1302,6 +1446,12 @@ const PromoEditor = React.forwardRef(
                                     minute: "2-digit",
                                     hour12: true,
                                   })
+                                : eventStartDate
+                                ? new Date(eventStartDate).toLocaleTimeString([], {
+                                    hour: "numeric",
+                                    minute: "2-digit",
+                                    hour12: true,
+                                  })
                                 : "11:59 PM"}
                             </Text>
                           </TouchableOpacity>
@@ -1327,8 +1477,7 @@ const PromoEditor = React.forwardRef(
                           eventStartDate &&
                           current.valid_until > new Date(eventStartDate) && (
                             <Text style={styles.validationError}>
-                              Early bird end date must be before event start
-                              date
+                              Early bird end date must be before or when the event starts
                             </Text>
                           )}
                       </>
@@ -1895,6 +2044,12 @@ const PromoEditor = React.forwardRef(
                                       minute: "2-digit",
                                       hour12: true,
                                     })
+                                  : eventStartDate
+                                  ? new Date(eventStartDate).toLocaleTimeString([], {
+                                      hour: "numeric",
+                                      minute: "2-digit",
+                                      hour12: true,
+                                    })
                                   : "11:59 PM"}
                               </Text>
                             </TouchableOpacity>
@@ -1906,6 +2061,14 @@ const PromoEditor = React.forwardRef(
                           current.valid_until < current.valid_from && (
                             <Text style={styles.validationError}>
                               Valid until date cannot be earlier than valid from date
+                            </Text>
+                          )}
+
+                        {current.valid_until &&
+                          eventStartDate &&
+                          current.valid_until > new Date(eventStartDate) && (
+                            <Text style={styles.validationError}>
+                              Promo validity cannot end after the event starts
                             </Text>
                           )}
 
@@ -1947,11 +2110,21 @@ const PromoEditor = React.forwardRef(
                               } else {
                                 newStart.setHours(0, 0, 0, 0);
                               }
+
+                              if (eventStartDate && isSameCalendarDay(newStart, eventStartDate)) {
+                                const evtStart = new Date(eventStartDate);
+                                if (newStart > evtStart) {
+                                  newStart.setTime(evtStart.getTime());
+                                }
+                              }
                             }
 
                             let newEnd = null;
                             if (endDate) {
                               newEnd = new Date(endDate);
+                              const isEndOnEvtDay =
+                                eventStartDate && isSameCalendarDay(newEnd, eventStartDate);
+
                               if (
                                 current.valid_until &&
                                 (current.valid_until.getHours() !== 0 ||
@@ -1963,9 +2136,28 @@ const PromoEditor = React.forwardRef(
                                   0,
                                   0,
                                 );
+                              } else if (isEndOnEvtDay) {
+                                const evtStart = new Date(eventStartDate);
+                                newEnd.setHours(
+                                  evtStart.getHours(),
+                                  evtStart.getMinutes(),
+                                  0,
+                                  0,
+                                );
                               } else {
                                 newEnd.setHours(23, 59, 0, 0);
                               }
+
+                              if (isEndOnEvtDay) {
+                                const evtStart = new Date(eventStartDate);
+                                if (newEnd > evtStart) {
+                                  newEnd.setTime(evtStart.getTime());
+                                }
+                              }
+                            }
+
+                            if (newStart && newEnd && newStart > newEnd) {
+                              newStart.setTime(newEnd.getTime());
                             }
 
                             setCurrent((prev) => ({
@@ -1981,15 +2173,45 @@ const PromoEditor = React.forwardRef(
                         <CustomTimePicker
                           visible={showValidFromTimePicker}
                           onClose={() => setShowValidFromTimePicker(false)}
-                          time={
-                            current.valid_from ||
-                            new Date(new Date().setHours(0, 0, 0, 0))
+                          time={getPromoValidityStartTime()}
+                          maxTime={getPromoValidityStartMaxTime()}
+                          maxTimeMessage={
+                            eventStartDate &&
+                            isSameCalendarDay(
+                              current.valid_from || eventStartDate,
+                              eventStartDate,
+                            )
+                              ? "Promo validity cannot start after the event starts."
+                              : current.valid_until &&
+                                isSameCalendarDay(
+                                  current.valid_from,
+                                  current.valid_until,
+                                )
+                              ? "Valid from time cannot be after valid until time."
+                              : undefined
                           }
                           onChange={(newTime) => {
                             const base = current.valid_from
                               ? new Date(current.valid_from)
                               : new Date();
                             base.setHours(newTime.getHours(), newTime.getMinutes(), 0, 0);
+
+                            if (eventStartDate && isSameCalendarDay(base, eventStartDate)) {
+                              const evtStart = new Date(eventStartDate);
+                              if (base > evtStart) {
+                                base.setTime(evtStart.getTime());
+                              }
+                            }
+                            if (
+                              current.valid_until &&
+                              isSameCalendarDay(base, current.valid_until)
+                            ) {
+                              const endD = new Date(current.valid_until);
+                              if (base > endD) {
+                                base.setTime(endD.getTime());
+                              }
+                            }
+
                             setCurrent((prev) => ({
                               ...prev,
                               valid_from: base,
@@ -2001,15 +2223,36 @@ const PromoEditor = React.forwardRef(
                         <CustomTimePicker
                           visible={showValidityEndTimePicker}
                           onClose={() => setShowValidityEndTimePicker(false)}
-                          time={
-                            current.valid_until ||
-                            new Date(new Date().setHours(23, 59, 0, 0))
+                          time={getPromoValidityEndTime()}
+                          minTime={getPromoValidityEndMinTime()}
+                          maxTime={getPromoValidityEndMaxTime()}
+                          minTimeMessage="Valid until time cannot be before valid from time."
+                          maxTimeMessage={
+                            eventStartDate &&
+                            isSameCalendarDay(
+                              current.valid_until || eventStartDate,
+                              eventStartDate,
+                            )
+                              ? "Promo validity cannot end after the event starts."
+                              : undefined
                           }
                           onChange={(newTime) => {
                             const base = current.valid_until
                               ? new Date(current.valid_until)
+                              : current.valid_from
+                              ? new Date(current.valid_from)
+                              : eventStartDate
+                              ? new Date(eventStartDate)
                               : new Date();
                             base.setHours(newTime.getHours(), newTime.getMinutes(), 0, 0);
+
+                            if (eventStartDate && isSameCalendarDay(base, eventStartDate)) {
+                              const evtStart = new Date(eventStartDate);
+                              if (base > evtStart) {
+                                base.setTime(evtStart.getTime());
+                              }
+                            }
+
                             setCurrent((prev) => ({
                               ...prev,
                               valid_until: base,
@@ -2033,6 +2276,9 @@ const PromoEditor = React.forwardRef(
                   onConfirm={({ startDate }) => {
                     if (startDate) {
                       const d = new Date(startDate);
+                      const isEndOnEvtDay =
+                        eventStartDate && isSameCalendarDay(d, eventStartDate);
+
                       if (
                         current.valid_until &&
                         (current.valid_until.getHours() !== 0 ||
@@ -2044,8 +2290,23 @@ const PromoEditor = React.forwardRef(
                           0,
                           0,
                         );
+                      } else if (isEndOnEvtDay) {
+                        const evtStart = new Date(eventStartDate);
+                        d.setHours(
+                          evtStart.getHours(),
+                          evtStart.getMinutes(),
+                          0,
+                          0,
+                        );
                       } else {
                         d.setHours(23, 59, 0, 0);
+                      }
+
+                      if (isEndOnEvtDay) {
+                        const evtStart = new Date(eventStartDate);
+                        if (d > evtStart) {
+                          d.setTime(evtStart.getTime());
+                        }
                       }
                       setCurrent((prev) => ({ ...prev, valid_until: d }));
                     }
@@ -2058,15 +2319,32 @@ const PromoEditor = React.forwardRef(
                 <CustomTimePicker
                   visible={showValidUntilTimePicker}
                   onClose={() => setShowValidUntilTimePicker(false)}
-                  time={
-                    current.valid_until ||
-                    new Date(new Date().setHours(23, 59, 0, 0))
+                  time={getEarlyBirdTime()}
+                  maxTime={
+                    eventStartDate &&
+                    isSameCalendarDay(
+                      current.valid_until || eventStartDate,
+                      eventStartDate,
+                    )
+                      ? new Date(eventStartDate)
+                      : undefined
                   }
+                  maxTimeMessage="Early bird discount must end before or when the event starts."
                   onChange={(newTime) => {
                     const base = current.valid_until
                       ? new Date(current.valid_until)
+                      : eventStartDate
+                      ? new Date(eventStartDate)
                       : new Date();
                     base.setHours(newTime.getHours(), newTime.getMinutes(), 0, 0);
+
+                    if (eventStartDate && isSameCalendarDay(base, eventStartDate)) {
+                      const evtStart = new Date(eventStartDate);
+                      if (base > evtStart) {
+                        base.setTime(evtStart.getTime());
+                      }
+                    }
+
                     setCurrent((prev) => ({ ...prev, valid_until: base }));
                   }}
                 />

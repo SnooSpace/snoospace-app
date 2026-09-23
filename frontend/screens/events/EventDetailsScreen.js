@@ -2051,15 +2051,23 @@ const EventDetailsScreen = ({ route, navigation }) => {
                     activeOpacity={0.7}
                   >
                     <View style={styles.viewAttendeesContent}>
-                      {viewAttendeesState.locked ? (
-                        <Lock size={20} color={MUTED_TEXT} strokeWidth={2} />
-                      ) : (
-                        <Users
-                          size={20}
-                          color={COLORS.primary}
-                          strokeWidth={2}
-                        />
-                      )}
+                      <View
+                        style={[
+                          styles.viewAttendeesIconContainer,
+                          viewAttendeesState.locked &&
+                            styles.viewAttendeesIconContainerLocked,
+                        ]}
+                      >
+                        {viewAttendeesState.locked ? (
+                          <Lock size={18} color={MUTED_TEXT} strokeWidth={2} />
+                        ) : (
+                          <Users
+                            size={18}
+                            color={PRIMARY_COLOR}
+                            strokeWidth={2}
+                          />
+                        )}
+                      </View>
                       <Text
                         style={[
                           styles.viewAttendeesText,
@@ -2069,7 +2077,19 @@ const EventDetailsScreen = ({ route, navigation }) => {
                         View Attendees
                       </Text>
                     </View>
-                    <MoveRight size={20} color={MUTED_TEXT} strokeWidth={2.5} />
+                    <View
+                      style={[
+                        styles.viewAttendeesArrowContainer,
+                        viewAttendeesState.locked &&
+                          styles.viewAttendeesArrowContainerLocked,
+                      ]}
+                    >
+                      <MoveRight
+                        size={16}
+                        color={viewAttendeesState.locked ? MUTED_TEXT : PRIMARY_COLOR}
+                        strokeWidth={2.2}
+                      />
+                    </View>
                   </TouchableOpacity>
 
                   {/* Registration Progress */}
@@ -2865,7 +2885,7 @@ const styles = StyleSheet.create({
   },
   highlightItem: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     marginBottom: 14,
   },
   highlightIconContainer: {
@@ -2874,17 +2894,18 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 1,
   },
   highlightContent: {
     flex: 1,
     marginLeft: 12,
+    justifyContent: "center",
   },
   highlightTitle: {
     fontSize: 15,
     fontFamily: "Manrope-SemiBold",
     color: TEXT_COLOR,
     lineHeight: 20,
+    includeFontPadding: false,
   },
   highlightDesc: {
     fontSize: 13,
@@ -2892,6 +2913,7 @@ const styles = StyleSheet.create({
     color: MUTED_TEXT,
     marginTop: 2,
     lineHeight: 18,
+    includeFontPadding: false,
   },
   thingRow: {
     flexDirection: "row",
@@ -3215,21 +3237,48 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     backgroundColor: CARD_BACKGROUND,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 999,
     borderWidth: 1,
     borderColor: BORDER_COLOR,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
   },
   viewAttendeesContent: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 12,
+  },
+  viewAttendeesIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(41, 98, 255, 0.08)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  viewAttendeesIconContainerLocked: {
+    backgroundColor: "rgba(107, 114, 128, 0.1)",
   },
   viewAttendeesText: {
     fontSize: 15,
     fontFamily: "Manrope-SemiBold",
     color: TEXT_COLOR,
+  },
+  viewAttendeesArrowContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(41, 98, 255, 0.06)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  viewAttendeesArrowContainerLocked: {
+    backgroundColor: "rgba(107, 114, 128, 0.08)",
   },
   cancelledBarContent: {
     flex: 1,
@@ -3250,8 +3299,12 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   viewAttendeesButtonLocked: {
-    opacity: 0.6,
+    opacity: 0.7,
     borderStyle: "dashed",
+    borderColor: "#D1D5DB",
+    backgroundColor: "#F9FAFB",
+    shadowOpacity: 0,
+    elevation: 0,
   },
   registrationProgress: {
     marginTop: 12,

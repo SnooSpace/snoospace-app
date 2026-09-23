@@ -1003,10 +1003,21 @@ export default function TicketViewScreen({ route, navigation }) {
                           { text: "Confirm", onPress: async () => {
                             setPostponeSubmitting(true);
                             try {
-                              await submitPostponementKeep(postponementDecision.decision_id);
+                              await submitPostponementKeep(
+                                postponementDecision.decision_id,
+                                postponementDecision.opt_out_deadline
+                              );
                               await loadPostponementDecision();
                             } catch (e) {
-                              Alert.alert("Error", e.message || "Could not confirm keep");
+                              await loadPostponementDecision();
+                              if (e.status === 409 || e.code === "STALE_WINDOW") {
+                                Alert.alert(
+                                  "Event Date Updated",
+                                  "The organizer just updated the rescheduled date. We've refreshed the screen so you can review the new date and make your choice."
+                                );
+                              } else {
+                                Alert.alert("Error", e.message || "Could not confirm keep");
+                              }
                             } finally { setPostponeSubmitting(false); }
                           }},
                         ]
@@ -1029,10 +1040,21 @@ export default function TicketViewScreen({ route, navigation }) {
                           { text: "Request Refund", style: "destructive", onPress: async () => {
                             setPostponeSubmitting(true);
                             try {
-                              await submitPostponementOptOut(postponementDecision.decision_id);
+                              await submitPostponementOptOut(
+                                postponementDecision.decision_id,
+                                postponementDecision.opt_out_deadline
+                              );
                               await loadPostponementDecision();
                             } catch (e) {
-                              Alert.alert("Error", e.message || "Could not process refund request");
+                              await loadPostponementDecision();
+                              if (e.status === 409 || e.code === "STALE_WINDOW") {
+                                Alert.alert(
+                                  "Event Date Updated",
+                                  "The organizer just updated the rescheduled date. We've refreshed the screen so you can review the new date and make your choice."
+                                );
+                              } else {
+                                Alert.alert("Error", e.message || "Could not process refund request");
+                              }
                             } finally { setPostponeSubmitting(false); }
                           }},
                         ]

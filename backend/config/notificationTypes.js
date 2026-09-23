@@ -167,6 +167,11 @@ const NotificationTypes = {
     channel: "events",
     icon: "💵",
   },
+  refund_requested: {
+    category: "events",
+    channel: "events",
+    icon: "⚠️",
+  },
   ticket_gifted: {
     category: "events",
     channel: "events",

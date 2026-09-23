@@ -95,17 +95,25 @@ const cancelEventWithRefunds = async (pool, eventId, cancelledById, cancelledByT
   );
   const attendeeCount = attendeeCountResult.rows[0]?.count || 0;
 
-  // ── 3. Mark event as cancelled (single atomic UPDATE) ─────────────────────
-  await pool.query(
+  // ── 3. Mark event as cancelled (atomic conditional UPDATE) ─────────────────
+  const cancelUpdate = await pool.query(
     `UPDATE events
      SET is_cancelled        = true,
          cancelled_at        = NOW(),
          cancellation_reason = $2,
          payout_hold         = true,
          updated_at          = NOW()
-     WHERE id = $1`,
+     WHERE id = $1 AND is_cancelled = false
+     RETURNING id`,
     [eventId, reasonCategory || null],
   );
+
+  if (cancelUpdate.rowCount === 0) {
+    const err = new Error('Event is already cancelled');
+    err.statusCode = 400;
+    err.code = 'ALREADY_CANCELLED';
+    throw err;
+  }
 
   console.log(
     `[CancellationService] Event ${eventId} ("${event.title}") marked cancelled` +

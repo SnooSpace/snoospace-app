@@ -333,7 +333,7 @@ async function run() {
   // ── [10] Already-postponed guard ────────────────────────────────────────────
   console.log('\n[ 10 ] Already-postponed guard');
   try {
-    await declarePostponement(pool, eventId, communityId, 'community');
+    await declarePostponement(pool, repostEventId, communityId, 'community');
     assert(false, 'should have thrown ALREADY_POSTPONED');
   } catch (err) {
     assert(err.code === 'ALREADY_POSTPONED', 'ALREADY_POSTPONED thrown on duplicate postpone');
