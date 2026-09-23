@@ -810,6 +810,11 @@ const EventDetailsScreen = ({ route, navigation }) => {
     isMostlyInviteOnly,
   );
 
+  const hasAttendees =
+    (event?.attendees && event.attendees.length > 0) ||
+    (event?.attendee_count && event.attendee_count > 0) ||
+    registrationProgress.registered > 0;
+
   // Get progress bar color based on percentage
   const progressBarColor = getProgressBarColor(registrationProgress.percentage);
   // Handle multiple possible banner field names from API
@@ -2073,8 +2078,12 @@ const EventDetailsScreen = ({ route, navigation }) => {
                           styles.viewAttendeesText,
                           viewAttendeesState.locked && { color: MUTED_TEXT },
                         ]}
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
                       >
-                        View Attendees
+                        {hasAttendees
+                          ? "View Attendees"
+                          : "No Attendees yet, be the first to join"}
                       </Text>
                     </View>
                     <View
@@ -2093,66 +2102,66 @@ const EventDetailsScreen = ({ route, navigation }) => {
                   </TouchableOpacity>
 
                   {/* Registration Progress */}
-                  <View style={styles.registrationProgress}>
-                    {/* Badges */}
-                    {registrationProgress.soldOut ? (
-                      <View
-                        style={[
-                          styles.progressBadge,
-                          { backgroundColor: "#FEE2E2" },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.progressBadgeText,
-                            { color: "#DC2626" },
-                          ]}
-                        >
-                          Sold Out
-                        </Text>
-                      </View>
-                    ) : registrationProgress.almostFull ? (
-                      <View
-                        style={[
-                          styles.progressBadge,
-                          { backgroundColor: "#FEF3C7" },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.progressBadgeText,
-                            { color: "#D97706" },
-                          ]}
-                        >
-                          Almost Full
-                        </Text>
-                      </View>
-                    ) : null}
-
-                    {/* Progress Text */}
-                    <Text style={styles.progressText}>
-                      {registrationProgress.registered === 0
-                        ? "Be the first to join! 🎉"
-                        : registrationProgress.unlimited
-                          ? `${registrationProgress.registered} registered`
-                          : `${registrationProgress.registered} of ${registrationProgress.capacity} registered`}
-                    </Text>
-
-                    {/* Progress Bar - only show if not unlimited */}
-                    {!registrationProgress.unlimited && (
-                      <View style={styles.progressBarContainer}>
+                  {hasAttendees && (
+                    <View style={styles.registrationProgress}>
+                      {/* Badges */}
+                      {registrationProgress.soldOut ? (
                         <View
                           style={[
-                            styles.progressBarFill,
-                            {
-                              width: `${registrationProgress.percentage}%`,
-                              backgroundColor: progressBarColor,
-                            },
+                            styles.progressBadge,
+                            { backgroundColor: "#FEE2E2" },
                           ]}
-                        />
-                      </View>
-                    )}
-                  </View>
+                        >
+                          <Text
+                            style={[
+                              styles.progressBadgeText,
+                              { color: "#DC2626" },
+                            ]}
+                          >
+                            Sold Out
+                          </Text>
+                        </View>
+                      ) : registrationProgress.almostFull ? (
+                        <View
+                          style={[
+                            styles.progressBadge,
+                            { backgroundColor: "#FEF3C7" },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.progressBadgeText,
+                              { color: "#D97706" },
+                            ]}
+                          >
+                            Almost Full
+                          </Text>
+                        </View>
+                      ) : null}
+
+                      {/* Progress Text */}
+                      <Text style={styles.progressText}>
+                        {registrationProgress.unlimited
+                          ? `${registrationProgress.registered} registered`
+                          : `${registrationProgress.registered} of ${registrationProgress.capacity} registered`}
+                      </Text>
+
+                      {/* Progress Bar - only show if not unlimited */}
+                      {!registrationProgress.unlimited && (
+                        <View style={styles.progressBarContainer}>
+                          <View
+                            style={[
+                              styles.progressBarFill,
+                              {
+                                width: `${registrationProgress.percentage}%`,
+                                backgroundColor: progressBarColor,
+                              },
+                            ]}
+                          />
+                        </View>
+                      )}
+                    </View>
+                  )}
                 </View>
               )}
 
@@ -3249,9 +3258,11 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   viewAttendeesContent: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 10,
+    marginRight: 8,
   },
   viewAttendeesIconContainer: {
     width: 36,
@@ -3265,7 +3276,8 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(107, 114, 128, 0.1)",
   },
   viewAttendeesText: {
-    fontSize: 15,
+    flex: 1,
+    fontSize: 14,
     fontFamily: "Manrope-SemiBold",
     color: TEXT_COLOR,
   },
@@ -3323,6 +3335,7 @@ const styles = StyleSheet.create({
   },
   progressText: {
     fontSize: 14,
+    fontFamily: "Manrope-Regular",
     color: MUTED_TEXT,
     marginBottom: 8,
   },

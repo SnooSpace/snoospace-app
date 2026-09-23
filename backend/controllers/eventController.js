@@ -4356,22 +4356,57 @@ const registerForEvent = async (req, res) => {
       registrationId = regResult.rows[0].id;
     } catch (insertErr) {
       if (insertErr.code === "23505") {
-        await client.query("ROLLBACK");
-        const dupeCheck = await pool.query(
-          `SELECT id FROM event_registrations 
-           WHERE event_id = $1 AND member_id = $2 AND registration_status != 'cancelled'`,
+        // Unique violation — check if a cancelled registration exists
+        // (hard UNIQUE(event_id, member_id) fires even for cancelled rows)
+        const dupeCheck = await client.query(
+          `SELECT id, registration_status FROM event_registrations
+           WHERE event_id = $1 AND member_id = $2`,
           [eventId, userId]
         );
         if (dupeCheck.rows.length > 0) {
-          return res.json({
-            success: true,
-            registrationId: dupeCheck.rows[0].id,
-            replayed: true,
-            message: "Registration already exists.",
-          });
+          if (dupeCheck.rows[0].registration_status === 'cancelled') {
+            // Re-activate the cancelled registration for this re-purchase
+            const reactivated = await client.query(
+              `UPDATE event_registrations
+               SET registration_status = 'registered',
+                   total_amount = $3,
+                   promo_code = $4,
+                   discount_amount = $5,
+                   qr_code_hash = $6,
+                   cancelled_at = NULL,
+                   refund_amount = NULL,
+                   updated_at = NOW()
+               WHERE id = $1 AND member_id = $2
+               RETURNING id`,
+              [dupeCheck.rows[0].id, userId, 0, pricing.validatedPromoCode || null, pricing.totalDiscount || 0, qrCodeHash]
+            );
+            registrationId = reactivated.rows[0].id;
+
+            // Clean up stale ticket line items from the previous (refunded) order
+            await client.query(
+              `DELETE FROM registration_tickets WHERE registration_id = $1`,
+              [registrationId]
+            );
+
+            console.log(
+              `[registerForEvent] Re-activated cancelled registration ${registrationId} for user ${userId}, event ${eventId}`
+            );
+          } else {
+            // Already active registration
+            await client.query("ROLLBACK");
+            return res.json({
+              success: true,
+              registrationId: dupeCheck.rows[0].id,
+              replayed: true,
+              message: "Registration already exists.",
+            });
+          }
+        } else {
+          throw insertErr;
         }
+      } else {
+        throw insertErr;
       }
-      throw insertErr;
     }
 
     // 10. Insert ticket line items & update sold counts using pricing.ticketBreakdown

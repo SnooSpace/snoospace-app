@@ -200,14 +200,48 @@ const handlePaymentCaptured = async (pool, payment, event) => {
         );
       } catch (insertErr) {
         if (insertErr.code === '23505') {
+          // Unique violation — check if a cancelled registration exists for this
+          // (event_id, member_id) pair. The table has a hard UNIQUE(event_id, member_id)
+          // constraint that fires even for cancelled rows.
           const dupe = await client.query(
-            `SELECT id FROM event_registrations
-             WHERE event_id = $1 AND member_id = $2 AND registration_status != 'cancelled'`,
+            `SELECT id, registration_status FROM event_registrations
+             WHERE event_id = $1 AND member_id = $2`,
             [parsedEventId, parsedUserId]
           );
           if (dupe.rows.length > 0) {
-            registrationId = dupe.rows[0].id;
-            isNewRegistration = false;
+            if (dupe.rows[0].registration_status === 'cancelled') {
+              // Re-activate the cancelled registration for this re-purchase
+              const reactivated = await client.query(
+                `UPDATE event_registrations
+                 SET registration_status = 'registered',
+                     total_amount = $3,
+                     promo_code = $4,
+                     discount_amount = $5,
+                     qr_code_hash = $6,
+                     cancelled_at = NULL,
+                     refund_amount = NULL,
+                     updated_at = NOW()
+                 WHERE id = $1 AND member_id = $2
+                 RETURNING id`,
+                [dupe.rows[0].id, parsedUserId, amountRupees, orderPromoCode, orderDiscount, qrCodeHash]
+              );
+              registrationId = reactivated.rows[0].id;
+              isNewRegistration = true; // treat as new for ticket inserts & promo increment
+
+              // Clean up stale ticket line items from the previous (refunded) order
+              await client.query(
+                `DELETE FROM registration_tickets WHERE registration_id = $1`,
+                [registrationId]
+              );
+
+              console.log(
+                `[Razorpay] Re-activated cancelled registration ${registrationId} for user ${parsedUserId}, event ${parsedEventId}`
+              );
+            } else {
+              // Already active registration — idempotent replay
+              registrationId = dupe.rows[0].id;
+              isNewRegistration = false;
+            }
           } else {
             throw insertErr;
           }
@@ -595,6 +629,29 @@ const handleRefundCreated = async (pool, refund, event) => {
          AND er.registration_status = 'registered'`,
       [refund.payment_id, refundAmountRupees]
     );
+
+    // ── 4b. Decrement promo code usage if this registration used one ────
+    // Without this, refunded promo slots are permanently consumed and
+    // the code hits its max_uses limit even though the registration is gone.
+    if (registrationId !== null) {
+      const regPromoResult = await client.query(
+        `SELECT promo_code, event_id FROM event_registrations WHERE id = $1`,
+        [registrationId]
+      );
+      const usedPromo = regPromoResult.rows[0]?.promo_code;
+      const regEventId = regPromoResult.rows[0]?.event_id;
+      if (usedPromo && regEventId) {
+        await client.query(
+          `UPDATE discount_codes
+           SET current_uses = GREATEST(0, current_uses - 1)
+           WHERE event_id = $1 AND code_normalized = $2`,
+          [regEventId, usedPromo.toUpperCase().trim()]
+        );
+        console.log(
+          `[Razorpay] Decremented promo code usage for "${usedPromo}" on event ${regEventId}`
+        );
+      }
+    }
 
     // ── 5. Decrement sold_count on ticket_types ────────────────────────────
     // FIX 1: Restore ticket inventory on refund.

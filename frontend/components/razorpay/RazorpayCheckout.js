@@ -67,11 +67,13 @@ export const RazorpayCheckout = ({
 
   const themeColor = options?.theme?.color || '#FFFFFF';
   const isLight = isLightColor(themeColor);
+
+  // During the 'Confirming Payment' Razorpay transition screen the WebView flips to green
+  // internally before our JS success handler fires. Lock status bar icons to dark-content
+  // (white area) at all times except when payment is explicitly confirmed success (green).
   const effectiveStatusBarStyle = isPaymentSuccess
     ? 'light-content'
-    : isBackdropDimmed
-    ? 'light-content'
-    : (isLight ? 'dark-content' : 'light-content');
+    : 'dark-content';
 
   // Smooth animated backdrop value for status bar dimming (matching SwipeableModal / CommentsModal)
   const backdropAnim = useRef(new Animated.Value(0)).current;
@@ -96,10 +98,10 @@ export const RazorpayCheckout = ({
       StatusBar.setTranslucent(true);
       try {
         NavigationBar.setBackgroundColorAsync(
-          isPaymentSuccess ? RAZORPAY_SUCCESS_GREEN : (isLight ? '#FFFFFF' : themeColor)
+          isPaymentSuccess ? RAZORPAY_SUCCESS_GREEN : '#FFFFFF'
         );
         NavigationBar.setButtonStyleAsync(
-          isPaymentSuccess ? 'light' : (isLight ? 'dark' : 'light')
+          isPaymentSuccess ? 'light' : 'dark'
         );
       } catch (_) {}
     }
@@ -714,7 +716,10 @@ export const RazorpayCheckout = ({
             styles.statusBarArea,
             {
               height: topInset,
-              backgroundColor: isPaymentSuccess ? RAZORPAY_SUCCESS_GREEN : themeColor,
+              // Always white during checkout, only switches to Razorpay success green
+              // when payment is fully confirmed — prevents the green bleed on the
+              // 'Confirming Payment' transition screen.
+              backgroundColor: isPaymentSuccess ? RAZORPAY_SUCCESS_GREEN : '#FFFFFF',
             },
           ]}
         >
