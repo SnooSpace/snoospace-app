@@ -452,25 +452,44 @@ const approveRefundRequest = async (req, res) => {
     }
 
     // Find the Razorpay payment ID for this registration
-    // Join path: event_registrations → razorpay_payments (user_id + event_id match)
-    const paymentResult = await pool.query(
-      `SELECT rp.razorpay_payment_id, rp.amount AS payment_amount_paise
+    // 1) Primary path: via razorpay_orders.registration_id
+    let payment = null;
+    const primaryLookup = await pool.query(
+      `SELECT rp.razorpay_payment_id, rp.amount_paise AS payment_amount_paise
        FROM razorpay_payments rp
-       JOIN event_registrations er ON rp.user_id = er.member_id AND rp.event_id = er.event_id
-       WHERE er.id = $1
+       JOIN razorpay_orders ro ON ro.razorpay_order_id = rp.razorpay_order_id
+       WHERE ro.registration_id = $1
          AND rp.status = 'captured'
        ORDER BY rp.created_at DESC
        LIMIT 1`,
       [rq.registration_id],
     );
 
-    if (paymentResult.rows.length === 0) {
+    if (primaryLookup.rows.length > 0) {
+      payment = primaryLookup.rows[0];
+    } else {
+      // 2) Fallback path: event_registrations → razorpay_payments (user_id + event_id match)
+      const fallbackLookup = await pool.query(
+        `SELECT rp.razorpay_payment_id, rp.amount_paise AS payment_amount_paise
+         FROM razorpay_payments rp
+         JOIN event_registrations er ON rp.user_id = er.member_id AND rp.event_id = er.event_id
+         WHERE er.id = $1
+           AND rp.status = 'captured'
+         ORDER BY rp.created_at DESC
+         LIMIT 1`,
+        [rq.registration_id],
+      );
+
+      if (fallbackLookup.rows.length > 0) {
+        payment = fallbackLookup.rows[0];
+      }
+    }
+
+    if (!payment) {
       return res.status(422).json({
         error: "No captured payment found for this registration. Cannot execute Razorpay refund.",
       });
     }
-
-    const payment = paymentResult.rows[0];
 
     // Delegate to shared executor (rupees → paise conversion inside)
     const razorpayRefund = await executeRazorpayRefund(

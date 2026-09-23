@@ -15,6 +15,9 @@ import {
   TextInput,
   Modal,
   ActivityIndicator,
+  Platform,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from "react-native";
 import {
   SafeAreaView,
@@ -52,6 +55,7 @@ import { useRazorpay } from "../../hooks/useRazorpay";
 import { useLocationName } from "../../utils/locationNameCache";
 import { detectMeetingPlatform } from "../../utils/meetingPlatformUtils";
 import SnooLoader from "../../components/ui/SnooLoader";
+import SwipeableModal from "../../components/modals/SwipeableModal";
 import { COLORS, BORDER_RADIUS, SHADOWS, FONTS } from "../../constants/theme";
 import { getGradientForName, getInitials } from "../../utils/AvatarGenerator";
 
@@ -1166,44 +1170,75 @@ export default function TicketViewScreen({ route, navigation }) {
       </ScrollView>
 
       {/* ── REFUND REQUEST BOTTOM SHEET ── */}
-      <Modal
+      <SwipeableModal
         visible={showRefundSheet}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowRefundSheet(false)}
-      >
-        <View style={styles.sheetOverlay}>
-          <TouchableOpacity style={styles.sheetDismiss} onPress={() => setShowRefundSheet(false)} activeOpacity={1} />
-          <View style={[styles.sheetContainer, { paddingBottom: Math.max(insets.bottom, 24) }]}>
-            {/* Sheet Header */}
+        onClose={() => setShowRefundSheet(false)}
+        avoidKeyboard={true}
+        swipeFromHeaderOnly={true}
+        sheetStyle={[
+          styles.sheetContainer,
+          { paddingBottom: Math.max(insets.bottom, 24) },
+        ]}
+        header={
+          <View collapsable={false} style={{ width: "100%" }}>
+            <View style={styles.sheetHandle} />
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>Request Refund</Text>
-              <TouchableOpacity onPress={() => setShowRefundSheet(false)} activeOpacity={0.7}>
+              <TouchableOpacity
+                onPress={() => setShowRefundSheet(false)}
+                activeOpacity={0.7}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
                 <X size={22} color={MUTED_TEXT} strokeWidth={2} />
               </TouchableOpacity>
             </View>
-
+          </View>
+        }
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+          <View>
             {selectedTier && (
               <>
                 {/* Policy terms */}
                 <View style={styles.sheetPolicyBox}>
                   <Text style={styles.sheetPolicyTitle}>{selectedTier.name}</Text>
                   <Text style={styles.sheetPolicyLine}>
-                    Refund: {selectedTier.refundPolicy.percentage}% of ₹{selectedTier.totalPrice.toLocaleString('en-IN')}
+                    Refund: {selectedTier.refundPolicy.percentage}% of ₹
+                    {selectedTier.totalPrice.toLocaleString("en-IN")}
                   </Text>
-                  <Text style={[styles.sheetPolicyLine, { color: PRIMARY_COLOR, fontFamily: FONTS.semiBold }]}>
-                    You will receive: ₹{refundPreviewAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                  <Text
+                    style={[
+                      styles.sheetPolicyLine,
+                      { color: PRIMARY_COLOR, fontFamily: FONTS.semiBold },
+                    ]}
+                  >
+                    You will receive: ₹
+                    {refundPreviewAmount.toLocaleString("en-IN", {
+                      maximumFractionDigits: 2,
+                    })}
                   </Text>
                   <Text style={styles.sheetPolicyLine}>
-                    Deadline: {selectedTier.refundPolicy.deadline_hours_before}h before event
+                    Deadline: {selectedTier.refundPolicy.deadline_hours_before}h
+                    before event
                   </Text>
-                  <Text style={[styles.sheetPolicyLine, { fontSize: 11, marginTop: 4 }]}>
-                    Platform fee is not included in the refund. Final approval is at organiser discretion.
+                  <Text
+                    style={[
+                      styles.sheetPolicyLine,
+                      { fontSize: 11, marginTop: 4 },
+                    ]}
+                  >
+                    Platform fee is not included in the refund. Final approval
+                    is at organiser discretion.
                   </Text>
                 </View>
 
                 {/* Reason input */}
-                <Text style={[styles.bookingLabel, { marginBottom: 6, marginTop: 16 }]}>
+                <Text
+                  style={[
+                    styles.bookingLabel,
+                    { marginBottom: 6, marginTop: 16 },
+                  ]}
+                >
                   Reason (optional)
                 </Text>
                 <TextInput
@@ -1218,7 +1253,10 @@ export default function TicketViewScreen({ route, navigation }) {
 
                 {/* Submit */}
                 <TouchableOpacity
-                  style={[styles.sheetSubmitBtn, submitting && { opacity: 0.6 }]}
+                  style={[
+                    styles.sheetSubmitBtn,
+                    submitting && { opacity: 0.6 },
+                  ]}
                   onPress={handleSubmitRefund}
                   disabled={submitting}
                   activeOpacity={0.85}
@@ -1226,14 +1264,16 @@ export default function TicketViewScreen({ route, navigation }) {
                   {submitting ? (
                     <ActivityIndicator color="#FFFFFF" size="small" />
                   ) : (
-                    <Text style={styles.sheetSubmitBtnText}>Submit Refund Request</Text>
+                    <Text style={styles.sheetSubmitBtnText}>
+                      Submit Refund Request
+                    </Text>
                   )}
                 </TouchableOpacity>
               </>
             )}
           </View>
-        </View>
-      </Modal>
+        </TouchableWithoutFeedback>
+      </SwipeableModal>
       {/* ── TICKET TIER SWITCHING BOTTOM SHEET ── */}
       <Modal
         visible={showSwitchSheet}
@@ -2081,6 +2121,14 @@ const styles = StyleSheet.create({
   },
   sheetDismiss: {
     flex: 1,
+  },
+  sheetHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#E2E8F0",
+    alignSelf: "center",
+    marginBottom: 14,
   },
   sheetContainer: {
     backgroundColor: CARD_BACKGROUND,

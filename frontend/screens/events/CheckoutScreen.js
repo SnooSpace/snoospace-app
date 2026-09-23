@@ -21,6 +21,8 @@ import {
   Image,
   Platform,
   Keyboard,
+  Animated,
+  Easing,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import {
@@ -101,6 +103,49 @@ export default function CheckoutScreen({ route, navigation }) {
       isMountedRef.current = false;
     };
   }, []);
+
+  // Rotating animation for Hourglass icon
+  const hourglassAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const rotateAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(hourglassAnim, {
+          toValue: 1,
+          duration: 650,
+          easing: Easing.inOut(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.delay(2800),
+        Animated.timing(hourglassAnim, {
+          toValue: 2,
+          duration: 650,
+          easing: Easing.inOut(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.delay(2800),
+      ])
+    );
+    rotateAnimation.start();
+    return () => rotateAnimation.stop();
+  }, [hourglassAnim]);
+
+  const hourglassRotation = hourglassAnim.interpolate({
+    inputRange: [0, 1, 2],
+    outputRange: ["0deg", "180deg", "360deg"],
+  });
+
+  // Event mode resolution (In-Person, Virtual, Hybrid)
+  const eventMode = useMemo(() => {
+    const raw = (event?.event_type || event?.eventType || event?.mode || "").toLowerCase().replace(/_/g, "-");
+    if (raw.includes("virtual") || raw.includes("online")) {
+      return { label: "Virtual", isVirtual: true };
+    }
+    if (raw.includes("hybrid") || raw.includes("both")) {
+      return { label: "Hybrid", isHybrid: true };
+    }
+    return { label: "In-Person", isInPerson: true };
+  }, [event?.event_type, event?.eventType, event?.mode]);
 
   // 10-minute countdown timer state
   const [timeLeft, setTimeLeft] = useState(10 * 60);
@@ -354,8 +399,17 @@ export default function CheckoutScreen({ route, navigation }) {
             message: `This code is only applicable to specific ticket types: ${discount.selected_tickets.join(", ")}.`,
             icon: Tag,
             iconColor: WARNING_COLOR,
-            primaryAction: { text: "OK", onPress: hideAlert },
+            primaryAction: {
+              text: "OK",
+              onPress: () => {
+                hideAlert();
+                setPromoCode("");
+                setAppliedDiscount(null);
+              },
+            },
           });
+          setPromoCode("");
+          setAppliedDiscount(null);
           return;
         }
       }
@@ -815,9 +869,11 @@ export default function CheckoutScreen({ route, navigation }) {
         <View style={{ width: 36 }} />
       </View>
 
-      {/* Timer Banner (Sleek Alerting Hue) */}
+      {/* Timer Banner */}
       <View style={styles.timerBar}>
-        <Hourglass size={14} color={WARNING_COLOR} strokeWidth={2.5} style={{ marginRight: 6 }} />
+        <Animated.View style={{ transform: [{ rotate: hourglassRotation }], marginRight: 6 }}>
+          <Hourglass size={14} color={WARNING_COLOR} strokeWidth={2.5} />
+        </Animated.View>
         <Text style={styles.timerText}>
           Complete your booking in{" "}
           <Text style={styles.timerHighlight}>{formatTime(timeLeft)}</Text> mins
@@ -833,11 +889,36 @@ export default function CheckoutScreen({ route, navigation }) {
       >
         {/* Main Event Ticket Card */}
         <View style={styles.eventTicketCard}>
-            {/* Top Ticket Header: Badge + Serial Identifier */}
+            {/* Top Ticket Header: Badge + Mode + Serial Identifier */}
             <View style={styles.ticketTopRow}>
-              <View style={styles.ticketBadgePill}>
-                <Ticket size={12} color="#2563EB" strokeWidth={2.5} />
-                <Text style={styles.ticketBadgeText}>EVENT PASS</Text>
+              <View style={styles.badgeGroup}>
+                <View style={styles.ticketBadgePill}>
+                  <Ticket size={12} color="#2563EB" strokeWidth={2.5} />
+                  <Text style={styles.ticketBadgeText}>EVENT PASS</Text>
+                </View>
+                <View
+                  style={[
+                    styles.modeBadgePill,
+                    eventMode.isVirtual
+                      ? styles.modeBadgeVirtual
+                      : eventMode.isHybrid
+                      ? styles.modeBadgeHybrid
+                      : styles.modeBadgeInPerson,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.modeBadgeText,
+                      eventMode.isVirtual
+                        ? styles.modeTextVirtual
+                        : eventMode.isHybrid
+                        ? styles.modeTextHybrid
+                        : styles.modeTextInPerson,
+                    ]}
+                  >
+                    {eventMode.label.toUpperCase()}
+                  </Text>
+                </View>
               </View>
               <Text style={styles.ticketSerialText}>
                 {event.id ? `#EVT-${event.id}` : "#TKT-9921"}
@@ -871,7 +952,7 @@ export default function CheckoutScreen({ route, navigation }) {
             <View style={styles.eventMeta}>
               <Clock size={13} color={MUTED_TEXT} strokeWidth={2} style={{ marginRight: 6 }} />
               <Text style={styles.eventMetaText}>
-                {formatDate(displayDate)}  •  {formatTimeOnly(displayDate)}
+                {formatDate(displayDate)}  •  {formatTimeOnly(displayDate)}  •  {eventMode.label}
               </Text>
             </View>
 
@@ -890,6 +971,11 @@ export default function CheckoutScreen({ route, navigation }) {
                     <Text style={styles.lineItemText}>
                       {item.quantity} x {item.ticket.name}
                     </Text>
+                    {Boolean(item.ticket?.description?.trim()) && (
+                      <Text style={styles.ticketDescription} numberOfLines={2}>
+                        {item.ticket.description.trim()}
+                      </Text>
+                    )}
                     {pricing.hasDiscount && (
                       <View style={styles.earlyBirdRow}>
                         <Tag
@@ -1186,9 +1272,7 @@ const styles = StyleSheet.create({
     color: TEXT_COLOR,
   },
   timerBar: {
-    backgroundColor: "#FFF9E6",
-    borderBottomWidth: 1,
-    borderBottomColor: "#FFEBB3",
+    backgroundColor: "transparent",
     paddingVertical: 10,
     flexDirection: "row",
     alignItems: "center",
@@ -1238,6 +1322,39 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: BORDER_COLOR,
+  },
+  badgeGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  modeBadgePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  modeBadgeInPerson: {
+    backgroundColor: "#F1F5F9",
+  },
+  modeBadgeVirtual: {
+    backgroundColor: "#EFF6FF",
+  },
+  modeBadgeHybrid: {
+    backgroundColor: "#F5F3FF",
+  },
+  modeBadgeText: {
+    fontSize: 10,
+    fontFamily: "Manrope-Bold",
+    letterSpacing: 0.6,
+  },
+  modeTextInPerson: {
+    color: "#475569",
+  },
+  modeTextVirtual: {
+    color: "#2563EB",
+  },
+  modeTextHybrid: {
+    color: "#7C3AED",
   },
   ticketBadgePill: {
     flexDirection: "row",
@@ -1327,6 +1444,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: "Manrope-SemiBold",
     color: TEXT_COLOR,
+  },
+  ticketDescription: {
+    fontSize: 12,
+    fontFamily: "Manrope-Regular",
+    color: MUTED_TEXT,
+    marginTop: 3,
+    lineHeight: 16,
   },
   earlyBirdRow: {
     flexDirection: "row",
