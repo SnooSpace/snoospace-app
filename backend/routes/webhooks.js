@@ -258,29 +258,70 @@ const handlePaymentCaptured = async (pool, payment, event) => {
           `SELECT id, name, base_price FROM ticket_types WHERE id = $1`,
           [su.newTicketTypeId]
         );
+
         if (newTierRes.rows.length > 0) {
           const nt = newTierRes.rows[0];
-          await client.query(
+
+          // ── Idempotency guard: check if the old ticket type still exists ──
+          // On webhook retry, the old ticket type row has already been switched
+          // to the new tier, so this UPDATE would match 0 rows. If it matches 0,
+          // skip all switch operations to prevent double sold_count adjustments
+          // and double total_amount increments.
+          const switchResult = await client.query(
             `UPDATE registration_tickets
              SET ticket_type_id = $1, ticket_name = $2, unit_price = $3, total_price = $4
              WHERE registration_id = $5 AND ticket_type_id = $6`,
             [nt.id, nt.name, nt.base_price, parseFloat(nt.base_price) * su.quantity, registrationId, su.oldTicketTypeId]
           );
-          await client.query(
-            `UPDATE ticket_types SET sold_count = GREATEST(0, COALESCE(sold_count, 0) - $1) WHERE id = $2`,
-            [su.quantity, su.oldTicketTypeId]
-          );
-          await client.query(
-            `UPDATE ticket_types SET sold_count = COALESCE(sold_count, 0) + $1 WHERE id = $2`,
-            [su.quantity, nt.id]
-          );
-          await client.query(
-            `UPDATE event_registrations
-             SET registration_status = 'registered', total_amount = total_amount + $1
-             WHERE id = $2`,
-            [payment.amount / 100, registrationId]
-          );
-          console.log(`[Razorpay] Upgraded registration ${registrationId} to ${nt.name} for payment ${payment.id}`);
+
+          if (switchResult.rowCount > 0) {
+            // Switch was applied (first delivery) — adjust inventory and total
+            await client.query(
+              `UPDATE ticket_types SET sold_count = GREATEST(0, COALESCE(sold_count, 0) - $1) WHERE id = $2`,
+              [su.quantity, su.oldTicketTypeId]
+            );
+            await client.query(
+              `UPDATE ticket_types SET sold_count = COALESCE(sold_count, 0) + $1 WHERE id = $2`,
+              [su.quantity, nt.id]
+            );
+            await client.query(
+              `UPDATE event_registrations
+               SET registration_status = 'registered', total_amount = total_amount + $1
+               WHERE id = $2`,
+              [payment.amount / 100, registrationId]
+            );
+
+            // ── Consume the upgrade reservation hold ──────────────────────
+            if (orderSessionId) {
+              const reservations = await client.query(
+                `SELECT ticket_type_id, quantity FROM ticket_reservations
+                 WHERE session_id = $1 FOR UPDATE`,
+                [orderSessionId]
+              );
+              if (reservations.rows.length > 0) {
+                for (const reservation of reservations.rows) {
+                  await client.query(
+                    `UPDATE ticket_types
+                     SET reserved_count = GREATEST(0, COALESCE(reserved_count, 0) - $1)
+                     WHERE id = $2`,
+                    [reservation.quantity, reservation.ticket_type_id]
+                  );
+                }
+                await client.query(
+                  `DELETE FROM ticket_reservations WHERE session_id = $1`,
+                  [orderSessionId]
+                );
+                console.log(`[Razorpay] Consumed upgrade reservation ${orderSessionId}`);
+              }
+            }
+
+            console.log(`[Razorpay] Upgraded registration ${registrationId} to ${nt.name} for payment ${payment.id}`);
+          } else {
+            // Switch was already applied (webhook replay) — skip
+            console.log(
+              `[Razorpay] Upgrade already applied for registration ${registrationId} (idempotent replay — skipping)`
+            );
+          }
         }
       } else {
         // Ensure registration is in 'registered' status (may have been created speculatively)

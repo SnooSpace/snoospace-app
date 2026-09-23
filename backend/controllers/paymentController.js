@@ -204,14 +204,55 @@ const createOrder = async (req, res) => {
         });
       }
 
-      if (newTier.total_quantity !== null && newTier.total_quantity !== undefined) {
-        const available =
-          parseInt(newTier.total_quantity) -
-          (parseInt(newTier.sold_count) || 0) -
-          (parseInt(newTier.reserved_count) || 0);
-        if (quantity > available) {
-          return res.status(400).json({ error: 'Target ticket tier is sold out' });
+      // ── Reserve new tier capacity atomically ──────────────────────────────
+      // Use a transaction with FOR UPDATE to prevent oversell race conditions.
+      // Between createOrder and the webhook, another buyer could snap up the
+      // last ticket. The reservation hold ensures capacity is locked.
+      const upgradeSessionId = `upg-${registrationId}-${Date.now()}`;
+      const reservationExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 min hold
+
+      const upgradeClient = await pool.connect();
+      try {
+        await upgradeClient.query('BEGIN');
+
+        const lockedTier = await upgradeClient.query(
+          `SELECT total_quantity, sold_count, reserved_count
+           FROM ticket_types WHERE id = $1 FOR UPDATE`,
+          [newTicketTypeId]
+        );
+        const lt = lockedTier.rows[0];
+
+        if (lt.total_quantity !== null && lt.total_quantity !== undefined) {
+          const available =
+            parseInt(lt.total_quantity) -
+            (parseInt(lt.sold_count) || 0) -
+            (parseInt(lt.reserved_count) || 0);
+          if (quantity > available) {
+            await upgradeClient.query('ROLLBACK');
+            upgradeClient.release();
+            return res.status(400).json({ error: 'Target ticket tier is sold out' });
+          }
         }
+
+        // Create reservation hold
+        await upgradeClient.query(
+          `INSERT INTO ticket_reservations
+           (ticket_type_id, member_id, event_id, quantity, session_id, expires_at)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [newTicketTypeId, userId, eventId, quantity, upgradeSessionId, reservationExpiry]
+        );
+
+        await upgradeClient.query(
+          `UPDATE ticket_types SET reserved_count = COALESCE(reserved_count, 0) + $1 WHERE id = $2`,
+          [quantity, newTicketTypeId]
+        );
+
+        await upgradeClient.query('COMMIT');
+      } catch (reserveErr) {
+        await upgradeClient.query('ROLLBACK');
+        throw reserveErr;
+      } finally {
+        upgradeClient.release();
       }
 
       const allRegTickets = await pool.query(
@@ -272,6 +313,7 @@ const createOrder = async (req, res) => {
           quantity,
           amountPaid: serverDiff,
         },
+        sessionId: upgradeSessionId,
       };
 
       await pool.query(
