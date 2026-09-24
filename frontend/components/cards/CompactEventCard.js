@@ -66,13 +66,23 @@ function getEventPriceLabel(event) {
     }
   }
 
+  // Only fall back to scalar price fields when ticket_types was not returned by the API.
+  // NOTE: ticket_price may be null on newer events (legacy column not populated).
+  // Treat null/undefined ticket_price as "unknown" — don't default to Free.
   if (lowestPrice <= 0) {
-    if (event.ticket_price && parseFloat(event.ticket_price) > 0) {
-      lowestPrice = parseFloat(event.ticket_price);
-    } else if (event.min_price && parseFloat(event.min_price) > 0) {
-      lowestPrice = parseFloat(event.min_price);
-    } else if (event.base_price && parseFloat(event.base_price) > 0) {
-      lowestPrice = parseFloat(event.base_price);
+    const tp = event.ticket_price != null ? parseFloat(event.ticket_price) : null;
+    const mp = event.min_price   != null ? parseFloat(event.min_price)    : null;
+    const bp = event.base_price  != null ? parseFloat(event.base_price)   : null;
+
+    if (tp != null && tp > 0) {
+      lowestPrice = tp;
+    } else if (mp != null && mp > 0) {
+      lowestPrice = mp;
+    } else if (bp != null && bp > 0) {
+      lowestPrice = bp;
+    } else if (tp === null && mp === null && bp === null && parsedTickets.length === 0) {
+      // No pricing info returned at all — don't claim it's free, show nothing
+      return null;
     }
   }
 
@@ -297,11 +307,13 @@ export default function CompactEventCard({
           </View>
 
           <View style={styles.bottomRow}>
-            <View style={[styles.pricePill, isFree ? styles.pricePillFree : styles.pricePillPaid]}>
-              <Text style={[styles.pricePillText, isFree ? styles.pricePillTextFree : styles.pricePillTextPaid]}>
-                {priceLabel}
-              </Text>
-            </View>
+            {priceLabel != null && (
+              <View style={[styles.pricePill, isFree ? styles.pricePillFree : styles.pricePillPaid]}>
+                <Text style={[styles.pricePillText, isFree ? styles.pricePillTextFree : styles.pricePillTextPaid]}>
+                  {priceLabel}
+                </Text>
+              </View>
+            )}
 
             {attendeeCount > 0 ? (
               <View style={styles.attendeesContainer}>

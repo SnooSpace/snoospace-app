@@ -7,7 +7,7 @@ import { COLORS, FONTS } from "../../constants/theme";
 
 export default function EventVerificationPopup({
   activePopup,
-  loading,
+  loadingAction,  // "confirm" | "reject" | "askLater" | null
   onConfirm,
   onReject,
   onAskLater,
@@ -30,6 +30,7 @@ export default function EventVerificationPopup({
   const rejectText = isGoing ? "Can't make it" : "No, didn't attend";
 
   const bottomMargin = insets.bottom + 80; // Floating above the tab bar
+  const isAnyLoading = !!loadingAction;
 
   return (
     <View style={[styles.container, { bottom: bottomMargin }]}>
@@ -37,10 +38,14 @@ export default function EventVerificationPopup({
       <TouchableOpacity
         style={styles.closeButton}
         onPress={onAskLater}
-        disabled={loading}
+        disabled={isAnyLoading}
         hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
       >
-        <X size={18} color="#78716C" strokeWidth={2} />
+        {loadingAction === "askLater" ? (
+          <ActivityIndicator size="small" color="#78716C" />
+        ) : (
+          <X size={18} color="#78716C" strokeWidth={2} />
+        )}
       </TouchableOpacity>
 
       {/* Row with icon and conversational header */}
@@ -70,20 +75,26 @@ export default function EventVerificationPopup({
         <TouchableOpacity
           style={[styles.actionButton, styles.rejectButton]}
           onPress={onReject}
-          disabled={loading}
+          disabled={isAnyLoading}
           activeOpacity={0.7}
         >
-          <XCircle size={16} color="#78716C" strokeWidth={2} />
-          <Text style={styles.rejectText}>
-            {rejectText}
-          </Text>
+          {loadingAction === "reject" ? (
+            <ActivityIndicator size="small" color="#78716C" />
+          ) : (
+            <>
+              <XCircle size={16} color="#78716C" strokeWidth={2} />
+              <Text style={styles.rejectText}>
+                {rejectText}
+              </Text>
+            </>
+          )}
         </TouchableOpacity>
 
         {/* Confirm Option */}
         <TouchableOpacity
           style={styles.actionButton}
           onPress={onConfirm}
-          disabled={loading}
+          disabled={isAnyLoading}
           activeOpacity={0.85}
         >
           <LinearGradient
@@ -92,7 +103,7 @@ export default function EventVerificationPopup({
             end={{ x: 1, y: 0 }}
             style={styles.confirmGradient}
           >
-            {loading ? (
+            {loadingAction === "confirm" ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
               <>
@@ -110,7 +121,7 @@ export default function EventVerificationPopup({
       <TouchableOpacity
         style={styles.askLaterButton}
         onPress={onAskLater}
-        disabled={loading}
+        disabled={isAnyLoading}
         hitSlop={{ top: 8, bottom: 8, left: 16, right: 16 }}
       >
         <Text style={styles.askLaterText}>

@@ -27,6 +27,7 @@ import {
   ChevronRight,
   Info,
   ChevronDown,
+  ChevronUp,
   Minus,
   Plus,
   RefreshCw,
@@ -45,6 +46,7 @@ import {
   Cake,
 } from "lucide-react-native";
 import RangeSlider from "../../components/ui/RangeSlider";
+import HapticsService from "../../services/HapticsService";
 import { COLORS, FONTS, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
 import { getAuthToken } from "../../api/auth";
 import { createPlan, uploadPlanBanner } from "../../api/plans";
@@ -72,31 +74,31 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const CONTAINER_WIDTH = SCREEN_WIDTH - 40;
 
 const ACTIVITIES = [
-  { key: "sports", label: "🏀 Sports" },
-  { key: "food", label: "🍜 Food" },
-  { key: "cafe", label: "☕ Cafe" },
-  { key: "bar", label: "🍸 Bar" },
-  { key: "movies", label: "🎬 Movies" },
-  { key: "live_music", label: "🎵 Live Music" },
-  { key: "gaming", label: "🎮 Games" },
-  { key: "gym", label: "💪 Gym" },
-  { key: "yoga", label: "🧘 Yoga" },
-  { key: "pilates", label: "🤸‍♀️ Pilates" },
-  { key: "swimming", label: "🏊 Swimming" },
-  { key: "bowling", label: "🎳 Bowling" },
-  { key: "gokarting", label: "🏎️ Go-karting" },
-  { key: "indoorgames", label: "🎲 Indoor Games" },
-  { key: "walk", label: "🚶 Walk" },
-  { key: "rides", label: "🏍 Rides" },
-  { key: "hangout", label: "🌳 Hangout" },
-  { key: "creative", label: "🎨 Creative" },
-  { key: "study", label: "📚 Co-work" },
-  { key: "pet_friendly", label: "🐾 Pet Meetup" },
-  { key: "house_party", label: "🏡 House Party" },
-  { key: "club", label: "🪩 Club" },
-  { key: "hiking", label: "🥾 Hiking" },
-  { key: "shopping", label: "🛍️ Shopping" },
-  { key: "other", label: "＋ Other…" },
+  { key: "sports", label: "Sports", emoji: "🏀", bg: "#EFF6FF", text: "#2563EB" },
+  { key: "food", label: "Food", emoji: "🍜", bg: "#FEF2F2", text: "#DC2626" },
+  { key: "cafe", label: "Cafe", emoji: "☕", bg: "#FFFBEB", text: "#D97706" },
+  { key: "bar", label: "Bar", emoji: "🍸", bg: "#FAF5FF", text: "#9333EA" },
+  { key: "movies", label: "Movies", emoji: "🎬", bg: "#FDF2F8", text: "#DB2777" },
+  { key: "live_music", label: "Live Music", emoji: "🎵", bg: "#F5F3FF", text: "#7C3AED" },
+  { key: "gaming", label: "Games", emoji: "🎮", bg: "#ECFDF5", text: "#059669" },
+  { key: "gym", label: "Gym", emoji: "💪", bg: "#FFF7ED", text: "#EA580C" },
+  { key: "yoga", label: "Yoga", emoji: "🧘", bg: "#F0FDF4", text: "#15803D" },
+  { key: "hangout", label: "Hangout", emoji: "🌳", bg: "#ECFDF5", text: "#047857" },
+  { key: "walk", label: "Walk", emoji: "🚶", bg: "#F0FDF4", text: "#16A34A" },
+  { key: "rides", label: "Rides", emoji: "🏍", bg: "#EFF6FF", text: "#1D4ED8" },
+  { key: "creative", label: "Creative", emoji: "🎨", bg: "#FDF4FF", text: "#C026D3" },
+  { key: "study", label: "Co-work", emoji: "📚", bg: "#F8FAFC", text: "#475569" },
+  { key: "pet_friendly", label: "Pet Meetup", emoji: "🐾", bg: "#FFFBEB", text: "#B45309" },
+  { key: "house_party", label: "House Party", emoji: "🏡", bg: "#FDF2F8", text: "#BE185D" },
+  { key: "club", label: "Club", emoji: "🪩", bg: "#FAF5FF", text: "#6D28D9" },
+  { key: "hiking", label: "Hiking", emoji: "🥾", bg: "#FEF3C7", text: "#92400E" },
+  { key: "shopping", label: "Shopping", emoji: "🛍️", bg: "#FCE7F3", text: "#9D174D" },
+  { key: "pilates", label: "Pilates", emoji: "🤸‍♀️", bg: "#FDF2F8", text: "#A21CAF" },
+  { key: "swimming", label: "Swimming", emoji: "🏊", bg: "#E0F2FE", text: "#0284C7" },
+  { key: "bowling", label: "Bowling", emoji: "🎳", bg: "#FEF2F2", text: "#B91C1C" },
+  { key: "gokarting", label: "Go-karting", emoji: "🏎️", bg: "#FFF7ED", text: "#C2410C" },
+  { key: "indoorgames", label: "Indoor Games", emoji: "🎲", bg: "#F5F3FF", text: "#6D28D9" },
+  { key: "other", label: "Other…", emoji: "✨", bg: "#F1F5F9", text: "#475569" },
 ];
 
 const COST_OPTS = [
@@ -152,6 +154,20 @@ export default function HostPlanBottomSheet({
   const { showToast } = useToast();
   const [activityType, setActivityType] = useState("sports");
   const [customLabel, setCustomLabel] = useState("");
+  const [showAllActivities, setShowAllActivities] = useState(false);
+
+  const visibleActivities = useMemo(() => {
+    if (showAllActivities) return ACTIVITIES;
+    const topActivities = ACTIVITIES.slice(0, 10);
+    const isSelectedVisible = topActivities.some((a) => a.key === activityType);
+    if (!isSelectedVisible) {
+      const selectedItem = ACTIVITIES.find((a) => a.key === activityType);
+      if (selectedItem) {
+        return [...topActivities, selectedItem];
+      }
+    }
+    return topActivities;
+  }, [showAllActivities, activityType]);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [costType, setCostType] = useState("free");
@@ -239,6 +255,7 @@ export default function HostPlanBottomSheet({
   const resetState = () => {
     setActivityType("sports");
     setCustomLabel("");
+    setShowAllActivities(false);
     setTitle("");
     setDescription("");
     setCostType("free");
@@ -354,7 +371,11 @@ export default function HostPlanBottomSheet({
   const handleResumeDraft = () => {
     if (existingDraft?.data) {
       const d = existingDraft.data;
-      if (d.activityType) setActivityType(d.activityType);
+      if (d.activityType) {
+        setActivityType(d.activityType);
+        const idx = ACTIVITIES.findIndex((a) => a.key === d.activityType);
+        if (idx >= 10) setShowAllActivities(true);
+      }
       if (d.customLabel) setCustomLabel(d.customLabel);
       if (d.title) setTitle(d.title);
       if (d.description) setDescription(d.description);
@@ -526,27 +547,68 @@ export default function HostPlanBottomSheet({
         >
           {/* Activity type */}
           <Text style={styles.fieldLabel}>Activity type</Text>
-          <View style={styles.chipRow}>
-            {ACTIVITIES.map((a) => (
-              <TouchableOpacity
-                key={a.key}
-                style={[
-                  styles.chip,
-                  activityType === a.key && styles.chipActive,
-                ]}
-                onPress={() => setActivityType(a.key)}
-              >
-                <Text
+          <View style={styles.activityChipRow}>
+            {visibleActivities.map((a) => {
+              const isActive = activityType === a.key;
+              return (
+                <TouchableOpacity
+                  key={a.key}
                   style={[
-                    styles.chipText,
-                    activityType === a.key && styles.chipTextActive,
+                    styles.activityChip,
+                    {
+                      borderColor: isActive ? a.text : "#E2E8F0",
+                      backgroundColor: isActive ? a.bg : "#FFFFFF",
+                    },
+                    isActive && styles.activityChipActive,
                   ]}
+                  activeOpacity={0.75}
+                  onPress={() => {
+                    HapticsService.triggerImpactLight();
+                    setActivityType(a.key);
+                  }}
                 >
-                  {a.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <View
+                    style={[
+                      styles.activityEmojiCircle,
+                      { backgroundColor: isActive ? "#FFFFFF" : a.bg },
+                    ]}
+                  >
+                    <Text style={styles.activityEmojiText}>{a.emoji}</Text>
+                  </View>
+                  <Text
+                    style={[
+                      styles.activityChipLabel,
+                      { color: isActive ? a.text : "#334155" },
+                      isActive && styles.activityChipLabelActive,
+                    ]}
+                  >
+                    {a.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
+
+          {/* Expand / Collapse toggle */}
+          <TouchableOpacity
+            style={styles.moreActivitiesBtn}
+            onPress={() => {
+              HapticsService.triggerImpactLight();
+              setShowAllActivities((prev) => !prev);
+            }}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.moreActivitiesText}>
+              {showAllActivities
+                ? "Show less"
+                : `+ More activities (${ACTIVITIES.length - 10})`}
+            </Text>
+            {showAllActivities ? (
+              <ChevronUp size={14} color={COLORS.primary} strokeWidth={2.2} />
+            ) : (
+              <ChevronDown size={14} color={COLORS.primary} strokeWidth={2.2} />
+            )}
+          </TouchableOpacity>
           {activityType === "other" && (
             <TextInput
               style={[
@@ -1363,11 +1425,78 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   fieldLabel: {
+    fontFamily: FONTS.basicCommercialBold,
+    fontSize: 14,
+    color: COLORS.textPrimary,
+    marginBottom: 10,
+    marginTop: 18,
+  },
+  activityChipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  activityChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingLeft: 6,
+    paddingRight: 14,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  activityChipActive: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  activityEmojiCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 8,
+  },
+  activityEmojiText: {
+    fontSize: 15,
+    textAlign: "center",
+  },
+  activityChipLabel: {
     fontFamily: FONTS.semiBold,
     fontSize: 13,
-    color: COLORS.textSecondary,
-    marginBottom: 8,
-    marginTop: 16,
+    color: "#334155",
+    letterSpacing: -0.1,
+  },
+  activityChipLabelActive: {
+    fontFamily: FONTS.semiBold,
+  },
+  moreActivitiesBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 14,
+    backgroundColor: "#F1F5F9",
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  moreActivitiesText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 12,
+    color: COLORS.primary,
   },
   chipRow: {
     flexDirection: "row",

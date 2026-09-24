@@ -53,7 +53,7 @@ export const ALLOWED_VERIFICATION_POPUP_ROUTES = new Set([
 ]);
 
 export default function EventVerificationOverlay({ currentRouteName: propRouteName, navigationRef }) {
-  const { activePopup, loading, handleConfirm, handleReject, handleAskLater } = useEventVerification();
+  const { activePopup, loadingAction, handleConfirm, handleReject, handleAskLater } = useEventVerification();
   const [currentRoute, setCurrentRoute] = useState(propRouteName || null);
 
   useEffect(() => {
@@ -92,7 +92,7 @@ export default function EventVerificationOverlay({ currentRouteName: propRouteNa
   return (
     <EventVerificationPopup
       activePopup={activePopup}
-      loading={loading}
+      loadingAction={loadingAction}
       onConfirm={handleConfirm}
       onReject={handleReject}
       onAskLater={handleAskLater}

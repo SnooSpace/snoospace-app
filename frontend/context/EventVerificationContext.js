@@ -12,7 +12,7 @@ export function EventVerificationProvider({ children }) {
   const [events, setEvents] = useState([]);
   const [verifications, setVerifications] = useState([]);
   const [activePopup, setActivePopup] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loadingAction, setLoadingAction] = useState(null); // "confirm" | "reject" | "askLater" | null
   const [dataLoaded, setDataLoaded] = useState(false);
 
   // Fetch events and verification states from backend
@@ -121,7 +121,7 @@ export function EventVerificationProvider({ children }) {
     if (!activePopup) return;
     const { event, type } = activePopup;
     try {
-      setLoading(true);
+      setLoadingAction("confirm");
       const res = await updateEventVerification({
         eventId: event.id,
         type,
@@ -167,7 +167,7 @@ export function EventVerificationProvider({ children }) {
     } catch (err) {
       console.warn("[EventVerificationProvider] Error confirming:", err);
     } finally {
-      setLoading(false);
+      setLoadingAction(null);
       setActivePopup(null);
     }
   }, [activePopup]);
@@ -177,7 +177,7 @@ export function EventVerificationProvider({ children }) {
     const { event, type } = activePopup;
     const nextStatus = type === "going" ? "dont_going" : "did_not_attend";
     try {
-      setLoading(true);
+      setLoadingAction("reject");
       const res = await updateEventVerification({
         eventId: event.id,
         type,
@@ -223,7 +223,7 @@ export function EventVerificationProvider({ children }) {
     } catch (err) {
       console.warn("[EventVerificationProvider] Error rejecting:", err);
     } finally {
-      setLoading(false);
+      setLoadingAction(null);
       setActivePopup(null);
     }
   }, [activePopup]);
@@ -234,7 +234,7 @@ export function EventVerificationProvider({ children }) {
     const nextPromptAt = calculateAskLaterCooldown(event, type);
 
     try {
-      setLoading(true);
+      setLoadingAction("askLater");
       const res = await updateEventVerification({
         eventId: event.id,
         type,
@@ -260,7 +260,7 @@ export function EventVerificationProvider({ children }) {
     } catch (err) {
       console.warn("[EventVerificationProvider] Error asking later:", err);
     } finally {
-      setLoading(false);
+      setLoadingAction(null);
       setActivePopup(null);
     }
   }, [activePopup]);
@@ -269,7 +269,7 @@ export function EventVerificationProvider({ children }) {
     <EventVerificationContext.Provider
       value={{
         activePopup,
-        loading,
+        loadingAction,
         handleConfirm,
         handleReject,
         handleAskLater,
