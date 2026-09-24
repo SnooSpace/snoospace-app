@@ -4764,6 +4764,17 @@ const cancelRegistration = async (req, res) => {
         refundAmount += (ticket.total_price * policy.percentage) / 100;
       }
     }
+    // 3b. Block paid event self-cancellation — paid refunds must go through
+    // submitRefundRequest → admin approval → Razorpay refund → webhook.
+    // Without this guard, the user sees "Refund of ₹X will be processed"
+    // but no actual Razorpay refund is triggered.
+    if (refundAmount > 0 && parseFloat(registration.total_amount) > 0) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        error: "paid_event_refund_required",
+        message: "Please use the refund request feature to cancel paid registrations.",
+      });
+    }
 
     // 4. Update registration status
     await client.query(
@@ -4781,6 +4792,16 @@ const cancelRegistration = async (req, res) => {
           [ticket.quantity, ticket.ticket_type_id],
         );
       }
+    }
+
+    // 5b. Decrement promo code usage if this registration used one
+    if (registration.promo_code) {
+      await client.query(
+        `UPDATE discount_codes
+         SET current_uses = GREATEST(0, current_uses - 1)
+         WHERE event_id = $1 AND code_normalized = $2`,
+        [eventId, registration.promo_code.toUpperCase().trim()]
+      );
     }
 
     await client.query("COMMIT");
