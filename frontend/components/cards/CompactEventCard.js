@@ -56,6 +56,7 @@ function getEventPriceLabel(event) {
   }
 
   let lowestPrice = 0;
+  let fromScalar = false; // true when price came from an aggregated/fallback scalar, not from counting parsedTickets
 
   if (parsedTickets && parsedTickets.length > 0) {
     const prices = parsedTickets
@@ -70,17 +71,20 @@ function getEventPriceLabel(event) {
   // NOTE: ticket_price may be null on newer events (legacy column not populated).
   // Treat null/undefined ticket_price as "unknown" — don't default to Free.
   if (lowestPrice <= 0) {
-    const tp = event.ticket_price != null ? parseFloat(event.ticket_price) : null;
-    const mp = event.min_price   != null ? parseFloat(event.min_price)    : null;
-    const bp = event.base_price  != null ? parseFloat(event.base_price)   : null;
+    const mtp = event.minTicketPrice != null ? parseFloat(event.minTicketPrice) : null;
+    const tp  = event.ticket_price   != null ? parseFloat(event.ticket_price)   : null;
+    const mp  = event.min_price      != null ? parseFloat(event.min_price)      : null;
+    const bp  = event.base_price     != null ? parseFloat(event.base_price)     : null;
 
-    if (tp != null && tp > 0) {
-      lowestPrice = tp;
+    if (mtp != null && mtp > 0) {
+      lowestPrice = mtp; fromScalar = true;
+    } else if (tp != null && tp > 0) {
+      lowestPrice = tp; fromScalar = true;
     } else if (mp != null && mp > 0) {
-      lowestPrice = mp;
+      lowestPrice = mp; fromScalar = true;
     } else if (bp != null && bp > 0) {
-      lowestPrice = bp;
-    } else if (tp === null && mp === null && bp === null && parsedTickets.length === 0) {
+      lowestPrice = bp; fromScalar = true;
+    } else if (mtp === null && tp === null && mp === null && bp === null && parsedTickets.length === 0) {
       // No pricing info returned at all — don't claim it's free, show nothing
       return null;
     }
@@ -89,7 +93,11 @@ function getEventPriceLabel(event) {
   if (lowestPrice <= 0) return 'Free';
 
   const formattedPrice = formatPrice(lowestPrice);
-  return `${formattedPrice} onwards`;
+  // "onwards" = there are (or may be) multiple ticket tiers.
+  // When price came from a scalar aggregate we can't know how many tiers exist → always show "onwards".
+  // When we enumerated parsedTickets directly, only skip "onwards" for a single-tier event.
+  const showOnwards = fromScalar || parsedTickets.length > 1;
+  return showOnwards ? `${formattedPrice} onwards` : formattedPrice;
 }
 
 function getAvatarPhoto(avatar) {
@@ -373,7 +381,7 @@ export default function CompactEventCard({
                   </View>
                 )}
               </View>
-            ) : (event.category || event.categoryName) ? (
+            ) : (priceLabel == null && (event.category || event.categoryName)) ? (
               <Text style={styles.categoryText} numberOfLines={1}>
                 {event.category || event.categoryName}
               </Text>

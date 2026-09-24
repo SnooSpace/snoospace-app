@@ -99,7 +99,8 @@ const getExploreFeed = async (req, res) => {
           EXISTS (SELECT 1 FROM event_interests ei WHERE ei.event_id = e.id AND ei.member_id = $1) as "isInterested",
           CASE WHEN e.max_attendees IS NOT NULL THEN GREATEST(0, e.max_attendees - COALESCE((SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status = 'registered'), 0)::int) ELSE NULL END as "spotsLeft",
           true as "isLiveNow",
-          CASE WHEN NOT EXISTS (SELECT 1 FROM ticket_types tt WHERE tt.event_id = e.id AND tt.is_active = true AND tt.base_price > 0) THEN true ELSE false END as "isFree"
+          CASE WHEN NOT EXISTS (SELECT 1 FROM ticket_types tt WHERE tt.event_id = e.id AND tt.is_active = true AND tt.base_price > 0) THEN true ELSE false END as "isFree",
+          (SELECT MIN(tt.base_price) FROM ticket_types tt WHERE tt.event_id = e.id AND tt.is_active = true AND tt.base_price > 0) as "minTicketPrice"
         FROM events e
         WHERE e.start_datetime <= NOW()
           AND e.end_datetime >= NOW()
@@ -138,6 +139,7 @@ const getExploreFeed = async (req, res) => {
           CASE WHEN e.max_attendees IS NOT NULL THEN GREATEST(0, e.max_attendees - COALESCE((SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status = 'registered'), 0)::int) ELSE NULL END as "spotsLeft",
           CASE WHEN e.start_datetime <= NOW() AND (e.end_datetime >= NOW() OR e.end_datetime IS NULL) AND e.start_datetime >= NOW() - INTERVAL '4 hours' THEN true ELSE false END as "isLiveNow",
           CASE WHEN NOT EXISTS (SELECT 1 FROM ticket_types tt WHERE tt.event_id = e.id AND tt.is_active = true AND tt.base_price > 0) THEN true ELSE false END as "isFree",
+          (SELECT MIN(tt.base_price) FROM ticket_types tt WHERE tt.event_id = e.id AND tt.is_active = true AND tt.base_price > 0) as "minTicketPrice",
           (
             SELECT COALESCE(json_agg(json_build_object('name', m2.name, 'profile_photo_url', m2.profile_photo_url)), '[]'::json)
             FROM (
@@ -195,6 +197,7 @@ const getExploreFeed = async (req, res) => {
           CASE WHEN e.max_attendees IS NOT NULL THEN GREATEST(0, e.max_attendees - COALESCE((SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status = 'registered'), 0)::int) ELSE NULL END as "spotsLeft",
           CASE WHEN e.start_datetime <= NOW() AND (e.end_datetime >= NOW() OR e.end_datetime IS NULL) AND e.start_datetime >= NOW() - INTERVAL '4 hours' THEN true ELSE false END as "isLiveNow",
           CASE WHEN NOT EXISTS (SELECT 1 FROM ticket_types tt WHERE tt.event_id = e.id AND tt.is_active = true AND tt.base_price > 0) THEN true ELSE false END as "isFree",
+          (SELECT MIN(tt.base_price) FROM ticket_types tt WHERE tt.event_id = e.id AND tt.is_active = true AND tt.base_price > 0) as "minTicketPrice",
           ${scoreSql} as score
         FROM events e
         WHERE e.start_datetime >= $1
@@ -272,6 +275,7 @@ const getExploreFeed = async (req, res) => {
           CASE WHEN e.max_attendees IS NOT NULL THEN GREATEST(0, e.max_attendees - COALESCE((SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status = 'registered'), 0)::int) ELSE NULL END as "spotsLeft",
           CASE WHEN e.start_datetime <= NOW() AND (e.end_datetime >= NOW() OR e.end_datetime IS NULL) AND e.start_datetime >= NOW() - INTERVAL '4 hours' THEN true ELSE false END as "isLiveNow",
           CASE WHEN NOT EXISTS (SELECT 1 FROM ticket_types tt WHERE tt.event_id = e.id AND tt.is_active = true AND tt.base_price > 0) THEN true ELSE false END as "isFree",
+          (SELECT MIN(tt.base_price) FROM ticket_types tt WHERE tt.event_id = e.id AND tt.is_active = true AND tt.base_price > 0) as "minTicketPrice",
           ${scoreSql} as score
         FROM events e
         INNER JOIN event_discover_categories edc ON e.id = edc.event_id
@@ -315,6 +319,7 @@ const getExploreFeed = async (req, res) => {
           spotsLeft: row.spotsLeft !== null ? Number(row.spotsLeft) : null,
           isLiveNow: Boolean(row.isLiveNow),
           isFree: Boolean(row.isFree),
+          minTicketPrice: row.minTicketPrice != null ? Number(row.minTicketPrice) : null,
           eventType: row.eventType || "in-person",
           score: Number(row.score) || 0,
           startDatetime: row.startDatetime,
@@ -391,7 +396,8 @@ const getExploreFeed = async (req, res) => {
           EXISTS (SELECT 1 FROM event_interests ei WHERE ei.event_id = e.id AND ei.member_id = $3) as "isInterested",
           CASE WHEN e.max_attendees IS NOT NULL THEN GREATEST(0, e.max_attendees - COALESCE((SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status = 'registered'), 0)::int) ELSE NULL END as "spotsLeft",
           CASE WHEN e.start_datetime <= NOW() AND (e.end_datetime >= NOW() OR e.end_datetime IS NULL) AND e.start_datetime >= NOW() - INTERVAL '4 hours' THEN true ELSE false END as "isLiveNow",
-          CASE WHEN NOT EXISTS (SELECT 1 FROM ticket_types tt WHERE tt.event_id = e.id AND tt.is_active = true AND tt.base_price > 0) THEN true ELSE false END as "isFree"
+          CASE WHEN NOT EXISTS (SELECT 1 FROM ticket_types tt WHERE tt.event_id = e.id AND tt.is_active = true AND tt.base_price > 0) THEN true ELSE false END as "isFree",
+          (SELECT MIN(tt.base_price) FROM ticket_types tt WHERE tt.event_id = e.id AND tt.is_active = true AND tt.base_price > 0) as "minTicketPrice"
         FROM events e
         LEFT JOIN communities c ON COALESCE(e.community_id, e.creator_id) = c.id
         WHERE EXISTS (
@@ -583,6 +589,7 @@ const getExploreFeed = async (req, res) => {
           CASE WHEN e.max_attendees IS NOT NULL THEN GREATEST(0, e.max_attendees - COALESCE((SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status = 'registered'), 0)::int) ELSE NULL END as "spotsLeft",
           CASE WHEN e.start_datetime <= NOW() AND (e.end_datetime >= NOW() OR e.end_datetime IS NULL) AND e.start_datetime >= NOW() - INTERVAL '4 hours' THEN true ELSE false END as "isLiveNow",
           CASE WHEN NOT EXISTS (SELECT 1 FROM ticket_types tt WHERE tt.event_id = e.id AND tt.is_active = true AND tt.base_price > 0) THEN true ELSE false END as "isFree",
+          (SELECT MIN(tt.base_price) FROM ticket_types tt WHERE tt.event_id = e.id AND tt.is_active = true AND tt.base_price > 0) as "minTicketPrice",
           ${scoreSql} as score
         FROM events e
         WHERE e.is_featured = true
@@ -620,6 +627,7 @@ const getExploreFeed = async (req, res) => {
             CASE WHEN e.max_attendees IS NOT NULL THEN GREATEST(0, e.max_attendees - COALESCE((SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status = 'registered'), 0)::int) ELSE NULL END as "spotsLeft",
             CASE WHEN e.start_datetime <= NOW() AND (e.end_datetime >= NOW() OR e.end_datetime IS NULL) AND e.start_datetime >= NOW() - INTERVAL '4 hours' THEN true ELSE false END as "isLiveNow",
             CASE WHEN NOT EXISTS (SELECT 1 FROM ticket_types tt WHERE tt.event_id = e.id AND tt.is_active = true AND tt.base_price > 0) THEN true ELSE false END as "isFree",
+            (SELECT MIN(tt.base_price) FROM ticket_types tt WHERE tt.event_id = e.id AND tt.is_active = true AND tt.base_price > 0) as "minTicketPrice",
             (
               COALESCE((
                 SELECT COUNT(*)::int * 3
