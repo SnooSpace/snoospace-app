@@ -335,6 +335,45 @@ async function respondToRequest(req, res) {
   }
 }
 
+// Get connection requests sent BY the current user (pending outgoing)
+async function getSentRequests(req, res) {
+  try {
+    const pool = req.app.locals.pool;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || userType !== "member") {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    const result = await pool.query(
+      `SELECT 
+        cr.id,
+        cr.message,
+        cr.created_at,
+        cr.event_id,
+        m.id as to_member_id,
+        m.name as to_member_name,
+        m.profile_photo_url as to_member_photo,
+        m.bio as to_member_bio,
+        e.title as event_title,
+        uaq.last_active_at as to_member_last_active
+       FROM connection_requests cr
+       JOIN members m ON m.id = cr.to_member_id
+       LEFT JOIN events e ON e.id = cr.event_id
+       LEFT JOIN user_aqi_signals uaq ON uaq.user_id = m.id
+       WHERE cr.from_member_id = $1 AND cr.status = 'pending'
+       ORDER BY cr.created_at DESC`,
+      [userId]
+    );
+
+    res.json({ requests: result.rows });
+  } catch (error) {
+    console.error("Error getting sent requests:", error);
+    res.status(500).json({ error: "Failed to get sent requests" });
+  }
+}
+
 // Get connections (accepted requests)
 async function getConnections(req, res) {
   try {
@@ -419,6 +458,7 @@ module.exports = {
   logProfileView,
   getActivityInsights,
   getPendingRequests,
+  getSentRequests,
   sendConnectionRequest,
   respondToRequest,
   getConnections,

@@ -1127,6 +1127,11 @@ router.get(
   authMiddleware,
   ActivityController.getPendingRequests,
 );
+router.get(
+  "/connections/sent",
+  authMiddleware,
+  ActivityController.getSentRequests,
+);
 router.get("/connections", authMiddleware, ActivityController.getConnections);
 router.post(
   "/connections/request",

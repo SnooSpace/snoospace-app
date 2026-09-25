@@ -115,6 +115,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
   const [loading, setLoading] = useState(true);
   const [filterLoading, setFilterLoading] = useState(false);
   const [messageModalVisible, setMessageModalVisible] = useState(false);
+  const [modalMode, setModalMode] = useState("comment"); // 'connect' | 'comment'
   const [selectedContent, setSelectedContent] = useState(null);
   const [activeFilters, setActiveFilters] = useState({});
   const [filterSheetVisible, setFilterSheetVisible] = useState(false);
@@ -510,9 +511,21 @@ export default function ProfileFeedScreen({ route, navigation }) {
 
   const [messageText, setMessageText] = useState("");
 
+  // Open the modal for icebreaker/comment on content
   const handleOpenCommentModal = useCallback((content) => {
     HapticsService.triggerImpactLight();
     setSelectedContent(content);
+    setModalMode("comment");
+    setMessageText("");
+    setMessageModalVisible(true);
+  }, []);
+
+  // Open the modal when Connect is tapped — optional note flow
+  const handleOpenNoteModal = useCallback(() => {
+    HapticsService.triggerImpactMedium();
+    setSelectedContent(null);
+    setModalMode("connect");
+    setMessageText("");
     setMessageModalVisible(true);
   }, []);
 
@@ -1120,7 +1133,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
               <ChevronsRight size={18} color="#64748B" strokeWidth={2.5} />
             </View>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.connectButton} onPress={handleConnect} activeOpacity={0.85}>
+          <TouchableOpacity style={styles.connectButton} onPress={handleOpenNoteModal} activeOpacity={0.85}>
             <View style={styles.connectButtonContent}>
               <Text style={styles.connectButtonText}>Connect</Text>
               <UserPlus size={18} color="#FFFFFF" strokeWidth={2.5} />
@@ -1135,11 +1148,11 @@ export default function ProfileFeedScreen({ route, navigation }) {
           initialFilters={activeFilters}
         />
 
-        {/* Comment/Message Icebreaker Modal */}
+        {/* Connect / Icebreaker Modal — dual mode */}
         <Modal
           visible={messageModalVisible}
           transparent={true}
-          animationType="fade"
+          animationType="slide"
           onRequestClose={() => setMessageModalVisible(false)}
         >
           <View style={styles.modalBackdrop}>
@@ -1156,19 +1169,32 @@ export default function ProfileFeedScreen({ route, navigation }) {
               style={styles.modalContainer}
             >
               <View style={styles.modalContentCard}>
-                <Text style={styles.modalTitle}>Send a message to {name}</Text>
-                
-                {selectedContent?.type === "prompt" ? (
+                {/* Modal Header */}
+                {modalMode === "connect" ? (
+                  <>
+                    <Text style={styles.modalTitle}>Connect with {name}</Text>
+                    <Text style={styles.modalSubtitle}>
+                      Add an optional note to your connection request. They'll see it when they receive it.
+                    </Text>
+                  </>
+                ) : (
+                  <Text style={styles.modalTitle}>Send a message to {name}</Text>
+                )}
+
+                {/* Content Preview (icebreaker/comment mode only) */}
+                {modalMode === "comment" && selectedContent?.type === "prompt" && (
                   <View style={styles.modalPromptPreview}>
                     <Text style={styles.modalPromptLabel}>{selectedContent.prompt}</Text>
                     <Text style={styles.modalPromptAnswer} numberOfLines={2}>{selectedContent.response}</Text>
                   </View>
-                ) : selectedContent?.type === "photo" ? (
+                )}
+                {modalMode === "comment" && selectedContent?.type === "photo" && (
                   <View style={styles.modalPhotoPreviewContainer}>
                     <Image source={{ uri: selectedContent.url }} style={styles.modalPhotoPreview} />
                     <Text style={styles.modalPhotoPreviewText}>Commenting on their photo</Text>
                   </View>
-                ) : selectedContent?.type === "spark" ? (
+                )}
+                {modalMode === "comment" && selectedContent?.type === "spark" && (
                   <View style={styles.modalChipPreviewContainer}>
                     <Text style={styles.modalChipPreviewLabel}>Commenting on spark:</Text>
                     <View style={[styles.chip, styles.goalChip, { backgroundColor: getGoalStyle(selectedContent.label).bg, borderStyle: "solid" }]}>
@@ -1177,56 +1203,81 @@ export default function ProfileFeedScreen({ route, navigation }) {
                       </Text>
                     </View>
                   </View>
-                ) : selectedContent?.type === "interest" ? (
+                )}
+                {modalMode === "comment" && selectedContent?.type === "interest" && (
                   <View style={styles.modalChipPreviewContainer}>
                     <Text style={styles.modalChipPreviewLabel}>Commenting on interest:</Text>
-                    <ThemeChip
-                      label={selectedContent.label}
-                      style={{ alignSelf: "flex-start" }}
-                    />
+                    <ThemeChip label={selectedContent.label} style={{ alignSelf: "flex-start" }} />
                   </View>
-                ) : selectedContent?.type === "music" ? (
+                )}
+                {modalMode === "comment" && selectedContent?.type === "music" && (
                   <View style={styles.modalChipPreviewContainer}>
                     <Text style={styles.modalChipPreviewLabel}>Asking about music taste:</Text>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#F0FDF4", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, alignSelf: "flex-start", borderWidth: 1, borderColor: "#DCFCE7" }}>
                       <Music size={14} color="#16A34A" strokeWidth={2.5} />
-                      <Text style={{ fontFamily: FONTS.semiBold, fontSize: 13, color: "#166534" }}>
-                        Spotify Top Music
-                      </Text>
+                      <Text style={{ fontFamily: FONTS.semiBold, fontSize: 13, color: "#166534" }}>Spotify Top Music</Text>
                     </View>
                   </View>
-                ) : null}
+                )}
 
                 <TextInput
                   style={styles.modalInput}
-                  placeholder="Type an icebreaker..."
+                  placeholder={modalMode === "connect" ? "Write a note... (optional)" : "Type an icebreaker..."}
                   placeholderTextColor="#64748B"
                   multiline={true}
                   numberOfLines={4}
                   value={messageText}
                   onChangeText={setMessageText}
-                  autoFocus={true}
+                  autoFocus={modalMode === "comment"}
                 />
 
                 <View style={styles.modalActions}>
-                  <TouchableOpacity 
-                    style={styles.modalCancelButton} 
-                    onPress={() => {
-                      Keyboard.dismiss();
-                      setMessageModalVisible(false);
-                    }}
-                  >
-                    <Text style={styles.modalCancelButtonText}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={styles.modalSendButton} 
-                    onPress={() => {
-                      Keyboard.dismiss();
-                      handleSendIcebreaker();
-                    }}
-                  >
-                    <Text style={styles.modalSendButtonText}>Send</Text>
-                  </TouchableOpacity>
+                  {modalMode === "connect" ? (
+                    <>
+                      {/* Skip = connect without note */}
+                      <TouchableOpacity
+                        style={styles.modalCancelButton}
+                        onPress={() => {
+                          Keyboard.dismiss();
+                          setMessageModalVisible(false);
+                          handleConnect();
+                        }}
+                      >
+                        <Text style={styles.modalCancelButtonText}>Skip</Text>
+                      </TouchableOpacity>
+                      {/* Send = connect with note */}
+                      <TouchableOpacity
+                        style={styles.modalSendButton}
+                        onPress={() => {
+                          Keyboard.dismiss();
+                          handleSendIcebreaker();
+                        }}
+                      >
+                        <Text style={styles.modalSendButtonText}>Send Request</Text>
+                      </TouchableOpacity>
+                    </>
+                  ) : (
+                    <>
+                      <TouchableOpacity
+                        style={styles.modalCancelButton}
+                        onPress={() => {
+                          Keyboard.dismiss();
+                          setMessageModalVisible(false);
+                        }}
+                      >
+                        <Text style={styles.modalCancelButtonText}>Cancel</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.modalSendButton}
+                        onPress={() => {
+                          Keyboard.dismiss();
+                          handleSendIcebreaker();
+                        }}
+                      >
+                        <Text style={styles.modalSendButtonText}>Send</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
                 </View>
               </View>
             </KeyboardAvoidingView>
@@ -1424,6 +1475,34 @@ export default function ProfileFeedScreen({ route, navigation }) {
           </SwipeableModal.ScrollView>
         </SwipeableModal>
       </SafeAreaView>
+
+      {/* Floating Toast — outside SafeAreaView so it renders above everything */}
+      {!!toastMessage && (
+        <Animated.View
+          style={[
+            styles.toastContainer,
+            {
+              opacity: toastOpacity,
+              transform: [{ translateY: toastY }],
+            },
+          ]}
+        >
+          <View style={styles.toastInner}>
+            <View style={styles.toastIconBg}>
+              <Check size={14} color="#FFFFFF" strokeWidth={3} />
+            </View>
+            <Text style={styles.toastText} numberOfLines={1}>{toastMessage}</Text>
+            <TouchableOpacity
+              onPress={handleUndoConnect}
+              style={styles.toastUndoButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.toastUndoText}>Undo</Text>
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+      )}
     </View>
   );
   } catch (err) {
@@ -2438,11 +2517,18 @@ const styles = StyleSheet.create({
     elevation: 12,
   },
   modalTitle: {
-    fontFamily: FONTS.primary, // BasicCommercial-Bold
+    fontFamily: FONTS.primary,
     fontSize: 20,
     color: "#0F172A",
-    marginBottom: 16,
+    marginBottom: 6,
     letterSpacing: -0.4,
+  },
+  modalSubtitle: {
+    fontFamily: FONTS.regular,
+    fontSize: 13,
+    color: "#64748B",
+    marginBottom: 16,
+    lineHeight: 18,
   },
   modalPromptPreview: {
     backgroundColor: "#F8FAFC",
