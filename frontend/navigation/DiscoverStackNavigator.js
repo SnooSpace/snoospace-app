@@ -7,6 +7,7 @@ import ProfileFeedScreen from "../screens/discover/ProfileFeedScreen";
 import EditDiscoverProfileScreen from "../screens/discover/EditDiscoverProfileScreen";
 import OpenerSelectionScreen from "../screens/discover/OpenerSelectionScreen";
 import ActivityInsightsScreen from "../screens/discover/ActivityInsightsScreen";
+import ConnectionsScreen from "../screens/discover/ConnectionsScreen";
 import ChatScreen from "../screens/messages/ChatScreen";
 import OpportunityViewScreen from "../screens/home/member/OpportunityViewScreen";
 import ApplyToOpportunityScreen from "../screens/home/member/ApplyToOpportunityScreen";
@@ -37,6 +38,7 @@ export default function DiscoverStackNavigator() {
         name="ActivityInsights"
         component={ActivityInsightsScreen}
       />
+      <Stack.Screen name="Connections" component={ConnectionsScreen} />
       <Stack.Screen
         name="Chat"
         component={ChatScreen}

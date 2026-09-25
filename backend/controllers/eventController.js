@@ -1168,6 +1168,36 @@ const getEventAttendees = async (req, res) => {
           JOIN sparks s ON s.id = us2.spark_id
           WHERE us2.user_id = m.id AND us2.is_expired = false
         ), '[]'::json) AS sparks,
+        -- Mutual connections: count of members connected to both viewer and this attendee
+        (SELECT COUNT(*)
+         FROM members mc
+         WHERE mc.id IN (
+           SELECT CASE WHEN from_member_id = $2 THEN to_member_id ELSE from_member_id END
+           FROM connection_requests WHERE (from_member_id = $2 OR to_member_id = $2) AND status = 'accepted'
+         )
+         AND mc.id IN (
+           SELECT CASE WHEN from_member_id = m.id THEN to_member_id ELSE from_member_id END
+           FROM connection_requests WHERE (from_member_id = m.id OR to_member_id = m.id) AND status = 'accepted'
+         )
+         AND mc.id NOT IN ($2, m.id)
+        )::int AS mutual_connection_count,
+        COALESCE((
+          SELECT json_agg(json_build_object('id', mc2.id, 'name', mc2.name, 'profile_photo_url', mc2.profile_photo_url))
+          FROM (
+            SELECT mc.id, mc.name, mc.profile_photo_url
+            FROM members mc
+            WHERE mc.id IN (
+              SELECT CASE WHEN from_member_id = $2 THEN to_member_id ELSE from_member_id END
+              FROM connection_requests WHERE (from_member_id = $2 OR to_member_id = $2) AND status = 'accepted'
+            )
+            AND mc.id IN (
+              SELECT CASE WHEN from_member_id = m.id THEN to_member_id ELSE from_member_id END
+              FROM connection_requests WHERE (from_member_id = m.id OR to_member_id = m.id) AND status = 'accepted'
+            )
+            AND mc.id NOT IN ($2, m.id)
+            LIMIT 3
+          ) mc2
+        ), '[]'::json) AS mutual_connection_previews,
         COALESCE(
           json_agg(
             json_build_object(
@@ -1177,10 +1207,12 @@ const getEventAttendees = async (req, res) => {
             ) ORDER BY mp.photo_order
           ) FILTER (WHERE mp.id IS NOT NULL),
           '[]'::json
-        ) as photos
+        ) as photos,
+        uaq.last_active_at
       FROM event_registrations er
       INNER JOIN members m ON er.member_id = m.id
       LEFT JOIN member_photos mp ON m.id = mp.member_id
+      LEFT JOIN user_aqi_signals uaq ON uaq.user_id = m.id
       WHERE er.event_id = $1 
         AND er.member_id != $2 
         AND er.registration_status IN ('registered', 'attended', 'confirmed')
@@ -1198,8 +1230,14 @@ const getEventAttendees = async (req, res) => {
           WHERE (ub.blocker_id = $2 AND ub.blocked_id = m.id)
              OR (ub.blocker_id = m.id AND ub.blocked_id = $2)
         )
+        -- Hide attendees who already have a connection request with the viewer (any status)
+        AND NOT EXISTS (
+          SELECT 1 FROM connection_requests cr
+          WHERE (cr.from_member_id = $2 AND cr.to_member_id = m.id)
+             OR (cr.from_member_id = m.id AND cr.to_member_id = $2)
+        )
         ${filterClause}
-      GROUP BY m.id, m.name, m.nickname, m.dob, m.gender, m.bio, m.interests, m.profile_photo_url, m.username, m.pronouns, m.show_pronouns, m.discover_photos, m.openers, m.is_verified, m.verification_tier
+      GROUP BY m.id, m.name, m.nickname, m.dob, m.gender, m.bio, m.interests, m.profile_photo_url, m.username, m.pronouns, m.show_pronouns, m.discover_photos, m.openers, m.is_verified, m.verification_tier, uaq.last_active_at
       ORDER BY m.name
     `;
 

@@ -1138,6 +1138,11 @@ router.post(
   authMiddleware,
   ActivityController.respondToRequest,
 );
+router.get(
+  "/connections/:memberId/mutual",
+  authMiddleware,
+  ActivityController.getMutualConnections,
+);
 
 // Discover Feed V2 (Category-based)
 router.get(

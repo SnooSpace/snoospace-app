@@ -165,10 +165,12 @@ async function getPendingRequests(req, res) {
         m.name as from_member_name,
         m.profile_photo_url as from_member_photo,
         m.bio as from_member_bio,
-        e.title as event_title
+        e.title as event_title,
+        uaq.last_active_at as from_member_last_active
        FROM connection_requests cr
        JOIN members m ON m.id = cr.from_member_id
        LEFT JOIN events e ON e.id = cr.event_id
+       LEFT JOIN user_aqi_signals uaq ON uaq.user_id = m.id
        WHERE cr.to_member_id = $1 AND cr.status = 'pending'
        ORDER BY cr.created_at DESC`,
       [userId]
@@ -275,7 +277,58 @@ async function respondToRequest(req, res) {
         .json({ error: "Request not found or already responded" });
     }
 
-    res.json({ success: true, request: result.rows[0] });
+    const acceptedRequest = result.rows[0];
+    let conversationId = null;
+
+    // On accept: if the request had an icebreaker message, auto-create a DM with it
+    if (action === "accept" && acceptedRequest.message) {
+      try {
+        const id1 = Number(acceptedRequest.from_member_id);
+        const id2 = Number(acceptedRequest.to_member_id);
+        const [p1Id, p2Id] = id1 < id2 ? [id1, id2] : [id2, id1];
+
+        // Get or create conversation (race-condition safe)
+        const convResult = await pool.query(
+          `INSERT INTO conversations (participant1_id, participant1_type, participant2_id, participant2_type)
+           VALUES ($1, 'member', $2, 'member')
+           ON CONFLICT (participant1_id, participant1_type, participant2_id, participant2_type)
+           DO NOTHING RETURNING id`,
+          [p1Id, p2Id]
+        );
+        conversationId = convResult.rows[0]?.id;
+        if (!conversationId) {
+          const existing = await pool.query(
+            `SELECT id FROM conversations
+             WHERE participant1_id = $1 AND participant1_type = 'member'
+               AND participant2_id = $2 AND participant2_type = 'member'`,
+            [p1Id, p2Id]
+          );
+          conversationId = existing.rows[0]?.id;
+        }
+
+        if (conversationId) {
+          // Insert the icebreaker as the first message (sent by the original requester)
+          await pool.query(
+            `INSERT INTO messages (conversation_id, sender_id, sender_type, message_text, message_type)
+             VALUES ($1, $2, 'member', $3, 'text')`,
+            [conversationId, acceptedRequest.from_member_id, acceptedRequest.message]
+          );
+          await pool.query(
+            `UPDATE conversations SET last_message_at = NOW() WHERE id = $1`,
+            [conversationId]
+          );
+        }
+      } catch (chatErr) {
+        // Don't fail the accept if chat creation fails — the connection is still accepted
+        console.error("Error creating chat on connection accept:", chatErr);
+      }
+    }
+
+    res.json({
+      success: true,
+      request: acceptedRequest,
+      conversation_id: conversationId,
+    });
   } catch (error) {
     console.error("Error responding to request:", error);
     res.status(500).json({ error: "Failed to respond to request" });
@@ -298,17 +351,20 @@ async function getConnections(req, res) {
         cr.id as connection_id,
         cr.updated_at as connected_at,
         cr.event_id,
+        cr.message as icebreaker_message,
         m.id as member_id,
         m.name as member_name,
         m.profile_photo_url as member_photo,
         m.bio as member_bio,
-        e.title as event_title
+        e.title as event_title,
+        uaq.last_active_at as member_last_active
        FROM connection_requests cr
        JOIN members m ON m.id = CASE 
          WHEN cr.from_member_id = $1 THEN cr.to_member_id 
          ELSE cr.from_member_id 
        END
        LEFT JOIN events e ON e.id = cr.event_id
+       LEFT JOIN user_aqi_signals uaq ON uaq.user_id = m.id
        WHERE (cr.from_member_id = $1 OR cr.to_member_id = $1) 
          AND cr.status = 'accepted'
        ORDER BY cr.updated_at DESC`,
@@ -322,6 +378,43 @@ async function getConnections(req, res) {
   }
 }
 
+// Get mutual connections between viewer and target member
+async function getMutualConnections(req, res) {
+  try {
+    const pool = req.app.locals.pool;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    const targetId = req.params.memberId;
+
+    if (!userId || userType !== "member") {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    const result = await pool.query(
+      `SELECT m.id, m.name, m.profile_photo_url
+       FROM members m
+       WHERE m.id IN (
+         SELECT CASE WHEN from_member_id = $1 THEN to_member_id ELSE from_member_id END
+         FROM connection_requests
+         WHERE (from_member_id = $1 OR to_member_id = $1) AND status = 'accepted'
+       )
+       AND m.id IN (
+         SELECT CASE WHEN from_member_id = $2 THEN to_member_id ELSE from_member_id END
+         FROM connection_requests
+         WHERE (from_member_id = $2 OR to_member_id = $2) AND status = 'accepted'
+       )
+       AND m.id NOT IN ($1, $2)
+       LIMIT 10`,
+      [userId, targetId]
+    );
+
+    res.json({ mutual_connections: result.rows });
+  } catch (error) {
+    console.error("Error getting mutual connections:", error);
+    res.status(500).json({ error: "Failed to get mutual connections" });
+  }
+}
+
 module.exports = {
   logProfileView,
   getActivityInsights,
@@ -329,4 +422,5 @@ module.exports = {
   sendConnectionRequest,
   respondToRequest,
   getConnections,
+  getMutualConnections,
 };

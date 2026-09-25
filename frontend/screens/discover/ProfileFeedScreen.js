@@ -20,7 +20,7 @@ import {
   Users,
   Music,
 } from "lucide-react-native";
-import { apiGet } from "../../api/client";
+import { apiGet, apiPost } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
 import { getEventDetails } from "../../api/events";
 import { COLORS, SPACING, SHADOWS, FONTS } from "../../constants/theme";
@@ -33,6 +33,7 @@ import Svg, { Path, Circle, Rect, G, Defs, LinearGradient as SvgLinearGradient, 
 import { SpotifyArtistsCard } from "../../components/profile/SpotifyArtistsCard";
 import ContentActionsSheet from "../../components/modals/ContentActionsSheet";
 import SwipeableModal from "../../components/modals/SwipeableModal";
+import ActiveBadge from "../../components/badges/ActiveBadge";
 import VerifiedBadge from "../../components/badges/VerifiedBadge";
 
 const { width } = Dimensions.get("window");
@@ -123,6 +124,8 @@ export default function ProfileFeedScreen({ route, navigation }) {
   const [toastMessage, setToastMessage] = useState("");
   const toastY = React.useRef(new Animated.Value(-20)).current;
   const toastOpacity = React.useRef(new Animated.Value(0)).current;
+  const undoTimerRef = React.useRef(null);   // holds the deferred API call timer
+  const toastHideTimerRef = React.useRef(null); // holds the auto-hide timer
   const [profileProgress, setProfileProgress] = useState({
     photos: 0,
     sparks: 0,
@@ -302,6 +305,27 @@ export default function ProfileFeedScreen({ route, navigation }) {
 
   const currentAttendee = attendees[currentIndex];
 
+  // Log profile views with a 1.5s debounce — only fires if user lingers on the card
+  useEffect(() => {
+    if (!currentAttendee?.id || !eventData?.id || profileGated) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        const token = await getAuthToken();
+        if (token) {
+          apiPost("/activity/view", {
+            viewedMemberId: currentAttendee.id,
+            eventId: eventData.id,
+          }, 10000, token).catch(() => {});
+        }
+      } catch (err) {
+        // Silent fail — profile views are non-critical telemetry
+      }
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [currentIndex, currentAttendee?.id, eventData?.id, profileGated]);
+
   // Data Extraction
   const name = (currentAttendee?.nickname || currentAttendee?.name || "Unknown").trim() || "Unknown";
   const role =
@@ -403,47 +427,74 @@ export default function ProfileFeedScreen({ route, navigation }) {
     }
   }, [hasSeenSkipInfo, handleNext]);
 
-  const handleConnect = useCallback(() => {
+  const dismissToast = useCallback(() => {
+    if (toastHideTimerRef.current) {
+      clearTimeout(toastHideTimerRef.current);
+      toastHideTimerRef.current = null;
+    }
+    Animated.parallel([
+      Animated.timing(toastY, { toValue: -20, duration: 250, useNativeDriver: true }),
+      Animated.timing(toastOpacity, { toValue: 0, duration: 200, useNativeDriver: true }),
+    ]).start(() => setToastMessage(""));
+  }, [toastY, toastOpacity]);
+
+  const handleConnect = useCallback(async () => {
     HapticsService.triggerImpactMedium();
-    
-    // Capture the name of the attendee before moving index
+
+    // Capture the attendee data before moving index
+    const attendee = attendees[currentIndex];
     const targetName = name;
+    const attendeeId = attendee?.id;
+    const eventId = eventData?.id || null;
+
+    // Clear any pending undo from a previous connect
+    if (undoTimerRef.current) {
+      clearTimeout(undoTimerRef.current);
+      undoTimerRef.current = null;
+    }
+
     setToastMessage(`Connection request sent to ${targetName}`);
 
     // Animate toast in
     Animated.parallel([
-      Animated.timing(toastY, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.timing(toastOpacity, {
-        toValue: 1,
-        duration: 250,
-        useNativeDriver: true,
-      }),
+      Animated.timing(toastY, { toValue: 0, duration: 300, useNativeDriver: true }),
+      Animated.timing(toastOpacity, { toValue: 1, duration: 250, useNativeDriver: true }),
     ]).start();
 
-    // Auto-hide toast after 2.5 seconds
-    setTimeout(() => {
-      Animated.parallel([
-        Animated.timing(toastY, {
-          toValue: -20,
-          duration: 250,
-          useNativeDriver: true,
-        }),
-        Animated.timing(toastOpacity, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        setToastMessage("");
-      });
+    // Defer the actual API call by 2.5s — gives the user time to undo
+    undoTimerRef.current = setTimeout(async () => {
+      undoTimerRef.current = null;
+      if (attendeeId) {
+        try {
+          const token = await getAuthToken();
+          apiPost("/connections/request", { toMemberId: attendeeId, eventId }, 15000, token)
+            .catch(err => console.warn("[ProfileFeedScreen] Connection request failed:", err?.message));
+        } catch (err) {
+          console.warn("[ProfileFeedScreen] Connection request error:", err?.message);
+        }
+      }
+      // Auto-hide the toast once the request fires
+      toastHideTimerRef.current = setTimeout(dismissToast, 500);
     }, 2500);
 
     handleNext("right");
-  }, [name, handleNext, toastY, toastOpacity]);
+  }, [attendees, currentIndex, name, eventData, handleNext, toastY, toastOpacity, dismissToast]);
+
+  const handleUndoConnect = useCallback(() => {
+    HapticsService.triggerImpactMedium();
+
+    // Cancel the pending API call
+    if (undoTimerRef.current) {
+      clearTimeout(undoTimerRef.current);
+      undoTimerRef.current = null;
+    }
+
+    // Dismiss toast immediately
+    dismissToast();
+
+    // Step back to the previous card
+    setCurrentIndex(prev => Math.max(0, prev - 1));
+  }, [dismissToast]);
 
   const handleBack = useCallback(() => {
     navigation.goBack();
@@ -465,14 +516,36 @@ export default function ProfileFeedScreen({ route, navigation }) {
     setMessageModalVisible(true);
   }, []);
 
-  const handleSendIcebreaker = useCallback(() => {
+  const handleSendIcebreaker = useCallback(async () => {
     if (!messageText.trim()) {
       Alert.alert("Empty Message", "Please type a message before sending.");
       return;
     }
     HapticsService.triggerImpactMedium();
+
+    // Capture attendee data before clearing state
+    const attendee = attendees[currentIndex];
+    const trimmedMessage = messageText.trim();
+
     setMessageModalVisible(false);
     setMessageText("");
+
+    // Fire API call with the icebreaker message
+    if (attendee?.id) {
+      try {
+        const token = await getAuthToken();
+        apiPost("/connections/request", {
+          toMemberId: attendee.id,
+          message: trimmedMessage,
+          eventId: eventData?.id || null,
+        }, 15000, token).catch(err => {
+          console.warn("[ProfileFeedScreen] Icebreaker send failed:", err?.message);
+        });
+      } catch (err) {
+        console.warn("[ProfileFeedScreen] Icebreaker send error:", err?.message);
+      }
+    }
+
     Alert.alert(
       "Message Sent!",
       `Your icebreaker has been sent to ${name} along with a connection request.`,
@@ -485,7 +558,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
         }
       ]
     );
-  }, [name, messageText, handleNext]);
+  }, [attendees, currentIndex, name, messageText, eventData, handleNext]);
 
   try {
     if (loading) {
@@ -866,6 +939,9 @@ export default function ProfileFeedScreen({ route, navigation }) {
               gender={gender}
               pronouns={pronouns}
               verificationTier={currentAttendee?.verification_tier || 'selfie_verified'}
+              lastActiveAt={currentAttendee?.last_active_at}
+              mutualConnectionCount={currentAttendee?.mutual_connection_count || 0}
+              mutualConnectionPreviews={currentAttendee?.mutual_connection_previews || []}
               onCommentPress={() => handleOpenCommentModal({ type: "photo", url: photos[0].url })}
               memberId={currentAttendee?.id}
               memberName={name}
@@ -1280,7 +1356,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
           </View>
         </Modal>
 
-        {/* Floating Toast Notification */}
+        {/* Floating Toast Notification — with Undo button */}
         {!!toastMessage && (
           <Animated.View
             style={[
@@ -1295,7 +1371,15 @@ export default function ProfileFeedScreen({ route, navigation }) {
               <View style={styles.toastIconBg}>
                 <Check size={14} color="#FFFFFF" strokeWidth={3} />
               </View>
-              <Text style={styles.toastText}>{toastMessage}</Text>
+              <Text style={styles.toastText} numberOfLines={1}>{toastMessage}</Text>
+              <TouchableOpacity
+                onPress={handleUndoConnect}
+                style={styles.toastUndoButton}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.toastUndoText}>Undo</Text>
+              </TouchableOpacity>
             </View>
           </Animated.View>
         )}
@@ -1509,7 +1593,7 @@ const PromptCard = React.memo(({ item, onCommentPress, memberId, memberName }) =
   );
 });
 
-const PhotoCard = React.memo(({ url, isHero, name, age, gender, pronouns, shared_communities, onCommunitiesPress, onCommentPress, memberId, memberName, verificationTier }) => (
+const PhotoCard = React.memo(({ url, isHero, name, age, gender, pronouns, shared_communities, onCommunitiesPress, onCommentPress, memberId, memberName, verificationTier, lastActiveAt, mutualConnectionCount, mutualConnectionPreviews }) => (
   <ContentCard
     onPress={onCommentPress}
     style={styles.photoCardContainer}
@@ -1564,6 +1648,28 @@ const PhotoCard = React.memo(({ url, isHero, name, age, gender, pronouns, shared
                 👥 {shared_communities.length} {shared_communities.length === 1 ? 'shared community' : 'shared communities'}
               </Text>
             </TouchableOpacity>
+          )}
+          {isHero && lastActiveAt && (
+            <ActiveBadge
+              lastActiveAt={lastActiveAt}
+              size="small"
+              style={{ backgroundColor: 'rgba(0,0,0,0.45)', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 }}
+            />
+          )}
+          {isHero && mutualConnectionCount > 0 && (
+            <View style={[styles.heroGenderChip, { backgroundColor: 'rgba(139, 92, 246, 0.85)', borderColor: 'rgba(167, 139, 250, 0.5)', borderWidth: 1, flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
+              {Array.isArray(mutualConnectionPreviews) && mutualConnectionPreviews.slice(0, 3).map((mc, i) => (
+                <Image
+                  key={mc.id}
+                  source={{ uri: mc.profile_photo_url }}
+                  style={{ width: 16, height: 16, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.6)', marginLeft: i > 0 ? -6 : 0 }}
+                  contentFit="cover"
+                />
+              ))}
+              <Text style={[styles.heroGenderText, { color: '#FFFFFF', fontWeight: '600' }]}>
+                {mutualConnectionCount} mutual
+              </Text>
+            </View>
           )}
         </View>
       </View>
@@ -2596,6 +2702,18 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
   },
+  toastUndoButton: {
+    marginLeft: "auto",
+    backgroundColor: "rgba(0,0,0,0.06)",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  toastUndoText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 13,
+    color: COLORS.primary,
+  },
   modalCancelButton: {
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -2796,9 +2914,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   toastText: {
-    fontFamily: FONTS.medium, // Manrope-Medium
+    fontFamily: FONTS.medium,
     fontSize: 14,
     color: "#0F172A",
+    flex: 1,
+  },
+  toastUndoButton: {
+    marginLeft: "auto",
+    backgroundColor: "rgba(0,0,0,0.06)",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  toastUndoText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 13,
+    color: COLORS.primary,
   },
   emptyFiltersIconContainer: {
     width: 72,
@@ -2997,9 +3128,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   toastText: {
-    fontFamily: FONTS.medium, // Manrope-Medium
+    fontFamily: FONTS.medium,
     fontSize: 14,
     color: "#0F172A",
+    flex: 1,
+  },
+  toastUndoButton: {
+    marginLeft: "auto",
+    backgroundColor: "rgba(0,0,0,0.06)",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  toastUndoText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 13,
+    color: COLORS.primary,
   },
   emptyFiltersIconContainer: {
     width: 72,

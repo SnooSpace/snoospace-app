@@ -190,7 +190,15 @@ export default function ActivityInsightsScreen({ navigation }) {
         </View>
         <View style={styles.activityTextContainer}>
           <Text style={styles.activityPrimaryText}>
-            {activity.text || "Updated your profile"}
+            {activity.type === "view"
+              ? activity.event_title
+                ? `Your profile was viewed from ${activity.event_title}`
+                : "Someone viewed your profile"
+              : activity.type === "connection"
+              ? activity.member_name
+                ? `${activity.member_name} connected with you`
+                : "New connection made"
+              : "New activity"}
           </Text>
           <Text style={styles.activitySecondaryText}>
             {formatTimeAgo(activity.timestamp)}
@@ -297,6 +305,49 @@ export default function ActivityInsightsScreen({ navigation }) {
           </Animated.View>
         </View>
 
+        {/* Pending Requests Summary */}
+        {pendingRequests.length > 0 && (
+          <TouchableOpacity
+            style={styles.pendingSummary}
+            activeOpacity={0.7}
+            onPress={() => navigation.navigate("Connections")}
+          >
+            <View style={styles.pendingLeft}>
+              <View style={styles.pendingAvatarStack}>
+                {pendingRequests.slice(0, 3).map((req, i) => (
+                  <View
+                    key={req.id}
+                    style={[
+                      styles.pendingAvatarWrapper,
+                      { marginLeft: i > 0 ? -10 : 0, zIndex: 3 - i },
+                    ]}
+                  >
+                    {req.from_member_photo ? (
+                      <View style={styles.pendingAvatar}>
+                        <Text style={styles.pendingAvatarText}>
+                          {(req.from_member_name || "?")[0]}
+                        </Text>
+                      </View>
+                    ) : (
+                      <View style={styles.pendingAvatar}>
+                        <Text style={styles.pendingAvatarText}>
+                          {(req.from_member_name || "?")[0]}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                ))}
+              </View>
+              <View style={styles.pendingTextContainer}>
+                <Text style={styles.pendingTitle}>
+                  {pendingRequests.length} pending {pendingRequests.length === 1 ? "request" : "requests"}
+                </Text>
+                <Text style={styles.pendingSubtext}>Tap to review</Text>
+              </View>
+            </View>
+            <ChevronRight size={20} color={COLORS.textSecondary} />
+          </TouchableOpacity>
+        )}
         {/* Recent Activity */}
         <Animated.View style={[styles.section, sectionAnimatedStyle]}>
           <Text style={styles.sectionTitle}>Recent Activity</Text>
@@ -501,5 +552,57 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     flex: 1,
     marginLeft: 12,
+  },
+  pendingSummary: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#FFF7ED",
+    borderRadius: 14,
+    padding: 14,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.12)",
+  },
+  pendingLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  pendingAvatarStack: {
+    flexDirection: "row",
+    marginRight: 12,
+  },
+  pendingAvatarWrapper: {
+    // marginLeft and zIndex applied inline
+  },
+  pendingAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#FDBA74",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#FFF7ED",
+  },
+  pendingAvatarText: {
+    fontSize: 13,
+    fontFamily: FONTS.semiBold,
+    color: "#9A3412",
+  },
+  pendingTextContainer: {
+    flex: 1,
+  },
+  pendingTitle: {
+    fontSize: 14,
+    fontFamily: FONTS.semiBold,
+    color: "#9A3412",
+  },
+  pendingSubtext: {
+    fontSize: 12,
+    fontFamily: FONTS.regular,
+    color: "#C2410C",
+    marginTop: 1,
   },
 });

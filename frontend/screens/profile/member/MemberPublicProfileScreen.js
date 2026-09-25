@@ -17,6 +17,7 @@ import { Image as ExpoImage } from "expo-image";
 import { ArrowLeft, Play, Pin, Ticket, Users, MoreVertical, UserX, TriangleAlert, CircleCheck, ShieldOff, CalendarDays, UserPlus, UserCheck, UserMinus, Clock, Music, ChevronRight, Handshake, Sparkles } from "lucide-react-native";
 import VerifiedBadge from "../../../components/badges/VerifiedBadge";
 import CustomAlertModal from "../../../components/ui/CustomAlertModal";
+import { getActiveInfo } from "../../../components/badges/ActiveBadge";
 import {
   getPublicMemberProfile,
   getMemberPosts,
@@ -1263,6 +1264,29 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
       >
         <View style={{ width: '100%' }}>
           <View style={menuStyles.handle} />
+          {/* Active Status */}
+          {profile?.last_active_at && (() => {
+            const activeInfo = getActiveInfo(profile.last_active_at);
+            if (!activeInfo) return null;
+            return (
+              <>
+                <View style={menuStyles.row}>
+                  <View style={[menuStyles.iconBox, { backgroundColor: `${activeInfo.color}14` }]}>
+                    <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: activeInfo.color }} />
+                  </View>
+                  <View style={menuStyles.rowText}>
+                    <Text style={[menuStyles.rowLabel, { color: activeInfo.color }]}>
+                      {activeInfo.text}
+                    </Text>
+                    <Text style={menuStyles.rowSub}>
+                      Last seen status
+                    </Text>
+                  </View>
+                </View>
+                <View style={{ height: 1, backgroundColor: '#F3F4F6', marginVertical: 8 }} />
+              </>
+            );
+          })()}
           {profile?.created_at && (() => {
             const createdDate = new Date(profile.created_at);
             const accountAge = Math.floor((Date.now() - createdDate.getTime()) / 86400000);

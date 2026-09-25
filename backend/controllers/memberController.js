@@ -502,7 +502,8 @@ async function getPublicMember(req, res) {
               )::int AS events_attended_count,
               (SELECT COUNT(*) FROM follows f
                  JOIN communities c ON c.id = f.following_id AND f.following_type = 'community'
-                 WHERE f.follower_id = $1 AND f.follower_type = 'member')::int AS communities_count
+                 WHERE f.follower_id = $1 AND f.follower_type = 'member')::int AS communities_count,
+              (SELECT last_active_at FROM user_aqi_signals WHERE user_id = $1) AS last_active_at
        FROM members
        WHERE id = $1`,
       [targetId]
@@ -535,6 +536,32 @@ async function getPublicMember(req, res) {
       }
     }
     const profile = memberR.rows[0];
+
+    // Check connection status between viewer and target
+    let connectionStatus = 'none';
+    if (String(authUserId) !== String(targetId) && userType === 'member') {
+      try {
+        const connR = await pool.query(
+          `SELECT status, from_member_id FROM connection_requests
+           WHERE (from_member_id = $1 AND to_member_id = $2)
+              OR (from_member_id = $2 AND to_member_id = $1)
+           ORDER BY created_at DESC LIMIT 1`,
+          [authUserId, targetId]
+        );
+        if (connR.rows.length > 0) {
+          const row = connR.rows[0];
+          if (row.status === 'accepted') {
+            connectionStatus = 'connected';
+          } else if (row.status === 'pending') {
+            connectionStatus = String(row.from_member_id) === String(authUserId)
+              ? 'pending_sent'
+              : 'pending_received';
+          }
+        }
+      } catch (connErr) {
+        console.error('[PublicMember] Failed to fetch connection status:', connErr);
+      }
+    }
     // counts are now part of profile — no separate countsR query needed
 
     // Check cross-entity follow relationships (members, communities, sponsors, venues)
@@ -626,6 +653,8 @@ async function getPublicMember(req, res) {
           : profile.spotify_top_tracks || [],
       college_info: null, // populated below if show_college is true
       shared_communities: [],
+      last_active_at: profile.last_active_at || null,
+      connection_status: connectionStatus,
     };
 
     // Fetch shared communities if viewer is not target
