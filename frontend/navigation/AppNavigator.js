@@ -38,6 +38,7 @@ import EventGalleryScreen from "../screens/events/EventGalleryScreen";
 import CategoryEventsScreen from "../screens/events/CategoryEventsScreen";
 import MemberPublicProfileScreen from "../screens/profile/member/MemberPublicProfileScreen";
 import CommunityPublicProfileScreen from "../screens/profile/community/CommunityPublicProfileScreen";
+import CommunityFeedScreen from "../screens/profile/community/CommunityFeedScreen";
 import ChatScreen from "../screens/messages/ChatScreen";
 import GroupInfoScreen from "../screens/messages/GroupInfoScreen";
 import { CropScreen, BatchCropScreen } from "../components/media";
@@ -138,6 +139,13 @@ export default function AppNavigator({ initialRouteName }) {
       <Stack.Screen
         name="CommunityEventsList"
         component={CommunityEventsListScreen}
+      />
+      <Stack.Screen
+        name="CommunityFeed"
+        component={CommunityFeedScreen}
+        options={{
+          animation: "slide_from_bottom",
+        }}
       />
       <Stack.Screen
         name="CommunityCreatePost"

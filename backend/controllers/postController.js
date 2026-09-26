@@ -1816,6 +1816,87 @@ const unlikePost = async (req, res) => {
   }
 };
 
+// Community Upvote / Downvote on a post
+const voteCommunityPost = async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const { voteType } = req.body; // 1 (upvote), -1 (downvote), or 0 (neutral / remove vote)
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    if (![-1, 0, 1].includes(Number(voteType))) {
+      return res.status(400).json({ error: "voteType must be 1, -1, or 0" });
+    }
+
+    const postCheck = await pool.query("SELECT id FROM posts WHERE id = $1", [postId]);
+    if (postCheck.rows.length === 0) {
+      return res.status(404).json({ error: "Post not found" });
+    }
+
+    const targetVote = Number(voteType);
+
+    if (targetVote === 0) {
+      // Remove vote
+      await pool.query(
+        "DELETE FROM post_community_votes WHERE post_id = $1 AND user_id = $2 AND user_type = $3",
+        [postId, userId, userType]
+      );
+    } else {
+      // Upsert vote
+      await pool.query(
+        `INSERT INTO post_community_votes (post_id, user_id, user_type, vote_type, updated_at)
+         VALUES ($1, $2, $3, $4, NOW())
+         ON CONFLICT (post_id, user_id, user_type)
+         DO UPDATE SET vote_type = $4, updated_at = NOW()`,
+        [postId, userId, userType, targetVote]
+      );
+    }
+
+    // Recalculate score and counts for this post
+    const updateResult = await pool.query(
+      `WITH vote_counts AS (
+         SELECT
+           COALESCE(COUNT(*) FILTER (WHERE vote_type = 1), 0)::int AS upvotes,
+           COALESCE(COUNT(*) FILTER (WHERE vote_type = -1), 0)::int AS downvotes,
+           COALESCE(SUM(vote_type), 0)::int AS score
+         FROM post_community_votes
+         WHERE post_id = $1
+       )
+       UPDATE posts
+       SET
+         community_upvote_count = vote_counts.upvotes,
+         community_downvote_count = vote_counts.downvotes,
+         community_vote_score = vote_counts.score
+       FROM vote_counts
+       WHERE posts.id = $1
+       RETURNING posts.community_vote_score, posts.community_upvote_count, posts.community_downvote_count`,
+      [postId]
+    );
+
+    const stats = updateResult.rows[0] || {
+      community_vote_score: 0,
+      community_upvote_count: 0,
+      community_downvote_count: 0,
+    };
+
+    res.json({
+      success: true,
+      postId: Number(postId),
+      userVote: targetVote,
+      voteScore: stats.community_vote_score,
+      upvoteCount: stats.community_upvote_count,
+      downvoteCount: stats.community_downvote_count,
+    });
+  } catch (error) {
+    console.error("Error voting community post:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 // Get single post
 const getPost = async (req, res) => {
   try {
@@ -1862,6 +1943,10 @@ const getPost = async (req, res) => {
           SELECT 1 FROM post_likes l
           WHERE l.post_id = p.id AND l.liker_id = $2 AND l.liker_type = $3
         ) ELSE false END AS is_liked,
+        CASE WHEN $2::int IS NOT NULL AND $3::text IS NOT NULL THEN COALESCE((
+          SELECT vote_type FROM post_community_votes pv
+          WHERE pv.post_id = p.id AND pv.user_id = $2 AND pv.user_type = $3
+        ), 0)::int ELSE 0 END AS viewer_vote,
         CASE 
           WHEN $2::int IS NOT NULL AND $3::text IS NOT NULL THEN (
             EXISTS (
@@ -2145,6 +2230,13 @@ const getUserPosts = async (req, res) => {
           )
           ELSE false
         END AS is_liked,
+        CASE 
+          WHEN $3::int IS NOT NULL AND $4::text IS NOT NULL THEN COALESCE((
+            SELECT vote_type FROM post_community_votes pv
+            WHERE pv.post_id = p.id AND pv.user_id = $3 AND pv.user_type = $4
+          ), 0)::int
+          ELSE 0
+        END AS viewer_vote,
         CASE 
           WHEN $3::int IS NOT NULL AND $4::text IS NOT NULL THEN (
             EXISTS (
@@ -4019,4 +4111,5 @@ module.exports = {
   getPromoteQuota,
   getDiscoveryPosts,
   getPromoTargeted,
+  voteCommunityPost,
 };

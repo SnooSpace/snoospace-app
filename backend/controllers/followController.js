@@ -629,6 +629,7 @@ const getProfileCounts = async (req, res) => {
     let followers_count, following_count, post_count;
     let circle_count = 0;
     let creator_follower_count = 0;
+    let active_now_count = 0;
 
     if (userType === 'member') {
       const r = await pool.query(
@@ -649,6 +650,19 @@ const getProfileCounts = async (req, res) => {
       post_count             = parseInt(row?.post_count             ?? 0, 10);
       circle_count           = parseInt(row?.circle_count           ?? 0, 10);
       creator_follower_count = parseInt(row?.creator_follower_count ?? 0, 10);
+
+      // Real active followers (belonging to this creator, active in last 30m)
+      const activeRes = await pool.query(
+        `SELECT COUNT(DISTINCT m_id)::int as count FROM (
+           SELECT follower_id as m_id FROM creator_follows WHERE creator_id = $1 AND follower_type = 'member' AND is_dormant = false
+         ) t
+         JOIN user_aqi_signals uas ON uas.user_id = t.m_id
+         WHERE uas.last_active_at >= NOW() - INTERVAL '30 minutes'`,
+        [userId]
+      );
+      const rawActive = activeRes.rows[0]?.count || 0;
+      const totalMemberPool = creator_follower_count || followers_count || 0;
+      active_now_count = totalMemberPool > 0 ? Math.min(rawActive, totalMemberPool) : 0;
     } else if (userType === 'community') {
       const r = await pool.query(
         `SELECT follower_count, following_count,
@@ -663,6 +677,21 @@ const getProfileCounts = async (req, res) => {
       following_count = parseInt(row?.following_count ?? 0, 10);
       post_count      = parseInt(row?.post_count      ?? 0, 10);
       circle_count    = parseInt(row?.circle_count    ?? 0, 10);
+
+      // Real active community members (followers or circle members active in last 30m)
+      const activeRes = await pool.query(
+        `SELECT COUNT(DISTINCT m_id)::int as count FROM (
+           SELECT follower_id as m_id FROM follows WHERE following_id = $1 AND following_type = 'community' AND follower_type = 'member'
+           UNION
+           SELECT member_id as m_id FROM community_member_circles WHERE community_id = $1
+         ) t
+         JOIN user_aqi_signals uas ON uas.user_id = t.m_id
+         WHERE uas.last_active_at >= NOW() - INTERVAL '30 minutes'`,
+        [userId]
+      );
+      const rawActive = activeRes.rows[0]?.count || 0;
+      const totalMembers = followers_count + circle_count;
+      active_now_count = totalMembers > 0 ? Math.min(rawActive, totalMembers) : 0;
     } else {
       // sponsor / venue: live COUNT(*)
       const result = await pool.query(
@@ -676,9 +705,10 @@ const getProfileCounts = async (req, res) => {
       followers_count = parseInt(row.followers_count, 10);
       following_count = parseInt(row.following_count, 10);
       post_count      = parseInt(row.post_count,      10);
+      active_now_count = 0;
     }
 
-    res.json({ followers_count, following_count, post_count, circle_count, creator_follower_count });
+    res.json({ followers_count, following_count, post_count, circle_count, creator_follower_count, active_now_count });
   } catch (error) {
     console.error("Error getting profile counts:", error);
     res.status(500).json({ error: "Internal server error" });

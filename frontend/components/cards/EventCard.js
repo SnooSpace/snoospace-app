@@ -516,8 +516,6 @@ function EventCard({
     event?.registration_status === "confirmed",
   );
 
-  if (!event) return null;
-
   const {
     id,
     title,
@@ -539,7 +537,7 @@ function EventCard({
     access_type,
     invite_public_visibility,
     is_invited,
-  } = event;
+  } = event || {};
 
   // Check if location should be hidden (invite-only event with public visibility, user NOT invited/registered)
   const shouldHideLocation =
@@ -743,6 +741,8 @@ function EventCard({
     const elapsed = Date.now() - confirmedTime;
     return elapsed < 3 * 60 * 1000; // 3 minutes in milliseconds
   }, [event?.attendance_status, event?.attendance_confirmed_at]);
+
+  if (!event) return null;
 
   return (
     <>

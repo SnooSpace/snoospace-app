@@ -9,6 +9,7 @@ import CommunityHostsScreen from "../screens/profile/community/CommunityHostsScr
 import OpportunityViewScreen from "../screens/home/member/OpportunityViewScreen";
 import CommunityEventsListScreen from "../screens/home/community/CommunityEventsListScreen";
 import CommunityCreatePostScreen from "../screens/home/community/CommunityCreatePostScreen";
+import CommunityFeedScreen from "../screens/profile/community/CommunityFeedScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -37,6 +38,11 @@ export default function CommunityProfileStackNavigator() {
       <Stack.Screen name="OpportunityView" component={OpportunityViewScreen} />
       <Stack.Screen name="CommunityEventsList" component={CommunityEventsListScreen} />
       <Stack.Screen name="CommunityCreatePost" component={CommunityCreatePostScreen} />
+      <Stack.Screen
+        name="CommunityFeed"
+        component={CommunityFeedScreen}
+        options={{ animation: "fade" }}
+      />
     </Stack.Navigator>
   );
 }

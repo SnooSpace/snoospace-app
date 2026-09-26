@@ -2356,6 +2356,23 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                 onLayout={(e) => handleTabLayout(tab, e)}
                 onPress={() => {
                   HapticsService.triggerImpactLight();
+                  if (tab === "community") {
+                    navigation.navigate("CommunityFeed", {
+                      profile,
+                      communityId: profile?.id,
+                      targetType: "member",
+                      isOwnProfile: false,
+                      initialPosts: posts,
+                      initialVoicePosts: voicePosts,
+                      sourceRect: {
+                        x: (Dimensions.get("window").width - 120) / 2,
+                        y: 280,
+                        width: 120,
+                        height: 44,
+                      },
+                    });
+                    return;
+                  }
                   setRenderedPostsLimit(12);
                   setRenderedEventsLimit(3);
                   setRenderedCommunityLimit(6);
@@ -2368,12 +2385,6 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                     eventsFetchedRef.current = true;
                     setTimeout(() => {
                       loadPublicMemberEvents();
-                    }, 50);
-                  }
-                  if (tab === 'community' && !communityPostsFetchedRef.current) {
-                    communityPostsFetchedRef.current = true;
-                    setTimeout(() => {
-                      loadCommunityVoicePosts();
                     }, 50);
                   }
                 }}

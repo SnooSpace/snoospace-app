@@ -1271,6 +1271,7 @@ router.get(
 );
 router.post("/posts/:postId/like", authMiddleware, PostController.likePost);
 router.delete("/posts/:postId/like", authMiddleware, PostController.unlikePost);
+router.post("/posts/:postId/community-vote", authMiddleware, PostController.voteCommunityPost);
 router.put("/posts/:postId", authMiddleware, PostController.updatePost);
 router.delete("/posts/:postId", authMiddleware, PostController.deletePost);
 router.post("/posts/:postId/pin", authMiddleware, PostController.pinPost);

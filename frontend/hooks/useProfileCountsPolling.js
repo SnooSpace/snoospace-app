@@ -77,6 +77,9 @@ export function useProfileCountsPolling(options = {}) {
         creatorFollowers: typeof countsResponse?.creator_follower_count === 'number'
           ? countsResponse.creator_follower_count
           : parseInt(countsResponse?.creator_follower_count || 0, 10),
+        activeNow: typeof countsResponse?.active_now_count === 'number'
+          ? countsResponse.active_now_count
+          : parseInt(countsResponse?.active_now_count || 0, 10),
       };
 
       const prev = countsRef.current;

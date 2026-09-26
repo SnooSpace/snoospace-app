@@ -92,8 +92,6 @@ export const isPlanUnavailable = (id) => {
 };
 
 const SharedPlanCard = React.memo(({ metadata, onPress, style, isMyMessage = false }) => {
-  if (!metadata) return null;
-
   const {
     planId,
     title: metaTitle,
@@ -103,9 +101,9 @@ const SharedPlanCard = React.memo(({ metadata, onPress, style, isMyMessage = fal
     locationPublic: metaLocationPublic,
     hostName: metaHostName,
     hostPhoto: metaHostPhoto,
-  } = metadata;
+  } = metadata || {};
 
-  const targetId = planId || metadata.plan_id || metadata.id;
+  const targetId = planId || metadata?.plan_id || metadata?.id;
 
   const cached = targetId ? planCache.get(targetId) : null;
   const isUnavailableCached = !targetId || cached?.unavailable === true;
@@ -193,6 +191,8 @@ const SharedPlanCard = React.memo(({ metadata, onPress, style, isMyMessage = fal
   const handlePress = useCallback(() => {
     if (onPress && targetId) onPress(targetId);
   }, [onPress, targetId]);
+
+  if (!metadata) return null;
 
   // Loading state (Option A: compact 44px footprint while checking to prevent collapse drift)
   if (loading) {

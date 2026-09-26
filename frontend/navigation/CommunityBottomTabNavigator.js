@@ -135,6 +135,7 @@ const getTabBarStyle = (route, customHiddenRoutes = []) => {
     "CreateOpportunity",
     "CreateOpportunityScreen",
     "CommunityEventsList",
+    "CommunityFeed",
     "EventAttendees",
     "ShareTicket",
     "Settings",

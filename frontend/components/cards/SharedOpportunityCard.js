@@ -119,17 +119,15 @@ export const isOpportunityUnavailable = (id) => {
 const SharedOpportunityCard = React.memo(({ metadata, onPress, style, isMyMessage = false }) => {
   const navigation = useNavigation();
 
-  if (!metadata) return null;
-
   const {
     opportunityId,
     title: metaTitle,
     opportunityTypes: metaTypes,
     creatorName: metaCreatorName,
     creatorUsername: metaCreatorUsername,
-  } = metadata;
+  } = metadata || {};
 
-  const targetId = opportunityId || metadata.opportunity_id || metadata.id || metadata.opportunityId;
+  const targetId = opportunityId || metadata?.opportunity_id || metadata?.id || metadata?.opportunityId;
 
   const cached = targetId ? opportunityCache.get(targetId) : null;
   const isUnavailableCached = !targetId || cached?.unavailable === true;
@@ -279,6 +277,8 @@ const SharedOpportunityCard = React.memo(({ metadata, onPress, style, isMyMessag
   const handlePress = useCallback(() => {
     if (onPress && targetId) onPress(targetId, opp);
   }, [onPress, targetId, opp]);
+
+  if (!metadata) return null;
 
   // ── Unified render: all states share the same root element type ────────────
   // CRITICAL for scroll stability: having the deleted state return a <View>

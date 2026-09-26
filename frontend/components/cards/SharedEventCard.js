@@ -103,8 +103,6 @@ export const isEventUnavailable = (id) => {
  * Matches the layout and style of EventCard in a compact view.
  */
 const SharedEventCard = React.memo(({ metadata, onPress, style, isMyMessage = false }) => {
-  if (!metadata) return null;
-
   const {
     eventId,
     title: metaTitle,
@@ -115,9 +113,9 @@ const SharedEventCard = React.memo(({ metadata, onPress, style, isMyMessage = fa
     communityName: metaCommunityName,
     communityLogo: metaCommunityLogo,
     communityUsername: metaCommunityUsername,
-  } = metadata;
+  } = metadata || {};
 
-  const targetId = eventId || metadata.event_id || metadata.id;
+  const targetId = eventId || metadata?.event_id || metadata?.id;
 
   const cached = targetId ? eventCache.get(targetId) : null;
   const isUnavailableCached = !targetId || cached?.unavailable === true;
@@ -279,6 +277,8 @@ const SharedEventCard = React.memo(({ metadata, onPress, style, isMyMessage = fa
   const handlePress = useCallback(() => {
     if (onPress && targetId) onPress(targetId);
   }, [onPress, targetId]);
+
+  if (!metadata) return null;
 
   // ── Loading state (Option A: compact 44px footprint while checking to prevent collapse drift) ──
   if (loading) {

@@ -2285,6 +2285,23 @@ export default function CommunityProfileScreen({ navigation, route }) {
                 style={styles.tabItem}
                 onPress={() => {
                   HapticsService.triggerImpactLight();
+                  if (tab === "community") {
+                    navigation.navigate("CommunityFeed", {
+                      profile,
+                      communityId: profile?.id,
+                      targetType: "community",
+                      isOwnProfile: true,
+                      initialPosts: posts,
+                      initialVoicePosts: voicePosts,
+                      sourceRect: {
+                        x: (Dimensions.get("window").width - 120) / 2,
+                        y: 280,
+                        width: 120,
+                        height: 44,
+                      },
+                    });
+                    return;
+                  }
                   setRenderedPostsLimit(12);
                   setRenderedEventsLimit(3);
                   setRenderedCommunityLimit(6);
@@ -2293,16 +2310,6 @@ export default function CommunityProfileScreen({ navigation, route }) {
                   setTimeout(() => {
                     setRenderedTab(tab);
                   }, 50);
-                  // Lazy-load voice posts on first Community tab open
-                  if (
-                    tab === "community" &&
-                    !communityVoiceFetchedRef.current
-                  ) {
-                    communityVoiceFetchedRef.current = true;
-                    setTimeout(() => {
-                      loadCommunityVoicePosts();
-                    }, 50);
-                  }
                 }}
                 onLayout={(e) => handleTabLayout(tab, e)}
               >

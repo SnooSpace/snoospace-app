@@ -464,29 +464,33 @@ export default function PlanDetailScreen({ navigation, route }) {
       : { bg: '#E3F2FD', text: '#1565C0', label: 'Men only' };
 
   // Viewer age and plan age restrictions
-  const viewerAge = useMemo(() => {
-    if (!currentUser?.dob) return null;
+  let viewerAge = null;
+  if (currentUser?.dob) {
     const dob = new Date(currentUser.dob);
-    if (isNaN(dob.getTime())) return null;
-    const diffMs = Date.now() - dob.getTime();
-    return Math.floor(diffMs / (365.25 * 24 * 60 * 60 * 1000));
-  }, [currentUser?.dob]);
+    if (!isNaN(dob.getTime())) {
+      const diffMs = Date.now() - dob.getTime();
+      viewerAge = Math.floor(diffMs / (365.25 * 24 * 60 * 60 * 1000));
+    }
+  }
 
   const hasAgeRestriction = Boolean(plan.min_age != null || plan.max_age != null);
-  const ageLabel = useMemo(() => {
-    if (!hasAgeRestriction) return null;
-    if (plan.min_age && plan.max_age) return `${plan.min_age}–${plan.max_age} yrs`;
-    if (plan.min_age) return `${plan.min_age}+ yrs`;
-    return `Up to ${plan.max_age} yrs`;
-  }, [hasAgeRestriction, plan.min_age, plan.max_age]);
+  let ageLabel = null;
+  if (hasAgeRestriction) {
+    if (plan.min_age && plan.max_age) {
+      ageLabel = `${plan.min_age}–${plan.max_age} yrs`;
+    } else if (plan.min_age) {
+      ageLabel = `${plan.min_age}+ yrs`;
+    } else {
+      ageLabel = `Up to ${plan.max_age} yrs`;
+    }
+  }
 
-  const isAgeIneligible = useMemo(() => {
-    if (isOwner) return false;
-    if (!hasAgeRestriction || viewerAge == null) return false;
-    if (plan.min_age != null && viewerAge < plan.min_age) return true;
-    if (plan.max_age != null && viewerAge > plan.max_age) return true;
-    return false;
-  }, [isOwner, hasAgeRestriction, viewerAge, plan.min_age, plan.max_age]);
+  const isAgeIneligible =
+    !isOwner &&
+    hasAgeRestriction &&
+    viewerAge != null &&
+    ((plan.min_age != null && viewerAge < plan.min_age) ||
+      (plan.max_age != null && viewerAge > plan.max_age));
 
   let publicLoc = plan.location_public;
   if (publicLoc && publicLoc.toLowerCase() === 'current location') {

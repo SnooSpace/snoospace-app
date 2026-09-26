@@ -207,7 +207,14 @@ const getVoicePosts = async (req, res) => {
             WHERE ps.post_id = p.id AND ps.saver_id = $4 AND ps.saver_type = $5
           )
           ELSE false
-        END AS is_saved
+        END AS is_saved,
+        CASE
+          WHEN $4::int IS NOT NULL AND $5::text IS NOT NULL THEN COALESCE((
+            SELECT pv.vote_type FROM post_community_votes pv
+            WHERE pv.post_id = p.id AND pv.user_id = $4 AND pv.user_type = $5
+          ), 0)::int
+          ELSE 0
+        END AS viewer_vote
       FROM posts p
       LEFT JOIN members m ON p.author_type = 'member' AND p.author_id = m.id
       LEFT JOIN communities c ON p.author_type = 'community' AND p.author_id = c.id

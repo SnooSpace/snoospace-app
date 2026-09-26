@@ -33,3 +33,15 @@ export async function getPromoteQuota(sourceType = 'event') {
   const token = await getAuthToken();
   return apiGet(`/posts/promote-quota?source_type=${sourceType}`, 10000, token);
 }
+
+/**
+ * Vote (upvote/downvote/remove) on a community post.
+ * @param {number|string} postId
+ * @param {1|-1|0} voteType - 1 for upvote, -1 for downvote, 0 to cancel vote
+ */
+export async function voteCommunityPost(postId, voteType) {
+  if (!postId) throw new Error('postId is required');
+  const token = await getAuthToken();
+  return apiPost(`/posts/${postId}/community-vote`, { voteType }, 15000, token);
+}
+

@@ -24,13 +24,7 @@ export function SpotifyArtistsCard({ artists = [], tracks = [], targetUsername, 
   const hasArtists = Array.isArray(artists) && artists.length > 0;
   const hasTracks = Array.isArray(tracks) && tracks.length > 0;
 
-  if (!hasArtists && !hasTracks) return null;
-
   const [activeTab, setActiveTab] = useState(hasArtists ? 'artists' : 'tracks');
-
-  const topGenres = [...new Set(
-    artists.flatMap(a => (typeof a === 'object' && Array.isArray(a.genres) ? a.genres : []))
-  )].slice(0, 4);
 
   const handleArtistPress = useCallback((artistName, spotifyUrl) => {
     HapticsService.triggerImpactLight();
@@ -51,6 +45,12 @@ export function SpotifyArtistsCard({ artists = [], tracks = [], targetUsername, 
     const query = encodeURIComponent(`${trackName} ${artistName || ''}`);
     Linking.openURL(`https://open.spotify.com/search/${query}`).catch(() => {});
   }, []);
+
+  if (!hasArtists && !hasTracks) return null;
+
+  const topGenres = [...new Set(
+    artists.flatMap(a => (typeof a === 'object' && Array.isArray(a.genres) ? a.genres : []))
+  )].slice(0, 4);
 
   const handleTabChange = (tab) => {
     HapticsService.triggerSelection();
